@@ -10,6 +10,9 @@ namespace RenoDXChecker.Services;
 /// </summary>
 public class ModInstallService
 {
+    // Raised when an install completes (record has been saved).
+    public event Action<InstalledModRecord>? InstallCompleted;
+
     private static readonly string DbPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "RenoDXChecker", "installed.json");
@@ -32,17 +35,66 @@ public class ModInstallService
         string gameInstallPath,
         IProgress<(string message, double percent)>? progress = null)
     {
+        // Debug logging removed.
         if (mod.SnapshotUrl == null)
             throw new InvalidOperationException($"{mod.Name} has no Snapshot download URL.");
 
         var fileName = Path.GetFileName(mod.SnapshotUrl);
         var destPath = Path.Combine(gameInstallPath, fileName);
+        // Debug logging removed.
 
         progress?.Report(("Downloading...", 0));
 
-        // Download with progress
-        var response = await _http.GetAsync(mod.SnapshotUrl, HttpCompletionOption.ResponseHeadersRead);
-        response.EnsureSuccessStatusCode();
+        // Try downloading the provided URL, with fallbacks for known hosting variations
+        HttpResponseMessage? response = null;
+        var tried = new List<string>();
+        var candidates = new List<string> { mod.SnapshotUrl };
+        try
+        {
+            // Attempt to build sensible fallback URLs based on the filename and known hosts
+            try
+            {
+                var uri = new Uri(mod.SnapshotUrl);
+                var fn = Path.GetFileName(uri.LocalPath);
+
+                // If the filename matches the unity generic asset, try alternative hosts
+                if (fn.Equals("renodx-unityengine.addon64", StringComparison.OrdinalIgnoreCase)
+                    || fn.Equals("renodx-unityengine.addon32", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Known alternative hosts (user-provided reliable host + canonical gh-pages)
+                    candidates.Add($"https://notvoosh.github.io/renodx-unity/{fn}");
+                    candidates.Add($"https://clshortfuse.github.io/renodx/{fn}");
+                    // Also try the GitHub releases snapshot asset
+                    candidates.Add($"https://github.com/clshortfuse/renodx/releases/download/snapshot/{fn}");
+                }
+
+                // If orig host is a github.io pages site, also try the releases/download fallback
+                if (uri.Host.EndsWith("github.io", StringComparison.OrdinalIgnoreCase))
+                {
+                    var fn2 = Path.GetFileName(uri.LocalPath);
+                    if (!string.IsNullOrEmpty(fn2))
+                        candidates.Add($"https://github.com/clshortfuse/renodx/releases/download/snapshot/{fn2}");
+                }
+            }
+            catch { /* ignore URI parse issues */ }
+
+            foreach (var url in candidates.Where(u => !string.IsNullOrEmpty(u)).Distinct())
+            {
+                tried.Add(url);
+                try
+                {
+                    response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+                    if (response.IsSuccessStatusCode) break;
+                }
+                catch { /* try next candidate */ }
+            }
+        }
+        catch { /* fall through to error handling below */ }
+
+        if (response == null || !response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException($"Failed to download snapshot. Tried: {string.Join(", ", tried)}");
+        }
 
         var total = response.Content.Headers.ContentLength ?? -1L;
         var buffer = new byte[81920];
@@ -61,6 +113,7 @@ public class ModInstallService
         }
 
         file.Flush();
+        // Debug logging removed.
         var hash = await ComputeHashAsync(destPath);
 
         var record = new InstalledModRecord
@@ -72,8 +125,8 @@ public class ModInstallService
             InstalledAt = DateTime.UtcNow,
             SnapshotUrl = mod.SnapshotUrl,
         };
-
         SaveRecord(record);
+        try { InstallCompleted?.Invoke(record); } catch { }
         progress?.Report(("Installed!", 100));
         return record;
     }
@@ -107,7 +160,9 @@ public class ModInstallService
 
                 // Check Last-Modified
                 var lastMod = resp.Content.Headers.LastModified;
-                if (lastMod.HasValue && lastMod.Value.UtcDateTime > record.InstalledAt)
+                // Prefer previously recorded snapshot last-modified as the baseline, fall back to InstalledAt
+                var baseline = record.SnapshotLastModified ?? record.InstalledAt;
+                if (lastMod.HasValue && lastMod.Value.UtcDateTime > baseline.AddMinutes(1))
                     return true;
             }
         }

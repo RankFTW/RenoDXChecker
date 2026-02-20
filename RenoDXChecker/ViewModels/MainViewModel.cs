@@ -3,6 +3,11 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RenoDXChecker.Models;
 using RenoDXChecker.Services;
+using System.Globalization;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Text.Json;
+using Windows.Storage;
 
 namespace RenoDXChecker.ViewModels;
 
@@ -13,46 +18,31 @@ public partial class MainViewModel : ObservableObject
     private List<GameMod> _allMods = new();
     private Dictionary<string, string> _genericNotes = new(StringComparer.OrdinalIgnoreCase);
     private List<GameCardViewModel> _allCards = new();
+    private List<DetectedGame> _manualGames = new();
+    private HashSet<string> _hiddenGames = new(StringComparer.OrdinalIgnoreCase);
 
-    
-    
-    // Warnings shown for ALL Unreal Engine generic mod games (from wiki)
+    [ObservableProperty] private string _statusText = "Loading...";
+    [ObservableProperty] private string _subStatusText = "";
+    [ObservableProperty] private bool _isLoading = true;
+    [ObservableProperty] private string _searchQuery = "";
+    [ObservableProperty] private string _filterMode = "Detected";
+    [ObservableProperty] private bool _showHidden = false;
+    [ObservableProperty] private int _totalGames;
+    [ObservableProperty] private int _installedCount;
+    [ObservableProperty] private int _hiddenCount;
+    [ObservableProperty] private bool _notificationVisible;
+    [ObservableProperty] private string _notificationMessage = "";
+
+    public ObservableCollection<GameCardViewModel> DisplayedGames { get; } = new();
+
+    // UE common warnings shown at bottom of every generic UE info dialog
     private const string UnrealWarnings =
-        "⚠ UNREAL ENGINE MOD WARNINGS\n\n" +
+        "\n\n⚠ COMMON UNREAL ENGINE MOD WARNINGS\n\n" +
         "🖥 Black Screen on Launch\n" +
-        "Upgrade `R10G10B10A2_UNORM` → `output size`\n\n" +
-        "🔓 Unlock upgrade sliders by switching Settings Mode from Simple → Advanced.\n" +
-        "Then restart the game for the upgrade to take effect.\n\n" +
-        "🖥 DLSS FG not working properly (Flickering or other odd behaviour)\n" +
-        "Replace DLSSG DLL to the older 3.8.x version (locks to FG x2) or use DLSS FIX (beta) on the Discord.";
-
-    private static string BuildNotes(string gameName, GameMod effectiveMod, GameMod? fallback, Dictionary<string, string> genericNotes)
-    {
-        // For specific mods — use the wiki status tooltip note
-        if (fallback == null) return effectiveMod.Notes ?? "";
-
-        var parts = new List<string>();
-
-        if (effectiveMod.IsGenericUnreal)
-        {
-            parts.Add("This game uses the Generic Unreal Engine plugin.");
-            parts.Add("Install the .addon64 file next to the *-Win64-Shipping.exe (usually Binaries\\Win64).\n");
-            // Per-game specific note from wiki table
-            if (genericNotes.TryGetValue(gameName, out var specific) && !string.IsNullOrEmpty(specific))
-                parts.Add(specific + "\n");
-            parts.Add(UnrealWarnings);
-        }
-        else
-        {
-            parts.Add("This game uses the Generic Unity Engine plugin.");
-            parts.Add("Install ReShade next to UnityPlayer.dll (usually the game root folder).\n");
-            parts.Add("Two versions are available — install 64-bit unless your game is 32-bit.");
-            if (genericNotes.TryGetValue(gameName, out var specific) && !string.IsNullOrEmpty(specific))
-                parts.Add("\nGame-specific notes:\n" + specific);
-        }
-
-        return string.Join("\n", parts);
-    }
+        "Upgrade `R10G10B10A2_UNORM` → `output size`\n" +
+        "Unlock upgrade sliders: Settings Mode → Advanced, then restart game.\n\n" +
+        "🖥 DLSS FG Flickering\n" +
+        "Replace DLSSG DLL with older 3.8.x (locks FG x2) or use DLSS FIX (beta) from Discord.";
 
     public MainViewModel()
     {
@@ -60,27 +50,262 @@ public partial class MainViewModel : ObservableObject
         _http.DefaultRequestHeaders.Add("User-Agent", "RenoDXChecker/2.0");
         _http.Timeout = TimeSpan.FromSeconds(30);
         _installer = new ModInstallService(_http);
+        // Subscribe to installer events — on install we'll perform a full refresh
+        _installer.InstallCompleted += Installer_InstallCompleted;
+        LoadNameMappings();
+        LoadThemeAndDensity();
     }
 
-    [ObservableProperty] private string _statusText = "Loading...";
-    [ObservableProperty] private string _subStatusText = "";
-    [ObservableProperty] private bool _isLoading = true;
-    [ObservableProperty] private string _searchQuery = "";
-    [ObservableProperty] private string _filterMode = "Detected";
-    [ObservableProperty] private int _totalGames;
-    [ObservableProperty] private int _installedCount;
+    // --- persisted settings: name mappings, theme, density ---
+    private const string SettingsContainer = "RenoDXSettings";
+    private Dictionary<string, string> _nameMappings = new(StringComparer.OrdinalIgnoreCase);
+    private void LoadNameMappings()
+    {
+        try
+        {
+            var settings = ApplicationData.Current.LocalSettings;
+            var container = settings.CreateContainer(SettingsContainer, ApplicationDataCreateDisposition.Always);
+            if (container.Values.TryGetValue("NameMappings", out var json) && json is string s && !string.IsNullOrEmpty(s))
+            {
+                _nameMappings = JsonSerializer.Deserialize<Dictionary<string,string>>(s) ?? new(StringComparer.OrdinalIgnoreCase);
+            }
+        }
+        catch { _nameMappings = new(StringComparer.OrdinalIgnoreCase); }
+    }
 
-    public ObservableCollection<GameCardViewModel> DisplayedGames { get; } = new();
+    public void AddNameMapping(string detectedName, string wikiKey)
+    {
+        if (string.IsNullOrWhiteSpace(detectedName) || string.IsNullOrWhiteSpace(wikiKey)) return;
+        _nameMappings[detectedName] = wikiKey;
+        SaveNameMappings();
+    }
+
+    public void RemoveNameMapping(string detectedName)
+    {
+        if (string.IsNullOrWhiteSpace(detectedName)) return;
+        _nameMappings.Remove(detectedName);
+        SaveNameMappings();
+    }
+
+    private void SaveNameMappings()
+    {
+        try
+        {
+            var settings = ApplicationData.Current.LocalSettings;
+            var container = settings.CreateContainer(SettingsContainer, ApplicationDataCreateDisposition.Always);
+            container.Values["NameMappings"] = JsonSerializer.Serialize(_nameMappings);
+        }
+        catch { }
+    }
+
+    private void LoadThemeAndDensity()
+    {
+        try
+        {
+            var settings = ApplicationData.Current.LocalSettings;
+            var container = settings.CreateContainer(SettingsContainer, ApplicationDataCreateDisposition.Always);
+            if (container.Values.TryGetValue("Theme", out var t) && t is string theme)
+            {
+                // store in container for MainWindow to read via LocalSettings
+            }
+            if (container.Values.TryGetValue("CardDensity", out var d) && d is string density)
+            {
+                // persisted for MainWindow to apply
+            }
+        }
+        catch { }
+    }
+
+    // Normalize titles for tolerant lookup: remove punctuation, trademarks, parenthetical text, diacritics
+    private static string NormalizeForLookup(string s)
+    {
+        if (string.IsNullOrEmpty(s)) return "";
+        // Remove common trademark symbols
+        s = s.Replace("™", "").Replace("®", "");
+        // Remove parenthetical content
+        s = Regex.Replace(s, "\\([^)]*\\)", "");
+        s = Regex.Replace(s, "\\[[^]]*\\]", "");
+        // Normalize unicode and remove diacritics
+        var normalized = s.Normalize(NormalizationForm.FormD);
+        var sb = new StringBuilder();
+        foreach (var ch in normalized)
+        {
+            var uc = CharUnicodeInfo.GetUnicodeCategory(ch);
+            if (uc != UnicodeCategory.NonSpacingMark) sb.Append(ch);
+        }
+        var noDiacritics = sb.ToString().Normalize(NormalizationForm.FormC);
+        // Remove punctuation, keep letters/numbers and spaces
+        var cleaned = Regex.Replace(noDiacritics, "[^0-9A-Za-z ]+", " ");
+        // Collapse whitespace and trim
+        cleaned = Regex.Replace(cleaned, "\\s+", " ").Trim();
+        // Remove common edition suffixes
+        cleaned = Regex.Replace(cleaned, "\\b(enhanced edition|remastered|edition|ultimate|definitive)\\b", "", RegexOptions.IgnoreCase);
+        cleaned = Regex.Replace(cleaned, "\\s+", " ").Trim();
+        return cleaned.ToLowerInvariant();
+    }
+
+    private static string? GetGenericNote(string gameName, Dictionary<string, string> genericNotes)
+    {
+        if (string.IsNullOrEmpty(gameName) || genericNotes == null || genericNotes.Count == 0) return null;
+        // Check user mappings stored in LocalSettings (detectedName -> wiki key)
+        try
+        {
+            var settings = ApplicationData.Current.LocalSettings;
+            var container = settings.CreateContainer("RenoDXSettings", ApplicationDataCreateDisposition.Always);
+            if (container.Values.TryGetValue("NameMappings", out var json) && json is string s && !string.IsNullOrEmpty(s))
+            {
+                var map = JsonSerializer.Deserialize<Dictionary<string,string>>(s);
+                if (map != null)
+                {
+                    if (map.TryGetValue(gameName, out var mapped) && !string.IsNullOrEmpty(mapped))
+                    {
+                        if (genericNotes.TryGetValue(mapped, out var mv) && !string.IsNullOrEmpty(mv)) return mv;
+                    }
+                    var n = NormalizeForLookup(gameName);
+                    foreach (var kv in map)
+                    {
+                        if (NormalizeForLookup(kv.Key).Equals(n, StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (genericNotes.TryGetValue(kv.Value, out var mv2) && !string.IsNullOrEmpty(mv2)) return mv2;
+                        }
+                    }
+                }
+            }
+        }
+        catch { }
+        // direct
+        if (genericNotes.TryGetValue(gameName, out var v) && !string.IsNullOrEmpty(v)) return v;
+        // detection-normalized
+        try { var k = GameDetectionService.NormalizeName(gameName); if (!string.IsNullOrEmpty(k) && genericNotes.TryGetValue(k, out var v2) && !string.IsNullOrEmpty(v2)) return v2; } catch { }
+        // normalized-equality scan
+        var tgt = NormalizeForLookup(gameName);
+        foreach (var kv in genericNotes)
+        {
+            if (NormalizeForLookup(kv.Key).Equals(tgt, StringComparison.OrdinalIgnoreCase)) return kv.Value;
+        }
+        return null;
+    }
+
+    private void Installer_InstallCompleted(InstalledModRecord record)
+    {
+        DispatcherQueue?.TryEnqueue(() => { _ = InitializeAsync(forceRescan: true); });
+    }
+
+    // Debug logging removed; full rescan is the canonical refresh path.
+
+    // (Targeted refresh helpers removed) Full rescan (`RefreshAsync` / `InitializeAsync(forceRescan:true`) is the single source of truth.
+
+    // ── Commands ──────────────────────────────────────────────────────────────────
 
     [RelayCommand] public void SetFilter(string filter) { FilterMode = filter; ApplyFilter(); }
 
     [RelayCommand]
+    public async Task RefreshAsync()
+    {
+        // "Refresh" now performs a full rescan (previously called Full Rescan)
+        await InitializeAsync(forceRescan: true);
+    }
+
+    [RelayCommand]
+    public void ToggleShowHidden()
+    {
+        ShowHidden = !ShowHidden;
+        ApplyFilter();
+    }
+
+    [RelayCommand]
+    public void ToggleHideGame(GameCardViewModel? card)
+    {
+        if (card == null) return;
+        var key = card.GameName;
+        if (_hiddenGames.Contains(key))
+            _hiddenGames.Remove(key);
+        else
+            _hiddenGames.Add(key);
+
+        card.IsHidden = _hiddenGames.Contains(key);
+        SaveLibrary();
+        ApplyFilter();
+        UpdateCounts();
+    }
+
+    [RelayCommand]
+    public void RemoveManualGame(GameCardViewModel? card)
+    {
+        if (card == null) return;
+        if (!card.IsManuallyAdded)
+            return;
+
+        // Remove manual entries and the corresponding card
+        _manualGames.RemoveAll(g => g.Name.Equals(card.GameName, StringComparison.OrdinalIgnoreCase));
+        _allCards.RemoveAll(c => c.IsManuallyAdded && c.GameName.Equals(card.GameName, StringComparison.OrdinalIgnoreCase));
+        SaveLibrary();
+        ApplyFilter();
+        UpdateCounts();
+    }
+
+    [RelayCommand]
+    public void AddManualGame(DetectedGame game)
+    {
+        if (_manualGames.Any(g => g.Name.Equals(game.Name, StringComparison.OrdinalIgnoreCase))) return;
+        _manualGames.Add(game);
+
+        // Build card for this game immediately
+        var (installPath, engine) = GameDetectionService.DetectEngineAndPath(game.InstallPath);
+        var mod = GameDetectionService.MatchGame(game, _allMods);
+        var genericUnreal = MakeGenericUnreal();
+        var genericUnity  = MakeGenericUnity();
+        var fallback = mod == null ? (engine == EngineType.Unreal ? genericUnreal
+                                   : engine == EngineType.Unity  ? genericUnity : null) : null;
+        if (mod == null && fallback == null)
+        {
+            // No mod match — still add as unmatched card so user sees it
+            fallback = genericUnreal; // treat as potential UE
+        }
+
+        var records = _installer.LoadAll();
+        var record  = records.FirstOrDefault(r => r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase));
+        var effectiveMod = mod ?? fallback!;
+
+            var hasNameLink = !string.IsNullOrEmpty(effectiveMod.NameUrl);
+            var card = new GameCardViewModel
+        {
+            GameName       = game.Name,
+            Mod            = effectiveMod,
+            DetectedGame   = game,
+            InstallPath    = installPath.Length > 0 ? installPath : game.InstallPath,
+            Source         = "Manual",
+            InstalledRecord = record,
+            Status         = record != null ? GameStatus.Installed : GameStatus.Available,
+            WikiStatus     = effectiveMod.Status,
+            Maintainer     = effectiveMod.Maintainer,
+            IsGenericMod   = fallback != null && mod == null,
+            EngineHint     = engine == EngineType.Unreal ? "Unreal Engine"
+                           : engine == EngineType.Unity  ? "Unity" : "",
+            Notes          = BuildNotes(game.Name, effectiveMod, fallback == null ? null : fallback, _genericNotes),
+            InstalledAddonFileName = record?.AddonFileName,
+                IsExternalOnly = effectiveMod.SnapshotUrl == null && (effectiveMod.NexusUrl != null || effectiveMod.DiscordUrl != null || hasNameLink),
+                ExternalUrl    = effectiveMod.NexusUrl ?? effectiveMod.DiscordUrl ?? (hasNameLink ? effectiveMod.NameUrl : ""),
+                ExternalLabel  = effectiveMod.NexusUrl != null ? "Get on Nexus Mods" : effectiveMod.DiscordUrl != null ? "Get on Discord" : (hasNameLink ? "Open Instructions" : ""),
+            NexusUrl       = effectiveMod.NexusUrl,
+            DiscordUrl     = effectiveMod.DiscordUrl,
+            IsManuallyAdded = true,
+        };
+
+        _allCards.Add(card);
+        SaveLibrary();
+        ApplyFilter();
+        UpdateCounts();
+    }
+
+    [RelayCommand]
     public async Task InstallModAsync(GameCardViewModel? card)
     {
+        // Install invoked
         if (card?.Mod?.SnapshotUrl == null) return;
         if (string.IsNullOrEmpty(card.InstallPath))
         {
-            card.ActionMessage = "No install path set — use the folder button to pick the game folder.";
+            card.ActionMessage = "No install path — use 📁 to pick the game folder.";
             return;
         }
         card.IsInstalling = true;
@@ -93,11 +318,36 @@ public partial class MainViewModel : ObservableObject
                 card.InstallProgress = p.pct;
             });
             var record = await _installer.InstallAsync(card.Mod, card.InstallPath, progress);
-            card.InstalledRecord       = record;
-            card.InstalledAddonFileName = record.AddonFileName;
-            card.Status                = GameStatus.Installed;
-            card.ActionMessage         = "✅ Installed! Launch game and press Home to open ReShade.";
-            UpdateCounts();
+                // InstallAsync completed
+            // Capture Last-Modified of this snapshot
+            var lastMod = await WikiService.GetSnapshotLastModifiedAsync(_http, card.Mod.SnapshotUrl);
+            record.SnapshotLastModified = lastMod;
+            _installer.SaveRecordPublic(record);
+
+            // Update UI state on the UI thread
+            DispatcherQueue?.TryEnqueue(() =>
+            {
+                card.InstalledRecord        = record;
+                card.InstalledAddonFileName = record.AddonFileName;
+                card.Status                 = GameStatus.Installed;
+                card.ActionMessage          = "✅ Installed! Press Home in-game to open ReShade.";
+                // Ensure computed properties update
+                card.NotifyAll();
+                // Persist library state and refresh UI to reflect the new installation
+                SaveLibrary();
+                // Re-apply filter so DisplayedGames updates; resort _allCards to keep ordering
+                _allCards = _allCards.OrderBy(c => c.GameName, StringComparer.OrdinalIgnoreCase).ToList();
+                ApplyFilter();
+                UpdateCounts();
+            });
+            // After install, show a notification with Refresh action and also schedule a silent full rescan
+            DispatcherQueue?.TryEnqueue(() =>
+            {
+                NotificationMessage = $"Installed {card.GameName} — click Refresh to update UI";
+                NotificationVisible = true;
+            });
+            // Schedule full refresh in background
+            DispatcherQueue?.TryEnqueue(() => { _ = InitializeAsync(forceRescan: true); });
         }
         catch (Exception ex) { card.ActionMessage = $"❌ Failed: {ex.Message}"; }
         finally { card.IsInstalling = false; }
@@ -107,7 +357,6 @@ public partial class MainViewModel : ObservableObject
     public async Task InstallMod32Async(GameCardViewModel? card)
     {
         if (card?.Mod?.SnapshotUrl32 == null) return;
-        // Temporarily swap URL to the 32-bit one, install, then restore
         var orig = card.Mod.SnapshotUrl;
         card.Mod.SnapshotUrl = card.Mod.SnapshotUrl32;
         await InstallModAsync(card);
@@ -122,7 +371,7 @@ public partial class MainViewModel : ObservableObject
         card.InstalledRecord        = null;
         card.InstalledAddonFileName = null;
         card.Status                 = GameStatus.Available;
-        card.ActionMessage          = "Mod uninstalled.";
+        card.ActionMessage          = "Mod removed.";
         UpdateCounts();
     }
 
@@ -140,15 +389,18 @@ public partial class MainViewModel : ObservableObject
             List<DetectedGame> detectedGames;
             Dictionary<string, bool> addonCache;
 
+            _hiddenGames = savedLib?.HiddenGames ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            _manualGames = savedLib != null ? GameLibraryService.ToManualGames(savedLib) : new();
+
             if (savedLib != null && !forceRescan)
             {
                 StatusText    = $"Library loaded ({savedLib.Games.Count} games, scanned {FormatAge(savedLib.LastScanned)})";
                 SubStatusText = "Fetching latest mod info...";
                 detectedGames = GameLibraryService.ToDetectedGames(savedLib);
                 addonCache    = savedLib.AddonScanCache;
-                var wikiResult = await WikiService.FetchAllAsync(_http);
-                _allMods       = wikiResult.Mods;
-                _genericNotes  = wikiResult.GenericNotes;
+                var wr = await WikiService.FetchAllAsync(_http);
+                _allMods      = wr.Mods;
+                _genericNotes = wr.GenericNotes;
             }
             else
             {
@@ -157,21 +409,28 @@ public partial class MainViewModel : ObservableObject
                 var wikiTask   = WikiService.FetchAllAsync(_http);
                 var detectTask = Task.Run(DetectAllGamesDeduped);
                 await Task.WhenAll(wikiTask, detectTask);
-                _allMods       = wikiTask.Result.Mods;
-                _genericNotes  = wikiTask.Result.GenericNotes;
+                _allMods      = wikiTask.Result.Mods;
+                _genericNotes = wikiTask.Result.GenericNotes;
                 detectedGames = detectTask.Result;
                 addonCache    = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-                // Fresh scan — addon cache will be populated during BuildCards
             }
+
+            // Combine auto-detected + manual games (deduplicate by name)
+            var allGames = detectedGames
+                .Concat(_manualGames)
+                .GroupBy(g => GameDetectionService.NormalizeName(g.Name))
+                .Select(grp => grp.First())
+                .ToList();
 
             var records = _installer.LoadAll();
             SubStatusText = "Matching mods and checking install status...";
-            _allCards = await Task.Run(() => BuildCards(detectedGames, records, addonCache, _genericNotes));
-            _allCards = _allCards.OrderByDescending(c => (int)c.Status).ThenBy(c => c.GameName).ToList();
+            _allCards = await Task.Run(() => BuildCards(allGames, records, addonCache, _genericNotes));
 
-            // Save updated library + addon cache
-            GameLibraryService.Save(detectedGames, addonCache);
+            // Check for updates (async, parallel, non-blocking)
+            _ = Task.Run(() => CheckForUpdatesAsync(_allCards, records));
 
+            _allCards = _allCards.OrderBy(c => c.GameName, StringComparer.OrdinalIgnoreCase).ToList();
+            SaveLibrary();
             UpdateCounts();
             ApplyFilter();
 
@@ -181,6 +440,39 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex) { StatusText = "Error loading"; SubStatusText = ex.Message; }
         finally { IsLoading = false; }
     }
+
+    // ── Update checking ───────────────────────────────────────────────────────────
+
+    private async Task CheckForUpdatesAsync(List<GameCardViewModel> cards, List<InstalledModRecord> records)
+    {
+        var installed = cards.Where(c => c.Status == GameStatus.Installed && c.Mod?.SnapshotUrl != null).ToList();
+        var tasks = installed.Select(async card =>
+        {
+            var record = card.InstalledRecord;
+            if (record?.SnapshotUrl == null) return;
+            var remoteDate = await WikiService.GetSnapshotLastModifiedAsync(_http, record.SnapshotUrl);
+            if (remoteDate == null) return;
+            // Use previously recorded snapshot last-modified as baseline when available
+            var baseline = record.SnapshotLastModified ?? record.InstalledAt;
+            // Update available if remote is newer than the baseline (with small tolerance)
+            if (remoteDate.Value > baseline.AddMinutes(1))
+            {
+                // Update record's known remote date
+                record.SnapshotLastModified = remoteDate;
+                _installer.SaveRecordPublic(record);
+                // Notify on UI thread
+                DispatcherQueue?.TryEnqueue(() =>
+                {
+                    card.Status = GameStatus.UpdateAvailable;
+                });
+            }
+        });
+        await Task.WhenAll(tasks);
+    }
+
+    // Dispatcher reference for cross-thread UI updates
+    private Microsoft.UI.Dispatching.DispatcherQueue? DispatcherQueue { get; set; }
+    public void SetDispatcher(Microsoft.UI.Dispatching.DispatcherQueue dq) => DispatcherQueue = dq;
 
     // ── Detection ─────────────────────────────────────────────────────────────────
 
@@ -196,13 +488,24 @@ public partial class MainViewModel : ObservableObject
         Task.WhenAll(tasks).Wait();
         return tasks.SelectMany(t => t.Result)
             .GroupBy(g => GameDetectionService.NormalizeName(g.Name))
-            .Select(grp => grp
-                .GroupBy(g => g.InstallPath.TrimEnd('\\', '/').ToLowerInvariant())
-                .Select(pg => pg.First()).First())
+            .Select(grp => grp.GroupBy(g => g.InstallPath.TrimEnd('\\', '/').ToLowerInvariant())
+                              .Select(pg => pg.First()).First())
             .ToList();
     }
 
     // ── Card building ─────────────────────────────────────────────────────────────
+
+    private GameMod MakeGenericUnreal() => new()
+    {
+        Name = "Generic Unreal Engine", Maintainer = "ShortFuse",
+        SnapshotUrl = WikiService.GenericUnrealUrl, Status = "✅", IsGenericUnreal = true
+    };
+    private GameMod MakeGenericUnity() => new()
+    {
+        Name = "Generic Unity Engine", Maintainer = "ShortFuse",
+        SnapshotUrl = WikiService.GenericUnityUrl64, SnapshotUrl32 = WikiService.GenericUnityUrl32,
+        Status = "✅", IsGenericUnity = true
+    };
 
     private List<GameCardViewModel> BuildCards(
         List<DetectedGame> detectedGames,
@@ -211,22 +514,15 @@ public partial class MainViewModel : ObservableObject
         Dictionary<string, string> genericNotes)
     {
         var cards = new List<GameCardViewModel>();
-
-        var genericUnreal = new GameMod { Name = "Generic Unreal Engine", Maintainer = "ShortFuse",
-            SnapshotUrl = WikiService.GenericUnrealUrl, Status = "✅", IsGenericUnreal = true, Notes = null };
-        var genericUnity  = new GameMod { Name = "Generic Unity Engine",  Maintainer = "ShortFuse",
-            SnapshotUrl   = WikiService.GenericUnityUrl64,
-            SnapshotUrl32 = WikiService.GenericUnityUrl32,
-            Status = "✅", IsGenericUnity = true, Notes = null };
+        var genericUnreal = MakeGenericUnreal();
+        var genericUnity  = MakeGenericUnity();
 
         var gameInfos = detectedGames.AsParallel().Select(game =>
         {
             var (installPath, engine) = GameDetectionService.DetectEngineAndPath(game.InstallPath);
             var mod      = GameDetectionService.MatchGame(game, _allMods);
-            var fallback = mod == null
-                ? engine == EngineType.Unreal ? genericUnreal
-                : engine == EngineType.Unity  ? genericUnity : null
-                : null;
+            var fallback = mod == null ? (engine == EngineType.Unreal ? genericUnreal
+                                        : engine == EngineType.Unity  ? genericUnity : null) : null;
             return (game, installPath, engine, mod, fallback);
         }).ToList();
 
@@ -238,18 +534,15 @@ public partial class MainViewModel : ObservableObject
             var record = records.FirstOrDefault(r =>
                 r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase));
 
-            // Addon disk scan — use cache to avoid rescanning every launch
+            // Disk scan with cache
             string? addonOnDisk = null;
             var cacheKey = installPath.ToLowerInvariant();
-            if (addonCache.ContainsKey(cacheKey))
+            if (addonCache.TryGetValue(cacheKey, out var cached))
             {
-                // Use cached result — only re-scan if cache says installed (verify file still there)
-                if (addonCache[cacheKey])
-                    addonOnDisk = ScanForInstalledAddon(installPath, effectiveMod);
+                if (cached) addonOnDisk = ScanForInstalledAddon(installPath, effectiveMod);
             }
             else
             {
-                // Not in cache yet — scan and cache result
                 addonOnDisk = ScanForInstalledAddon(installPath, effectiveMod);
                 addonCache[cacheKey] = addonOnDisk != null;
             }
@@ -258,38 +551,81 @@ public partial class MainViewModel : ObservableObject
             {
                 record = new InstalledModRecord
                 {
-                    GameName      = game.Name,
-                    InstallPath   = installPath,
-                    AddonFileName = addonOnDisk,
-                    InstalledAt   = File.GetLastWriteTimeUtc(Path.Combine(installPath, addonOnDisk)),
-                    SnapshotUrl   = effectiveMod.SnapshotUrl,
+                    GameName = game.Name, InstallPath = installPath, AddonFileName = addonOnDisk,
+                    InstalledAt = File.GetLastWriteTimeUtc(Path.Combine(installPath, addonOnDisk)),
+                    SnapshotUrl = effectiveMod.SnapshotUrl,
                 };
                 _installer.SaveRecordPublic(record);
             }
 
             cards.Add(new GameCardViewModel
             {
-                GameName              = game.Name,
-                Mod                   = effectiveMod,
-                DetectedGame          = game,
-                InstallPath           = installPath,
-                Source                = game.Source,
-                InstalledRecord       = record,
-                Status                = record != null ? GameStatus.Installed : GameStatus.Available,
-                WikiStatus            = effectiveMod.Status,
-                Maintainer            = effectiveMod.Maintainer,
-                IsGenericMod          = fallback != null && mod == null,
-                EngineHint            = engine == EngineType.Unreal ? "Unreal Engine"
-                                      : engine == EngineType.Unity  ? "Unity" : "",
-                Notes                 = BuildNotes(game.Name, effectiveMod, fallback, genericNotes),
+                GameName               = game.Name,
+                Mod                    = effectiveMod,
+                DetectedGame           = game,
+                InstallPath            = installPath,
+                Source                 = game.Source,
+                InstalledRecord        = record,
+                Status                 = record != null ? GameStatus.Installed : GameStatus.Available,
+                WikiStatus             = effectiveMod.Status,
+                Maintainer             = effectiveMod.Maintainer,
+                IsGenericMod           = fallback != null && mod == null,
+                EngineHint             = engine == EngineType.Unreal ? "Unreal Engine"
+                                       : engine == EngineType.Unity  ? "Unity" : "",
+                Notes                  = BuildNotes(game.Name, effectiveMod, fallback, genericNotes),
                 InstalledAddonFileName = record?.AddonFileName,
-                IsExternalOnly        = effectiveMod.SnapshotUrl == null &&
-                                        (effectiveMod.NexusUrl != null || effectiveMod.DiscordUrl != null),
-                ExternalUrl           = effectiveMod.NexusUrl ?? effectiveMod.DiscordUrl ?? "",
-                ExternalLabel         = effectiveMod.NexusUrl != null ? "Get on Nexus Mods" : "Get on Discord",
+                IsHidden               = _hiddenGames.Contains(game.Name),
+                IsManuallyAdded        = game.IsManuallyAdded,
+                // IsExternalOnly = true only when there is NO snapshot URL AND there IS a Nexus/Discord link.
+                // NameUrl (discussion link in game name) is shown as a separate button and must NOT
+                // block the install button — so it does not affect IsExternalOnly.
+                IsExternalOnly         = effectiveMod.SnapshotUrl == null &&
+                                         (effectiveMod.NexusUrl != null || effectiveMod.DiscordUrl != null),
+                ExternalUrl            = effectiveMod.NexusUrl ?? effectiveMod.DiscordUrl ?? "",
+                ExternalLabel          = effectiveMod.NexusUrl != null ? "Get on Nexus Mods" : "Get on Discord",
+                NexusUrl               = effectiveMod.NexusUrl,
+                DiscordUrl             = effectiveMod.DiscordUrl,
+                NameUrl                = effectiveMod.NameUrl,
             });
         }
         return cards;
+    }
+
+    private static string BuildNotes(string gameName, GameMod effectiveMod, GameMod? fallback, Dictionary<string, string> genericNotes)
+    {
+        // Specific mod — wiki tooltip note (may be null/empty if no tooltip)
+        if (fallback == null) return effectiveMod.Notes ?? "";
+
+        var parts = new List<string>();
+
+        if (effectiveMod.IsGenericUnreal)
+        {
+            parts.Add("This game uses the Generic Unreal Engine plugin.");
+            parts.Add("📁 Install the .addon64 file next to the *-Win64-Shipping.exe");
+            parts.Add("   (usually GameName\\Binaries\\Win64, NOT in the Engine folder)\n");
+
+            var specific = GetGenericNote(gameName, genericNotes);
+            if (!string.IsNullOrEmpty(specific))
+            {
+                parts.Add("📋 Game-specific settings:");
+                parts.Add(specific);
+            }
+            parts.Add(UnrealWarnings);
+        }
+        else // Unity
+        {
+            parts.Add("This game uses the Generic Unity Engine plugin.");
+            parts.Add("📁 Install ReShade next to UnityPlayer.dll (usually the game root folder).");
+            parts.Add("   Two versions available — use 64-bit unless your game is 32-bit.\n");
+            var specific = GetGenericNote(gameName, genericNotes);
+            if (!string.IsNullOrEmpty(specific))
+            {
+                parts.Add("📋 Game-specific settings:");
+                parts.Add(specific);
+            }
+        }
+
+        return string.Join("\n", parts);
     }
 
     private static string? ScanForInstalledAddon(string installPath, GameMod mod)
@@ -299,12 +635,43 @@ public partial class MainViewModel : ObservableObject
         {
             if (mod.AddonFileName != null && File.Exists(Path.Combine(installPath, mod.AddonFileName)))
                 return mod.AddonFileName;
+            // First try direct files in the folder
             foreach (var ext in new[] { "*.addon64", "*.addon32" })
             {
                 var found = Directory.GetFiles(installPath, ext)
                     .FirstOrDefault(f => Path.GetFileName(f).StartsWith("renodx", StringComparison.OrdinalIgnoreCase));
                 if (found != null) return Path.GetFileName(found);
             }
+
+            // Search common subdirectories (Binaries/Win64, Binaries/Win32) and fallback to a limited recursive search
+            var commonPaths = new[] { "Binaries\\Win64", "Binaries\\Win32", "Binaries\\x86", "x64", "x86" };
+            foreach (var sub in commonPaths)
+            {
+                try
+                {
+                    var sp = Path.Combine(installPath, sub);
+                    if (!Directory.Exists(sp)) continue;
+                    foreach (var ext in new[] { "*.addon64", "*.addon32" })
+                    {
+                        var found = Directory.GetFiles(sp, ext)
+                            .FirstOrDefault(f => Path.GetFileName(f).StartsWith("renodx", StringComparison.OrdinalIgnoreCase));
+                        if (found != null) return Path.GetFileName(found);
+                    }
+                }
+                catch { }
+            }
+
+            // Last resort: limited recursive search (catch and ignore access issues)
+            try
+            {
+                foreach (var ext in new[] { "*.addon64", "*.addon32" })
+                {
+                    var found = Directory.EnumerateFiles(installPath, ext, SearchOption.AllDirectories)
+                        .FirstOrDefault(f => Path.GetFileName(f).StartsWith("renodx", StringComparison.OrdinalIgnoreCase));
+                    if (found != null) return Path.GetFileName(found);
+                }
+            }
+            catch { /* ignore permission errors */ }
         }
         catch { }
         return null;
@@ -315,15 +682,53 @@ public partial class MainViewModel : ObservableObject
         var query = SearchQuery.Trim().ToLowerInvariant();
         var filtered = _allCards.Where(c =>
         {
+            // Search match first
             var matchSearch = string.IsNullOrEmpty(query)
                 || c.GameName.ToLowerInvariant().Contains(query)
                 || c.Maintainer.ToLowerInvariant().Contains(query);
-            var matchFilter = FilterMode switch
+            if (!matchSearch) return false;
+
+            // Hidden tab always shows hidden games regardless of the ShowHidden toggle
+            if (FilterMode == "Hidden") return c.IsHidden;
+
+            // Engine filters
+            if (FilterMode == "Unity")
             {
-                "Installed" => c.Status == GameStatus.Installed,
-                _           => true
-            };
-            return matchSearch && matchFilter;
+                // match cards detected as Unity (EngineHint) or generic Unity mod
+                var isUnity = (!string.IsNullOrEmpty(c.EngineHint) && c.EngineHint.IndexOf("Unity", StringComparison.OrdinalIgnoreCase) >= 0)
+                              || (c.Mod?.IsGenericUnity == true);
+                if (!isUnity) return false;
+                // hide hidden games on non-hidden tabs
+                return !c.IsHidden;
+            }
+            if (FilterMode == "Unreal")
+            {
+                var isUnreal = (!string.IsNullOrEmpty(c.EngineHint) && c.EngineHint.IndexOf("Unreal", StringComparison.OrdinalIgnoreCase) >= 0)
+                              || (c.Mod?.IsGenericUnreal == true);
+                if (!isUnreal) return false;
+                return !c.IsHidden;
+            }
+            if (FilterMode == "Other")
+            {
+                var isUnity = (!string.IsNullOrEmpty(c.EngineHint) && c.EngineHint.IndexOf("Unity", StringComparison.OrdinalIgnoreCase) >= 0)
+                              || (c.Mod?.IsGenericUnity == true);
+                var isUnreal = (!string.IsNullOrEmpty(c.EngineHint) && c.EngineHint.IndexOf("Unreal", StringComparison.OrdinalIgnoreCase) >= 0)
+                              || (c.Mod?.IsGenericUnreal == true);
+                if (isUnity || isUnreal) return false;
+                return !c.IsHidden;
+            }
+
+            // For Installed tab, the ShowHidden toggle controls whether hidden installed games are included
+            if (FilterMode == "Installed")
+            {
+                var isInstalled = c.Status == GameStatus.Installed || c.Status == GameStatus.UpdateAvailable;
+                if (!isInstalled) return false;
+                return ShowHidden || !c.IsHidden;
+            }
+
+            // Default: hide hidden games (they belong in Hidden tab)
+            if (c.IsHidden) return false;
+            return true;
         }).ToList();
 
         DisplayedGames.Clear();
@@ -333,20 +738,36 @@ public partial class MainViewModel : ObservableObject
 
     private void UpdateCounts()
     {
-        InstalledCount = _allCards.Count(c => c.Status == GameStatus.Installed);
+        InstalledCount = _allCards.Count(c => c.Status == GameStatus.Installed || c.Status == GameStatus.UpdateAvailable);
+        HiddenCount    = _allCards.Count(c => c.IsHidden);
         TotalGames     = DisplayedGames.Count;
         OnPropertyChanged(nameof(InstalledCount));
         OnPropertyChanged(nameof(TotalGames));
+        OnPropertyChanged(nameof(HiddenCount));
+    }
+
+    private void SaveLibrary()
+    {
+        var detectedGames = _allCards
+            .Where(c => !c.IsManuallyAdded && c.DetectedGame != null)
+            .Select(c => c.DetectedGame!).ToList();
+        var addonCache = _allCards
+            .Where(c => !string.IsNullOrEmpty(c.InstallPath))
+            .ToDictionary(c => c.InstallPath.ToLowerInvariant(),
+                          c => !string.IsNullOrEmpty(c.InstalledAddonFileName),
+                          StringComparer.OrdinalIgnoreCase);
+        GameLibraryService.Save(detectedGames, addonCache, _hiddenGames, _manualGames);
     }
 
     private static string FormatAge(DateTime utc)
     {
         var age = DateTime.UtcNow - utc;
         if (age.TotalMinutes < 1) return "just now";
-        if (age.TotalHours  < 1) return $"{(int)age.TotalMinutes}m ago";
-        if (age.TotalDays   < 1) return $"{(int)age.TotalHours}h ago";
+        if (age.TotalHours   < 1) return $"{(int)age.TotalMinutes}m ago";
+        if (age.TotalDays    < 1) return $"{(int)age.TotalHours}h ago";
         return $"{(int)age.TotalDays}d ago";
     }
 
-    partial void OnSearchQueryChanged(string v) => ApplyFilter();
+    partial void OnSearchQueryChanged(string v)  => ApplyFilter();
+    partial void OnShowHiddenChanged(bool v)     => ApplyFilter();
 }

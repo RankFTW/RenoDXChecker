@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "dgSpecHash": "kcnnyTxEUwM=",
+  "success": true,
+  "projectFilePath": "D:\\RenoDXChecker (v18) - Copy\\RenoDXChecker\\RenoDXChecker.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Mark\\.nuget\\packages\\communitytoolkit.mvvm\\8.2.2\\communitytoolkit.mvvm.8.2.2.nupkg.sha512",
+    "C:\\Users\\Mark\\.nuget\\packages\\htmlagilitypack\\1.11.61\\htmlagilitypack.1.11.61.nupkg.sha512",
+    "C:\\Users\\Mark\\.nuget\\packages\\microsoft.netcore.platforms\\5.0.0\\microsoft.netcore.platforms.5.0.0.nupkg.sha512",
+    "C:\\Users\\Mark\\.nuget\\packages\\microsoft.win32.registry\\5.0.0\\microsoft.win32.registry.5.0.0.nupkg.sha512",
+    "C:\\Users\\Mark\\.nuget\\packages\\microsoft.windows.sdk.buildtools\\10.0.22621.756\\microsoft.windows.sdk.buildtools.10.0.22621.756.nupkg.sha512",
+    "C:\\Users\\Mark\\.nuget\\packages\\microsoft.windowsappsdk\\1.5.240627000\\microsoft.windowsappsdk.1.5.240627000.nupkg.sha512",
+    "C:\\Users\\Mark\\.nuget\\packages\\system.security.accesscontrol\\5.0.0\\system.security.accesscontrol.5.0.0.nupkg.sha512",
+    "C:\\Users\\Mark\\.nuget\\packages\\system.security.principal.windows\\5.0.0\\system.security.principal.windows.5.0.0.nupkg.sha512",
+    "C:\\Users\\Mark\\.nuget\\packages\\microsoft.netcore.app.runtime.win-x86\\8.0.24\\microsoft.netcore.app.runtime.win-x86.8.0.24.nupkg.sha512",
+    "C:\\Users\\Mark\\.nuget\\packages\\microsoft.windows.sdk.net.ref\\10.0.19041.57\\microsoft.windows.sdk.net.ref.10.0.19041.57.nupkg.sha512",
+    "C:\\Users\\Mark\\.nuget\\packages\\microsoft.aspnetcore.app.runtime.win-x86\\8.0.24\\microsoft.aspnetcore.app.runtime.win-x86.8.0.24.nupkg.sha512",
+    "C:\\Users\\Mark\\.nuget\\packages\\microsoft.netcore.app.runtime.win-arm64\\8.0.24\\microsoft.netcore.app.runtime.win-arm64.8.0.24.nupkg.sha512",
+    "C:\\Users\\Mark\\.nuget\\packages\\microsoft.aspnetcore.app.runtime.win-x64\\8.0.24\\microsoft.aspnetcore.app.runtime.win-x64.8.0.24.nupkg.sha512",
+    "C:\\Users\\Mark\\.nuget\\packages\\microsoft.windowsdesktop.app.runtime.win-arm64\\8.0.24\\microsoft.windowsdesktop.app.runtime.win-arm64.8.0.24.nupkg.sha512",
+    "C:\\Users\\Mark\\.nuget\\packages\\microsoft.windowsdesktop.app.runtime.win-x64\\8.0.24\\microsoft.windowsdesktop.app.runtime.win-x64.8.0.24.nupkg.sha512",
+    "C:\\Users\\Mark\\.nuget\\packages\\microsoft.aspnetcore.app.runtime.win-arm64\\8.0.24\\microsoft.aspnetcore.app.runtime.win-arm64.8.0.24.nupkg.sha512",
+    "C:\\Users\\Mark\\.nuget\\packages\\microsoft.netcore.app.runtime.win-x64\\8.0.24\\microsoft.netcore.app.runtime.win-x64.8.0.24.nupkg.sha512",
+    "C:\\Users\\Mark\\.nuget\\packages\\microsoft.windowsdesktop.app.runtime.win-x86\\8.0.24\\microsoft.windowsdesktop.app.runtime.win-x86.8.0.24.nupkg.sha512"
+  ],
+  "logs": []
+}

@@ -6,328 +6,340 @@
     xmlns:vm="using:RenoDXChecker.ViewModels"
     Title="RenoDX Mod Manager">
 
-    <Grid x:Name="RootGrid">
-        <Grid.Background>
-            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                <GradientStop Color="#0A0A14" Offset="0"/>
-                <GradientStop Color="#0F0F1F" Offset="1"/>
-            </LinearGradientBrush>
-        </Grid.Background>
+    <!-- Palette: #10141F bg, #1A2035 card, #6B7FCB accent, #4E9B6F green, #C07A50 amber -->
+
+    <Grid Background="#10141F">
+        <Grid.Resources>
+            <x:Double x:Key="CardItemWidth">390</x:Double>
+        </Grid.Resources>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>  <!-- header -->
+            <RowDefinition Height="Auto"/>  <!-- filter bar -->
+            <RowDefinition Height="*"/>     <!-- cards area -->
+            <RowDefinition Height="Auto"/>  <!-- status bar -->
         </Grid.RowDefinitions>
 
-        <!-- HEADER -->
-        <Border Grid.Row="0" Padding="20,12" Background="#0D0D1C"
-                BorderBrush="#1E1E3A" BorderThickness="0,0,0,1">
+        <!-- ══ HEADER ══════════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="0" Padding="20,14" Background="#0C1020"
+                BorderBrush="#222A45" BorderThickness="0,0,0,1">
             <Grid>
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
-                    <Border Width="36" Height="36" CornerRadius="9" Background="#FF6B35">
-                        <TextBlock Text="R" FontSize="19" FontWeight="Bold" Foreground="White"
+
+                <!-- Logo + title -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <Border Width="36" Height="36" CornerRadius="10" Background="#2A3A6A">
+                        <TextBlock Text="R" FontSize="19" FontWeight="Bold" Foreground="#8BA4E8"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock FontSize="17" FontWeight="Bold">
-                            <Run Text="RenoDX" Foreground="#FF6B35"/>
-                            <Run Text=" Mod Manager" Foreground="#E0E0F0"/>
+                        <TextBlock FontSize="16" FontWeight="SemiBold">
+                            <Run Text="RenoDX" Foreground="#8BA4E8"/>
+                            <Run Text=" Mod Manager" Foreground="#C8D0E8"/>
                         </TextBlock>
-                        <TextBlock Text="HDR mod detection &amp; management"
-                                   FontSize="11" Foreground="#5A5A7A"/>
+                        <TextBlock Text="HDR mod installer for PC games" FontSize="11" Foreground="#404870"/>
                     </StackPanel>
+
+            <!-- Notification bar (toast-like) -->
+            <Border x:Name="NotificationBar" Grid.Row="2" Visibility="Collapsed" Background="#102136" CornerRadius="6" Padding="10" Margin="16,4,16,0" HorizontalAlignment="Stretch">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="NotificationText" Foreground="#DCEAFB" FontSize="13" VerticalAlignment="Center" Text="" />
+                    <Button Grid.Column="1" Content="Refresh" Margin="8,0,0,0" VerticalAlignment="Center" Click="RefreshButton_Click" Background="#123A6B" Foreground="White" Padding="8,4"/>
+                    <Button Grid.Column="2" Content="✕" Margin="8,0,0,0" VerticalAlignment="Center" Click="CloseNotification_Click" Background="Transparent" Foreground="#8FAECF" BorderThickness="0"/>
+                </Grid>
+            </Border>
+
+            <!-- Notification bar placeholder removed from header -->
                 </StackPanel>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <Border Background="#1A2A1A" CornerRadius="20" Padding="12,4">
-                        <TextBlock x:Name="InstalledCountText" Foreground="#A6E3A1"
-                                   FontSize="12" Text="0 installed"/>
-                    </Border>
-                    <Button x:Name="RescanBtn" Click="RescanButton_Click"
-                            CornerRadius="9" Padding="11,6"
-                            Background="#1A1A2E" Foreground="#7A7A9A"
-                            BorderBrush="#2A2A45" BorderThickness="1"
-                            ToolTipService.ToolTip="Re-scan all game stores for new games">
-                        <StackPanel Orientation="Horizontal" Spacing="5">
-                            <TextBlock Text="⟳" FontSize="13"/>
-                            <TextBlock Text="Rescan" FontSize="12"/>
-                        </StackPanel>
-                    </Button>
-                    <Button x:Name="RefreshBtn" Click="RefreshButton_Click"
-                            CornerRadius="9" Padding="11,6"
-                            Background="#1E1E3A" Foreground="#CDD6F4"
-                            BorderBrush="#2E2E4A" BorderThickness="1"
-                            ToolTipService.ToolTip="Reload wiki mod list using saved game library">
-                        <StackPanel Orientation="Horizontal" Spacing="5">
-                            <TextBlock Text="↻" FontSize="13"/>
-                            <TextBlock Text="Refresh" FontSize="12"/>
-                        </StackPanel>
-                    </Button>
-                    <Button x:Name="AboutBtn" Click="AboutButton_Click"
-                            CornerRadius="9" Padding="11,6"
-                            Background="#1A1A2E" Foreground="#89B4FA"
-                            BorderBrush="#2A2A45" BorderThickness="1">
-                        <TextBlock Text="ℹ  About" FontSize="12"/>
-                    </Button>
+
+                <!-- Search -->
+                <TextBox Grid.Column="1"
+                         x:Name="SearchBox"
+                         PlaceholderText="🔍  Search games..."
+                         TextChanged="SearchBox_TextChanged"
+                         Background="#141828" Foreground="#B0BAD8"
+                         BorderBrush="#252E50" BorderThickness="1"
+                         CornerRadius="8" Padding="12,8"
+                         FontSize="13"
+                         MaxWidth="380" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                <!-- Action buttons -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Button x:Name="AddGameBtn" Content="➕ Add Game"
+                            Click="AddGameButton_Click"
+                            Background="#1A2840" Foreground="#7AACDA"
+                            BorderBrush="#2A4060" BorderThickness="1"
+                            CornerRadius="8" Padding="12,7" FontSize="12"/>
+                    <!-- Single Refresh button (permanent full rescan) -->
+                    <Button x:Name="RefreshBtn" Content="↻ Refresh"
+                            Click="RefreshButton_Click"
+                            Background="#161E38" Foreground="#8896C0"
+                            BorderBrush="#222A45" BorderThickness="1"
+                            CornerRadius="8" Padding="12,7" FontSize="12"/>
+                    <Button x:Name="AboutBtn" Content="?"
+                            Click="AboutButton_Click"
+                            Background="#161E38" Foreground="#6070A0"
+                            BorderBrush="#222A45" BorderThickness="1"
+                            CornerRadius="8" Width="34" FontSize="14"/>
+                    <Button x:Name="TuneBtn" Content="Tune" Click="TuneButton_Click" Background="#161E38" Foreground="#8896C0" BorderBrush="#222A45" BorderThickness="1" CornerRadius="8" Padding="10,6" FontSize="12"/>
                 </StackPanel>
             </Grid>
         </Border>
 
-        <!-- FILTER BAR -->
-        <Border Grid.Row="1" Padding="20,10" Background="#0B0B18"
-                BorderBrush="#1A1A30" BorderThickness="0,0,0,1">
+        <!-- ══ FILTER BAR ══════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="1" Padding="20,8" Background="#0E1226"
+                BorderBrush="#1C2440" BorderThickness="0,0,0,1">
             <Grid>
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
-                    <Button x:Name="FilterDetected"
-                            Content="🎮 Installed Games"
-                            Click="Filter_Click" Tag="Detected"
-                            CornerRadius="8" Padding="14,7" FontSize="13"
-                            Background="#FF6B35" Foreground="White" BorderThickness="0"/>
-                    <Button x:Name="FilterInstalled"
-                            Content="✓ Installed Mods"
-                            Click="Filter_Click" Tag="Installed"
-                            CornerRadius="8" Padding="14,7" FontSize="13"
-                            Background="#1E1E3A" Foreground="#BAC2DE" BorderThickness="0"/>
+                    <Button x:Name="FilterDetected" Content="🎮 All Games" Tag="Detected"
+                            Click="Filter_Click"
+                            Background="#1E2850" Foreground="White"
+                            BorderThickness="0" CornerRadius="7" Padding="12,6" FontSize="12"/>
+                    <Button x:Name="FilterInstalled" Content="✓ Installed" Tag="Installed"
+                            Click="Filter_Click"
+                            Background="#161E38" Foreground="#8896C0"
+                            BorderThickness="0" CornerRadius="7" Padding="12,6" FontSize="12"/>
+                    <Button x:Name="FilterHidden" Content="🙈 Hidden" Tag="Hidden"
+                            Click="Filter_Click"
+                            Background="#161E38" Foreground="#8896C0"
+                            BorderThickness="0" CornerRadius="7" Padding="12,6" FontSize="12"/>
+                    <Button x:Name="FilterUnity" Content="Unity" Tag="Unity"
+                            Click="Filter_Click"
+                            Background="#161E38" Foreground="#8896C0"
+                            BorderThickness="0" CornerRadius="7" Padding="12,6" FontSize="12"/>
+                    <Button x:Name="FilterUnreal" Content="Unreal" Tag="Unreal"
+                            Click="Filter_Click"
+                            Background="#161E38" Foreground="#8896C0"
+                            BorderThickness="0" CornerRadius="7" Padding="12,6" FontSize="12"/>
+                    <Button x:Name="FilterOther" Content="Other" Tag="Other"
+                            Click="Filter_Click"
+                            Background="#161E38" Foreground="#8896C0"
+                            BorderThickness="0" CornerRadius="7" Padding="12,6" FontSize="12"/>
                 </StackPanel>
-                <TextBox Grid.Column="1" x:Name="SearchBox"
-                         PlaceholderText="🔍  Search games..."
-                         TextChanged="SearchBox_TextChanged"
-                         Width="240" CornerRadius="10"
-                         Background="#151528" Foreground="#CDD6F4"
-                         BorderBrush="#2A2A45"/>
+                <!-- Spacer -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <Ellipse x:Name="StatusDot" Width="8" Height="8" Fill="#80A890"/>
+                    <TextBlock x:Name="GameCountText" Text="0 shown"
+                               FontSize="11" Foreground="#404870" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="InstalledCountText" Text="0 installed"
+                               FontSize="11" Foreground="#4E7860" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="HiddenCountText" Text=""
+                               FontSize="11" Foreground="#604868" VerticalAlignment="Center"/>
+                    <!-- ShowHidden toggle removed; hidden games are shown via the Hidden tab -->
+                </StackPanel>
             </Grid>
         </Border>
 
-        <!-- CONTENT -->
+        <!-- ══ MAIN AREA ══════════════════════════════════════════════════════════ -->
         <Grid Grid.Row="2">
 
-            <!-- Loading -->
-            <StackPanel x:Name="LoadingPanel"
-                        HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="16">
-                <ProgressRing x:Name="LoadingRing" IsActive="True"
-                              Width="52" Height="52" Foreground="#FF6B35"/>
-                <TextBlock x:Name="LoadingTitle" Text="Loading..."
-                           FontSize="16" FontWeight="SemiBold" Foreground="#CDD6F4"
-                           HorizontalAlignment="Center"/>
-                <TextBlock x:Name="LoadingSubtitle" Text=""
-                           FontSize="12" Foreground="#6C7086"
-                           HorizontalAlignment="Center" MaxWidth="400"
-                           TextWrapping="Wrap" TextAlignment="Center"/>
+            <!-- Loading overlay -->
+            <StackPanel x:Name="LoadingPanel" VerticalAlignment="Center" HorizontalAlignment="Center"
+                        Spacing="16" Visibility="Visible">
+                <ProgressRing x:Name="LoadingRing" IsActive="True" Width="48" Height="48"
+                              Foreground="#6B7FCB"/>
+                <TextBlock x:Name="LoadingTitle" Text="Loading..." FontSize="16"
+                           Foreground="#8896C0" HorizontalAlignment="Center"/>
+                <TextBlock x:Name="LoadingSubtitle" Text="" FontSize="12"
+                           Foreground="#404870" HorizontalAlignment="Center"/>
             </StackPanel>
 
-            <!-- Cards — ItemsWrapGrid with ItemWidth so cards wrap responsively -->
+            <!-- Cards grid -->
             <ScrollViewer x:Name="CardsScroll" Visibility="Collapsed"
-                          VerticalScrollBarVisibility="Auto" Padding="8,6">
+                          VerticalScrollBarVisibility="Auto" Padding="16,14">
                 <ItemsControl x:Name="GameCardsList">
                     <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <!--
-                                ItemWidth fixed so all cards are the same width.
-                                No ItemHeight set — height is fixed via the card Border.
-                                Cards wrap to fill the available window width automatically.
-                            -->
-                            <ItemsWrapGrid Orientation="Horizontal" ItemWidth="380"/>
-                        </ItemsPanelTemplate>
+                            <ItemsPanelTemplate>
+                                <ItemsWrapGrid Orientation="Horizontal" ItemWidth="{StaticResource CardItemWidth}"/>
+                            </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
+
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:GameCardViewModel">
 
-                            <!-- Fixed-height card — every card is identical height so rows align -->
-                            <Border Margin="6" CornerRadius="13"
-                                    BorderThickness="1" BorderBrush="#252542"
-                                    Height="230">
-                                <Border.Background>
-                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                        <GradientStop Color="#13132A" Offset="0"/>
-                                        <GradientStop Color="#191932" Offset="1"/>
-                                    </LinearGradientBrush>
-                                </Border.Background>
-
-                                <Grid Margin="14,12,14,12">
+                            <Border Margin="6" Padding="14,12" CornerRadius="12"
+                                    Background="#141828" Height="240"
+                                    BorderBrush="#1E2845" BorderThickness="1">
+                                <Grid>
                                     <Grid.RowDefinitions>
-                                        <RowDefinition Height="30"/>   <!-- 0: name + notes + status -->
-                                        <RowDefinition Height="22"/>   <!-- 1: source/engine/generic badges -->
-                                        <RowDefinition Height="Auto"/> <!-- 2: installed file badge (full width, collapses when empty) -->
-                                        <RowDefinition Height="28"/>   <!-- 3: path row -->
+                                        <RowDefinition Height="28"/>   <!-- 0: name row -->
+                                        <RowDefinition Height="22"/>   <!-- 1: badges row -->
+                                        <RowDefinition Height="Auto"/> <!-- 2: file badge (collapses) -->
+                                        <RowDefinition Height="26"/>   <!-- 3: path row -->
                                         <RowDefinition Height="*"/>    <!-- 4: spacer -->
-                                        <RowDefinition Height="36"/>   <!-- 5: action button -->
-                                        <RowDefinition Height="Auto"/> <!-- 6: progress + message -->
+                                        <RowDefinition Height="36"/>   <!-- 5: action buttons -->
+                                        <RowDefinition Height="Auto"/> <!-- 6: progress/message -->
                                     </Grid.RowDefinitions>
 
-                                    <!-- Row 0: Game name | ℹ btn | status badge -->
+                                    <!-- Row 0: Game name + info + status + hide -->
                                     <Grid Grid.Row="0" VerticalAlignment="Center">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-
-                                        <TextBlock Grid.Column="0"
-                                                   Text="{x:Bind GameName}"
-                                                   FontSize="14" FontWeight="SemiBold"
-                                                   Foreground="#E0E0F0"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   MaxLines="1"
-                                                   VerticalAlignment="Center"
-                                                   ToolTipService.ToolTip="{x:Bind GameName}"/>
-
-                                        <!-- Notes popup button — visible whenever HasNotes is true,
-                                             which now includes ALL games with wiki tooltip notes
-                                             AND all generic UE/Unity cards -->
+                                        <TextBlock Grid.Column="0" Text="{x:Bind GameName}"
+                                                   FontSize="13" FontWeight="SemiBold" Foreground="#C8D0F0"
+                                                   TextTrimming="CharacterEllipsis" MaxLines="1"
+                                                   VerticalAlignment="Center"/>
+                                        <!-- ℹ notes button -->
                                         <Button Grid.Column="1"
                                                 Visibility="{x:Bind NotesButtonVisibility}"
                                                 Click="NotesButton_Click" Tag="{x:Bind}"
                                                 Background="Transparent" BorderThickness="0"
-                                                Padding="5,0" Margin="3,0,0,0"
-                                                VerticalAlignment="Center"
-                                                ToolTipService.ToolTip="View setup notes">
-                                            <TextBlock Text="ℹ" FontSize="12" Foreground="#89B4FA"/>
+                                                Width="26" Height="26" Padding="0" Margin="4,0,0,0"
+                                                ToolTipService.ToolTip="View notes">
+                                            <TextBlock Text="ℹ" FontSize="13" Foreground="#5A6EA0"/>
                                         </Button>
-
-                                        <Border Grid.Column="2"
-                                                CornerRadius="20" Padding="7,2"
-                                                Margin="3,0,0,0"
-                                                BorderThickness="1" BorderBrush="#333355"
-                                                VerticalAlignment="Center">
+                                        <!-- 💬 discussion / wiki link button (only shown when game name has a link) -->
+                                        <Button Grid.Column="2"
+                                                Visibility="{x:Bind NameLinkVisibility}"
+                                                Click="NameLink_Click" Tag="{x:Bind}"
+                                                Background="Transparent" BorderThickness="0"
+                                                Width="26" Height="26" Padding="0" Margin="2,0,0,0"
+                                                ToolTipService.ToolTip="Open discussion / instructions">
+                                            <TextBlock Text="💬" FontSize="11" Foreground="#5A7A9A"/>
+                                        </Button>
+                                        <!-- 🚫 hide button -->
+                                        <Button Grid.Column="3"
+                                                Click="HideButton_Click" Tag="{x:Bind}"
+                                                Background="Transparent" BorderThickness="0"
+                                                Width="26" Height="26" Padding="0" Margin="2,0,0,0"
+                                                ToolTipService.ToolTip="{x:Bind HideButtonLabel, Mode=OneWay}">
+                                            <Grid>
+                                                <!-- Hidden state: bright icon -->
+                                                <TextBlock Text="🚫" FontSize="11" Foreground="#9060A0"
+                                                           Visibility="{x:Bind IsHiddenVisibility, Mode=OneWay}"/>
+                                                <!-- Visible state: dim icon -->
+                                                <TextBlock Text="🚫" FontSize="11" Foreground="#282840"
+                                                           Visibility="{x:Bind IsNotHiddenVisibility, Mode=OneWay}"/>
+                                            </Grid>
+                                        </Button>
+                                        <!-- Wiki status badge -->
+                                        <Border Grid.Column="4" CornerRadius="6" Padding="7,2"
+                                                Margin="4,0,0,0"
+                                                Background="#141C30" BorderBrush="#1E2A44" BorderThickness="1">
                                             <TextBlock Text="{x:Bind WikiStatusLabel}"
-                                                       FontSize="10" Foreground="#808098"/>
+                                                       FontSize="10" Foreground="#5A7090"/>
                                         </Border>
                                     </Grid>
 
-                                    <!-- Row 1: Badges — clipped container prevents any overflow -->
-                                    <Grid Grid.Row="1" VerticalAlignment="Center"
-                                          HorizontalAlignment="Stretch">
-                                        <!-- Clip content to the cell bounds -->
-                                        <Grid.Clip>
-                                            <RectangleGeometry Rect="0,0,2000,24"/>
-                                        </Grid.Clip>
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <Border Background="#1C1C3A" CornerRadius="5"
-                                                    Padding="6,2"
-                                                    Visibility="{x:Bind SourceBadgeVisibility}">
-                                                <TextBlock FontSize="10" Foreground="#666688"
-                                                           MaxLines="1" TextTrimming="CharacterEllipsis">
-                                                    <Run Text="{x:Bind SourceIcon}"/>
-                                                    <Run Text=" "/>
-                                                    <Run Text="{x:Bind Source}"/>
-                                                </TextBlock>
-                                            </Border>
-                                            <Border Background="#18183A" CornerRadius="5"
-                                                    Padding="6,2"
-                                                    BorderBrush="#404088" BorderThickness="1"
-                                                    Visibility="{x:Bind EngineBadgeVisibility}">
-                                                <TextBlock Text="{x:Bind EngineHint}"
-                                                           FontSize="10" Foreground="#CBA6F7"
-                                                           MaxLines="1" TextTrimming="CharacterEllipsis"
-                                                           MaxWidth="110"/>
-                                            </Border>
-                                            <Border Background="#281800" CornerRadius="5"
-                                                    Padding="6,2"
-                                                    BorderBrush="#FAB387" BorderThickness="1"
-                                                    Visibility="{x:Bind GenericBadgeVisibility}">
-                                                <TextBlock Text="{x:Bind GenericModLabel}"
-                                                           FontSize="10" Foreground="#FAB387"
-                                                           MaxLines="1" TextTrimming="CharacterEllipsis"
-                                                           MaxWidth="90"/>
-                                            </Border>
+                                    <!-- Row 1: Source/Engine/Generic badges -->
+                                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4"
+                                                VerticalAlignment="Center">
+                                        <Border Background="#161E38" CornerRadius="5" Padding="6,2"
+                                                Visibility="{x:Bind SourceBadgeVisibility}">
+                                            <TextBlock FontSize="10" Foreground="#505880">
+                                                <Run Text="{x:Bind SourceIcon}"/>
+                                                <Run Text=" "/>
+                                                <Run Text="{x:Bind Source}"/>
+                                            </TextBlock>
+                                        </Border>
+                                        <Border Background="#161832" CornerRadius="5" Padding="6,2"
+                                                BorderBrush="#252844" BorderThickness="1"
+                                                Visibility="{x:Bind EngineBadgeVisibility}">
+                                            <TextBlock Text="{x:Bind EngineHint}"
+                                                       FontSize="10" Foreground="#7080B8"/>
+                                        </Border>
+                                        <Border Background="#1E1A28" CornerRadius="5" Padding="6,2"
+                                                BorderBrush="#352840" BorderThickness="1"
+                                                Visibility="{x:Bind GenericBadgeVisibility}">
+                                            <TextBlock Text="{x:Bind GenericModLabel}"
+                                                       FontSize="10" Foreground="#9070A0"/>
+                                        </Border>
+                                        <!-- Update available badge -->
+                                        <Border Background="#1A2010" CornerRadius="5" Padding="6,2"
+                                                BorderBrush="#2E4020" BorderThickness="1"
+                                                Visibility="{x:Bind UpdateBadgeVisibility, Mode=OneWay}">
+                                            <TextBlock Text="⬆ Update Available"
+                                                       FontSize="10" Foreground="#80B860"/>
+                                        </Border>
+                                    </StackPanel>
 
-                                        </StackPanel>
-                                    </Grid>
-
-                                    <!-- Row 2: Installed file badge — full width, never truncated -->
-                                    <Border Grid.Row="2" VerticalAlignment="Center"
-                                            Background="#0A1C0A" CornerRadius="5"
-                                            Padding="7,2" BorderBrush="#2A4A2A" BorderThickness="1"
+                                    <!-- Row 2: Installed file badge (full width) -->
+                                    <Border Grid.Row="2" VerticalAlignment="Center" Margin="0,3,0,0"
+                                            Background="#111E18" CornerRadius="5" Padding="7,2"
+                                            BorderBrush="#1E3028" BorderThickness="1"
                                             Visibility="{x:Bind InstalledFileLabelVisible, Mode=OneWay}">
                                         <TextBlock Text="{x:Bind InstalledFileLabel, Mode=OneWay}"
-                                                   FontSize="10" Foreground="#6AAA6A"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   MaxLines="1"/>
+                                                   FontSize="10" Foreground="#5A9870"
+                                                   TextTrimming="CharacterEllipsis" MaxLines="1"/>
                                     </Border>
 
-                                    <!-- Row 3: Path row (detected) — single folder button opens flyout -->
-                                    <Border Grid.Row="3" Background="#0C0C20" CornerRadius="7"
-                                            Padding="10,0" VerticalAlignment="Stretch"
-                                            Visibility="{x:Bind DetectedVisibility, Mode=OneWay}">
-                                        <Grid VerticalAlignment="Center">
+                                    <!-- Row 3: Path + folder button -->
+                                    <Border Grid.Row="3" Background="#0E1220" CornerRadius="6"
+                                            Padding="8,4" Margin="0,4,0,0">
+                                        <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0"
                                                        Text="{x:Bind InstallPathDisplay, Mode=OneWay}"
-                                                       FontSize="10" Foreground="#3E3E60"
-                                                       FontFamily="Consolas"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       VerticalAlignment="Center"
-                                                       ToolTipService.ToolTip="{x:Bind InstallPath, Mode=OneWay}"/>
-                                            <!-- Single folder button with flyout menu -->
+                                                       FontSize="11" Foreground="#384060"
+                                                       TextTrimming="CharacterEllipsis" MaxLines="1"
+                                                       VerticalAlignment="Center" FontFamily="Consolas"/>
+                                            <!-- Folder flyout button -->
                                             <Button Grid.Column="1"
                                                     Background="Transparent" BorderThickness="0"
-                                                    Padding="6,0" VerticalAlignment="Center"
-                                                    ToolTipService.ToolTip="Folder options">
+                                                    Padding="4,0" Height="22">
                                                 <Button.Flyout>
                                                     <MenuFlyout>
                                                         <MenuFlyoutItem Text="📂  Open in Explorer"
-                                                                        Click="OpenFolder_Click"
-                                                                        Tag="{x:Bind}"/>
+                                                                        Click="OpenFolder_Click" Tag="{x:Bind}"/>
                                                         <MenuFlyoutItem Text="📁  Change install folder"
-                                                                        Click="BrowseFolder_Click"
-                                                                        Tag="{x:Bind}"/>
+                                                                        Click="BrowseFolder_Click" Tag="{x:Bind}"/>
+                                                        <MenuFlyoutItem Text="❌  Remove manual game"
+                                                                        Click="RemoveManualGame_Click" Tag="{x:Bind}"/>
                                                     </MenuFlyout>
                                                 </Button.Flyout>
-                                                <TextBlock Text="📁" FontSize="12" Foreground="#4A4A6A"/>
+                                                <TextBlock Text="📁" FontSize="12"/>
                                             </Button>
                                         </Grid>
                                     </Border>
 
-                                    <!-- Row 2: Not detected -->
-                                    <Border Grid.Row="3" Background="#0C0C20" CornerRadius="7"
-                                            Padding="10,0" VerticalAlignment="Stretch"
-                                            Visibility="{x:Bind NotDetectedVisibility, Mode=OneWay}">
-                                        <StackPanel Orientation="Horizontal" Spacing="8"
-                                                    VerticalAlignment="Center">
-                                            <TextBlock Text="Game folder not detected"
-                                                       FontSize="10" Foreground="#2E2E50"
-                                                       VerticalAlignment="Center"/>
-                                            <Button Content="📁 Set folder" FontSize="10"
-                                                    Background="#1C1C3A" Foreground="#505070"
-                                                    CornerRadius="5" Padding="7,3" BorderThickness="0"
-                                                    Click="SetFolder_Click" Tag="{x:Bind}"/>
-                                        </StackPanel>
-                                    </Border>
-
-                                    <!-- Row 3: spacer -->
+                                    <!-- Row 4: Spacer -->
                                     <Grid Grid.Row="4"/>
 
-                                    <!-- Row 4: Install / Reinstall+Delete buttons -->
-                                    <!-- Plain install (not yet installed) -->
+                                    <!-- Row 5a: External only (Nexus/Discord with no snapshot) -->
+                                    <Button Grid.Row="5"
+                                            Visibility="{x:Bind ExternalBtnVisibility}"
+                                            Click="ExternalLink_Click" Tag="{x:Bind}"
+                                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                            CornerRadius="10" FontSize="12" FontWeight="SemiBold"
+                                            Background="#1A2030" Foreground="#6B9ED8"
+                                            BorderBrush="#253048" BorderThickness="1">
+                                        <TextBlock Text="{x:Bind ExternalLabel}" FontSize="12"/>
+                                    </Button>
+
+                                    <!-- Row 5b: Single install (not dual-bit) -->
                                     <Button Grid.Row="5"
                                             Visibility="{x:Bind InstallOnlyBtnVisibility, Mode=OneWay}"
                                             IsEnabled="{x:Bind CanInstall, Mode=OneWay}"
                                             Click="InstallButton_Click" Tag="{x:Bind}"
-                                            HorizontalAlignment="Stretch"
-                                            VerticalAlignment="Stretch"
-                                            CornerRadius="10"
-                                            FontSize="13" FontWeight="SemiBold" Foreground="White">
-                                        <Button.Background>
-                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                                <GradientStop Color="#FF6B35" Offset="0"/>
-                                                <GradientStop Color="#E04000" Offset="1"/>
-                                            </LinearGradientBrush>
-                                        </Button.Background>
+                                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                            CornerRadius="10" FontSize="13" FontWeight="SemiBold"
+                                            Background="#1E3050" Foreground="#8BAAE8"
+                                            BorderBrush="#2A3E70" BorderThickness="1">
                                         <TextBlock Text="⬇  Install" FontSize="13"/>
                                     </Button>
 
-                                    <!-- Unity generic: dual 32/64 install buttons -->
+                                    <!-- Row 5c: Dual-bit Unity install -->
                                     <Grid Grid.Row="5"
                                           Visibility="{x:Bind DualBitInstallVisibility, Mode=OneWay}"
                                           VerticalAlignment="Stretch">
@@ -340,91 +352,77 @@
                                                 Click="Install64Button_Click" Tag="{x:Bind}"
                                                 HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                                 CornerRadius="10" FontSize="12" FontWeight="SemiBold"
-                                                Foreground="White">
-                                            <Button.Background>
-                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                                    <GradientStop Color="#FF6B35" Offset="0"/>
-                                                    <GradientStop Color="#E04000" Offset="1"/>
-                                                </LinearGradientBrush>
-                                            </Button.Background>
-                                            <TextBlock Text="⬇  Install 64-bit" FontSize="12"/>
+                                                Background="#1E3050" Foreground="#8BAAE8"
+                                                BorderBrush="#2A3E70" BorderThickness="1">
+                                            <TextBlock Text="⬇ 64-bit" FontSize="12"/>
                                         </Button>
                                         <Button Grid.Column="2"
                                                 Click="Install32Button_Click" Tag="{x:Bind}"
                                                 HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                                 CornerRadius="10" FontSize="12" FontWeight="SemiBold"
-                                                Background="#1C2A3A" Foreground="#89B4FA"
-                                                BorderBrush="#2A3A4A" BorderThickness="1">
-                                            <TextBlock Text="⬇  Install 32-bit" FontSize="12"/>
+                                                Background="#1A2840" Foreground="#7090C0"
+                                                BorderBrush="#253050" BorderThickness="1">
+                                            <TextBlock Text="⬇ 32-bit" FontSize="12"/>
                                         </Button>
                                     </Grid>
 
-                                    <!-- Reinstall + Delete (when already installed) -->
+                                    <!-- Row 5d: Reinstall/Update + Delete + optional Nexus/Discord -->
                                     <Grid Grid.Row="5"
                                           Visibility="{x:Bind ReinstallRowVisibility, Mode=OneWay}"
                                           VerticalAlignment="Stretch">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="44"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
+                                        <!-- Reinstall/Update -->
                                         <Button Grid.Column="0"
                                                 IsEnabled="{x:Bind CanInstall, Mode=OneWay}"
                                                 Click="InstallButton_Click" Tag="{x:Bind}"
-                                                HorizontalAlignment="Stretch"
-                                                VerticalAlignment="Stretch"
-                                                CornerRadius="10,0,0,10"
-                                                FontSize="13" FontWeight="SemiBold" Foreground="White"
+                                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                                CornerRadius="10,0,0,10" FontSize="12" FontWeight="SemiBold"
+                                                Background="#1A2E50" Foreground="#8BAAE8"
+                                                BorderBrush="#2A3E70" BorderThickness="1,1,0,1"
                                                 Margin="0,0,1,0">
-                                            <Button.Background>
-                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                                    <GradientStop Color="#FF6B35" Offset="0"/>
-                                                    <GradientStop Color="#E04000" Offset="1"/>
-                                                </LinearGradientBrush>
-                                            </Button.Background>
-                                            <TextBlock Text="↺  Reinstall" FontSize="13"/>
+                                            <TextBlock Text="{x:Bind InstallActionLabel, Mode=OneWay}" FontSize="12"/>
                                         </Button>
+                                        <!-- Nexus/Discord link (if available) -->
                                         <Button Grid.Column="1"
+                                                Visibility="{x:Bind ExtraLinkVisibility}"
+                                                Click="ExternalLink_Click" Tag="{x:Bind}"
+                                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                                CornerRadius="0" FontSize="11"
+                                                Background="#141E30" Foreground="#5580A0"
+                                                BorderBrush="#1E3050" BorderThickness="0,1,0,1"
+                                                Margin="0,0,1,0" Width="44"
+                                                ToolTipService.ToolTip="{x:Bind ExternalLabel}">
+                                            <TextBlock Text="🌐" FontSize="13"/>
+                                        </Button>
+                                        <!-- Delete -->
+                                        <Button Grid.Column="2"
                                                 Click="UninstallButton_Click" Tag="{x:Bind}"
-                                                HorizontalAlignment="Stretch"
-                                                VerticalAlignment="Stretch"
-                                                CornerRadius="0,10,10,0"
-                                                Background="#2A0A0A"
-                                                BorderBrush="#4A1A1A" BorderThickness="1"
-                                                ToolTipService.ToolTip="Remove mod"
-                                                Foreground="#F38BA8" FontSize="14">
-                                            <TextBlock Text="🗑" FontSize="14"/>
+                                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                                CornerRadius="0,10,10,0" FontSize="13"
+                                                Background="#1E1420" Foreground="#7A4870"
+                                                BorderBrush="#2E1E38" BorderThickness="1"
+                                                Width="40"
+                                                ToolTipService.ToolTip="Remove mod">
+                                            <TextBlock Text="🗑" FontSize="13"/>
                                         </Button>
                                     </Grid>
 
-                                    <Button Grid.Row="5"
-                                            Visibility="{x:Bind ExternalBtnVisibility}"
-                                            HorizontalAlignment="Stretch"
-                                            VerticalAlignment="Stretch"
-                                            CornerRadius="10"
-                                            Background="#1C1C3A"
-                                            BorderThickness="1" BorderBrush="#353555"
-                                            Click="ExternalLink_Click" Tag="{x:Bind}">
-                                        <StackPanel Orientation="Horizontal" Spacing="7"
-                                                    HorizontalAlignment="Center">
-                                            <TextBlock Text="🌐" FontSize="13"/>
-                                            <TextBlock Text="{x:Bind ExternalLabel}"
-                                                       FontSize="12" Foreground="#89B4FA"/>
-                                        </StackPanel>
-                                    </Button>
-
-                                    <!-- Row 5: Progress bar + status message -->
+                                    <!-- Row 6: Progress + message -->
                                     <StackPanel Grid.Row="6" Spacing="3" Margin="0,5,0,0">
-                                        <ProgressBar
-                                            Visibility="{x:Bind ProgressVisibility, Mode=OneWay}"
-                                            Value="{x:Bind InstallProgress, Mode=OneWay}"
-                                            Maximum="100" Height="3" CornerRadius="2"
-                                            Foreground="#FF6B35" Background="#1E1E3A"/>
-                                        <TextBlock
-                                            Visibility="{x:Bind MessageVisibility, Mode=OneWay}"
-                                            Text="{x:Bind ActionMessage, Mode=OneWay}"
-                                            FontSize="10" Foreground="#55557A"
-                                            TextWrapping="Wrap"/>
+                                        <ProgressBar Visibility="{x:Bind ProgressVisibility, Mode=OneWay}"
+                                                     Value="{x:Bind InstallProgress, Mode=OneWay}"
+                                                     Maximum="100" Height="3" CornerRadius="2"
+                                                     Foreground="#4E7898" Background="#141E30"/>
+                                        <TextBlock Text="{x:Bind ActionMessage, Mode=OneWay}"
+                                                   Visibility="{x:Bind MessageVisibility, Mode=OneWay}"
+                                                   FontSize="10" Foreground="#4A6090"
+                                                   TextWrapping="Wrap" MaxLines="2"/>
                                     </StackPanel>
+
                                 </Grid>
                             </Border>
 
@@ -434,25 +432,16 @@
             </ScrollViewer>
         </Grid>
 
-        <!-- STATUS BAR -->
-        <Border Grid.Row="3" Padding="20,7" Background="#0A0A14"
-                BorderBrush="#181828" BorderThickness="0,1,0,0">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <Ellipse x:Name="StatusDot" Grid.Column="0"
-                         Width="7" Height="7" Margin="0,0,8,0"
-                         VerticalAlignment="Center" Fill="#FAB387"/>
-                <TextBlock x:Name="StatusBarText" Grid.Column="1"
-                           Text="Starting..." FontSize="11"
-                           Foreground="#404055" VerticalAlignment="Center"/>
-                <TextBlock x:Name="GameCountText" Grid.Column="2"
-                           Text="" FontSize="11"
-                           Foreground="#303045" VerticalAlignment="Center"/>
-            </Grid>
+        <!-- ══ STATUS BAR ═══════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="3" Padding="20,6" Background="#0A0E1A"
+                BorderBrush="#141C30" BorderThickness="0,1,0,0">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="12">
+                <TextBlock x:Name="StatusBarText" Text="Starting..."
+                           FontSize="11" Foreground="#2A3450"/>
+                <TextBlock Text="|" Foreground="#1F2B3A" VerticalAlignment="Center"/>
+                <TextBlock Text="Tip: After installing a mod, click " FontSize="11" Foreground="#4A5878" VerticalAlignment="Center"/>
+                <Button Content="Refresh" Click="RefreshButton_Click" FontSize="11" Padding="6,2" Background="Transparent" Foreground="#6B9ED8" BorderThickness="0" VerticalAlignment="Center"/>
+            </StackPanel>
         </Border>
 
     </Grid>
