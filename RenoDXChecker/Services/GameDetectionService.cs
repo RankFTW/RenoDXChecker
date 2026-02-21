@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Security;
+using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
 using RenoDXChecker.Models;
@@ -116,11 +118,25 @@ public static class GameDetectionService
 
     public static (string installPath, EngineType engine) DetectEngineAndPath(string rootPath)
     {
-        // --- Unreal Engine ---
+        // --- Unreal Engine (UE4/5) ---
         // Find Binaries\Win64 or Binaries\WinGDK that is NOT inside an Engine folder.
         // This is where ReShade and the .addon64 must be placed.
         var uePath = FindUEBinariesFolder(rootPath);
-        if (uePath != null) return (uePath, EngineType.Unreal);
+        if (uePath != null)
+        {
+            // Distinguish UE4/5 (has *Shipping*.exe) from UE3 (plain exe only).
+            // RenoDX addon support requires UE4+; UE3 games cannot use it.
+            if (IsUnrealLegacy(rootPath))
+                return (uePath, EngineType.UnrealLegacy);
+            return (uePath, EngineType.Unreal);
+        }
+
+        // Also catch UE3 games whose Binaries may not match UE4 layout (Binaries\Win32 only)
+        if (IsUnrealLegacy(rootPath))
+        {
+            var exeFolderLegacy = FindShallowExeFolder(rootPath);
+            return (exeFolderLegacy ?? rootPath, EngineType.UnrealLegacy);
+        }
 
         // --- Unity ---
         // UnityPlayer.dll is always next to the exe (root or 1 level deep)
@@ -131,6 +147,48 @@ public static class GameDetectionService
         // --- Generic fallback ---
         var exeFolder = FindShallowExeFolder(rootPath);
         return (exeFolder ?? rootPath, EngineType.Unknown);
+    }
+
+    /// <summary>
+    /// Returns true if this looks like a UE3 or older Unreal game.
+    /// Heuristics (any one is sufficient):
+    ///   • Has .u or .upk files (UE3 package format) anywhere shallow
+    ///   • Has Engine\Config\BaseEngine.ini but NO *Shipping*.exe anywhere
+    ///   • Has Binaries\Win32 or Binaries\Win64 with a plain exe but no Shipping exe,
+    ///     AND an Engine folder with classic UE3 sub-layout
+    /// </summary>
+    private static bool IsUnrealLegacy(string root)
+    {
+        try
+        {
+            // Strong signal: .u or .upk package files (UE3 cooked content format)
+            foreach (var ext in new[] { "*.u", "*.upk" })
+            {
+                if (Directory.EnumerateFiles(root, ext, SearchOption.AllDirectories)
+                    .Any()) return true;
+            }
+
+            // Strong signal: no Shipping exe anywhere, but has UE-style Binaries layout
+            bool hasShipping = false;
+            bool hasBinaries = false;
+            try
+            {
+                hasShipping = Directory.EnumerateFiles(root, "*Shipping*.exe", SearchOption.AllDirectories).Any();
+                hasBinaries = Directory.EnumerateDirectories(root, "Binaries", SearchOption.AllDirectories).Any();
+            }
+            catch { }
+
+            // Classic UE3 marker: Engine\Config\BaseEngine.ini
+            var baseEnginePath = Path.Combine(root, "Engine", "Config", "BaseEngine.ini");
+            bool hasBaseEngine = File.Exists(baseEnginePath);
+
+            if (hasBinaries && !hasShipping && hasBaseEngine) return true;
+
+            // Rocket League specific: has TAGame folder (UE3 codename)
+            if (Directory.Exists(Path.Combine(root, "TAGame"))) return true;
+        }
+        catch { }
+        return false;
     }
 
     /// <summary>
@@ -230,31 +288,60 @@ public static class GameDetectionService
 
     // ── Matching ──────────────────────────────────────────────────────────────────
 
-    public static GameMod? MatchGame(DetectedGame game, IEnumerable<GameMod> mods)
+    public static GameMod? MatchGame(
+        DetectedGame game,
+        IEnumerable<GameMod> mods,
+        Dictionary<string, string>? nameMappings = null)
     {
-        var name = NormalizeName(game.Name);
         var modList = mods.Select(m => (mod: m, norm: NormalizeName(m.Name))).ToList();
 
-        // 1. Exact normalised match
+        // 0. User-defined name mappings take absolute priority.
+        //    The mapping stores detectedName → wikiName (exact strings as typed).
+        //    We try both exact and normalised key comparison.
+        if (nameMappings != null && nameMappings.Count > 0)
+        {
+            // Try direct key lookup first (exact stored name)
+            if (nameMappings.TryGetValue(game.Name, out var mapped) && !string.IsNullOrEmpty(mapped))
+            {
+                var mappedNorm = NormalizeName(mapped);
+                var byMapped = modList.FirstOrDefault(t => t.norm == mappedNorm);
+                if (byMapped.mod != null) return byMapped.mod;
+                // Target wiki name not found in mod list — fall through to auto-match
+            }
+            // Try normalised key comparison (handles minor capitalisation/spacing differences)
+            var gameNormForMap = NormalizeName(game.Name);
+            foreach (var kv in nameMappings)
+            {
+                if (NormalizeName(kv.Key) == gameNormForMap && !string.IsNullOrEmpty(kv.Value))
+                {
+                    var mappedNorm = NormalizeName(kv.Value);
+                    var byMapped = modList.FirstOrDefault(t => t.norm == mappedNorm);
+                    if (byMapped.mod != null) return byMapped.mod;
+                }
+            }
+        }
+
+        var name = NormalizeName(game.Name);
+
+        // 1. Exact normalised match — covers diacritics, punctuation, TM symbols.
+        //    "God of War Ragnarök" → "godofwarragnarok" == "God of War Ragnarok" → "godofwarragnarok" ✓
+        //    "NieR:Automata" → "nierautomata" == "NieR Automata" → "nierautomata" ✓
         var exact = modList.FirstOrDefault(t => t.norm == name);
         if (exact.mod != null) return exact.mod;
 
-        // 2. Game name contains the mod name — e.g. detected "Code Vein GOTY" matches wiki "Code Vein"
+        // 2. Game name contains the mod name — e.g. detected "Code Vein GOTY" matches wiki "Code Vein".
         //    Pick the longest (most specific) mod name that fits inside the game name.
-        //    This direction is safe: a longer detected name can match a shorter wiki entry.
         var containedBy = modList
             .Where(t => name.Contains(t.norm))
             .OrderByDescending(t => t.norm.Length)
             .FirstOrDefault();
         if (containedBy.mod != null) return containedBy.mod;
 
-        // 3. Mod name contains the game name — e.g. abbreviated detected name
-        //    ONLY when the extra characters in the mod name are NOT a sequel suffix (II, III, 2, 3…).
-        //    This prevents "Code Vein" (game) from matching "Code Vein II" (mod).
+        // 3. Mod name contains the game name — abbreviated detected name.
+        //    Reject if the extra suffix is a sequel indicator (II, III, 2, 3…).
         foreach (var t in modList.Where(t => t.norm.Contains(name)).OrderBy(t => t.norm.Length))
         {
             var suffix = t.norm.Substring(name.Length);
-            // Reject if the suffix is a sequel indicator: roman numerals or digits
             var isSequel = System.Text.RegularExpressions.Regex.IsMatch(suffix, @"^[ivxlcdm0-9]+$");
             if (!isSequel) return t.mod;
         }
@@ -296,8 +383,34 @@ public static class GameDetectionService
         catch { return null; }
     }
 
-    public static string NormalizeName(string name) =>
-        Regex.Replace(name.ToLowerInvariant(), @"[^a-z0-9]", "");
+    /// <summary>
+    /// Normalise a game name for matching: strip diacritics (ö→o, é→e, ñ→n),
+    /// trademark symbols, and every character that isn't a-z or 0-9.
+    /// "God of War Ragnarök" and "God of War Ragnarok" both become "godofwarragnarok".
+    /// "NieR:Automata" and "STAR WARS™ Jedi: Fallen Order" are handled correctly too.
+    /// </summary>
+    public static string NormalizeName(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return "";
+
+        // 1. Strip common trademark/copyright symbols that are never part of the title
+        name = name.Replace("™", "").Replace("®", "").Replace("©", "");
+
+        // 2. Decompose unicode into base character + combining marks,
+        //    then drop the combining marks (diacritics).
+        //    e.g. ö (U+00F6) → o (U+006F) + ̈ (U+0308) → o
+        var decomposed = name.Normalize(NormalizationForm.FormD);
+        var sb = new StringBuilder(decomposed.Length);
+        foreach (var ch in decomposed)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(ch) != UnicodeCategory.NonSpacingMark)
+                sb.Append(ch);
+        }
+
+        // 3. Lower-case, then strip everything that isn't a letter or digit.
+        //    This handles ':', '-', ''', '!', spaces, etc. uniformly.
+        return Regex.Replace(sb.ToString().ToLowerInvariant(), @"[^a-z0-9]", "");
+    }
 }
 
-public enum EngineType { Unknown, Unreal, Unity }
+public enum EngineType { Unknown, Unreal, UnrealLegacy, Unity }

@@ -7,68 +7,92 @@ namespace RenoDXChecker.Services;
 /// <summary>
 /// Downloads, installs, updates, and uninstalls RenoDX addon files.
 /// Tracks installations via a local JSON database.
+///
+/// Download cache: files go to %LocalAppData%\RenoDXChecker\downloads\ so
+/// reinstalling or installing the same addon on another game skips the download.
+///
+/// Update detection: stores RemoteFileSize at install time and compares against
+/// the current remote Content-Length — stable across relaunches regardless of
+/// local filesystem behaviour or CDN edge-server variation.
 /// </summary>
 public class ModInstallService
 {
-    // Raised when an install completes (record has been saved).
     public event Action<InstalledModRecord>? InstallCompleted;
 
     private static readonly string DbPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "RenoDXChecker", "installed.json");
 
+    public static readonly string DownloadCacheDir = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "RenoDXChecker", "downloads");
+
     private readonly HttpClient _http;
 
-    public ModInstallService(HttpClient http)
-    {
-        _http = http;
-    }
+    public ModInstallService(HttpClient http) => _http = http;
 
-    // ── Install / Update ──────────────────────────────────────────────────────────
+    // ── Install ───────────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Downloads the .addon64 file and places it in the game's install folder.
-    /// Returns the installed record.
-    /// </summary>
     public async Task<InstalledModRecord> InstallAsync(
         GameMod mod,
         string gameInstallPath,
         IProgress<(string message, double percent)>? progress = null)
     {
-        // Debug logging removed.
         if (mod.SnapshotUrl == null)
             throw new InvalidOperationException($"{mod.Name} has no Snapshot download URL.");
 
-        var fileName = Path.GetFileName(mod.SnapshotUrl);
-        var destPath = Path.Combine(gameInstallPath, fileName);
-        // Debug logging removed.
+        Directory.CreateDirectory(DownloadCacheDir);
 
-        progress?.Report(("Downloading...", 0));
+        var fileName  = Path.GetFileName(mod.SnapshotUrl);
+        var destPath  = Path.Combine(gameInstallPath, fileName);
+        var cachePath = Path.Combine(DownloadCacheDir, fileName);
 
-        // Try downloading the provided URL, with fallbacks for known hosting variations
-        HttpResponseMessage? response = null;
-        var tried = new List<string>();
-        var candidates = new List<string> { mod.SnapshotUrl };
+        // ── Step 1: get remote Content-Length (single HEAD) ───────────────────────
+        long? remoteSize = null;
         try
         {
-            // Attempt to build sensible fallback URLs based on the filename and known hosts
+            var headResp = await _http.SendAsync(
+                new HttpRequestMessage(HttpMethod.Head, mod.SnapshotUrl));
+            if (headResp.IsSuccessStatusCode)
+                remoteSize = headResp.Content.Headers.ContentLength;
+        }
+        catch { /* network issue — proceed without size */ }
+
+        // ── Step 2: use cache if it matches remote size (or size unknown) ─────────
+        bool usedCache = false;
+        if (File.Exists(cachePath))
+        {
+            var cacheSize = new FileInfo(cachePath).Length;
+            bool sizeOk   = !remoteSize.HasValue || remoteSize.Value == cacheSize;
+            if (sizeOk)
+            {
+                progress?.Report(("Installing from cache...", 50));
+                File.Copy(cachePath, destPath, overwrite: true);
+                usedCache = true;
+                progress?.Report(("Installed from cache!", 100));
+            }
+        }
+
+        // ── Step 3: fresh download if no usable cache ─────────────────────────────
+        if (!usedCache)
+        {
+            progress?.Report(("Downloading...", 0));
+            HttpResponseMessage? response = null;
+            var tried      = new List<string>();
+            var candidates = new List<string> { mod.SnapshotUrl };
             try
             {
                 var uri = new Uri(mod.SnapshotUrl);
-                var fn = Path.GetFileName(uri.LocalPath);
+                var fn  = Path.GetFileName(uri.LocalPath);
 
-                // If the filename matches the unity generic asset, try alternative hosts
                 if (fn.Equals("renodx-unityengine.addon64", StringComparison.OrdinalIgnoreCase)
-                    || fn.Equals("renodx-unityengine.addon32", StringComparison.OrdinalIgnoreCase))
+                 || fn.Equals("renodx-unityengine.addon32", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Known alternative hosts (user-provided reliable host + canonical gh-pages)
                     candidates.Add($"https://notvoosh.github.io/renodx-unity/{fn}");
                     candidates.Add($"https://clshortfuse.github.io/renodx/{fn}");
-                    // Also try the GitHub releases snapshot asset
                     candidates.Add($"https://github.com/clshortfuse/renodx/releases/download/snapshot/{fn}");
                 }
 
-                // If orig host is a github.io pages site, also try the releases/download fallback
                 if (uri.Host.EndsWith("github.io", StringComparison.OrdinalIgnoreCase))
                 {
                     var fn2 = Path.GetFileName(uri.LocalPath);
@@ -76,7 +100,7 @@ public class ModInstallService
                         candidates.Add($"https://github.com/clshortfuse/renodx/releases/download/snapshot/{fn2}");
                 }
             }
-            catch { /* ignore URI parse issues */ }
+            catch { }
 
             foreach (var url in candidates.Where(u => !string.IsNullOrEmpty(u)).Distinct())
             {
@@ -86,44 +110,58 @@ public class ModInstallService
                     response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
                     if (response.IsSuccessStatusCode) break;
                 }
-                catch { /* try next candidate */ }
+                catch { }
             }
+
+            if (response == null || !response.IsSuccessStatusCode)
+                throw new HttpRequestException(
+                    $"Failed to download snapshot. Tried: {string.Join(", ", tried)}");
+
+            // Capture size from actual download response if HEAD didn't return one
+            if (!remoteSize.HasValue)
+                remoteSize = response.Content.Headers.ContentLength;
+
+            var total      = remoteSize ?? -1L;
+            var buffer     = new byte[81920];
+            long downloaded = 0;
+
+            // Download into cache, then copy to game folder
+            var tempPath = cachePath + ".tmp";
+            using (var netStream = await response.Content.ReadAsStreamAsync())
+            using (var cacheFile = File.Create(tempPath))
+            {
+                int read;
+                while ((read = await netStream.ReadAsync(buffer)) > 0)
+                {
+                    await cacheFile.WriteAsync(buffer.AsMemory(0, read));
+                    downloaded += read;
+                    if (total > 0)
+                        progress?.Report(($"Downloading... {downloaded / 1024} KB",
+                                          (double)downloaded / total * 100));
+                }
+                cacheFile.Flush();
+            }
+
+            if (File.Exists(cachePath)) File.Delete(cachePath);
+            File.Move(tempPath, cachePath);
+            File.Copy(cachePath, destPath, overwrite: true);
+
+            // Record actual downloaded size if we didn't have it from HEAD
+            if (!remoteSize.HasValue)
+                remoteSize = new FileInfo(cachePath).Length;
         }
-        catch { /* fall through to error handling below */ }
 
-        if (response == null || !response.IsSuccessStatusCode)
-        {
-            throw new HttpRequestException($"Failed to download snapshot. Tried: {string.Join(", ", tried)}");
-        }
-
-        var total = response.Content.Headers.ContentLength ?? -1L;
-        var buffer = new byte[81920];
-        long downloaded = 0;
-
-        using var stream = await response.Content.ReadAsStreamAsync();
-        using var file = File.Create(destPath);
-
-        int read;
-        while ((read = await stream.ReadAsync(buffer)) > 0)
-        {
-            await file.WriteAsync(buffer.AsMemory(0, read));
-            downloaded += read;
-            if (total > 0)
-                progress?.Report(($"Downloading... {downloaded / 1024} KB", (double)downloaded / total * 100));
-        }
-
-        file.Flush();
-        // Debug logging removed.
         var hash = await ComputeHashAsync(destPath);
 
         var record = new InstalledModRecord
         {
-            GameName = mod.Name,
-            InstallPath = gameInstallPath,
-            AddonFileName = fileName,
-            FileHash = hash,
-            InstalledAt = DateTime.UtcNow,
-            SnapshotUrl = mod.SnapshotUrl,
+            GameName       = mod.Name,
+            InstallPath    = gameInstallPath,
+            AddonFileName  = fileName,
+            FileHash       = hash,
+            InstalledAt    = DateTime.UtcNow,
+            SnapshotUrl    = mod.SnapshotUrl,
+            RemoteFileSize = remoteSize,   // ← stored for stable update detection
         };
         SaveRecord(record);
         try { InstallCompleted?.Invoke(record); } catch { }
@@ -131,39 +169,52 @@ public class ModInstallService
         return record;
     }
 
+    // ── Update detection ──────────────────────────────────────────────────────────
+
     /// <summary>
-    /// Checks if the remote snapshot file differs from the locally installed version.
-    /// Uses HTTP HEAD + content-length or ETag comparison.
-    /// Falls back to a hash comparison by re-downloading.
+    /// Returns true if the remote snapshot is newer than what was installed.
+    ///
+    /// Strategy (ordered by reliability):
+    ///   1. Missing local file → always reinstall.
+    ///   2. RemoteFileSize stored → compare current remote Content-Length against it.
+    ///      This is stable because the stored value came from the actual download,
+    ///      not from the local file copy (which can differ due to FS/copy behaviour).
+    ///   3. No stored size → compare remote Content-Length against local file size.
+    ///      Less reliable but better than nothing.
+    ///   4. No Content-Length from server → assume no update (avoid false positives).
     /// </summary>
     public async Task<bool> CheckForUpdateAsync(InstalledModRecord record)
     {
         if (record.SnapshotUrl == null) return false;
 
         var localFile = Path.Combine(record.InstallPath, record.AddonFileName);
-        if (!File.Exists(localFile)) return true; // File deleted — needs reinstall
+        if (!File.Exists(localFile)) return true;
 
         try
         {
-            // Use HEAD request to check last-modified / ETag
-            var req = new HttpRequestMessage(HttpMethod.Head, record.SnapshotUrl);
+            var req  = new HttpRequestMessage(HttpMethod.Head, record.SnapshotUrl);
             var resp = await _http.SendAsync(req);
 
             if (resp.IsSuccessStatusCode)
             {
-                // Primary signal: Content-Length vs local file size.
-                // This is the only reliable indicator — CDN Last-Modified headers are
-                // inconsistent and cause false positives for disk-scanned installs.
-                var remoteSize = resp.Content.Headers.ContentLength;
-                if (remoteSize.HasValue)
+                var currentRemoteSize = resp.Content.Headers.ContentLength;
+                if (!currentRemoteSize.HasValue) return false; // can't tell → no update
+
+                if (record.RemoteFileSize.HasValue)
                 {
-                    var localSize = new FileInfo(localFile).Length;
-                    if (remoteSize.Value != localSize) return true;
+                    // Best path: compare stored install-time size vs current remote size
+                    return currentRemoteSize.Value != record.RemoteFileSize.Value;
                 }
-                // If the server didn't return Content-Length we can't tell — assume no update.
+                else
+                {
+                    // Fallback for records installed before RemoteFileSize was added:
+                    // compare remote size vs local file size
+                    var localSize = new FileInfo(localFile).Length;
+                    return currentRemoteSize.Value != localSize;
+                }
             }
         }
-        catch { /* Network issue — assume no update */ }
+        catch { /* network issue — assume no update */ }
 
         return false;
     }
@@ -173,8 +224,8 @@ public class ModInstallService
     public void Uninstall(InstalledModRecord record)
     {
         var filePath = Path.Combine(record.InstallPath, record.AddonFileName);
-        if (File.Exists(filePath))
-            File.Delete(filePath);
+        if (File.Exists(filePath)) File.Delete(filePath);
+        // Cache copy intentionally kept for future reinstalls.
 
         var db = LoadDb();
         db.RemoveAll(r => r.GameName == record.GameName && r.InstallPath == record.InstallPath);
@@ -183,10 +234,7 @@ public class ModInstallService
 
     // ── Database ──────────────────────────────────────────────────────────────────
 
-    public List<InstalledModRecord> LoadAll()
-    {
-        return LoadDb();
-    }
+    public List<InstalledModRecord> LoadAll() => LoadDb();
 
     public InstalledModRecord? FindRecord(string gameName, string? installPath = null)
     {
@@ -201,15 +249,10 @@ public class ModInstallService
     private void SaveRecord(InstalledModRecord record)
     {
         var db = LoadDb();
-        var existing = db.FindIndex(r =>
+        var i  = db.FindIndex(r =>
             r.GameName == record.GameName &&
             r.InstallPath.Equals(record.InstallPath, StringComparison.OrdinalIgnoreCase));
-
-        if (existing >= 0)
-            db[existing] = record;
-        else
-            db.Add(record);
-
+        if (i >= 0) db[i] = record; else db.Add(record);
         SaveDb(db);
     }
 
@@ -218,8 +261,7 @@ public class ModInstallService
         try
         {
             if (!File.Exists(DbPath)) return new();
-            var json = File.ReadAllText(DbPath);
-            return JsonSerializer.Deserialize<List<InstalledModRecord>>(json) ?? new();
+            return JsonSerializer.Deserialize<List<InstalledModRecord>>(File.ReadAllText(DbPath)) ?? new();
         }
         catch { return new(); }
     }
@@ -227,25 +269,17 @@ public class ModInstallService
     private void SaveDb(List<InstalledModRecord> db)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(DbPath)!);
-        File.WriteAllText(DbPath, JsonSerializer.Serialize(db, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(DbPath, JsonSerializer.Serialize(db,
+            new JsonSerializerOptions { WriteIndented = true }));
     }
 
     private static async Task<string> ComputeHashAsync(string path)
     {
-        using var sha = SHA256.Create();
+        using var sha    = SHA256.Create();
         using var stream = File.OpenRead(path);
-        var bytes = await sha.ComputeHashAsync(stream);
-        return Convert.ToHexString(bytes);
+        return Convert.ToHexString(await sha.ComputeHashAsync(stream));
     }
 
-    // ── Verify install dir ────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Returns true if the given directory looks like a valid game folder
-    /// (contains at least one .exe file).
-    /// </summary>
-    public static bool IsValidGameFolder(string path)
-    {
-        return Directory.Exists(path) && Directory.GetFiles(path, "*.exe").Length > 0;
-    }
+    public static bool IsValidGameFolder(string path) =>
+        Directory.Exists(path) && Directory.GetFiles(path, "*.exe").Length > 0;
 }

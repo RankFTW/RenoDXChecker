@@ -3,7 +3,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RenoDXChecker.Models;
 using RenoDXChecker.Services;
-using System.Runtime.ExceptionServices;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -57,8 +56,6 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private int _totalGames;
     [ObservableProperty] private int _installedCount;
     [ObservableProperty] private int _hiddenCount;
-    [ObservableProperty] private bool _notificationVisible;
-    [ObservableProperty] private string _notificationMessage = "";
 
     public ObservableCollection<GameCardViewModel> DisplayedGames { get; } = new();
 
@@ -104,13 +101,33 @@ public partial class MainViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(detectedName) || string.IsNullOrWhiteSpace(wikiKey)) return;
         _nameMappings[detectedName] = wikiKey;
         SaveNameMappings();
+        // Rebuild cards immediately so the mapping takes effect without a manual Refresh
+        DispatcherQueue?.TryEnqueue(() => { _ = InitializeAsync(forceRescan: false); });
+    }
+
+    public string? GetNameMapping(string detectedName)
+    {
+        if (string.IsNullOrWhiteSpace(detectedName)) return null;
+        if (_nameMappings.TryGetValue(detectedName, out var v)) return v;
+        // Also try normalised key
+        var norm = GameDetectionService.NormalizeName(detectedName);
+        foreach (var kv in _nameMappings)
+            if (GameDetectionService.NormalizeName(kv.Key) == norm) return kv.Value;
+        return null;
     }
 
     public void RemoveNameMapping(string detectedName)
     {
         if (string.IsNullOrWhiteSpace(detectedName)) return;
+        // Remove both exact and any normalised-key match
         _nameMappings.Remove(detectedName);
+        var norm = GameDetectionService.NormalizeName(detectedName);
+        var toRemove = _nameMappings.Keys
+            .Where(k => GameDetectionService.NormalizeName(k) == norm).ToList();
+        foreach (var k in toRemove) _nameMappings.Remove(k);
         SaveNameMappings();
+        // Rebuild cards so removal takes effect immediately
+        DispatcherQueue?.TryEnqueue(() => { _ = InitializeAsync(forceRescan: false); });
     }
 
     private void SaveNameMappings()
@@ -265,12 +282,12 @@ public partial class MainViewModel : ObservableObject
 
         // Build card for this game immediately
         var (installPath, engine) = GameDetectionService.DetectEngineAndPath(game.InstallPath);
-        var mod = GameDetectionService.MatchGame(game, _allMods);
+        var mod = GameDetectionService.MatchGame(game, _allMods, _nameMappings);
         var genericUnreal = MakeGenericUnreal();
         var genericUnity  = MakeGenericUnity();
-        var fallback = mod == null ? (engine == EngineType.Unreal ? genericUnreal
-                                   : engine == EngineType.Unity  ? genericUnity : null) : null;
-        var effectiveMod = mod ?? fallback; // null for unknown-engine games not on wiki
+        var fallback = mod == null ? (engine == EngineType.Unreal      ? genericUnreal
+                                   : engine == EngineType.Unity       ? genericUnity : null) : null;
+        var effectiveMod = mod ?? fallback; // null for unknown-engine / legacy games not on wiki
 
         var records = _installer.LoadAll();
         var record  = records.FirstOrDefault(r => r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase));
@@ -291,6 +308,17 @@ public partial class MainViewModel : ObservableObject
             _installer.SaveRecordPublic(record);
         }
 
+        // Named addon found on disk but no wiki entry → show Discord link
+        if (addonOnDisk != null && effectiveMod == null)
+        {
+            effectiveMod = new GameMod
+            {
+                Name       = game.Name,
+                Status     = "✅",
+                DiscordUrl = "https://discord.gg/gF4GRJWZ2A",
+            };
+        }
+
         var card = new GameCardViewModel
         {
             GameName       = game.Name,
@@ -303,8 +331,9 @@ public partial class MainViewModel : ObservableObject
             WikiStatus     = effectiveMod?.Status ?? "—",
             Maintainer     = effectiveMod?.Maintainer ?? "",
             IsGenericMod   = fallback != null && mod == null,
-            EngineHint     = engine == EngineType.Unreal ? "Unreal Engine"
-                           : engine == EngineType.Unity  ? "Unity" : "",
+            EngineHint     = engine == EngineType.Unreal       ? "Unreal Engine"
+                           : engine == EngineType.UnrealLegacy ? "Unreal (Legacy)"
+                           : engine == EngineType.Unity        ? "Unity" : "",
             Notes          = effectiveMod != null ? BuildNotes(game.Name, effectiveMod, fallback, _genericNotes) : "",
             InstalledAddonFileName = record?.AddonFileName,
             IsExternalOnly = effectiveMod?.SnapshotUrl == null &&
@@ -344,13 +373,10 @@ public partial class MainViewModel : ObservableObject
                 card.InstallProgress = p.pct;
             });
             var record = await _installer.InstallAsync(card.Mod, card.InstallPath, progress);
-                // InstallAsync completed
-            // Capture Last-Modified of this snapshot
-            var lastMod = await WikiService.GetSnapshotLastModifiedAsync(_http, card.Mod.SnapshotUrl);
-            record.SnapshotLastModified = lastMod;
-            _installer.SaveRecordPublic(record);
 
-            // Update UI state on the UI thread
+            // Update just this card in-place — no full rescan needed.
+            // The record is already complete; push it into the card's observable
+            // properties and let bindings update the UI instantly.
             DispatcherQueue?.TryEnqueue(() =>
             {
                 card.InstalledRecord        = record;
@@ -358,23 +384,10 @@ public partial class MainViewModel : ObservableObject
                 card.Status                 = GameStatus.Installed;
                 card.ActionMessage          = "✅ Installed! Press Home in-game to open ReShade.";
                 CrashReporter.Log($"Install complete: {card.GameName} — {record.AddonFileName}");
-                // Ensure computed properties update
                 card.NotifyAll();
-                // Persist library state and refresh UI to reflect the new installation
                 SaveLibrary();
-                // Re-apply filter so DisplayedGames updates; resort _allCards to keep ordering
-                _allCards = _allCards.OrderBy(c => c.GameName, StringComparer.OrdinalIgnoreCase).ToList();
-                ApplyFilter();
                 UpdateCounts();
             });
-            // After install, show a notification with Refresh action and also schedule a silent full rescan
-            DispatcherQueue?.TryEnqueue(() =>
-            {
-                NotificationMessage = $"Installed {card.GameName} — click Refresh to update UI";
-                NotificationVisible = true;
-            });
-            // Schedule full refresh in background
-            DispatcherQueue?.TryEnqueue(() => { _ = InitializeAsync(forceRescan: true); });
         }
         catch (Exception ex)
         {
@@ -489,7 +502,6 @@ public partial class MainViewModel : ObservableObject
 
     private async Task CheckForUpdatesAsync(List<GameCardViewModel> cards, List<InstalledModRecord> records)
     {
-        // Only check cards that are currently shown as installed and have a known snapshot URL.
         var installed = cards
             .Where(c => c.Status == GameStatus.Installed && c.InstalledRecord?.SnapshotUrl != null)
             .ToList();
@@ -498,37 +510,27 @@ public partial class MainViewModel : ObservableObject
         {
             var record = card.InstalledRecord!;
 
-            // Use ModInstallService.CheckForUpdateAsync which checks:
-            //   1. Local file existence (missing → needs reinstall)
-            //   2. Remote Content-Length vs local file size  ← primary signal, reliable
-            //   3. Remote Last-Modified vs stored baseline   ← fallback only
-            // This prevents false positives from CDNs that report ever-changing dates.
             bool updateAvailable;
             try
             {
                 updateAvailable = await _installer.CheckForUpdateAsync(record);
             }
-            catch { return; } // Network failure — leave status unchanged
+            catch { return; }
 
             if (updateAvailable)
             {
-                // Record the remote Last-Modified now so future checks have a fresh baseline
-                var remoteDate = await WikiService.GetSnapshotLastModifiedAsync(_http, record.SnapshotUrl!);
-                if (remoteDate.HasValue)
-                {
-                    record.SnapshotLastModified = remoteDate;
-                    _installer.SaveRecordPublic(record);
-                }
+                _installer.SaveRecordPublic(record);
                 DispatcherQueue?.TryEnqueue(() => { card.Status = GameStatus.UpdateAvailable; });
             }
-            else
+            else if (!record.RemoteFileSize.HasValue)
             {
-                // No update — refresh the stored Last-Modified baseline so it stays current.
-                // This prevents the date-based fallback from ever drifting out of sync.
-                var remoteDate = await WikiService.GetSnapshotLastModifiedAsync(_http, record.SnapshotUrl!);
-                if (remoteDate.HasValue && remoteDate != record.SnapshotLastModified)
+                // Migration: record didn't have RemoteFileSize (installed before v1.0.2).
+                // CheckForUpdateAsync already did a HEAD — grab the size from the local file
+                // as a reasonable baseline until the next real install records the true value.
+                var localFile = Path.Combine(record.InstallPath, record.AddonFileName);
+                if (File.Exists(localFile))
                 {
-                    record.SnapshotLastModified = remoteDate;
+                    record.RemoteFileSize = new FileInfo(localFile).Length;
                     _installer.SaveRecordPublic(record);
                 }
             }
@@ -601,9 +603,10 @@ public partial class MainViewModel : ObservableObject
         var gameInfos = detectedGames.AsParallel().Select(game =>
         {
             var (installPath, engine) = GameDetectionService.DetectEngineAndPath(game.InstallPath);
-            var mod      = GameDetectionService.MatchGame(game, _allMods);
-            var fallback = mod == null ? (engine == EngineType.Unreal ? genericUnreal
-                                        : engine == EngineType.Unity  ? genericUnity : null) : null;
+            var mod      = GameDetectionService.MatchGame(game, _allMods, _nameMappings);
+            // UnrealLegacy (UE3 and below) cannot use the RenoDX addon system — no fallback mod offered.
+            var fallback = mod == null ? (engine == EngineType.Unreal      ? genericUnreal
+                                        : engine == EngineType.Unity       ? genericUnity : null) : null;
             return (game, installPath, engine, mod, fallback);
         }).ToList();
 
@@ -635,13 +638,25 @@ public partial class MainViewModel : ObservableObject
             {
                 record = new InstalledModRecord
                 {
-                    GameName    = game.Name,
-                    InstallPath = installPath,
+                    GameName      = game.Name,
+                    InstallPath   = installPath,
                     AddonFileName = addonOnDisk,
                     InstalledAt   = File.GetLastWriteTimeUtc(Path.Combine(installPath, addonOnDisk)),
                     SnapshotUrl   = effectiveMod?.SnapshotUrl,
                 };
                 _installer.SaveRecordPublic(record);
+            }
+
+            // Named addon found on disk but no wiki entry exists → show Discord link
+            // so the user can find support/info for their mod.
+            if (addonOnDisk != null && effectiveMod == null)
+            {
+                effectiveMod = new GameMod
+                {
+                    Name       = game.Name,
+                    Status     = "✅",
+                    DiscordUrl = "https://discord.gg/gF4GRJWZ2A",
+                };
             }
 
             cards.Add(new GameCardViewModel
@@ -656,8 +671,9 @@ public partial class MainViewModel : ObservableObject
                 WikiStatus             = effectiveMod?.Status ?? "—",
                 Maintainer             = effectiveMod?.Maintainer ?? "",
                 IsGenericMod           = fallback != null && mod == null,
-                EngineHint             = engine == EngineType.Unreal ? "Unreal Engine"
-                                       : engine == EngineType.Unity  ? "Unity" : "",
+                EngineHint             = engine == EngineType.Unreal       ? "Unreal Engine"
+                                       : engine == EngineType.UnrealLegacy ? "Unreal (Legacy)"
+                                       : engine == EngineType.Unity        ? "Unity" : "",
                 Notes                  = effectiveMod != null ? BuildNotes(game.Name, effectiveMod, fallback, genericNotes) : "",
                 InstalledAddonFileName = record?.AddonFileName,
                 IsHidden               = _hiddenGames.Contains(game.Name),

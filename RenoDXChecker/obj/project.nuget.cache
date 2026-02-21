@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "/wnO9OxhLkk=",
+  "dgSpecHash": "iEzvxJ8n1hs=",
   "success": true,
-  "projectFilePath": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\Release Versions\\RenoDXChecker-1.0.1\\RenoDXChecker\\RenoDXChecker.csproj",
+  "projectFilePath": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RenoDXChecker v1.0.2beta5\\RenoDXChecker\\RenoDXChecker.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Mark\\.nuget\\packages\\communitytoolkit.mvvm\\8.2.2\\communitytoolkit.mvvm.8.2.2.nupkg.sha512",
     "C:\\Users\\Mark\\.nuget\\packages\\htmlagilitypack\\1.11.61\\htmlagilitypack.1.11.61.nupkg.sha512",

@@ -36,7 +36,9 @@ public partial class GameCardViewModel : ObservableObject
 
     // ── Derived display ───────────────────────────────────────────────────────────
 
-    public string WikiStatusLabel => WikiStatus == "✅" ? "✅ Working" : "🚧 In Progress";
+    public string WikiStatusLabel => WikiStatus == "✅" ? "✅ Working"
+                                   : WikiStatus == "🚧" ? "🚧 In Progress"
+                                   : "❓ Unknown";
 
     public string SourceIcon => Source switch
     {

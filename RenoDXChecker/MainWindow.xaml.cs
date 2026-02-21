@@ -22,7 +22,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        Title = "RenoDX Mod Manager";
+        Title = "RDXC - RenoDXChecker";
         CrashReporter.Log("MainWindow: InitializeComponent complete");
         // Set a sensible default size immediately so the window isn't huge on first launch.
         // TryRestoreWindowBounds (called on Activated) will then override this with the
@@ -37,34 +37,70 @@ public sealed partial class MainWindow : Window
         this.Closed += MainWindow_Closed;
     }
 
-    private void CloseNotification_Click(object sender, RoutedEventArgs e)
-    {
-        NotificationBar.Visibility = Visibility.Collapsed;
-    }
-
-    private void ShowNotification(string message)
-    {
-        NotificationText.Text = message;
-        NotificationBar.Visibility = Visibility.Visible;
-    }
-
     private void TuneButton_Click(object sender, RoutedEventArgs e)
     {
-        // Simple mapping dialog: add mapping from detected name -> wiki key
-        var detectedBox = new TextBox { PlaceholderText = "Detected game name", Width = 300 };
-        var wikiBox = new TextBox { PlaceholderText = "Wiki key/name", Width = 300 };
-        var panel = new StackPanel { Spacing = 8 };
-        panel.Children.Add(new TextBlock { Text = "Add name mapping (Detected name -> Wiki key)" });
+        // Get the card this button was invoked from (if it came from a card context menu).
+        // The global Tune button passes no context, so we show a generic dialog.
+        ShowTuneDialog(prefilledDetected: null);
+    }
+
+    private void TuneButton_Card_Click(object sender, RoutedEventArgs e)
+    {
+        // Per-card Tune — pre-fill the detected game name
+        var card = (sender as FrameworkElement)?.Tag as GameCardViewModel;
+        ShowTuneDialog(prefilledDetected: card?.GameName);
+    }
+
+    private void ShowTuneDialog(string? prefilledDetected)
+    {
+        var detectedBox = new TextBox
+        {
+            PlaceholderText = "Detected game name (as shown on the card)",
+            Text            = prefilledDetected ?? "",
+            Width           = 340,
+        };
+        var wikiBox = new TextBox
+        {
+            PlaceholderText = "Exact wiki name (e.g. God of War Ragnarok)",
+            Width           = 340,
+        };
+
+        // If there's already a mapping for this game, pre-fill the wiki box too
+        if (!string.IsNullOrEmpty(prefilledDetected))
+        {
+            var existing = ViewModel.GetNameMapping(prefilledDetected);
+            if (!string.IsNullOrEmpty(existing))
+                wikiBox.Text = existing;
+        }
+
+        var panel = new StackPanel { Spacing = 10 };
+        panel.Children.Add(new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 120, 140, 180)),
+            FontSize     = 12,
+            Text         = "If a game isn't matching its wiki mod, enter the detected name " +
+                           "(exactly as shown on the card) and the wiki name " +
+                           "(exactly as listed on the RenoDX wiki). The app will re-match immediately.",
+        });
+        panel.Children.Add(new TextBlock { Text = "Detected game name:", FontSize = 12 });
         panel.Children.Add(detectedBox);
+        panel.Children.Add(new TextBlock { Text = "Wiki mod name:", FontSize = 12 });
         panel.Children.Add(wikiBox);
+
         var dlg = new ContentDialog
         {
-            Title = "Fuzzy-match tuning",
-            Content = panel,
-            PrimaryButtonText = "Add mapping",
-            CloseButtonText = "Close",
-            XamlRoot = Content.XamlRoot
+            Title             = "Name Matching Override",
+            Content           = panel,
+            PrimaryButtonText = "Save mapping",
+            SecondaryButtonText = !string.IsNullOrEmpty(prefilledDetected) &&
+                                  !string.IsNullOrEmpty(ViewModel.GetNameMapping(prefilledDetected ?? ""))
+                                  ? "Remove mapping" : "",
+            CloseButtonText   = "Cancel",
+            XamlRoot          = Content.XamlRoot,
+            Background        = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 16, 20, 36)),
         };
+
         _ = dlg.ShowAsync().AsTask().ContinueWith(t =>
         {
             if (t.Result == ContentDialogResult.Primary)
@@ -72,9 +108,13 @@ public sealed partial class MainWindow : Window
                 var det = detectedBox.Text?.Trim();
                 var key = wikiBox.Text?.Trim();
                 if (!string.IsNullOrEmpty(det) && !string.IsNullOrEmpty(key))
-                {
                     ViewModel.AddNameMapping(det, key);
-                }
+            }
+            else if (t.Result == ContentDialogResult.Secondary)
+            {
+                var det = detectedBox.Text?.Trim() ?? prefilledDetected;
+                if (!string.IsNullOrEmpty(det))
+                    ViewModel.RemoveNameMapping(det);
             }
         }, TaskScheduler.FromCurrentSynchronizationContext());
     }
@@ -134,16 +174,6 @@ public sealed partial class MainWindow : Window
                     HiddenCountText.Text = ViewModel.HiddenCount > 0
                         ? $"· {ViewModel.HiddenCount} hidden" : "";
                     break;
-                case nameof(ViewModel.NotificationVisible):
-                    if (ViewModel.NotificationVisible)
-                        ShowNotification(ViewModel.NotificationMessage);
-                    else
-                        NotificationBar.Visibility = Visibility.Collapsed;
-                    break;
-                case nameof(ViewModel.NotificationMessage):
-                    if (ViewModel.NotificationVisible)
-                        ShowNotification(ViewModel.NotificationMessage);
-                    break;
             }
         });
     }
@@ -171,9 +201,16 @@ public sealed partial class MainWindow : Window
         var logsDir = System.IO.Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "RenoDXChecker", "logs");
-        System.IO.Directory.CreateDirectory(logsDir); // ensure it exists before opening
+        System.IO.Directory.CreateDirectory(logsDir);
         CrashReporter.Log("User opened logs folder from About panel");
         System.Diagnostics.Process.Start("explorer.exe", logsDir);
+    }
+
+    private void OpenDownloadsFolder_Click(object sender, RoutedEventArgs e)
+    {
+        System.IO.Directory.CreateDirectory(ModInstallService.DownloadCacheDir);
+        CrashReporter.Log("User opened downloads cache folder from About panel");
+        System.Diagnostics.Process.Start("explorer.exe", ModInstallService.DownloadCacheDir);
     }
 
     private void AboutBack_Click(object sender, RoutedEventArgs e)
