@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "D:\\RenoDXChecker (v18) - Copy\\RenoDXChecker\\RenoDXChecker.csproj": {}
+    "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\Release Versions\\RenoDXChecker-1.0.1\\RenoDXChecker\\RenoDXChecker.csproj": {}
   },
   "projects": {
-    "D:\\RenoDXChecker (v18) - Copy\\RenoDXChecker\\RenoDXChecker.csproj": {
+    "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\Release Versions\\RenoDXChecker-1.0.1\\RenoDXChecker\\RenoDXChecker.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\RenoDXChecker (v18) - Copy\\RenoDXChecker\\RenoDXChecker.csproj",
+        "projectUniqueName": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\Release Versions\\RenoDXChecker-1.0.1\\RenoDXChecker\\RenoDXChecker.csproj",
         "projectName": "RenoDXChecker",
-        "projectPath": "D:\\RenoDXChecker (v18) - Copy\\RenoDXChecker\\RenoDXChecker.csproj",
+        "projectPath": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\Release Versions\\RenoDXChecker-1.0.1\\RenoDXChecker\\RenoDXChecker.csproj",
         "packagesPath": "C:\\Users\\Mark\\.nuget\\packages\\",
-        "outputPath": "D:\\RenoDXChecker (v18) - Copy\\RenoDXChecker\\obj\\",
+        "outputPath": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\Release Versions\\RenoDXChecker-1.0.1\\RenoDXChecker\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

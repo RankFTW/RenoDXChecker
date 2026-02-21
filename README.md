@@ -26,7 +26,8 @@ install or update HDR mods with one click.
 | 📦 Installed badge | Shows the installed addon filename on each card |
 | 🔎 Filter tabs | Filter by All Games, Installed, Hidden, Unity, Unreal, or Other |
 | 🗂 Name mapping | Use the Tune button to add fuzzy-match overrides for games with unusual names |
-| 💾 Window memory | Both the main window and About window remember their size and position between sessions |
+| 💾 Window memory | The main window remembers its size and position between sessions |
+| ℹ About page | About information is shown as an inline page — click ? then ← Back to return |
 
 ---
 
@@ -143,8 +144,8 @@ If the install path can't be determined, click **📁** on the card to set it ma
 ## Hiding Games
 
 Click 🚫 on any card to hide that game from the main list. Hidden games are tracked separately
-and won't appear unless you click **👁 Show Hidden** in the filter bar. Clicking 🚫 again on
-a hidden game (while Show Hidden is active) will unhide it.
+and won't appear unless you switch to the **🙈 Hidden** filter tab. Clicking 🚫 again on a hidden
+game (while viewing the Hidden tab) will unhide it.
 
 ---
 
@@ -165,7 +166,6 @@ All app data is stored locally in `%LocalAppData%\RenoDXChecker\`:
 | `game_library.json` | Detected games, hidden games, manually added games, addon scan cache |
 | `installed.json` | Install records with file paths and snapshot dates |
 | `window_main.json` | Main window size and position |
-| `window_about.json` | About window size and position |
 
 ---
 

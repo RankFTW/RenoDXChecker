@@ -232,11 +232,34 @@ public static class GameDetectionService
 
     public static GameMod? MatchGame(DetectedGame game, IEnumerable<GameMod> mods)
     {
-        var name  = NormalizeName(game.Name);
-        var exact = mods.FirstOrDefault(m => NormalizeName(m.Name) == name);
-        if (exact != null) return exact;
-        return mods.FirstOrDefault(m =>
-            NormalizeName(m.Name).Contains(name) || name.Contains(NormalizeName(m.Name)));
+        var name = NormalizeName(game.Name);
+        var modList = mods.Select(m => (mod: m, norm: NormalizeName(m.Name))).ToList();
+
+        // 1. Exact normalised match
+        var exact = modList.FirstOrDefault(t => t.norm == name);
+        if (exact.mod != null) return exact.mod;
+
+        // 2. Game name contains the mod name — e.g. detected "Code Vein GOTY" matches wiki "Code Vein"
+        //    Pick the longest (most specific) mod name that fits inside the game name.
+        //    This direction is safe: a longer detected name can match a shorter wiki entry.
+        var containedBy = modList
+            .Where(t => name.Contains(t.norm))
+            .OrderByDescending(t => t.norm.Length)
+            .FirstOrDefault();
+        if (containedBy.mod != null) return containedBy.mod;
+
+        // 3. Mod name contains the game name — e.g. abbreviated detected name
+        //    ONLY when the extra characters in the mod name are NOT a sequel suffix (II, III, 2, 3…).
+        //    This prevents "Code Vein" (game) from matching "Code Vein II" (mod).
+        foreach (var t in modList.Where(t => t.norm.Contains(name)).OrderBy(t => t.norm.Length))
+        {
+            var suffix = t.norm.Substring(name.Length);
+            // Reject if the suffix is a sequel indicator: roman numerals or digits
+            var isSequel = System.Text.RegularExpressions.Regex.IsMatch(suffix, @"^[ivxlcdm0-9]+$");
+            if (!isSequel) return t.mod;
+        }
+
+        return null;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────────

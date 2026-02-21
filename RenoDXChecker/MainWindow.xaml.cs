@@ -1,4 +1,5 @@
 using Microsoft.UI;
+using RenoDXChecker.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -13,7 +14,6 @@ namespace RenoDXChecker;
 public sealed partial class MainWindow : Window
 {
     public MainViewModel ViewModel { get; } = new();
-    private AboutWindow? _aboutWindow;
 
     // Sensible default — used on first launch before any saved size exists
     private const int DefaultWidth  = 1280;
@@ -23,6 +23,7 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         Title = "RenoDX Mod Manager";
+        CrashReporter.Log("MainWindow: InitializeComponent complete");
         // Set a sensible default size immediately so the window isn't huge on first launch.
         // TryRestoreWindowBounds (called on Activated) will then override this with the
         // saved size+position from the previous session, if one exists.
@@ -91,8 +92,6 @@ public sealed partial class MainWindow : Window
 
     private void MainWindow_Closed(object? sender, WindowEventArgs e)
     {
-        // Close about window if open
-        try { _aboutWindow?.Close(); } catch { }
         SaveWindowBounds();
     }
 
@@ -106,10 +105,14 @@ public sealed partial class MainWindow : Window
             {
                 case nameof(ViewModel.IsLoading):
                     var loading = ViewModel.IsLoading;
-                    LoadingPanel.Visibility = loading ? Visibility.Visible  : Visibility.Collapsed;
-                    CardsScroll.Visibility  = loading ? Visibility.Collapsed : Visibility.Visible;
-                    LoadingRing.IsActive    = loading;
-                    RefreshBtn.IsEnabled    = !loading;
+                    // Don't disturb the About panel if it's currently visible
+                    if (!_aboutVisible)
+                    {
+                        LoadingPanel.Visibility = loading ? Visibility.Visible  : Visibility.Collapsed;
+                        CardsScroll.Visibility  = loading ? Visibility.Collapsed : Visibility.Visible;
+                    }
+                    LoadingRing.IsActive = loading;
+                    RefreshBtn.IsEnabled = !loading;
                     StatusDot.Fill = new SolidColorBrush(loading
                         ? Windows.UI.Color.FromArgb(255, 180, 160, 100)
                         : Windows.UI.Color.FromArgb(255, 130, 200, 140));
@@ -147,25 +150,41 @@ public sealed partial class MainWindow : Window
 
     // ── Header buttons ────────────────────────────────────────────────────────────
 
-    private void RefreshButton_Click(object sender, RoutedEventArgs e) =>
+    private void RefreshButton_Click(object sender, RoutedEventArgs e)
+    {
+        CrashReporter.Log("User clicked Refresh");
         _ = ViewModel.InitializeAsync(forceRescan: true);
+    }
+
+    private bool _aboutVisible = false;
 
     private void AboutButton_Click(object sender, RoutedEventArgs e)
     {
-        try
-        {
-            if (_aboutWindow == null)
-            {
-                _aboutWindow = new AboutWindow();
-                _aboutWindow.Closed += (_, __) => _aboutWindow = null;
-                _aboutWindow.Activate();
-            }
-            else
-            {
-                _aboutWindow.Activate();
-            }
-        }
-        catch { }
+        _aboutVisible = true;
+        AboutPanel.Visibility  = Visibility.Visible;
+        CardsScroll.Visibility = Visibility.Collapsed;
+        LoadingPanel.Visibility = Visibility.Collapsed;
+    }
+
+    private void OpenLogsFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var logsDir = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "RenoDXChecker", "logs");
+        System.IO.Directory.CreateDirectory(logsDir); // ensure it exists before opening
+        CrashReporter.Log("User opened logs folder from About panel");
+        System.Diagnostics.Process.Start("explorer.exe", logsDir);
+    }
+
+    private void AboutBack_Click(object sender, RoutedEventArgs e)
+    {
+        _aboutVisible = false;
+        AboutPanel.Visibility = Visibility.Collapsed;
+        // Restore whichever panel was showing before About was opened
+        if (ViewModel.IsLoading)
+            LoadingPanel.Visibility = Visibility.Visible;
+        else
+            CardsScroll.Visibility = Visibility.Visible;
     }
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e) =>
@@ -201,6 +220,7 @@ public sealed partial class MainWindow : Window
 
         var gameName = nameBox.Text.Trim();
         if (string.IsNullOrEmpty(gameName)) return;
+        CrashReporter.Log($"AddGame: {gameName}");
 
         // Pick the game folder
         var folder = await PickFolderAsync();
@@ -308,12 +328,6 @@ public sealed partial class MainWindow : Window
             await Windows.System.Launcher.LaunchUriAsync(new Uri(url));
     }
 
-    private async void NexusLink_Click(object sender, RoutedEventArgs e)
-    {
-        var card = GetCardFromSender(sender);
-        if (card?.NexusUrl != null)
-            await Windows.System.Launcher.LaunchUriAsync(new Uri(card.NexusUrl));
-    }
 
     private async void NameLink_Click(object sender, RoutedEventArgs e)
     {
@@ -322,12 +336,6 @@ public sealed partial class MainWindow : Window
             await Windows.System.Launcher.LaunchUriAsync(new Uri(card.NameUrl));
     }
 
-    private async void DiscordLink_Click(object sender, RoutedEventArgs e)
-    {
-        var card = GetCardFromSender(sender);
-        if (card?.DiscordUrl != null)
-            await Windows.System.Launcher.LaunchUriAsync(new Uri(card.DiscordUrl));
-    }
 
     private async void NotesButton_Click(object sender, RoutedEventArgs e)
     {

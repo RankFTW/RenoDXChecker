@@ -151,19 +151,16 @@ public class ModInstallService
 
             if (resp.IsSuccessStatusCode)
             {
-                // Compare content-length with local file size as a quick check
+                // Primary signal: Content-Length vs local file size.
+                // This is the only reliable indicator — CDN Last-Modified headers are
+                // inconsistent and cause false positives for disk-scanned installs.
                 var remoteSize = resp.Content.Headers.ContentLength;
-                var localSize = new FileInfo(localFile).Length;
-
-                if (remoteSize.HasValue && remoteSize.Value != localSize)
-                    return true;
-
-                // Check Last-Modified
-                var lastMod = resp.Content.Headers.LastModified;
-                // Prefer previously recorded snapshot last-modified as the baseline, fall back to InstalledAt
-                var baseline = record.SnapshotLastModified ?? record.InstalledAt;
-                if (lastMod.HasValue && lastMod.Value.UtcDateTime > baseline.AddMinutes(1))
-                    return true;
+                if (remoteSize.HasValue)
+                {
+                    var localSize = new FileInfo(localFile).Length;
+                    if (remoteSize.Value != localSize) return true;
+                }
+                // If the server didn't return Content-Length we can't tell — assume no update.
             }
         }
         catch { /* Network issue — assume no update */ }

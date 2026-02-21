@@ -3,11 +3,11 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RenoDXChecker.Models;
 using RenoDXChecker.Services;
+using System.Runtime.ExceptionServices;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Text.Json;
-using Windows.Storage;
 
 namespace RenoDXChecker.ViewModels;
 
@@ -20,6 +20,33 @@ public partial class MainViewModel : ObservableObject
     private List<GameCardViewModel> _allCards = new();
     private List<DetectedGame> _manualGames = new();
     private HashSet<string> _hiddenGames = new(StringComparer.OrdinalIgnoreCase);
+
+    // Settings stored as JSON — ApplicationData.Current throws in unpackaged WinUI 3
+    private static readonly string _settingsFilePath = System.IO.Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "RenoDXChecker", "settings.json");
+
+    private static Dictionary<string, string> LoadSettingsFile()
+    {
+        try
+        {
+            if (!System.IO.File.Exists(_settingsFilePath)) return new(StringComparer.OrdinalIgnoreCase);
+            var json = System.IO.File.ReadAllText(_settingsFilePath);
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(json)
+                   ?? new(StringComparer.OrdinalIgnoreCase);
+        }
+        catch { return new(StringComparer.OrdinalIgnoreCase); }
+    }
+
+    private static void SaveSettingsFile(Dictionary<string, string> settings)
+    {
+        try
+        {
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(_settingsFilePath)!);
+            System.IO.File.WriteAllText(_settingsFilePath, JsonSerializer.Serialize(settings));
+        }
+        catch { }
+    }
 
     [ObservableProperty] private string _statusText = "Loading...";
     [ObservableProperty] private string _subStatusText = "";
@@ -57,18 +84,17 @@ public partial class MainViewModel : ObservableObject
     }
 
     // --- persisted settings: name mappings, theme, density ---
-    private const string SettingsContainer = "RenoDXSettings";
     private Dictionary<string, string> _nameMappings = new(StringComparer.OrdinalIgnoreCase);
     private void LoadNameMappings()
     {
         try
         {
-            var settings = ApplicationData.Current.LocalSettings;
-            var container = settings.CreateContainer(SettingsContainer, ApplicationDataCreateDisposition.Always);
-            if (container.Values.TryGetValue("NameMappings", out var json) && json is string s && !string.IsNullOrEmpty(s))
-            {
-                _nameMappings = JsonSerializer.Deserialize<Dictionary<string,string>>(s) ?? new(StringComparer.OrdinalIgnoreCase);
-            }
+            var s = LoadSettingsFile();
+            if (s.TryGetValue("NameMappings", out var json) && !string.IsNullOrEmpty(json))
+                _nameMappings = JsonSerializer.Deserialize<Dictionary<string,string>>(json)
+                               ?? new(StringComparer.OrdinalIgnoreCase);
+            else
+                _nameMappings = new(StringComparer.OrdinalIgnoreCase);
         }
         catch { _nameMappings = new(StringComparer.OrdinalIgnoreCase); }
     }
@@ -91,29 +117,16 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            var settings = ApplicationData.Current.LocalSettings;
-            var container = settings.CreateContainer(SettingsContainer, ApplicationDataCreateDisposition.Always);
-            container.Values["NameMappings"] = JsonSerializer.Serialize(_nameMappings);
+            var s = LoadSettingsFile();
+            s["NameMappings"] = JsonSerializer.Serialize(_nameMappings);
+            SaveSettingsFile(s);
         }
         catch { }
     }
 
     private void LoadThemeAndDensity()
     {
-        try
-        {
-            var settings = ApplicationData.Current.LocalSettings;
-            var container = settings.CreateContainer(SettingsContainer, ApplicationDataCreateDisposition.Always);
-            if (container.Values.TryGetValue("Theme", out var t) && t is string theme)
-            {
-                // store in container for MainWindow to read via LocalSettings
-            }
-            if (container.Values.TryGetValue("CardDensity", out var d) && d is string density)
-            {
-                // persisted for MainWindow to apply
-            }
-        }
-        catch { }
+        // Theme/density removed — no longer used
     }
 
     // Normalize titles for tolerant lookup: remove punctuation, trademarks, parenthetical text, diacritics
@@ -147,14 +160,13 @@ public partial class MainViewModel : ObservableObject
     private static string? GetGenericNote(string gameName, Dictionary<string, string> genericNotes)
     {
         if (string.IsNullOrEmpty(gameName) || genericNotes == null || genericNotes.Count == 0) return null;
-        // Check user mappings stored in LocalSettings (detectedName -> wiki key)
+        // Check user name mappings from JSON settings file
         try
         {
-            var settings = ApplicationData.Current.LocalSettings;
-            var container = settings.CreateContainer("RenoDXSettings", ApplicationDataCreateDisposition.Always);
-            if (container.Values.TryGetValue("NameMappings", out var json) && json is string s && !string.IsNullOrEmpty(s))
+            var s = LoadSettingsFile();
+            if (s.TryGetValue("NameMappings", out var json) && !string.IsNullOrEmpty(json))
             {
-                var map = JsonSerializer.Deserialize<Dictionary<string,string>>(s);
+                var map = JsonSerializer.Deserialize<Dictionary<string,string>>(json);
                 if (map != null)
                 {
                     if (map.TryGetValue(gameName, out var mapped) && !string.IsNullOrEmpty(mapped))
@@ -218,6 +230,7 @@ public partial class MainViewModel : ObservableObject
     {
         if (card == null) return;
         var key = card.GameName;
+        CrashReporter.Log($"ToggleHide: {key} (currently hidden={card.IsHidden})");
         if (_hiddenGames.Contains(key))
             _hiddenGames.Remove(key);
         else
@@ -257,38 +270,50 @@ public partial class MainViewModel : ObservableObject
         var genericUnity  = MakeGenericUnity();
         var fallback = mod == null ? (engine == EngineType.Unreal ? genericUnreal
                                    : engine == EngineType.Unity  ? genericUnity : null) : null;
-        if (mod == null && fallback == null)
-        {
-            // No mod match — still add as unmatched card so user sees it
-            fallback = genericUnreal; // treat as potential UE
-        }
+        var effectiveMod = mod ?? fallback; // null for unknown-engine games not on wiki
 
         var records = _installer.LoadAll();
         var record  = records.FirstOrDefault(r => r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase));
-        var effectiveMod = mod ?? fallback!;
 
-            var hasNameLink = !string.IsNullOrEmpty(effectiveMod.NameUrl);
-            var card = new GameCardViewModel
+        // Scan disk for any renodx-* addon file already installed
+        var scanPath = installPath.Length > 0 ? installPath : game.InstallPath;
+        var addonOnDisk = ScanForInstalledAddon(scanPath, effectiveMod);
+        if (addonOnDisk != null && record == null)
+        {
+            record = new InstalledModRecord
+            {
+                GameName      = game.Name,
+                InstallPath   = scanPath,
+                AddonFileName = addonOnDisk,
+                InstalledAt   = File.GetLastWriteTimeUtc(Path.Combine(scanPath, addonOnDisk)),
+                SnapshotUrl   = effectiveMod?.SnapshotUrl,
+            };
+            _installer.SaveRecordPublic(record);
+        }
+
+        var card = new GameCardViewModel
         {
             GameName       = game.Name,
             Mod            = effectiveMod,
             DetectedGame   = game,
-            InstallPath    = installPath.Length > 0 ? installPath : game.InstallPath,
+            InstallPath    = scanPath,
             Source         = "Manual",
             InstalledRecord = record,
             Status         = record != null ? GameStatus.Installed : GameStatus.Available,
-            WikiStatus     = effectiveMod.Status,
-            Maintainer     = effectiveMod.Maintainer,
+            WikiStatus     = effectiveMod?.Status ?? "—",
+            Maintainer     = effectiveMod?.Maintainer ?? "",
             IsGenericMod   = fallback != null && mod == null,
             EngineHint     = engine == EngineType.Unreal ? "Unreal Engine"
                            : engine == EngineType.Unity  ? "Unity" : "",
-            Notes          = BuildNotes(game.Name, effectiveMod, fallback == null ? null : fallback, _genericNotes),
+            Notes          = effectiveMod != null ? BuildNotes(game.Name, effectiveMod, fallback, _genericNotes) : "",
             InstalledAddonFileName = record?.AddonFileName,
-                IsExternalOnly = effectiveMod.SnapshotUrl == null && (effectiveMod.NexusUrl != null || effectiveMod.DiscordUrl != null || hasNameLink),
-                ExternalUrl    = effectiveMod.NexusUrl ?? effectiveMod.DiscordUrl ?? (hasNameLink ? effectiveMod.NameUrl : ""),
-                ExternalLabel  = effectiveMod.NexusUrl != null ? "Get on Nexus Mods" : effectiveMod.DiscordUrl != null ? "Get on Discord" : (hasNameLink ? "Open Instructions" : ""),
-            NexusUrl       = effectiveMod.NexusUrl,
-            DiscordUrl     = effectiveMod.DiscordUrl,
+            IsExternalOnly = effectiveMod?.SnapshotUrl == null &&
+                             (effectiveMod?.NexusUrl != null || effectiveMod?.DiscordUrl != null),
+            ExternalUrl    = effectiveMod?.NexusUrl ?? effectiveMod?.DiscordUrl ?? "",
+            ExternalLabel  = effectiveMod?.NexusUrl != null ? "Get on Nexus Mods" : "Get on Discord",
+            NexusUrl       = effectiveMod?.NexusUrl,
+            DiscordUrl     = effectiveMod?.DiscordUrl,
+            NameUrl        = effectiveMod?.NameUrl,
             IsManuallyAdded = true,
         };
 
@@ -310,6 +335,7 @@ public partial class MainViewModel : ObservableObject
         }
         card.IsInstalling = true;
         card.ActionMessage = "Starting download...";
+        CrashReporter.Log($"Install started: {card.GameName} → {card.InstallPath}");
         try
         {
             var progress = new Progress<(string msg, double pct)>(p =>
@@ -331,6 +357,7 @@ public partial class MainViewModel : ObservableObject
                 card.InstalledAddonFileName = record.AddonFileName;
                 card.Status                 = GameStatus.Installed;
                 card.ActionMessage          = "✅ Installed! Press Home in-game to open ReShade.";
+                CrashReporter.Log($"Install complete: {card.GameName} — {record.AddonFileName}");
                 // Ensure computed properties update
                 card.NotifyAll();
                 // Persist library state and refresh UI to reflect the new installation
@@ -349,7 +376,11 @@ public partial class MainViewModel : ObservableObject
             // Schedule full refresh in background
             DispatcherQueue?.TryEnqueue(() => { _ = InitializeAsync(forceRescan: true); });
         }
-        catch (Exception ex) { card.ActionMessage = $"❌ Failed: {ex.Message}"; }
+        catch (Exception ex)
+        {
+            card.ActionMessage = $"❌ Failed: {ex.Message}";
+            CrashReporter.WriteCrashReport("InstallModAsync", ex, note: $"Game: {card.GameName}, Path: {card.InstallPath}");
+        }
         finally { card.IsInstalling = false; }
     }
 
@@ -367,6 +398,7 @@ public partial class MainViewModel : ObservableObject
     public void UninstallMod(GameCardViewModel? card)
     {
         if (card?.InstalledRecord == null) return;
+        CrashReporter.Log($"Uninstall: {card.GameName}");
         _installer.Uninstall(card.InstalledRecord);
         card.InstalledRecord        = null;
         card.InstalledAddonFileName = null;
@@ -383,6 +415,7 @@ public partial class MainViewModel : ObservableObject
         DisplayedGames.Clear();
         _allCards.Clear();
 
+        CrashReporter.Log($"InitializeAsync started (forceRescan={forceRescan})");
         try
         {
             var savedLib = GameLibraryService.Load();
@@ -413,20 +446,26 @@ public partial class MainViewModel : ObservableObject
                 _genericNotes = wikiTask.Result.GenericNotes;
                 detectedGames = detectTask.Result;
                 addonCache    = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+                CrashReporter.Log($"Wiki fetch complete: {_allMods.Count} mods. Store scan complete: {detectedGames.Count} games.");
             }
 
-            // Combine auto-detected + manual games (deduplicate by name)
+            // Combine auto-detected + manual games.
+            // Manual games override auto-detected ones with the same name.
+            var manualNames = _manualGames.Select(g => GameDetectionService.NormalizeName(g.Name))
+                                          .ToHashSet(StringComparer.OrdinalIgnoreCase);
             var allGames = detectedGames
+                .Where(g => !manualNames.Contains(GameDetectionService.NormalizeName(g.Name)))
                 .Concat(_manualGames)
-                .GroupBy(g => GameDetectionService.NormalizeName(g.Name))
-                .Select(grp => grp.First())
                 .ToList();
 
             var records = _installer.LoadAll();
             SubStatusText = "Matching mods and checking install status...";
+            CrashReporter.Log($"Building cards for {allGames.Count} games...");
             _allCards = await Task.Run(() => BuildCards(allGames, records, addonCache, _genericNotes));
+            CrashReporter.Log($"BuildCards complete: {_allCards.Count} cards.");
 
             // Check for updates (async, parallel, non-blocking)
+            CrashReporter.Log("Starting background update checks...");
             _ = Task.Run(() => CheckForUpdatesAsync(_allCards, records));
 
             _allCards = _allCards.OrderBy(c => c.GameName, StringComparer.OrdinalIgnoreCase).ToList();
@@ -437,7 +476,12 @@ public partial class MainViewModel : ObservableObject
             StatusText    = $"{detectedGames.Count} games detected · {InstalledCount} mods installed";
             SubStatusText = "";
         }
-        catch (Exception ex) { StatusText = "Error loading"; SubStatusText = ex.Message; }
+        catch (Exception ex)
+        {
+            StatusText = "Error loading";
+            SubStatusText = ex.Message;
+            CrashReporter.WriteCrashReport("InitializeAsync", ex);
+        }
         finally { IsLoading = false; }
     }
 
@@ -445,28 +489,51 @@ public partial class MainViewModel : ObservableObject
 
     private async Task CheckForUpdatesAsync(List<GameCardViewModel> cards, List<InstalledModRecord> records)
     {
-        var installed = cards.Where(c => c.Status == GameStatus.Installed && c.Mod?.SnapshotUrl != null).ToList();
+        // Only check cards that are currently shown as installed and have a known snapshot URL.
+        var installed = cards
+            .Where(c => c.Status == GameStatus.Installed && c.InstalledRecord?.SnapshotUrl != null)
+            .ToList();
+
         var tasks = installed.Select(async card =>
         {
-            var record = card.InstalledRecord;
-            if (record?.SnapshotUrl == null) return;
-            var remoteDate = await WikiService.GetSnapshotLastModifiedAsync(_http, record.SnapshotUrl);
-            if (remoteDate == null) return;
-            // Use previously recorded snapshot last-modified as baseline when available
-            var baseline = record.SnapshotLastModified ?? record.InstalledAt;
-            // Update available if remote is newer than the baseline (with small tolerance)
-            if (remoteDate.Value > baseline.AddMinutes(1))
+            var record = card.InstalledRecord!;
+
+            // Use ModInstallService.CheckForUpdateAsync which checks:
+            //   1. Local file existence (missing → needs reinstall)
+            //   2. Remote Content-Length vs local file size  ← primary signal, reliable
+            //   3. Remote Last-Modified vs stored baseline   ← fallback only
+            // This prevents false positives from CDNs that report ever-changing dates.
+            bool updateAvailable;
+            try
             {
-                // Update record's known remote date
-                record.SnapshotLastModified = remoteDate;
-                _installer.SaveRecordPublic(record);
-                // Notify on UI thread
-                DispatcherQueue?.TryEnqueue(() =>
+                updateAvailable = await _installer.CheckForUpdateAsync(record);
+            }
+            catch { return; } // Network failure — leave status unchanged
+
+            if (updateAvailable)
+            {
+                // Record the remote Last-Modified now so future checks have a fresh baseline
+                var remoteDate = await WikiService.GetSnapshotLastModifiedAsync(_http, record.SnapshotUrl!);
+                if (remoteDate.HasValue)
                 {
-                    card.Status = GameStatus.UpdateAvailable;
-                });
+                    record.SnapshotLastModified = remoteDate;
+                    _installer.SaveRecordPublic(record);
+                }
+                DispatcherQueue?.TryEnqueue(() => { card.Status = GameStatus.UpdateAvailable; });
+            }
+            else
+            {
+                // No update — refresh the stored Last-Modified baseline so it stays current.
+                // This prevents the date-based fallback from ever drifting out of sync.
+                var remoteDate = await WikiService.GetSnapshotLastModifiedAsync(_http, record.SnapshotUrl!);
+                if (remoteDate.HasValue && remoteDate != record.SnapshotLastModified)
+                {
+                    record.SnapshotLastModified = remoteDate;
+                    _installer.SaveRecordPublic(record);
+                }
             }
         });
+
         await Task.WhenAll(tasks);
     }
 
@@ -486,11 +553,25 @@ public partial class MainViewModel : ObservableObject
             Task.Run(GameDetectionService.FindEaGames),
         };
         Task.WhenAll(tasks).Wait();
-        return tasks.SelectMany(t => t.Result)
+
+        var all = tasks.SelectMany(t => t.Result).ToList();
+
+        // Step 1: deduplicate exact same name from multiple stores
+        var byName = all
             .GroupBy(g => GameDetectionService.NormalizeName(g.Name))
-            .Select(grp => grp.GroupBy(g => g.InstallPath.TrimEnd('\\', '/').ToLowerInvariant())
-                              .Select(pg => pg.First()).First())
+            .Select(grp => grp.First())
             .ToList();
+
+        // Step 2: deduplicate by install path — Steam registers DLC and tools as
+        // separate entries that point to the same game folder. For each unique path,
+        // keep the entry with the shortest name (base game title is always shortest).
+        // This collapses "Cyberpunk 2077 / Phantom Liberty / REDmod" → "Cyberpunk 2077".
+        var byPath = byName
+            .GroupBy(g => g.InstallPath.TrimEnd('\\', '/').ToLowerInvariant())
+            .Select(grp => grp.OrderBy(g => g.Name.Length).First())
+            .ToList();
+
+        return byPath;
     }
 
     // ── Card building ─────────────────────────────────────────────────────────────
@@ -528,13 +609,16 @@ public partial class MainViewModel : ObservableObject
 
         foreach (var (game, installPath, engine, mod, fallback) in gameInfos)
         {
-            if (mod == null && fallback == null) continue;
+            // Always show every detected game — even if no wiki mod exists.
+            // The card will have no install button if there's no snapshot URL,
+            // but a RenoDX addon already on disk will still be detected and shown.
+            var effectiveMod = mod ?? fallback; // may be null for truly unknown games
 
-            var effectiveMod = mod ?? fallback!;
             var record = records.FirstOrDefault(r =>
                 r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase));
 
-            // Disk scan with cache
+            // Always scan disk for renodx-* addon files — catches manual installs and
+            // games not yet on the wiki that already have a mod installed.
             string? addonOnDisk = null;
             var cacheKey = installPath.ToLowerInvariant();
             if (addonCache.TryGetValue(cacheKey, out var cached))
@@ -551,9 +635,11 @@ public partial class MainViewModel : ObservableObject
             {
                 record = new InstalledModRecord
                 {
-                    GameName = game.Name, InstallPath = installPath, AddonFileName = addonOnDisk,
-                    InstalledAt = File.GetLastWriteTimeUtc(Path.Combine(installPath, addonOnDisk)),
-                    SnapshotUrl = effectiveMod.SnapshotUrl,
+                    GameName    = game.Name,
+                    InstallPath = installPath,
+                    AddonFileName = addonOnDisk,
+                    InstalledAt   = File.GetLastWriteTimeUtc(Path.Combine(installPath, addonOnDisk)),
+                    SnapshotUrl   = effectiveMod?.SnapshotUrl,
                 };
                 _installer.SaveRecordPublic(record);
             }
@@ -567,25 +653,22 @@ public partial class MainViewModel : ObservableObject
                 Source                 = game.Source,
                 InstalledRecord        = record,
                 Status                 = record != null ? GameStatus.Installed : GameStatus.Available,
-                WikiStatus             = effectiveMod.Status,
-                Maintainer             = effectiveMod.Maintainer,
+                WikiStatus             = effectiveMod?.Status ?? "—",
+                Maintainer             = effectiveMod?.Maintainer ?? "",
                 IsGenericMod           = fallback != null && mod == null,
                 EngineHint             = engine == EngineType.Unreal ? "Unreal Engine"
                                        : engine == EngineType.Unity  ? "Unity" : "",
-                Notes                  = BuildNotes(game.Name, effectiveMod, fallback, genericNotes),
+                Notes                  = effectiveMod != null ? BuildNotes(game.Name, effectiveMod, fallback, genericNotes) : "",
                 InstalledAddonFileName = record?.AddonFileName,
                 IsHidden               = _hiddenGames.Contains(game.Name),
                 IsManuallyAdded        = game.IsManuallyAdded,
-                // IsExternalOnly = true only when there is NO snapshot URL AND there IS a Nexus/Discord link.
-                // NameUrl (discussion link in game name) is shown as a separate button and must NOT
-                // block the install button — so it does not affect IsExternalOnly.
-                IsExternalOnly         = effectiveMod.SnapshotUrl == null &&
-                                         (effectiveMod.NexusUrl != null || effectiveMod.DiscordUrl != null),
-                ExternalUrl            = effectiveMod.NexusUrl ?? effectiveMod.DiscordUrl ?? "",
-                ExternalLabel          = effectiveMod.NexusUrl != null ? "Get on Nexus Mods" : "Get on Discord",
-                NexusUrl               = effectiveMod.NexusUrl,
-                DiscordUrl             = effectiveMod.DiscordUrl,
-                NameUrl                = effectiveMod.NameUrl,
+                IsExternalOnly         = effectiveMod?.SnapshotUrl == null &&
+                                         (effectiveMod?.NexusUrl != null || effectiveMod?.DiscordUrl != null),
+                ExternalUrl            = effectiveMod?.NexusUrl ?? effectiveMod?.DiscordUrl ?? "",
+                ExternalLabel          = effectiveMod?.NexusUrl != null ? "Get on Nexus Mods" : "Get on Discord",
+                NexusUrl               = effectiveMod?.NexusUrl,
+                DiscordUrl             = effectiveMod?.DiscordUrl,
+                NameUrl                = effectiveMod?.NameUrl,
             });
         }
         return cards;
@@ -628,12 +711,12 @@ public partial class MainViewModel : ObservableObject
         return string.Join("\n", parts);
     }
 
-    private static string? ScanForInstalledAddon(string installPath, GameMod mod)
+    private static string? ScanForInstalledAddon(string installPath, GameMod? mod)
     {
         if (!Directory.Exists(installPath)) return null;
         try
         {
-            if (mod.AddonFileName != null && File.Exists(Path.Combine(installPath, mod.AddonFileName)))
+            if (mod?.AddonFileName != null && File.Exists(Path.Combine(installPath, mod.AddonFileName)))
                 return mod.AddonFileName;
             // First try direct files in the folder
             foreach (var ext in new[] { "*.addon64", "*.addon32" })
@@ -750,12 +833,15 @@ public partial class MainViewModel : ObservableObject
     {
         var detectedGames = _allCards
             .Where(c => !c.IsManuallyAdded && c.DetectedGame != null)
-            .Select(c => c.DetectedGame!).ToList();
-        var addonCache = _allCards
-            .Where(c => !string.IsNullOrEmpty(c.InstallPath))
-            .ToDictionary(c => c.InstallPath.ToLowerInvariant(),
-                          c => !string.IsNullOrEmpty(c.InstalledAddonFileName),
-                          StringComparer.OrdinalIgnoreCase);
+            .Select(c => c.DetectedGame!)
+            .ToList();
+
+        // Build addon cache safely — multiple DLC cards can share the same install path,
+        // so use a plain dict with [] assignment instead of ToDictionary (which throws on dupes).
+        var addonCache = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        foreach (var c in _allCards.Where(c => !string.IsNullOrEmpty(c.InstallPath)))
+            addonCache[c.InstallPath.ToLowerInvariant()] = !string.IsNullOrEmpty(c.InstalledAddonFileName);
+
         GameLibraryService.Save(detectedGames, addonCache, _hiddenGames, _manualGames);
     }
 

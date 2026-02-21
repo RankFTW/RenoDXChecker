@@ -103,6 +103,9 @@ public partial class GameCardViewModel : ObservableObject
     public Visibility IsHiddenVisibility         => IsHidden ? Visibility.Visible : Visibility.Collapsed;
     public Visibility IsNotHiddenVisibility      => IsHidden ? Visibility.Collapsed : Visibility.Visible;
     public Visibility NameLinkVisibility         => HasNameUrl ? Visibility.Visible : Visibility.Collapsed;
+    // Shown when the game has no known RenoDX mod and no install URL
+    public Visibility NoModVisibility            => (Mod == null && string.IsNullOrEmpty(InstalledAddonFileName))
+                                                     ? Visibility.Visible : Visibility.Collapsed;
 
     public void NotifyAll()
     {
