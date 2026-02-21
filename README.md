@@ -1,4 +1,4 @@
-# RenoDX Mod Manager
+# RDXC — RenoDX Mod Manager v1.0.2
 
 An unofficial companion app for the [RenoDX](https://github.com/clshortfuse/renodx) HDR mod project.
 Automatically detects your installed games, matches them against the RenoDX wiki, and lets you
@@ -15,10 +15,12 @@ install or update HDR mods with one click.
 |---------|---------|
 | 🔍 Auto-detection | Finds games from Steam, GOG, Epic Games, and EA App |
 | ⬇ One-click install | Downloads and places `.addon64` / `.addon32` in the correct folder |
-| 🔄 Update detection | Checks snapshot dates on launch and flags games with newer versions available |
+| 📦 Download cache | Addon files are cached locally — reinstalling a mod skips the download entirely |
+| 🔄 Update detection | Compares stored install-time file size against remote; flags only real updates |
 | 🎮 Generic engine mods | Offers Generic Unreal Engine and Generic Unity Engine plugins for unlisted games |
 | ℹ Game notes | Shows per-game setup notes pulled live from the RenoDX wiki |
 | 💬 Discussion links | Games with a wiki discussion link show a chat button that opens it in the browser |
+| 💬 Named mod fallback | Games with a named RenoDX addon installed but no wiki entry show a Discord link for support |
 | 🌐 Extra links | Shows Nexus Mods / Discord links alongside the install button when available |
 | ➕ Manual add | Add any game manually if it wasn't auto-detected |
 | 🚫 Hide games | Hide games you don't need from the list; toggle them back anytime |
@@ -27,7 +29,8 @@ install or update HDR mods with one click.
 | 🔎 Filter tabs | Filter by All Games, Installed, Hidden, Unity, Unreal, or Other |
 | 🗂 Name mapping | Use the Tune button to add fuzzy-match overrides for games with unusual names |
 | 💾 Window memory | The main window remembers its size and position between sessions |
-| ℹ About page | About information is shown as an inline page — click ? then ← Back to return |
+| ❓ Unknown status | Games with no RenoDX mod and no known wiki entry show ❓ Unknown |
+| 🪲 Crash reporting | Unhandled errors are automatically written to the logs folder for troubleshooting |
 
 ---
 
@@ -46,7 +49,7 @@ Download ReShade from [reshade.me](https://reshade.me) and run the installer.
 When prompted, choose **"with full add-on support"**. No shader packages are required.
 Point it at your game's main executable (the one in `Binaries\Win64` for Unreal games).
 
-### 2. Open RenoDX Mod Manager
+### 2. Open RDXC
 The app scans your installed games on startup. This takes a few seconds the first time;
 subsequent launches use a cached library and are much faster.
 
@@ -59,30 +62,65 @@ by install status or engine type.
 - **💬** — opens the RenoDX discussion thread for that game, which may include extra setup steps
 
 ### 5. Click Install
-The app downloads the `.addon64` file and places it in the correct location:
+The app checks the local download cache first. If the file is already cached, it copies from
+cache instead of downloading again. The `.addon64` file is placed in the correct location:
 - **Unreal Engine games:** `GameName\Binaries\Win64\` (or `WinGDK`)
 - **Unity games:** next to `UnityPlayer.dll` (usually the game root)
 
-If the folder couldn't be detected automatically, you'll be prompted to pick it.
+After installing the app automatically refreshes to reflect the new state.
 
 ### 6. Launch the game
 Press **Home** to open the ReShade menu. Go to the **Add-ons** tab and configure RenoDX.
 
 ---
 
-## Folder Structure (Unreal Engine)
+## Game Status Indicators
 
-Unreal Engine games follow a specific layout. The mod goes in the `Binaries\Win64` (or `WinGDK`)
-folder that is **not** inside the `Engine` folder:
+| Badge | Meaning |
+|-------|---------|
+| ✅ Working | Listed on the RenoDX wiki with a confirmed working mod |
+| 🚧 In Progress | Listed on the wiki but the mod is still being developed |
+| ❓ Unknown | Not on the wiki — no dedicated RenoDX mod is known for this game |
+
+Games showing **❓ Unknown** may still work with Generic Unreal Engine or Generic Unity Engine
+plugins if the engine is detected.
+
+If a game shows **❓ Unknown** but already has a named RenoDX addon installed (e.g.
+`renodx-avatarfop-swoutlaws.addon64`), a **💬 Discord** button appears for community support.
+
+---
+
+## Unreal Engine Version Handling
+
+RenoDX requires **Unreal Engine 4 or later**. Games on UE3 or below (e.g. Rocket League)
+are automatically detected via `.u`/`.upk` files and other markers, shown with an
+**Unreal (Legacy)** badge and ❓ Unknown status — no install button is offered.
+
+---
+
+## Download Cache
+
+Downloaded addon files are stored in `%LocalAppData%\RenoDXChecker\downloads\`.
+
+When installing, the app checks this folder first. If the cached file matches the remote
+file size it copies from cache — no download needed. This means:
+- Installing the same mod on multiple games only downloads once
+- Reinstalling after an uninstall is instant
+
+To force a fresh download, open **About → 📦 Open Downloads Cache** and delete the file.
+
+---
+
+## Folder Structure (Unreal Engine)
 
 ```
 GameRoot\
-  MyGame\             ← game-specific folder (or codename)
+  MyGame\
     Binaries\
       Win64\          ← ✅ mod goes here (next to MyGame-Win64-Shipping.exe)
   Engine\
     Binaries\
-      Win64\          ← ❌ NOT here — this is the engine
+      Win64\          ← ❌ NOT here
 ```
 
 ---
@@ -91,118 +129,89 @@ GameRoot\
 
 | Button | Action |
 |--------|--------|
-| ⬇ Install | Download and install the mod |
-| ↺ Reinstall | Re-download and overwrite the existing mod |
-| ⬆ Update | A newer snapshot is available — click to update |
-| 🗑 | Remove the installed mod file |
-| ℹ | View game-specific notes and setup instructions |
-| 💬 | Open the RenoDX discussion thread for this game |
-| 🚫 | Hide / unhide this game in the list |
-| 📁 | Open install folder in Explorer / change the folder |
-| 🌐 | Open Nexus Mods or Discord page for this mod |
+| ⬇ Install | Download (or copy from cache) and install the mod |
+| ↺ Reinstall | Re-copy from cache or re-download and overwrite |
+| ⬆ Update | A newer version is available — click to update |
+| 🗑 | Remove the installed mod file (cache copy kept) |
+| ℹ | View game-specific notes |
+| 💬 | Open discussion thread or Discord |
+| 🚫 | Hide / unhide this game |
+| 📁 | Open install folder / change folder |
+| 🌐 | Open Nexus Mods or Discord page |
 
 ---
 
 ## Notes on Generic Mods
 
-When a game doesn't have its own specific RenoDX mod, the app offers generic engine plugins:
-
 ### Generic Unreal Engine
 - File: `renodx-unrealengine.addon64`
-- Requires ReShade installed in the same folder as the game's `*-Win64-Shipping.exe`
-- Common issues and fixes are shown in the ℹ dialog (black screen fix, DLSS FG fix)
-- Always check the 💬 button if available — game-specific workarounds may be documented there
+- ReShade must be in the same folder as `*-Win64-Shipping.exe`
+- Check ℹ for black screen / DLSS FG fixes
 
 ### Generic Unity Engine
 - Files: `renodx-unityengine.addon64` / `renodx-unityengine.addon32`
 - Install next to `UnityPlayer.dll`
-- Use 64-bit for modern games; 32-bit only for older 32-bit games
+- Use 64-bit for modern games; 32-bit for older 32-bit games
 
 ---
 
 ## Update Checking
 
-On each launch the app does a background HEAD request against each installed mod's snapshot URL.
-If the remote file is newer than when you last installed, the card shows **⬆ Update Available**
-and the action button changes to **⬆ Update**.
+On each launch the app does a background HEAD request per installed mod. It compares the
+current remote `Content-Length` against the size recorded at install time. Only a genuine
+file size change triggers **⬆ Update Available**.
 
 ---
 
 ## Adding Games Manually
 
-If a game wasn't auto-detected (e.g. installed to a custom path or via a launcher not yet supported):
-
-1. Click **➕ Add Game** in the header
-2. Enter the game name **exactly as it appears on the RenoDX wiki mod list**
-3. Pick the game's install folder
-
-The app will attempt to match the name against the wiki and detect the engine automatically.
-If the install path can't be determined, click **📁** on the card to set it manually.
-
----
-
-## Hiding Games
-
-Click 🚫 on any card to hide that game from the main list. Hidden games are tracked separately
-and won't appear unless you switch to the **🙈 Hidden** filter tab. Clicking 🚫 again on a hidden
-game (while viewing the Hidden tab) will unhide it.
-
----
-
-## Fuzzy Match Tuning
-
-Some games have slightly different names in your library versus the RenoDX wiki
-(e.g. edition suffixes, regional titles). Click the **Tune** button in the header to add a
-custom name mapping: enter the detected name on the left and the wiki key on the right.
+1. Click **➕ Add Game**
+2. Enter the name as it appears on the RenoDX wiki
+3. Pick the install folder
 
 ---
 
 ## Data Storage
 
-All app data is stored locally in `%LocalAppData%\RenoDXChecker\`:
-
-| File | Contents |
+| Path | Contents |
 |------|---------|
-| `game_library.json` | Detected games, hidden games, manually added games, addon scan cache |
-| `installed.json` | Install records with file paths and snapshot dates |
-| `window_main.json` | Main window size and position |
+| `game_library.json` | Detected games, hidden list, manual games, scan cache |
+| `installed.json` | Install records including stored remote file sizes |
+| `window_main.json` | Window size and position |
+| `settings.json` | Name mappings and preferences |
+| `downloads\` | Cached addon files |
+| `logs\` | Crash reports (max 10, oldest deleted automatically) |
+
+All under `%LocalAppData%\RenoDXChecker\`.
+
+---
+
+## Crash & Error Reporting
+
+Unhandled exceptions are automatically written to:
+```
+%LocalAppData%\RenoDXChecker\logs\crash_YYYY-MM-DD_HH-mm-ss.txt
+```
+
+Open **About → 📂 Open Logs Folder** and attach the latest file when reporting a bug.
 
 ---
 
 ## Troubleshooting
 
-**Game not detected?**
-Use **➕ Add Game** to add it manually. Enter the game name as it appears on the
-[RenoDX wiki](https://github.com/clshortfuse/renodx/wiki/Mods) and pick the install folder.
-If the name format doesn't match, use **Tune** to add a name mapping.
+**Game not detected?** Use ➕ Add Game. Match the name to the wiki exactly, or use Tune for a custom mapping.
 
-**Mod installed but ReShade doesn't load it?**
-Make sure ReShade is installed in the *same folder* as the `.addon64` file.
-For Unreal games this is `Binaries\Win64`, not the game root.
+**Game shows ❓ Unknown?** No wiki entry. May still work with a generic plugin. Check Discord.
 
-**Black screen on launch (Unreal Engine)?**
-Open ReShade → Add-ons → RenoDX → Upgrade settings.
-Set `R10G10B10A2_UNORM` output to `output size`.
-Switch Settings Mode from Simple → Advanced if the slider is locked, then restart.
+**Game shows Unreal (Legacy)?** UE3 or below — not compatible with RenoDX addons.
 
-**DLSS Frame Generation flickering or not working?**
-Replace your DLSSG DLL with the older 3.8.x version (locks to FG ×2), or check the
-RenoDX Discord for the DLSS FIX beta.
+**ReShade not loading the mod?** ReShade must be in the *same folder* as the `.addon64` file. For Unreal games: `Binaries\Win64`.
 
-**Wrong install path shown?**
-Click **📁** on the card and choose **Change install folder**.
+**Black screen on launch (Unreal)?** ReShade → Add-ons → RenoDX → set `R10G10B10A2_UNORM` to `output size`.
 
-**Downloads failing with 404?**
-Click **↻ Refresh** to re-fetch the latest wiki mod list. The snapshot URL may have changed.
+**Downloads failing?** Click ↻ Refresh to re-fetch the wiki. To clear a bad cache file: About → 📦 Open Downloads Cache.
 
-**No install button on a generic Unreal game?**
-The game may have a discussion link (💬) but no specific mod. The install button uses the
-Generic Unreal Engine plugin — make sure the card doesn't show as External Only. If it does,
-click **📁** to set the correct install folder and try refreshing.
-
-**Window opens very large on first launch?**
-On first launch there is no saved size, so the app opens at its built-in default (1280×880).
-Resize it to your preference and it will remember that size from then on.
+**Wrong install path?** Click 📁 → Change install folder.
 
 ---
 
