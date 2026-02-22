@@ -1,4 +1,4 @@
-# RDXC — RenoDX Mod Manager v1.0.3
+# RDXC — RenoDX Mod Manager v1.0.4
 
 An unofficial companion app for the [RenoDX](https://github.com/clshortfuse/renodx) HDR mod project.
 Automatically detects your installed games, matches them against the RenoDX wiki, and lets you
@@ -18,6 +18,7 @@ install or update HDR mods with one click.
 | 📦 Download cache | Addon files are cached locally — reinstalling skips the download entirely |
 | 🔄 Update detection | Compares stored install-time file size against remote; flags only real updates |
 | 🎮 Generic engine mods | Offers Generic Unreal Engine and Generic Unity Engine plugins for unlisted games |
+| ⚡ UE-Extended toggle | Switch any Generic UE card to use the extended UE addon from marat569's repo |
 | ℹ Game notes | Per-game setup notes pulled live from the RenoDX wiki |
 | 💬 Discussion links | Shown before the game name for easy access; opens the wiki discussion thread |
 | 💬 Named mod fallback | Games with a named addon but no wiki entry show a Discord link for support |
@@ -95,7 +96,29 @@ The **💬 Discord** status appears when:
 | ℹ | Notes button — only shown when notes exist |
 | 🚫 | Hide / unhide this game |
 | 🎯 | Override wiki name matching for this game |
-| ✅ / 🚧 / ❓ | Wiki status badge — far right |
+| ✅ / 🚧 / 💬 / ❓ | Wiki status badge — far right |
+
+---
+
+## UE-Extended Addon
+
+Generic Unreal Engine cards have a **⚡ UE Extended** toggle above the action buttons row.
+
+Toggling it ON switches the install/reinstall/update button to source `renodx-ue-extended.addon64`
+from [marat569's repository](https://marat569.github.io/renodx/renodx-ue-extended.addon64) instead
+of the standard RenoDX CDN. A toast notification appears reminding you to check Discord and
+confirm compatibility before installing.
+
+**File cleanup:** switching between modes automatically removes the opposing addon file from the
+game folder — you will never have both files present at the same time.
+
+**Auto-detection:** if `renodx-ue-extended.addon64` is already in the game folder when RDXC
+launches, the toggle starts in the ON position automatically.
+
+**Persistence:** the toggle state is saved per-game and survives app restarts.
+
+> ⚠️ Not all Unreal Engine games are compatible with the extended addon. Always check the
+> [RenoDX Discord](https://discord.gg/gF4GRJWZ2A) before enabling this for a new game.
 
 ---
 
@@ -145,6 +168,7 @@ GameRoot\
 | 📁 | Open install folder / change folder |
 | 🌐 | Open Nexus Mods or Discord page |
 | 🎯 | Override wiki name matching for this card |
+| ⚡ UE Extended | Toggle between standard and extended UE addon (Generic UE cards only) |
 
 ---
 
@@ -154,6 +178,12 @@ GameRoot\
 - File: `renodx-unrealengine.addon64`
 - ReShade must be in the same folder as `*-Win64-Shipping.exe`
 - UE4/5 only — UE3 and below are not supported
+
+### Generic Unreal Engine Extended
+- File: `renodx-ue-extended.addon64`
+- Source: [marat569's repository](https://marat569.github.io/renodx/renodx-ue-extended.addon64)
+- Enable via the ⚡ UE Extended toggle on any Generic UE card
+- Check Discord for per-game compatibility before using
 
 ### Generic Unity Engine
 - Files: `renodx-unityengine.addon64` / `renodx-unityengine.addon32`
@@ -167,6 +197,10 @@ GameRoot\
 If a game isn't matching its wiki mod (e.g. different edition name), click 🎯 on the card.
 Enter the detected game name and the exact wiki name. The app re-matches immediately.
 
+The 🎯 dialog also has an **Exclude from wiki** toggle that removes the game from all wiki
+matching entirely — the card then shows a Discord link instead of an install button. Toggle
+it off at any time to resume wiki matching.
+
 ---
 
 ## Data Storage
@@ -178,7 +212,7 @@ All under `%LocalAppData%\RenoDXChecker\`:
 | `game_library.json` | Detected games, hidden list, manual games, scan cache |
 | `installed.json` | Install records including stored remote file sizes |
 | `window_main.json` | Window size and position |
-| `settings.json` | Name mappings and preferences |
+| `settings.json` | Name mappings, wiki exclusions, UE-Extended preferences |
 | `downloads\` | Cached addon files |
 | `logs\` | Crash reports (max 10, oldest deleted automatically) |
 
@@ -211,6 +245,8 @@ Open **About → 📂 Open Logs Folder** and attach the latest file when reporti
 
 **Wrong install path?** Click 📁 → Change install folder.
 
+**UE-Extended not working for my game?** Not all UE games are compatible. Check the RenoDX Discord to confirm support before enabling the toggle.
+
 ---
 
 ## Links
@@ -221,3 +257,4 @@ Open **About → 📂 Open Logs Folder** and attach the latest file when reporti
 - [RenoDX Discord](https://discord.gg/gF4GRJWZ2A)
 - [RankFTW GitHub](https://github.com/RankFTW)
 - [Support](https://discordapp.com/channels/1296187754979528747/1475173660686815374)
+
