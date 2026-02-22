@@ -85,7 +85,9 @@ public partial class MainViewModel : ObservableObject
     /// Games in this set are excluded from all wiki matching.
     /// Their cards show a Discord link instead of an install button.
     /// </summary>
-    private HashSet<string> _wikiExclusions = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> _wikiExclusions   = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Games for which the user has toggled UE-Extended ON.</summary>
+    private HashSet<string> _ueExtendedGames = new(StringComparer.OrdinalIgnoreCase);
     private void LoadNameMappings()
     {
         try
@@ -103,11 +105,19 @@ public partial class MainViewModel : ObservableObject
                     StringComparer.OrdinalIgnoreCase);
             else
                 _wikiExclusions = new(StringComparer.OrdinalIgnoreCase);
+
+            if (s.TryGetValue("UeExtendedGames", out var ueJson) && !string.IsNullOrEmpty(ueJson))
+                _ueExtendedGames = new HashSet<string>(
+                    JsonSerializer.Deserialize<List<string>>(ueJson) ?? new(),
+                    StringComparer.OrdinalIgnoreCase);
+            else
+                _ueExtendedGames = new(StringComparer.OrdinalIgnoreCase);
         }
         catch
         {
-            _nameMappings   = new(StringComparer.OrdinalIgnoreCase);
-            _wikiExclusions = new(StringComparer.OrdinalIgnoreCase);
+            _nameMappings    = new(StringComparer.OrdinalIgnoreCase);
+            _wikiExclusions  = new(StringComparer.OrdinalIgnoreCase);
+            _ueExtendedGames = new(StringComparer.OrdinalIgnoreCase);
         }
     }
 
@@ -231,6 +241,63 @@ public partial class MainViewModel : ObservableObject
         card.NotifyAll();
     }
 
+    public const string UeExtendedUrl    = "https://marat569.github.io/renodx/renodx-ue-extended.addon64";
+    public const string UeExtendedFile   = "renodx-ue-extended.addon64";
+    public const string GenericUnrealFile = "renodx-unrealengine.addon64";
+
+    /// <summary>
+    /// Toggles the UE-Extended mode for a Generic UE card.
+    /// When ON: Mod.SnapshotUrl → marat569 URL; if the standard generic file is on disk it is deleted.
+    /// When OFF: Mod.SnapshotUrl → standard WikiService.GenericUnrealUrl; the extended file is deleted.
+    /// Card updates synchronously — no refresh needed.
+    /// </summary>
+    public void ToggleUeExtended(GameCardViewModel card)
+    {
+        if (card == null || !card.IsGenericMod) return;
+
+        bool nowExtended = !card.UseUeExtended;
+
+        if (nowExtended)
+            _ueExtendedGames.Add(card.GameName);
+        else
+            _ueExtendedGames.Remove(card.GameName);
+        SaveNameMappings();
+
+        // Swap the SnapshotUrl on the card's Mod in-place
+        if (card.Mod != null)
+            card.Mod.SnapshotUrl = nowExtended ? UeExtendedUrl : WikiService.GenericUnrealUrl;
+
+        // Delete the opposing addon file from disk (if present)
+        if (!string.IsNullOrEmpty(card.InstallPath) && Directory.Exists(card.InstallPath))
+        {
+            try
+            {
+                var deleteFile = nowExtended ? GenericUnrealFile : UeExtendedFile;
+                var deletePath = Path.Combine(card.InstallPath, deleteFile);
+                if (File.Exists(deletePath))
+                {
+                    File.Delete(deletePath);
+                    CrashReporter.Log($"UE-Extended toggle: deleted {deleteFile} from {card.InstallPath}");
+                }
+            }
+            catch (Exception ex)
+            {
+                CrashReporter.Log($"UE-Extended toggle: failed to delete file — {ex.Message}");
+            }
+        }
+
+        // If the extended addon is now the active one (and was already installed),
+        // update the installed record's SnapshotUrl so future update checks are correct.
+        if (card.InstalledRecord != null)
+        {
+            card.InstalledRecord.SnapshotUrl = nowExtended ? UeExtendedUrl : WikiService.GenericUnrealUrl;
+            _installer.SaveRecordPublic(card.InstalledRecord);
+        }
+
+        card.UseUeExtended = nowExtended;
+        card.NotifyAll();
+    }
+
     private void SaveNameMappings()
     {
         try
@@ -238,6 +305,7 @@ public partial class MainViewModel : ObservableObject
             var s = LoadSettingsFile();
             s["NameMappings"]    = JsonSerializer.Serialize(_nameMappings);
             s["WikiExclusions"]  = JsonSerializer.Serialize(_wikiExclusions.ToList());
+            s["UeExtendedGames"] = JsonSerializer.Serialize(_ueExtendedGames.ToList());
             SaveSettingsFile(s);
         }
         catch { }
@@ -399,9 +467,28 @@ public partial class MainViewModel : ObservableObject
                 InstallPath   = scanPath,
                 AddonFileName = addonOnDisk,
                 InstalledAt   = File.GetLastWriteTimeUtc(Path.Combine(scanPath, addonOnDisk)),
-                SnapshotUrl   = effectiveMod?.SnapshotUrl,
+                SnapshotUrl   = ResolveAddonUrl(addonOnDisk),
             };
             _installer.SaveRecordPublic(record);
+        }
+
+        // Patch effectiveMod SnapshotUrl if installed addon has an override URL
+        if (addonOnDisk != null && effectiveMod?.SnapshotUrl != null
+            && _addonFileUrlOverrides.TryGetValue(addonOnDisk, out var addonOverrideUrlM))
+        {
+            effectiveMod = new GameMod
+            {
+                Name        = effectiveMod.Name,
+                Maintainer  = effectiveMod.Maintainer,
+                SnapshotUrl = addonOverrideUrlM,
+                Status      = effectiveMod.Status,
+                Notes       = effectiveMod.Notes,
+                NexusUrl    = effectiveMod.NexusUrl,
+                DiscordUrl  = effectiveMod.DiscordUrl,
+                NameUrl     = effectiveMod.NameUrl,
+                IsGenericUnreal = effectiveMod.IsGenericUnreal,
+                IsGenericUnity  = effectiveMod.IsGenericUnity,
+            };
         }
 
         // Named addon found on disk but no wiki entry → show Discord link
@@ -691,6 +778,30 @@ public partial class MainViewModel : ObservableObject
 
     // ── Card building ─────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Addon filenames that are hosted at a URL different from the standard RenoDX CDN.
+    /// Used to override both the mod's SnapshotUrl (install button) and the
+    /// InstalledModRecord.SnapshotUrl (update detection) whenever the file is found on disk.
+    /// </summary>
+    private static readonly Dictionary<string, string> _addonFileUrlOverrides =
+        new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["renodx-ue-extended.addon64"] = "https://marat569.github.io/renodx/renodx-ue-extended.addon64",
+    };
+
+    /// <summary>
+    /// Returns the authoritative download URL for a given addon filename,
+    /// substituting an override when the file has a known alternative source.
+    /// Falls back to the generic Unreal URL for all other .addon64 files.
+    /// </summary>
+    private static string ResolveAddonUrl(string addonFileName)
+    {
+        if (_addonFileUrlOverrides.TryGetValue(addonFileName, out var url))
+            return url;
+        // Default: use the standard RenoDX snapshot CDN derived from the filename
+        return $"https://clshortfuse.github.io/renodx/{addonFileName}";
+    }
+
     private GameMod MakeGenericUnreal() => new()
     {
         Name = "Generic Unreal Engine", Maintainer = "ShortFuse",
@@ -750,15 +861,38 @@ public partial class MainViewModel : ObservableObject
 
             if (addonOnDisk != null && record == null)
             {
+                // Use ResolveAddonUrl so files like renodx-ue-extended.addon64 get their
+                // correct source URL rather than the generic CDN URL from effectiveMod.
                 record = new InstalledModRecord
                 {
                     GameName      = game.Name,
                     InstallPath   = installPath,
                     AddonFileName = addonOnDisk,
                     InstalledAt   = File.GetLastWriteTimeUtc(Path.Combine(installPath, addonOnDisk)),
-                    SnapshotUrl   = effectiveMod?.SnapshotUrl,
+                    SnapshotUrl   = ResolveAddonUrl(addonOnDisk),
                 };
                 _installer.SaveRecordPublic(record);
+            }
+
+            // If the installed addon on disk has a different source URL than what the
+            // wiki mod specifies (e.g. renodx-ue-extended.addon64 on a generic UE card),
+            // patch effectiveMod so the install/update button uses the correct URL.
+            if (addonOnDisk != null && effectiveMod?.SnapshotUrl != null
+                && _addonFileUrlOverrides.TryGetValue(addonOnDisk, out var addonOverrideUrl))
+            {
+                effectiveMod = new GameMod
+                {
+                    Name        = effectiveMod.Name,
+                    Maintainer  = effectiveMod.Maintainer,
+                    SnapshotUrl = addonOverrideUrl,
+                    Status      = effectiveMod.Status,
+                    Notes       = effectiveMod.Notes,
+                    NexusUrl    = effectiveMod.NexusUrl,
+                    DiscordUrl  = effectiveMod.DiscordUrl,
+                    NameUrl     = effectiveMod.NameUrl,
+                    IsGenericUnreal = effectiveMod.IsGenericUnreal,
+                    IsGenericUnity  = effectiveMod.IsGenericUnity,
+                };
             }
 
             // Named addon found on disk but no wiki entry exists → show Discord link
@@ -771,6 +905,26 @@ public partial class MainViewModel : ObservableObject
                     Status     = "💬",
                     DiscordUrl = "https://discord.gg/gF4GRJWZ2A",
                 };
+            }
+
+            // Apply UE-Extended preference: if the game has it saved OR the file is on disk,
+            // force the Mod URL to the marat569 source so the install button targets it.
+            bool useUeExt = (addonOnDisk == UeExtendedFile)
+                            || (_ueExtendedGames.Contains(game.Name) && effectiveMod?.IsGenericUnreal == true);
+            if (useUeExt && effectiveMod?.IsGenericUnreal == true)
+            {
+                effectiveMod = new GameMod
+                {
+                    Name            = effectiveMod.Name,
+                    Maintainer      = effectiveMod.Maintainer,
+                    SnapshotUrl     = UeExtendedUrl,
+                    Status          = effectiveMod.Status,
+                    Notes           = effectiveMod.Notes,
+                    IsGenericUnreal = true,
+                };
+                // Persist preference if it was detected from disk (not yet in settings)
+                if (addonOnDisk == UeExtendedFile)
+                    _ueExtendedGames.Add(game.Name);
             }
 
             cards.Add(new GameCardViewModel
@@ -795,6 +949,7 @@ public partial class MainViewModel : ObservableObject
                 InstalledAddonFileName = record?.AddonFileName,
                 IsHidden               = _hiddenGames.Contains(game.Name),
                 IsManuallyAdded        = game.IsManuallyAdded,
+                UseUeExtended          = useUeExt,
                 IsExternalOnly         = _wikiExclusions.Contains(game.Name)
                                          ? true
                                          : effectiveMod?.SnapshotUrl == null &&

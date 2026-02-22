@@ -366,6 +366,36 @@ public sealed partial class MainWindow : Window
             ViewModel.UninstallModCommand.Execute(card);
     }
 
+    private void UeExtendedToggle_Click(object sender, RoutedEventArgs e)
+    {
+        var card = (sender as FrameworkElement)?.Tag as GameCardViewModel;
+        if (card == null) return;
+
+        ViewModel.ToggleUeExtended(card);
+
+        // Show toast only when turning UE-Extended ON
+        if (card.UseUeExtended)
+            ShowUeExtendedToast();
+    }
+
+    private DispatcherTimer? _toastTimer;
+
+    private void ShowUeExtendedToast()
+    {
+        UeExtendedToast.Visibility = Visibility.Visible;
+        UeExtendedToast.Opacity    = 1.0;
+
+        _toastTimer?.Stop();
+        _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+        _toastTimer.Tick += (s, e) =>
+        {
+            _toastTimer.Stop();
+            UeExtendedToast.Opacity    = 0.0;
+            UeExtendedToast.Visibility = Visibility.Collapsed;
+        };
+        _toastTimer.Start();
+    }
+
     private void HideButton_Click(object sender, RoutedEventArgs e)
     {
         if (GetCardFromSender(sender) is { } card)

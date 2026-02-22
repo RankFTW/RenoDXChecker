@@ -178,7 +178,7 @@
                                     <Run Text="RDXC" Foreground="#8BA4E8"/>
                                     <Run Text=" — RenoDX Mod Manager" Foreground="#C0C8E8"/>
                                 </TextBlock>
-                                <TextBlock Text="Version 1.0.3  ·  Unofficial companion tool by RankFTW"
+                                <TextBlock Text="Version 1.0.4  ·  Unofficial companion tool by RankFTW"
                                            FontSize="12" Foreground="#3A4466"/>
                             </StackPanel>
                         </StackPanel>
@@ -399,6 +399,20 @@
             </Grid>
 
             <!-- Cards grid -->
+            <!-- ⚡ UE-Extended toast — overlaid top-left, auto-fades ──────────────────── -->
+            <Border x:Name="UeExtendedToast"
+                    HorizontalAlignment="Left" VerticalAlignment="Top"
+                    Margin="20,12" Padding="14,10" CornerRadius="10"
+                    Background="#1E1432" BorderBrush="#5030A0" BorderThickness="1"
+                    Visibility="Collapsed" Opacity="0"
+                    MaxWidth="340">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="⚡" FontSize="16" VerticalAlignment="Center"/>
+                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#C0A0E8" VerticalAlignment="Center"
+                               Text="UE-Extended enabled — check Discord to confirm this game is compatible before installing."/>
+                </StackPanel>
+            </Border>
+
             <ScrollViewer x:Name="CardsScroll" Visibility="Collapsed"
                           VerticalScrollBarVisibility="Auto" Padding="16,14">
                 <ItemsControl x:Name="GameCardsList">
@@ -421,8 +435,9 @@
                                         <RowDefinition Height="Auto"/> <!-- 2: file badge (collapses) -->
                                         <RowDefinition Height="26"/>   <!-- 3: path row -->
                                         <RowDefinition Height="*"/>    <!-- 4: spacer -->
-                                        <RowDefinition Height="36"/>   <!-- 5: action buttons -->
-                                        <RowDefinition Height="Auto"/> <!-- 6: progress/message -->
+                                        <RowDefinition Height="Auto"/> <!-- 5: UE-Extended toggle (collapses) -->
+                                        <RowDefinition Height="36"/>   <!-- 6: action buttons -->
+                                        <RowDefinition Height="Auto"/> <!-- 7: progress/message -->
                                     </Grid.RowDefinitions>
 
                                     <!-- Row 0: 💬 | name | ℹ | 🚫 | 🎯 | wiki status -->
@@ -568,8 +583,26 @@
                                     <!-- Row 4: Spacer -->
                                     <Grid Grid.Row="4"/>
 
-                                    <!-- Row 5a-alt: No mod available label (game not on wiki, no snapshot) -->
+                                    <!-- Row 5: UE-Extended toggle — only on Generic UE cards -->
                                     <Border Grid.Row="5"
+                                            Visibility="{x:Bind UeExtendedToggleVisibility, Mode=OneWay}"
+                                            Margin="0,0,0,4">
+                                        <ToggleButton
+                                            IsChecked="{x:Bind UseUeExtended, Mode=OneWay}"
+                                            Click="UeExtendedToggle_Click" Tag="{x:Bind}"
+                                            HorizontalAlignment="Stretch"
+                                            Background="{x:Bind UeExtendedBackground, Mode=OneWay}"
+                                            Foreground="{x:Bind UeExtendedForeground, Mode=OneWay}"
+                                            BorderBrush="{x:Bind UeExtendedBorderBrush, Mode=OneWay}"
+                                            BorderThickness="1" CornerRadius="8"
+                                            Padding="10,5" FontSize="11" FontWeight="SemiBold"
+                                            ToolTipService.ToolTip="Use UE-Extended addon — check Discord to confirm this game is compatible">
+                                            <TextBlock Text="{x:Bind UeExtendedLabel, Mode=OneWay}" FontSize="11"/>
+                                        </ToggleButton>
+                                    </Border>
+
+                                    <!-- Row 6a-alt: No mod available label (game not on wiki, no snapshot) -->
+                                    <Border Grid.Row="6"
                                             Visibility="{x:Bind NoModVisibility, Mode=OneWay}"
                                             Background="#181420" CornerRadius="10" Padding="10,0"
                                             BorderBrush="#2A1E38" BorderThickness="1"
@@ -580,8 +613,8 @@
                                                    TextWrapping="Wrap" TextAlignment="Center"/>
                                     </Border>
 
-                                    <!-- Row 5a: External only (Nexus/Discord with no snapshot) -->
-                                    <Button Grid.Row="5"
+                                    <!-- Row 6a: External only (Nexus/Discord with no snapshot) -->
+                                    <Button Grid.Row="6"
                                             Visibility="{x:Bind ExternalBtnVisibility, Mode=OneWay}"
                                             Click="ExternalLink_Click" Tag="{x:Bind}"
                                             HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
@@ -591,8 +624,8 @@
                                         <TextBlock Text="{x:Bind ExternalLabel}" FontSize="12"/>
                                     </Button>
 
-                                    <!-- Row 5b: Single install (not dual-bit) -->
-                                    <Button Grid.Row="5"
+                                    <!-- Row 6b: Single install (not dual-bit) -->
+                                    <Button Grid.Row="6"
                                             Visibility="{x:Bind InstallOnlyBtnVisibility, Mode=OneWay}"
                                             IsEnabled="{x:Bind CanInstall, Mode=OneWay}"
                                             Click="InstallButton_Click" Tag="{x:Bind}"
@@ -603,8 +636,8 @@
                                         <TextBlock Text="⬇  Install" FontSize="13"/>
                                     </Button>
 
-                                    <!-- Row 5c: Dual-bit Unity install -->
-                                    <Grid Grid.Row="5"
+                                    <!-- Row 6c: Dual-bit Unity install -->
+                                    <Grid Grid.Row="6"
                                           Visibility="{x:Bind DualBitInstallVisibility, Mode=OneWay}"
                                           VerticalAlignment="Stretch">
                                         <Grid.ColumnDefinitions>
@@ -630,8 +663,8 @@
                                         </Button>
                                     </Grid>
 
-                                    <!-- Row 5d: Reinstall/Update + Delete + optional Nexus/Discord -->
-                                    <Grid Grid.Row="5"
+                                    <!-- Row 6d: Reinstall/Update + Delete + optional Nexus/Discord -->
+                                    <Grid Grid.Row="6"
                                           Visibility="{x:Bind ReinstallRowVisibility, Mode=OneWay}"
                                           VerticalAlignment="Stretch">
                                         <Grid.ColumnDefinitions>
@@ -677,8 +710,8 @@
                                         </Button>
                                     </Grid>
 
-                                    <!-- Row 6: Progress + message -->
-                                    <StackPanel Grid.Row="6" Spacing="3" Margin="0,5,0,0">
+                                    <!-- Row 7: Progress + message -->
+                                    <StackPanel Grid.Row="7" Spacing="3" Margin="0,5,0,0">
                                         <ProgressBar Visibility="{x:Bind ProgressVisibility, Mode=OneWay}"
                                                      Value="{x:Bind InstallProgress, Mode=OneWay}"
                                                      Maximum="100" Height="3" CornerRadius="2"

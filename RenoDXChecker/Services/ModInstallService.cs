@@ -33,6 +33,35 @@ public class ModInstallService
 
     // ── Install ───────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Maps addon filenames to their authoritative download URLs when the file is hosted
+    /// somewhere other than the default RenoDX snapshot CDN.
+    /// Checked by both InstallAsync and CheckForUpdateAsync so installs and update
+    /// detection always use the correct source.
+    /// </summary>
+    private static readonly Dictionary<string, string> _addonUrlOverrides =
+        new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Extended UE addon maintained by marat569 at a separate repo
+        ["renodx-ue-extended.addon64"] = "https://marat569.github.io/renodx/renodx-ue-extended.addon64",
+    };
+
+    /// <summary>
+    /// Returns the authoritative URL for a snapshot URL, substituting an override
+    /// when the addon filename has a known alternative source.
+    /// </summary>
+    private static string ResolveSnapshotUrl(string url)
+    {
+        try
+        {
+            var fileName = Path.GetFileName(new Uri(url).LocalPath);
+            if (_addonUrlOverrides.TryGetValue(fileName, out var overrideUrl))
+                return overrideUrl;
+        }
+        catch { }
+        return url;
+    }
+
     public async Task<InstalledModRecord> InstallAsync(
         GameMod mod,
         string gameInstallPath,
@@ -41,9 +70,13 @@ public class ModInstallService
         if (mod.SnapshotUrl == null)
             throw new InvalidOperationException($"{mod.Name} has no Snapshot download URL.");
 
+        // Apply URL override before anything else — this ensures the correct CDN is
+        // used for both the HEAD size check and the actual download.
+        var resolvedUrl = ResolveSnapshotUrl(mod.SnapshotUrl);
+
         Directory.CreateDirectory(DownloadCacheDir);
 
-        var fileName  = Path.GetFileName(mod.SnapshotUrl);
+        var fileName  = Path.GetFileName(resolvedUrl);
         var destPath  = Path.Combine(gameInstallPath, fileName);
         var cachePath = Path.Combine(DownloadCacheDir, fileName);
 
@@ -52,7 +85,7 @@ public class ModInstallService
         try
         {
             var headResp = await _http.SendAsync(
-                new HttpRequestMessage(HttpMethod.Head, mod.SnapshotUrl));
+                new HttpRequestMessage(HttpMethod.Head, resolvedUrl));
             if (headResp.IsSuccessStatusCode)
                 remoteSize = headResp.Content.Headers.ContentLength;
         }
@@ -79,10 +112,10 @@ public class ModInstallService
             progress?.Report(("Downloading...", 0));
             HttpResponseMessage? response = null;
             var tried      = new List<string>();
-            var candidates = new List<string> { mod.SnapshotUrl };
+            var candidates = new List<string> { resolvedUrl };
             try
             {
-                var uri = new Uri(mod.SnapshotUrl);
+                var uri = new Uri(resolvedUrl);
                 var fn  = Path.GetFileName(uri.LocalPath);
 
                 if (fn.Equals("renodx-unityengine.addon64", StringComparison.OrdinalIgnoreCase)
@@ -160,7 +193,7 @@ public class ModInstallService
             AddonFileName  = fileName,
             FileHash       = hash,
             InstalledAt    = DateTime.UtcNow,
-            SnapshotUrl    = mod.SnapshotUrl,
+            SnapshotUrl    = resolvedUrl,   // resolved URL ensures future update checks hit the right CDN
             RemoteFileSize = remoteSize,   // ← stored for stable update detection
         };
         SaveRecord(record);
@@ -190,9 +223,13 @@ public class ModInstallService
         var localFile = Path.Combine(record.InstallPath, record.AddonFileName);
         if (!File.Exists(localFile)) return true;
 
+        // Always resolve to the authoritative URL — handles records written before
+        // the override table existed (their stored URL may be the generic CDN).
+        var checkUrl = ResolveSnapshotUrl(record.SnapshotUrl);
+
         try
         {
-            var req  = new HttpRequestMessage(HttpMethod.Head, record.SnapshotUrl);
+            var req  = new HttpRequestMessage(HttpMethod.Head, checkUrl);
             var resp = await _http.SendAsync(req);
 
             if (resp.IsSuccessStatusCode)

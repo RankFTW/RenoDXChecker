@@ -28,6 +28,7 @@ public partial class GameCardViewModel : ObservableObject
     [ObservableProperty] private string? _discordUrl;
     [ObservableProperty] private string? _notes;
     [ObservableProperty] private GameMod? _mod;
+    [ObservableProperty] private bool _useUeExtended;
 
     // Plain properties — not mutated after card creation, no need to observe
     public string EngineHint    { get; set; } = "";
@@ -52,6 +53,16 @@ public partial class GameCardViewModel : ObservableObject
     public string InstallBtnBackground  => Status == GameStatus.UpdateAvailable ? "#2A1A40" : "#22386A";
     public string InstallBtnForeground  => Status == GameStatus.UpdateAvailable ? "#C0A0E8" : "#AACCFF";
     public string InstallBtnBorderBrush => Status == GameStatus.UpdateAvailable ? "#6040A0" : "#3050A0";
+
+    // UE-Extended toggle label and styling
+    public string UeExtendedLabel      => UseUeExtended ? "⚡ UE Extended ON" : "⚡ UE Extended";
+    public string UeExtendedBackground => UseUeExtended ? "#241840" : "#141A2C";
+    public string UeExtendedForeground => UseUeExtended ? "#B090E8" : "#404870";
+    public string UeExtendedBorderBrush => UseUeExtended ? "#5030A0" : "#202840";
+    // Visible only on Generic UE cards (not Unity, not specific-mod cards)
+    public Visibility UeExtendedToggleVisibility =>
+        (IsGenericMod && EngineHint.Contains("Unreal") && !EngineHint.Contains("Legacy"))
+            ? Visibility.Visible : Visibility.Collapsed;
 
     public string SourceIcon => Source switch
     {
@@ -155,6 +166,11 @@ public partial class GameCardViewModel : ObservableObject
         OnPropertyChanged(nameof(InstallBtnForeground));
         OnPropertyChanged(nameof(InstallBtnBorderBrush));
         OnPropertyChanged(nameof(GenericModLabel));
+        OnPropertyChanged(nameof(UeExtendedLabel));
+        OnPropertyChanged(nameof(UeExtendedBackground));
+        OnPropertyChanged(nameof(UeExtendedForeground));
+        OnPropertyChanged(nameof(UeExtendedBorderBrush));
+        OnPropertyChanged(nameof(UeExtendedToggleVisibility));
     }
 
     partial void OnStatusChanged(GameStatus v)              => NotifyAll();
