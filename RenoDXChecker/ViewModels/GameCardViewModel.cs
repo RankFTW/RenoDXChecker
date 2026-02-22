@@ -20,17 +20,19 @@ public partial class GameCardViewModel : ObservableObject
     [ObservableProperty] private string? _installedAddonFileName;
     [ObservableProperty] private bool _isHidden = false;
 
-    public bool IsGenericMod    { get; set; }
+    [ObservableProperty] private bool _isExternalOnly;
+    [ObservableProperty] private bool _isGenericMod;
+    [ObservableProperty] private string _externalUrl   = "";
+    [ObservableProperty] private string _externalLabel = "";
+    [ObservableProperty] private string? _nexusUrl;
+    [ObservableProperty] private string? _discordUrl;
+    [ObservableProperty] private string? _notes;
+    [ObservableProperty] private GameMod? _mod;
+
+    // Plain properties — not mutated after card creation, no need to observe
     public string EngineHint    { get; set; } = "";
-    public bool IsExternalOnly  { get; set; }
-    public string ExternalUrl   { get; set; } = "";
-    public string ExternalLabel { get; set; } = "";
-    public string? NexusUrl     { get; set; }
-    public string? DiscordUrl   { get; set; }
     public string? NameUrl      { get; set; }   // Discussion/instructions link from wiki game name cell
-    public string? Notes        { get; set; }
     public bool IsManuallyAdded { get; set; }
-    public GameMod? Mod                       { get; set; }
     public DetectedGame? DetectedGame         { get; set; }
     public InstalledModRecord? InstalledRecord { get; set; }
 
@@ -38,7 +40,18 @@ public partial class GameCardViewModel : ObservableObject
 
     public string WikiStatusLabel => WikiStatus == "✅" ? "✅ Working"
                                    : WikiStatus == "🚧" ? "🚧 In Progress"
+                                   : WikiStatus == "💬" ? "💬 Discord"
                                    : "❓ Unknown";
+
+    // Badge colours change for the Discord status to make it visually distinct
+    public string WikiStatusBadgeBackground => WikiStatus == "💬" ? "#1A1830" : "#1C2848";
+    public string WikiStatusBadgeBorderBrush => WikiStatus == "💬" ? "#3A2860" : "#283C60";
+    public string WikiStatusBadgeForeground  => WikiStatus == "💬" ? "#8878C8" : "#7A9AB8";
+
+    // Update button colours — purple when an update is available, normal blue otherwise
+    public string InstallBtnBackground  => Status == GameStatus.UpdateAvailable ? "#2A1A40" : "#22386A";
+    public string InstallBtnForeground  => Status == GameStatus.UpdateAvailable ? "#C0A0E8" : "#AACCFF";
+    public string InstallBtnBorderBrush => Status == GameStatus.UpdateAvailable ? "#6040A0" : "#3050A0";
 
     public string SourceIcon => Source switch
     {
@@ -125,6 +138,23 @@ public partial class GameCardViewModel : ObservableObject
         OnPropertyChanged(nameof(HideButtonLabel));
         OnPropertyChanged(nameof(IsHiddenVisibility));
         OnPropertyChanged(nameof(IsNotHiddenVisibility));
+        // Visibility props that depend on IsExternalOnly / Mod (plain computed properties)
+        OnPropertyChanged(nameof(ExternalBtnVisibility));
+        OnPropertyChanged(nameof(ExtraLinkVisibility));
+        OnPropertyChanged(nameof(NoModVisibility));
+        OnPropertyChanged(nameof(GenericBadgeVisibility));
+        OnPropertyChanged(nameof(NotesButtonVisibility));
+        OnPropertyChanged(nameof(HasNotes));
+        OnPropertyChanged(nameof(HasDualBitMod));
+        OnPropertyChanged(nameof(HasExtraLinks));
+        OnPropertyChanged(nameof(WikiStatusLabel));
+        OnPropertyChanged(nameof(WikiStatusBadgeBackground));
+        OnPropertyChanged(nameof(WikiStatusBadgeBorderBrush));
+        OnPropertyChanged(nameof(WikiStatusBadgeForeground));
+        OnPropertyChanged(nameof(InstallBtnBackground));
+        OnPropertyChanged(nameof(InstallBtnForeground));
+        OnPropertyChanged(nameof(InstallBtnBorderBrush));
+        OnPropertyChanged(nameof(GenericModLabel));
     }
 
     partial void OnStatusChanged(GameStatus v)              => NotifyAll();

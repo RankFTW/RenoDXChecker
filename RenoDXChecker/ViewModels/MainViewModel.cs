@@ -75,13 +75,17 @@ public partial class MainViewModel : ObservableObject
         _http.Timeout = TimeSpan.FromSeconds(30);
         _installer = new ModInstallService(_http);
         // Subscribe to installer events — on install we'll perform a full refresh
-        _installer.InstallCompleted += Installer_InstallCompleted;
         LoadNameMappings();
         LoadThemeAndDensity();
     }
 
-    // --- persisted settings: name mappings, theme, density ---
+    // --- persisted settings: name mappings, wiki exclusions, theme, density ---
     private Dictionary<string, string> _nameMappings = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>
+    /// Games in this set are excluded from all wiki matching.
+    /// Their cards show a Discord link instead of an install button.
+    /// </summary>
+    private HashSet<string> _wikiExclusions = new(StringComparer.OrdinalIgnoreCase);
     private void LoadNameMappings()
     {
         try
@@ -92,8 +96,19 @@ public partial class MainViewModel : ObservableObject
                                ?? new(StringComparer.OrdinalIgnoreCase);
             else
                 _nameMappings = new(StringComparer.OrdinalIgnoreCase);
+
+            if (s.TryGetValue("WikiExclusions", out var excJson) && !string.IsNullOrEmpty(excJson))
+                _wikiExclusions = new HashSet<string>(
+                    JsonSerializer.Deserialize<List<string>>(excJson) ?? new(),
+                    StringComparer.OrdinalIgnoreCase);
+            else
+                _wikiExclusions = new(StringComparer.OrdinalIgnoreCase);
         }
-        catch { _nameMappings = new(StringComparer.OrdinalIgnoreCase); }
+        catch
+        {
+            _nameMappings   = new(StringComparer.OrdinalIgnoreCase);
+            _wikiExclusions = new(StringComparer.OrdinalIgnoreCase);
+        }
     }
 
     public void AddNameMapping(string detectedName, string wikiKey)
@@ -119,15 +134,101 @@ public partial class MainViewModel : ObservableObject
     public void RemoveNameMapping(string detectedName)
     {
         if (string.IsNullOrWhiteSpace(detectedName)) return;
-        // Remove both exact and any normalised-key match
         _nameMappings.Remove(detectedName);
         var norm = GameDetectionService.NormalizeName(detectedName);
         var toRemove = _nameMappings.Keys
             .Where(k => GameDetectionService.NormalizeName(k) == norm).ToList();
         foreach (var k in toRemove) _nameMappings.Remove(k);
         SaveNameMappings();
-        // Rebuild cards so removal takes effect immediately
         DispatcherQueue?.TryEnqueue(() => { _ = InitializeAsync(forceRescan: false); });
+    }
+
+    public bool IsWikiExcluded(string gameName) =>
+        _wikiExclusions.Contains(gameName);
+
+    /// <summary>
+    /// Toggles wiki exclusion for a game and updates its card in-place — no full rescan.
+    /// Excluded games show a Discord link instead of the install button.
+    /// </summary>
+    /// <summary>
+    /// Toggles wiki exclusion for a game and updates its card synchronously in-place.
+    /// This is always called from the UI thread (via dialog ContinueWith on the
+    /// synchronisation context), so we update card properties directly — no
+    /// DispatcherQueue.TryEnqueue needed, and the UI reflects the change immediately
+    /// when the dialog closes without requiring a manual refresh.
+    /// </summary>
+    public void ToggleWikiExclusion(string gameName)
+    {
+        if (string.IsNullOrWhiteSpace(gameName)) return;
+
+        bool nowExcluded;
+        if (_wikiExclusions.Contains(gameName))
+        {
+            _wikiExclusions.Remove(gameName);
+            nowExcluded = false;
+        }
+        else
+        {
+            _wikiExclusions.Add(gameName);
+            nowExcluded = true;
+        }
+        SaveNameMappings();
+
+        var card = _allCards.FirstOrDefault(c =>
+            c.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase));
+        if (card == null)
+        {
+            DispatcherQueue?.TryEnqueue(() => { _ = InitializeAsync(forceRescan: false); });
+            return;
+        }
+
+        if (nowExcluded)
+        {
+            // Exclude: strip wiki mod and show Discord button
+            card.Mod           = null;
+            card.IsExternalOnly = true;
+            card.ExternalUrl   = "https://discord.gg/gF4GRJWZ2A";
+            card.ExternalLabel = "Get on Discord";
+            card.DiscordUrl    = "https://discord.gg/gF4GRJWZ2A";
+            card.WikiStatus    = "💬";
+            card.Notes         = "";
+            card.IsGenericMod  = false;
+            if (card.Status != GameStatus.Installed)
+                card.Status = GameStatus.Available;
+        }
+        else
+        {
+            // Un-exclude: re-run wiki match in-place and restore the card
+            var game = card.DetectedGame;
+            if (game == null)
+            {
+                DispatcherQueue?.TryEnqueue(() => { _ = InitializeAsync(forceRescan: false); });
+                return;
+            }
+            var (_, engine) = GameDetectionService.DetectEngineAndPath(game.InstallPath);
+            var mod         = GameDetectionService.MatchGame(game, _allMods, _nameMappings);
+            var fallback    = mod == null ? (engine == EngineType.Unreal ? MakeGenericUnreal()
+                                           : engine == EngineType.Unity  ? MakeGenericUnity()
+                                           : null) : null;
+            var effectiveMod = mod ?? fallback;
+
+            card.Mod            = effectiveMod;
+            card.IsExternalOnly = effectiveMod?.SnapshotUrl == null &&
+                                  (effectiveMod?.NexusUrl != null || effectiveMod?.DiscordUrl != null);
+            card.ExternalUrl    = effectiveMod?.NexusUrl ?? effectiveMod?.DiscordUrl ?? "";
+            card.ExternalLabel  = effectiveMod?.NexusUrl != null ? "Get on Nexus Mods" : "Get on Discord";
+            card.NexusUrl       = effectiveMod?.NexusUrl;
+            card.DiscordUrl     = effectiveMod?.DiscordUrl;
+            card.WikiStatus     = effectiveMod?.Status ?? "—";
+            card.Notes          = effectiveMod != null
+                                  ? BuildNotes(game.Name, effectiveMod, fallback, _genericNotes)
+                                  : "";
+            card.IsGenericMod   = fallback != null && mod == null;
+            if (card.Status != GameStatus.Installed)
+                card.Status = effectiveMod != null ? GameStatus.Available : GameStatus.Available;
+        }
+
+        card.NotifyAll();
     }
 
     private void SaveNameMappings()
@@ -135,7 +236,8 @@ public partial class MainViewModel : ObservableObject
         try
         {
             var s = LoadSettingsFile();
-            s["NameMappings"] = JsonSerializer.Serialize(_nameMappings);
+            s["NameMappings"]    = JsonSerializer.Serialize(_nameMappings);
+            s["WikiExclusions"]  = JsonSerializer.Serialize(_wikiExclusions.ToList());
             SaveSettingsFile(s);
         }
         catch { }
@@ -215,14 +317,8 @@ public partial class MainViewModel : ObservableObject
         return null;
     }
 
-    private void Installer_InstallCompleted(InstalledModRecord record)
-    {
-        DispatcherQueue?.TryEnqueue(() => { _ = InitializeAsync(forceRescan: true); });
-    }
-
-    // Debug logging removed; full rescan is the canonical refresh path.
-
-    // (Targeted refresh helpers removed) Full rescan (`RefreshAsync` / `InitializeAsync(forceRescan:true`) is the single source of truth.
+    // InstallCompleted event handler removed — card state is updated in-place
+    // by InstallModAsync, so no full rescan is needed after install.
 
     // ── Commands ──────────────────────────────────────────────────────────────────
 
@@ -314,7 +410,7 @@ public partial class MainViewModel : ObservableObject
             effectiveMod = new GameMod
             {
                 Name       = game.Name,
-                Status     = "✅",
+                Status     = "💬",
                 DiscordUrl = "https://discord.gg/gF4GRJWZ2A",
             };
         }
@@ -328,7 +424,10 @@ public partial class MainViewModel : ObservableObject
             Source         = "Manual",
             InstalledRecord = record,
             Status         = record != null ? GameStatus.Installed : GameStatus.Available,
-            WikiStatus     = effectiveMod?.Status ?? "—",
+            WikiStatus     = (_wikiExclusions.Contains(game.Name)
+                               || (effectiveMod?.SnapshotUrl == null && effectiveMod?.DiscordUrl != null && effectiveMod?.NexusUrl == null))
+                              ? "💬"
+                              : effectiveMod?.Status ?? "—",
             Maintainer     = effectiveMod?.Maintainer ?? "",
             IsGenericMod   = fallback != null && mod == null,
             EngineHint     = engine == EngineType.Unreal       ? "Unreal Engine"
@@ -336,13 +435,21 @@ public partial class MainViewModel : ObservableObject
                            : engine == EngineType.Unity        ? "Unity" : "",
             Notes          = effectiveMod != null ? BuildNotes(game.Name, effectiveMod, fallback, _genericNotes) : "",
             InstalledAddonFileName = record?.AddonFileName,
-            IsExternalOnly = effectiveMod?.SnapshotUrl == null &&
-                             (effectiveMod?.NexusUrl != null || effectiveMod?.DiscordUrl != null),
-            ExternalUrl    = effectiveMod?.NexusUrl ?? effectiveMod?.DiscordUrl ?? "",
-            ExternalLabel  = effectiveMod?.NexusUrl != null ? "Get on Nexus Mods" : "Get on Discord",
-            NexusUrl       = effectiveMod?.NexusUrl,
-            DiscordUrl     = effectiveMod?.DiscordUrl,
-            NameUrl        = effectiveMod?.NameUrl,
+            IsExternalOnly  = _wikiExclusions.Contains(game.Name)
+                              ? true
+                              : effectiveMod?.SnapshotUrl == null &&
+                                (effectiveMod?.NexusUrl != null || effectiveMod?.DiscordUrl != null),
+            ExternalUrl     = _wikiExclusions.Contains(game.Name)
+                              ? "https://discord.gg/gF4GRJWZ2A"
+                              : effectiveMod?.NexusUrl ?? effectiveMod?.DiscordUrl ?? "",
+            ExternalLabel   = _wikiExclusions.Contains(game.Name)
+                              ? "Get on Discord"
+                              : effectiveMod?.NexusUrl != null ? "Get on Nexus Mods" : "Get on Discord",
+            NexusUrl        = effectiveMod?.NexusUrl,
+            DiscordUrl      = _wikiExclusions.Contains(game.Name)
+                              ? "https://discord.gg/gF4GRJWZ2A"
+                              : effectiveMod?.DiscordUrl,
+            NameUrl         = effectiveMod?.NameUrl,
             IsManuallyAdded = true,
         };
 
@@ -374,9 +481,10 @@ public partial class MainViewModel : ObservableObject
             });
             var record = await _installer.InstallAsync(card.Mod, card.InstallPath, progress);
 
-            // Update just this card in-place — no full rescan needed.
-            // The record is already complete; push it into the card's observable
-            // properties and let bindings update the UI instantly.
+            // Update only this card's observable properties in-place.
+            // The card is already in DisplayedGames — WinUI bindings update the
+            // card visually the moment each property changes. No collection
+            // manipulation (Clear/Add) is needed, so the rest of the UI is untouched.
             DispatcherQueue?.TryEnqueue(() =>
             {
                 card.InstalledRecord        = record;
@@ -386,7 +494,12 @@ public partial class MainViewModel : ObservableObject
                 CrashReporter.Log($"Install complete: {card.GameName} — {record.AddonFileName}");
                 card.NotifyAll();
                 SaveLibrary();
-                UpdateCounts();
+                // Recalculate counts only — do NOT call ApplyFilter() which
+                // would Clear() + re-add every card and flash the whole UI.
+                InstalledCount = _allCards.Count(c => c.Status == GameStatus.Installed || c.Status == GameStatus.UpdateAvailable);
+                TotalGames     = DisplayedGames.Count;
+                OnPropertyChanged(nameof(InstalledCount));
+                OnPropertyChanged(nameof(TotalGames));
             });
         }
         catch (Exception ex)
@@ -615,7 +728,8 @@ public partial class MainViewModel : ObservableObject
             // Always show every detected game — even if no wiki mod exists.
             // The card will have no install button if there's no snapshot URL,
             // but a RenoDX addon already on disk will still be detected and shown.
-            var effectiveMod = mod ?? fallback; // may be null for truly unknown games
+            // Wiki exclusion overrides everything — user explicitly wants no wiki match
+            var effectiveMod = _wikiExclusions.Contains(game.Name) ? null : (mod ?? fallback);
 
             var record = records.FirstOrDefault(r =>
                 r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase));
@@ -654,7 +768,7 @@ public partial class MainViewModel : ObservableObject
                 effectiveMod = new GameMod
                 {
                     Name       = game.Name,
-                    Status     = "✅",
+                    Status     = "💬",
                     DiscordUrl = "https://discord.gg/gF4GRJWZ2A",
                 };
             }
@@ -668,7 +782,10 @@ public partial class MainViewModel : ObservableObject
                 Source                 = game.Source,
                 InstalledRecord        = record,
                 Status                 = record != null ? GameStatus.Installed : GameStatus.Available,
-                WikiStatus             = effectiveMod?.Status ?? "—",
+                WikiStatus             = (_wikiExclusions.Contains(game.Name)
+                                           || (effectiveMod?.SnapshotUrl == null && effectiveMod?.DiscordUrl != null && effectiveMod?.NexusUrl == null))
+                                          ? "💬"
+                                          : effectiveMod?.Status ?? "—",
                 Maintainer             = effectiveMod?.Maintainer ?? "",
                 IsGenericMod           = fallback != null && mod == null,
                 EngineHint             = engine == EngineType.Unreal       ? "Unreal Engine"
@@ -678,12 +795,20 @@ public partial class MainViewModel : ObservableObject
                 InstalledAddonFileName = record?.AddonFileName,
                 IsHidden               = _hiddenGames.Contains(game.Name),
                 IsManuallyAdded        = game.IsManuallyAdded,
-                IsExternalOnly         = effectiveMod?.SnapshotUrl == null &&
-                                         (effectiveMod?.NexusUrl != null || effectiveMod?.DiscordUrl != null),
-                ExternalUrl            = effectiveMod?.NexusUrl ?? effectiveMod?.DiscordUrl ?? "",
-                ExternalLabel          = effectiveMod?.NexusUrl != null ? "Get on Nexus Mods" : "Get on Discord",
+                IsExternalOnly         = _wikiExclusions.Contains(game.Name)
+                                         ? true
+                                         : effectiveMod?.SnapshotUrl == null &&
+                                           (effectiveMod?.NexusUrl != null || effectiveMod?.DiscordUrl != null),
+                ExternalUrl            = _wikiExclusions.Contains(game.Name)
+                                         ? "https://discord.gg/gF4GRJWZ2A"
+                                         : effectiveMod?.NexusUrl ?? effectiveMod?.DiscordUrl ?? "",
+                ExternalLabel          = _wikiExclusions.Contains(game.Name)
+                                         ? "Get on Discord"
+                                         : effectiveMod?.NexusUrl != null ? "Get on Nexus Mods" : "Get on Discord",
                 NexusUrl               = effectiveMod?.NexusUrl,
-                DiscordUrl             = effectiveMod?.DiscordUrl,
+                DiscordUrl             = _wikiExclusions.Contains(game.Name)
+                                         ? "https://discord.gg/gF4GRJWZ2A"
+                                         : effectiveMod?.DiscordUrl,
                 NameUrl                = effectiveMod?.NameUrl,
             });
         }

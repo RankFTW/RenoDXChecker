@@ -26,10 +26,30 @@ public static class WikiService
         var tables = doc.DocumentNode.SelectNodes("//table");
         if (tables == null) return (new(), new());
 
-        var mods         = ParseSpecificMods(tables[0]);
+        // Identify the specific mods table by its header column count (4 columns:
+        // Name, Maintainer, Links, Status) rather than hardcoding tables[0].
+        // This is robust against the wiki adding a notice/TOC table before the main one.
+        var mods         = new List<GameMod>();
         var genericNotes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        for (int i = 1; i < tables.Count; i++)
-            ParseGenericTable(tables[i], genericNotes);
+        bool specificFound = false;
+        foreach (var table in tables)
+        {
+            var headerRow = table.SelectSingleNode(".//tr");
+            var headerCells = headerRow?.SelectNodes("th|td");
+            int colCount = headerCells?.Count ?? 0;
+            if (!specificFound && colCount >= 4)
+            {
+                // 4-column table = specific mods (Name, Maintainer, Links, Status)
+                mods = ParseSpecificMods(table);
+                specificFound = true;
+            }
+            else
+            {
+                ParseGenericTable(table, genericNotes);
+            }
+        }
+        // Apply hardcoded status overrides for games whose wiki status lags reality
+        ApplyStatusOverrides(mods);
 
         progress?.Report($"Found {mods.Count} mods, {genericNotes.Count} generic game notes");
         return (mods, genericNotes);
@@ -190,4 +210,23 @@ public static class WikiService
     }
 
     private static string Clean(string s) => HtmlEntity.DeEntitize(s ?? "").Trim();
+
+    /// <summary>
+    /// Hardcoded status patches for games where the wiki status lags behind reality.
+    /// Applied after every fetch so the app reflects the correct known state.
+    /// </summary>
+    private static void ApplyStatusOverrides(List<GameMod> mods)
+    {
+        var overrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            // Code Vein II is confirmed working
+            { "Code Vein II", "✅" },
+        };
+
+        foreach (var mod in mods)
+        {
+            if (overrides.TryGetValue(mod.Name, out var status))
+                mod.Status = status;
+        }
+    }
 }

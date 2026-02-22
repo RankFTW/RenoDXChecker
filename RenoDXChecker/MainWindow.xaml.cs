@@ -2,6 +2,7 @@ using Microsoft.UI;
 using RenoDXChecker.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using RenoDXChecker.Models;
 using RenoDXChecker.ViewModels;
@@ -37,13 +38,6 @@ public sealed partial class MainWindow : Window
         this.Closed += MainWindow_Closed;
     }
 
-    private void TuneButton_Click(object sender, RoutedEventArgs e)
-    {
-        // Get the card this button was invoked from (if it came from a card context menu).
-        // The global Tune button passes no context, so we show a generic dialog.
-        ShowTuneDialog(prefilledDetected: null);
-    }
-
     private void TuneButton_Card_Click(object sender, RoutedEventArgs e)
     {
         // Per-card Tune — pre-fill the detected game name
@@ -65,13 +59,43 @@ public sealed partial class MainWindow : Window
             Width           = 340,
         };
 
-        // If there's already a mapping for this game, pre-fill the wiki box too
         if (!string.IsNullOrEmpty(prefilledDetected))
         {
             var existing = ViewModel.GetNameMapping(prefilledDetected);
             if (!string.IsNullOrEmpty(existing))
                 wikiBox.Text = existing;
         }
+
+        bool isExcluded = !string.IsNullOrEmpty(prefilledDetected) &&
+                          ViewModel.IsWikiExcluded(prefilledDetected);
+
+        // Exclusion toggle button — visually distinct, toggleable
+        var excludeBtn = new ToggleButton
+        {
+            Content    = "🚫  Exclude from wiki (show Discord link instead)",
+            IsChecked  = isExcluded,
+            FontSize   = 12,
+            Padding    = new Thickness(10, 6, 10, 6),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 14, 30)),
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 180, 100, 180)),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 80, 30, 80)),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+
+        var excludeNote = new TextBlock
+        {
+            Text         = isExcluded
+                           ? "✅ Excluded — this game shows a Discord link instead of an install button. Toggle off to resume wiki matching."
+                           : "Toggle on to exclude this game from all wiki matching. The card will show a Discord link instead of an install button. Toggle off at any time to restore.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize     = 11,
+            Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 130, 100, 160)),
+        };
+
+        excludeBtn.Checked   += (s, e) => excludeNote.Text =
+            "✅ Excluded — this game shows a Discord link instead of an install button. Toggle off to resume wiki matching.";
+        excludeBtn.Unchecked += (s, e) => excludeNote.Text =
+            "Toggle on to exclude this game from all wiki matching. The card will show a Discord link instead of an install button. Toggle off at any time to restore.";
 
         var panel = new StackPanel { Spacing = 10 };
         panel.Children.Add(new TextBlock
@@ -87,12 +111,20 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(detectedBox);
         panel.Children.Add(new TextBlock { Text = "Wiki mod name:", FontSize = 12 });
         panel.Children.Add(wikiBox);
+        panel.Children.Add(new Border
+        {
+            Height = 1,
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 40, 60)),
+            Margin = new Thickness(0, 4, 0, 4),
+        });
+        panel.Children.Add(excludeBtn);
+        panel.Children.Add(excludeNote);
 
         var dlg = new ContentDialog
         {
             Title             = "Name Matching Override",
             Content           = panel,
-            PrimaryButtonText = "Save mapping",
+            PrimaryButtonText = "Save",
             SecondaryButtonText = !string.IsNullOrEmpty(prefilledDetected) &&
                                   !string.IsNullOrEmpty(ViewModel.GetNameMapping(prefilledDetected ?? ""))
                                   ? "Remove mapping" : "",
@@ -106,8 +138,15 @@ public sealed partial class MainWindow : Window
             if (t.Result == ContentDialogResult.Primary)
             {
                 var det = detectedBox.Text?.Trim();
+
+                // Handle exclusion toggle first
+                bool nowExcluded = excludeBtn.IsChecked == true;
+                if (!string.IsNullOrEmpty(det) && nowExcluded != ViewModel.IsWikiExcluded(det))
+                    ViewModel.ToggleWikiExclusion(det);
+
+                // Save name mapping if provided and not excluded
                 var key = wikiBox.Text?.Trim();
-                if (!string.IsNullOrEmpty(det) && !string.IsNullOrEmpty(key))
+                if (!nowExcluded && !string.IsNullOrEmpty(det) && !string.IsNullOrEmpty(key))
                     ViewModel.AddNameMapping(det, key);
             }
             else if (t.Result == ContentDialogResult.Secondary)

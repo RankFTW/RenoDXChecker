@@ -74,7 +74,6 @@
                             Background="#161E38" Foreground="#6070A0"
                             BorderBrush="#222A45" BorderThickness="1"
                             CornerRadius="8" Width="34" FontSize="14"/>
-                    <Button x:Name="TuneBtn" Content="Tune" Click="TuneButton_Click" Background="#161E38" Foreground="#8896C0" BorderBrush="#222A45" BorderThickness="1" CornerRadius="8" Padding="10,6" FontSize="12"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -179,7 +178,7 @@
                                     <Run Text="RDXC" Foreground="#8BA4E8"/>
                                     <Run Text=" — RenoDX Mod Manager" Foreground="#C0C8E8"/>
                                 </TextBlock>
-                                <TextBlock Text="Version 1.0.2  ·  Unofficial companion tool by RankFTW"
+                                <TextBlock Text="Version 1.0.3  ·  Unofficial companion tool by RankFTW"
                                            FontSize="12" Foreground="#3A4466"/>
                             </StackPanel>
                         </StackPanel>
@@ -330,7 +329,7 @@
                                     <TextBlock Foreground="#7A9ACA" FontSize="12">💬  RenoDX Discord</TextBlock>
                                 </HyperlinkButton>
                                 <HyperlinkButton NavigateUri="https://github.com/RankFTW" Padding="0">
-                                    <TextBlock Foreground="#7A9ACA" FontSize="12">💬  RankFTW GitHub</TextBlock>
+                                    <TextBlock Foreground="#7A9ACA" FontSize="12">🔧  RankFTW GitHub — github.com/RankFTW</TextBlock>
                                 </HyperlinkButton>
                                 <HyperlinkButton NavigateUri="https://discord.gg/pQtPYcdE" Padding="0">
                                     <TextBlock Foreground="#7A9ACA" FontSize="12">🤝  The Ultra Place / Ultra+ — join our Discord</TextBlock>
@@ -426,37 +425,38 @@
                                         <RowDefinition Height="Auto"/> <!-- 6: progress/message -->
                                     </Grid.RowDefinitions>
 
-                                    <!-- Row 0: Game name + info + status + hide -->
+                                    <!-- Row 0: 💬 | name | ℹ | 🚫 | 🎯 | wiki status -->
                                     <Grid Grid.Row="0" VerticalAlignment="Center">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>  <!-- 0: 💬 discussion (before name) -->
+                                            <ColumnDefinition Width="*"/>     <!-- 1: game name -->
+                                            <ColumnDefinition Width="Auto"/>  <!-- 2: ℹ notes -->
+                                            <ColumnDefinition Width="Auto"/>  <!-- 3: 🚫 hide -->
+                                            <ColumnDefinition Width="Auto"/>  <!-- 4: 🎯 tune -->
+                                            <ColumnDefinition Width="Auto"/>  <!-- 5: wiki status badge -->
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="{x:Bind GameName}"
+                                        <!-- 💬 discussion / wiki link — shown before the game name so it stands out -->
+                                        <Button Grid.Column="0"
+                                                Visibility="{x:Bind NameLinkVisibility}"
+                                                Click="NameLink_Click" Tag="{x:Bind}"
+                                                Background="Transparent" BorderThickness="0"
+                                                Width="26" Height="26" Padding="0" Margin="0,0,3,0"
+                                                ToolTipService.ToolTip="Open discussion / instructions">
+                                            <TextBlock Text="💬" FontSize="11" Foreground="#6A9ABE"/>
+                                        </Button>
+                                        <!-- Game name -->
+                                        <TextBlock Grid.Column="1" Text="{x:Bind GameName}"
                                                    FontSize="13" FontWeight="SemiBold" Foreground="#E2E8FF"
                                                    TextTrimming="CharacterEllipsis" MaxLines="1"
                                                    VerticalAlignment="Center"/>
                                         <!-- ℹ notes button -->
-                                        <Button Grid.Column="1"
+                                        <Button Grid.Column="2"
                                                 Visibility="{x:Bind NotesButtonVisibility}"
                                                 Click="NotesButton_Click" Tag="{x:Bind}"
                                                 Background="Transparent" BorderThickness="0"
-                                                Width="26" Height="26" Padding="0" Margin="4,0,0,0"
+                                                Width="26" Height="26" Padding="0" Margin="3,0,0,0"
                                                 ToolTipService.ToolTip="View notes">
                                             <TextBlock Text="ℹ" FontSize="13" Foreground="#5A6EA0"/>
-                                        </Button>
-                                        <!-- 💬 discussion / wiki link button (only shown when game name has a link) -->
-                                        <Button Grid.Column="2"
-                                                Visibility="{x:Bind NameLinkVisibility}"
-                                                Click="NameLink_Click" Tag="{x:Bind}"
-                                                Background="Transparent" BorderThickness="0"
-                                                Width="26" Height="26" Padding="0" Margin="2,0,0,0"
-                                                ToolTipService.ToolTip="Open discussion / instructions">
-                                            <TextBlock Text="💬" FontSize="11" Foreground="#5A7A9A"/>
                                         </Button>
                                         <!-- 🚫 hide button -->
                                         <Button Grid.Column="3"
@@ -465,28 +465,30 @@
                                                 Width="26" Height="26" Padding="0" Margin="2,0,0,0"
                                                 ToolTipService.ToolTip="{x:Bind HideButtonLabel, Mode=OneWay}">
                                             <Grid>
-                                                <!-- Hidden state: bright icon -->
                                                 <TextBlock Text="🚫" FontSize="11" Foreground="#9060A0"
                                                            Visibility="{x:Bind IsHiddenVisibility, Mode=OneWay}"/>
-                                                <!-- Visible state: dim icon -->
                                                 <TextBlock Text="🚫" FontSize="11" Foreground="#282840"
                                                            Visibility="{x:Bind IsNotHiddenVisibility, Mode=OneWay}"/>
                                             </Grid>
                                         </Button>
-                                        <!-- Wiki status badge -->
-                                        <Border Grid.Column="4" CornerRadius="6" Padding="7,2"
-                                                Margin="4,0,0,0"                                                Background="#1C2848" BorderBrush="#283C60" BorderThickness="1">
-                                            <TextBlock Text="{x:Bind WikiStatusLabel}"
-                                                       FontSize="10" Foreground="#7A9AB8"/>
-                                        </Border>
-                                        <!-- 🎯 per-card match override button -->
-                                        <Button Grid.Column="5"
+                                        <!-- 🎯 per-card wiki name match override -->
+                                        <Button Grid.Column="4"
                                                 Click="TuneButton_Card_Click" Tag="{x:Bind}"
                                                 Background="Transparent" BorderThickness="0"
-                                                Width="22" Height="22" Padding="0" Margin="3,0,0,0"
+                                                Width="22" Height="22" Padding="0" Margin="2,0,0,0"
                                                 ToolTipService.ToolTip="Override wiki name matching for this game">
                                             <TextBlock Text="🎯" FontSize="10" Foreground="#30405A"/>
                                         </Button>
+                                        <!-- Wiki status badge — rightmost -->
+                                        <Border Grid.Column="5" CornerRadius="6" Padding="7,2"
+                                                Margin="4,0,0,0"
+                                                Background="{x:Bind WikiStatusBadgeBackground, Mode=OneWay}"
+                                                BorderBrush="{x:Bind WikiStatusBadgeBorderBrush, Mode=OneWay}"
+                                                BorderThickness="1">
+                                            <TextBlock Text="{x:Bind WikiStatusLabel, Mode=OneWay}"
+                                                       FontSize="10"
+                                                       Foreground="{x:Bind WikiStatusBadgeForeground, Mode=OneWay}"/>
+                                        </Border>
                                     </Grid>
 
                                     <!-- Row 1: Source/Engine/Generic badges -->
@@ -508,7 +510,7 @@
                                         </Border>
                                         <Border Background="#28203A" CornerRadius="5" Padding="6,2"
                                                 BorderBrush="#48305A" BorderThickness="1"
-                                                Visibility="{x:Bind GenericBadgeVisibility}">
+                                                Visibility="{x:Bind GenericBadgeVisibility, Mode=OneWay}">
                                             <TextBlock Text="{x:Bind GenericModLabel}"
                                                        FontSize="10" Foreground="#B890C8"/>
                                         </Border>
@@ -568,7 +570,7 @@
 
                                     <!-- Row 5a-alt: No mod available label (game not on wiki, no snapshot) -->
                                     <Border Grid.Row="5"
-                                            Visibility="{x:Bind NoModVisibility}"
+                                            Visibility="{x:Bind NoModVisibility, Mode=OneWay}"
                                             Background="#181420" CornerRadius="10" Padding="10,0"
                                             BorderBrush="#2A1E38" BorderThickness="1"
                                             VerticalAlignment="Stretch">
@@ -580,7 +582,7 @@
 
                                     <!-- Row 5a: External only (Nexus/Discord with no snapshot) -->
                                     <Button Grid.Row="5"
-                                            Visibility="{x:Bind ExternalBtnVisibility}"
+                                            Visibility="{x:Bind ExternalBtnVisibility, Mode=OneWay}"
                                             Click="ExternalLink_Click" Tag="{x:Bind}"
                                             HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                             CornerRadius="10" FontSize="12" FontWeight="SemiBold"
@@ -637,20 +639,22 @@
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <!-- Reinstall/Update -->
+                                        <!-- Reinstall/Update — purple tint when update available -->
                                         <Button Grid.Column="0"
                                                 IsEnabled="{x:Bind CanInstall, Mode=OneWay}"
                                                 Click="InstallButton_Click" Tag="{x:Bind}"
                                                 HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                                 CornerRadius="10,0,0,10" FontSize="12" FontWeight="SemiBold"
-                                                Background="#22386A" Foreground="#AACCFF"
-                                                BorderBrush="#3050A0" BorderThickness="1,1,0,1"
+                                                Background="{x:Bind InstallBtnBackground, Mode=OneWay}"
+                                                Foreground="{x:Bind InstallBtnForeground, Mode=OneWay}"
+                                                BorderBrush="{x:Bind InstallBtnBorderBrush, Mode=OneWay}"
+                                                BorderThickness="1,1,0,1"
                                                 Margin="0,0,1,0">
                                             <TextBlock Text="{x:Bind InstallActionLabel, Mode=OneWay}" FontSize="12"/>
                                         </Button>
                                         <!-- Nexus/Discord link (if available) -->
                                         <Button Grid.Column="1"
-                                                Visibility="{x:Bind ExtraLinkVisibility}"
+                                                Visibility="{x:Bind ExtraLinkVisibility, Mode=OneWay}"
                                                 Click="ExternalLink_Click" Tag="{x:Bind}"
                                                 HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                                 CornerRadius="0" FontSize="11"
