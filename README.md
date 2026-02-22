@@ -220,3 +220,4 @@ Open **About → 📂 Open Logs Folder** and attach the latest file when reporti
 - [ReShade](https://reshade.me)
 - [RenoDX Discord](https://discord.gg/gF4GRJWZ2A)
 - [RankFTW GitHub](https://github.com/RankFTW)
+- [Support](https://discordapp.com/channels/1296187754979528747/1475173660686815374)
