@@ -1,16 +1,16 @@
 using Microsoft.UI;
-using RenoDXChecker.Services;
+using RenoDXCommander.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
-using RenoDXChecker.Models;
-using RenoDXChecker.ViewModels;
+using RenoDXCommander.Models;
+using RenoDXCommander.ViewModels;
 using Windows.Storage.Pickers;
 using System.Runtime.InteropServices;
 using WinRT.Interop;
 
-namespace RenoDXChecker;
+namespace RenoDXCommander;
 
 public sealed partial class MainWindow : Window
 {
@@ -23,7 +23,9 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        Title = "RDXC - RenoDXChecker";
+        AuxInstallService.EnsureInisDir();       // create inis folder on first run
+        AuxInstallService.EnsureReShadeStaging(); // copy bundled ReShade DLLs to staging if needed
+        Title = "RDXC - RenoDXCommander";
         CrashReporter.Log("MainWindow: InitializeComponent complete");
         // Set a sensible default size immediately so the window isn't huge on first launch.
         // TryRestoreWindowBounds (called on Activated) will then override this with the
@@ -120,9 +122,49 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(excludeBtn);
         panel.Children.Add(excludeNote);
 
+        panel.Children.Add(new Border
+        {
+            Height = 1,
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 40, 60)),
+            Margin = new Thickness(0, 4, 0, 4),
+        });
+
+        bool isDcExcluded = !string.IsNullOrEmpty(prefilledDetected) &&
+                            ViewModel.IsDcModeExcluded(prefilledDetected);
+
+        var dcExcludeBtn = new ToggleButton
+        {
+            Content    = "⚙  Exclude from global DC Mode",
+            IsChecked  = isDcExcluded,
+            FontSize   = 12,
+            Padding    = new Thickness(10, 6, 10, 6),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 18, 28, 48)),
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 100, 160, 200)),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 70, 110)),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+
+        var dcExcludeNote = new TextBlock
+        {
+            Text         = isDcExcluded
+                           ? "✅ Excluded from DC Mode — this game always uses normal file naming (ReShade=dxgi.dll, DC=zzz_display_commander.addon64) regardless of the global DC Mode toggle."
+                           : "Toggle on to exclude this game from global DC Mode. It will always use normal naming regardless of the DC Mode toggle.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize     = 11,
+            Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 80, 130, 170)),
+        };
+
+        dcExcludeBtn.Checked   += (s, e) => dcExcludeNote.Text =
+            "✅ Excluded from DC Mode — this game always uses normal file naming (ReShade=dxgi.dll, DC=zzz_display_commander.addon64) regardless of the global DC Mode toggle.";
+        dcExcludeBtn.Unchecked += (s, e) => dcExcludeNote.Text =
+            "Toggle on to exclude this game from global DC Mode. It will always use normal naming regardless of the DC Mode toggle.";
+
+        panel.Children.Add(dcExcludeBtn);
+        panel.Children.Add(dcExcludeNote);
+
         var dlg = new ContentDialog
         {
-            Title             = "Name Matching Override",
+            Title             = "Overrides",
             Content           = panel,
             PrimaryButtonText = "Save",
             SecondaryButtonText = !string.IsNullOrEmpty(prefilledDetected) &&
@@ -139,10 +181,15 @@ public sealed partial class MainWindow : Window
             {
                 var det = detectedBox.Text?.Trim();
 
-                // Handle exclusion toggle first
+                // Handle wiki exclusion toggle
                 bool nowExcluded = excludeBtn.IsChecked == true;
                 if (!string.IsNullOrEmpty(det) && nowExcluded != ViewModel.IsWikiExcluded(det))
                     ViewModel.ToggleWikiExclusion(det);
+
+                // Handle DC Mode exclusion toggle
+                bool nowDcExcluded = dcExcludeBtn.IsChecked == true;
+                if (!string.IsNullOrEmpty(det) && nowDcExcluded != ViewModel.IsDcModeExcluded(det))
+                    ViewModel.ToggleDcModeExclusion(det);
 
                 // Save name mapping if provided and not excluded
                 var key = wikiBox.Text?.Trim();
@@ -227,6 +274,42 @@ public sealed partial class MainWindow : Window
 
     private bool _aboutVisible = false;
 
+    private void RsIniButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: GameCardViewModel card }) return;
+        if (string.IsNullOrEmpty(card.InstallPath)) return;
+        try
+        {
+            AuxInstallService.CopyRsIni(card.InstallPath);
+            card.RsActionMessage = "✅ reshade.ini copied to game folder.";
+        }
+        catch (Exception ex)
+        {
+            card.RsActionMessage = $"❌ {ex.Message}";
+        }
+    }
+
+    private void DcIniButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: GameCardViewModel card }) return;
+        if (string.IsNullOrEmpty(card.InstallPath)) return;
+        try
+        {
+            AuxInstallService.CopyDcIni(card.InstallPath);
+            card.DcActionMessage = "✅ DisplayCommander.toml copied to game folder.";
+        }
+        catch (Exception ex)
+        {
+            card.DcActionMessage = $"❌ {ex.Message}";
+        }
+    }
+
+    private void SupportButton_Click(object sender, RoutedEventArgs e)
+    {
+        _ = Windows.System.Launcher.LaunchUriAsync(
+            new Uri("https://discordapp.com/channels/1296187754979528747/1475173660686815374"));
+    }
+
     private void AboutButton_Click(object sender, RoutedEventArgs e)
     {
         _aboutVisible = true;
@@ -239,7 +322,7 @@ public sealed partial class MainWindow : Window
     {
         var logsDir = System.IO.Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "RenoDXChecker", "logs");
+            "RenoDXCommander", "logs");
         System.IO.Directory.CreateDirectory(logsDir);
         CrashReporter.Log("User opened logs folder from About panel");
         System.Diagnostics.Process.Start("explorer.exe", logsDir);
@@ -319,7 +402,7 @@ public sealed partial class MainWindow : Window
         var inactive = Windows.UI.Color.FromArgb(255, 22, 27, 44);
         var activeFg   = Colors.White;
         var inactiveFg = Windows.UI.Color.FromArgb(255, 160, 170, 200);
-        foreach (var b in new[] { FilterDetected, FilterInstalled, FilterHidden, FilterUnity, FilterUnreal, FilterOther })
+        foreach (var b in new[] { FilterDetected, FilterInstalled, FilterNotInstalled, FilterHidden, FilterUnity, FilterUnreal, FilterOther })
         {
             bool isActive = b == btn;
             b.Background  = new SolidColorBrush(isActive ? active   : inactive);
@@ -364,6 +447,46 @@ public sealed partial class MainWindow : Window
     {
         if (GetCardFromSender(sender) is { } card)
             ViewModel.UninstallModCommand.Execute(card);
+    }
+
+    private async void InstallRsButton_Click(object sender, RoutedEventArgs e)
+    {
+        var card = (sender as FrameworkElement)?.Tag as GameCardViewModel;
+        if (card == null) return;
+        if (string.IsNullOrEmpty(card.InstallPath) || !System.IO.Directory.Exists(card.InstallPath))
+        {
+            var folder = await PickFolderAsync();
+            if (folder == null) return;
+            card.InstallPath = folder;
+            ViewModel.SaveLibraryPublic();
+        }
+        await ViewModel.InstallReShadeCommand.ExecuteAsync(card);
+    }
+
+    private void UninstallRsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is GameCardViewModel card)
+            ViewModel.UninstallReShadeCommand.Execute(card);
+    }
+
+    private async void InstallDcButton_Click(object sender, RoutedEventArgs e)
+    {
+        var card = (sender as FrameworkElement)?.Tag as GameCardViewModel;
+        if (card == null) return;
+        if (string.IsNullOrEmpty(card.InstallPath) || !System.IO.Directory.Exists(card.InstallPath))
+        {
+            var folder = await PickFolderAsync();
+            if (folder == null) return;
+            card.InstallPath = folder;
+            ViewModel.SaveLibraryPublic();
+        }
+        await ViewModel.InstallDcCommand.ExecuteAsync(card);
+    }
+
+    private void UninstallDcButton_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is GameCardViewModel card)
+            ViewModel.UninstallDcCommand.Execute(card);
     }
 
     private void UeExtendedToggle_Click(object sender, RoutedEventArgs e)
@@ -429,7 +552,10 @@ public sealed partial class MainWindow : Window
     {
         var card = GetCardFromSender(sender);
         if (card == null) return;
-        var url = card.NexusUrl ?? card.DiscordUrl ?? card.ExternalUrl;
+        // When IsExternalOnly the ExternalUrl has already been resolved correctly
+        // (e.g. forced to Discord by ApplyCardOverrides). Use it directly so a
+        // NexusUrl on the underlying mod can't override the intended destination.
+        var url = card.IsExternalOnly ? card.ExternalUrl : (card.NexusUrl ?? card.DiscordUrl ?? card.ExternalUrl);
         if (!string.IsNullOrEmpty(url))
             await Windows.System.Launcher.LaunchUriAsync(new Uri(url));
     }
@@ -448,10 +574,50 @@ public sealed partial class MainWindow : Window
         var card = GetCardFromSender(sender);
         if (card == null || string.IsNullOrWhiteSpace(card.Notes)) return;
 
-        var dialog = new ContentDialog
+        // Build content — use RichTextBlock when there is an embedded clickable link,
+        // plain TextBlock otherwise so existing notes are unaffected.
+        UIElement content;
+        if (!string.IsNullOrEmpty(card.NotesUrl))
         {
-            Title           = $"ℹ  {card.GameName}",
-            Content         = new ScrollViewer
+            var textColour = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 195, 210, 240));
+            var linkColour = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 130, 170, 240));
+
+            var para = new Microsoft.UI.Xaml.Documents.Paragraph();
+
+            // Notes text up to the colon (everything before the link line)
+            para.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run
+            {
+                Text       = card.Notes,
+                Foreground = textColour,
+                FontSize   = 13,
+            });
+
+            // Line break then the clickable hyperlink
+            para.Inlines.Add(new Microsoft.UI.Xaml.Documents.LineBreak());
+            var link = new Microsoft.UI.Xaml.Documents.Hyperlink
+            {
+                NavigateUri = new Uri(card.NotesUrl),
+                Foreground  = linkColour,
+            };
+            link.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run
+            {
+                Text     = card.NotesUrlLabel ?? card.NotesUrl,
+                FontSize = 13,
+            });
+            para.Inlines.Add(link);
+
+            var rtb = new RichTextBlock { IsTextSelectionEnabled = true };
+            rtb.Blocks.Add(para);
+
+            content = new ScrollViewer
+            {
+                Content = rtb,
+                MaxHeight = 400, Padding = new Thickness(0, 4, 12, 0),
+            };
+        }
+        else
+        {
+            content = new ScrollViewer
             {
                 Content = new TextBlock
                 {
@@ -460,7 +626,13 @@ public sealed partial class MainWindow : Window
                     FontSize = 13, LineHeight = 22,
                 },
                 MaxHeight = 400, Padding = new Thickness(0, 4, 12, 0),
-            },
+            };
+        }
+
+        var dialog = new ContentDialog
+        {
+            Title           = $"ℹ  {card.GameName}",
+            Content         = content,
             CloseButtonText = "Close",
             XamlRoot        = Content.XamlRoot,
             Background      = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 16, 20, 40)),
@@ -503,7 +675,7 @@ public sealed partial class MainWindow : Window
 
     private static readonly string _windowSettingsPath = System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "RenoDXChecker", "window_main.json");
+        "RenoDXCommander", "window_main.json");
 
     private void TryRestoreWindowBounds()
     {

@@ -1,19 +1,21 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using RenoDXChecker.Models;
-using RenoDXChecker.Services;
+using RenoDXCommander.Models;
+using RenoDXCommander.Services;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Text.Json;
 
-namespace RenoDXChecker.ViewModels;
+namespace RenoDXCommander.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
-    private readonly HttpClient _http;
+    private readonly HttpClient        _http;
     private readonly ModInstallService _installer;
+    private readonly AuxInstallService _auxInstaller;
+    [ObservableProperty] private bool _dcModeEnabled;
     private List<GameMod> _allMods = new();
     private Dictionary<string, string> _genericNotes = new(StringComparer.OrdinalIgnoreCase);
     private List<GameCardViewModel> _allCards = new();
@@ -23,7 +25,7 @@ public partial class MainViewModel : ObservableObject
     // Settings stored as JSON — ApplicationData.Current throws in unpackaged WinUI 3
     private static readonly string _settingsFilePath = System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "RenoDXChecker", "settings.json");
+        "RenoDXCommander", "settings.json");
 
     private static Dictionary<string, string> LoadSettingsFile()
     {
@@ -71,9 +73,10 @@ public partial class MainViewModel : ObservableObject
     public MainViewModel()
     {
         _http = new HttpClient();
-        _http.DefaultRequestHeaders.Add("User-Agent", "RenoDXChecker/2.0");
+        _http.DefaultRequestHeaders.Add("User-Agent", "RenoDXCommander/2.0");
         _http.Timeout = TimeSpan.FromSeconds(30);
-        _installer = new ModInstallService(_http);
+        _installer    = new ModInstallService(_http);
+        _auxInstaller = new AuxInstallService(_http);
         // Subscribe to installer events — on install we'll perform a full refresh
         LoadNameMappings();
         LoadThemeAndDensity();
@@ -86,8 +89,24 @@ public partial class MainViewModel : ObservableObject
     /// Their cards show a Discord link instead of an install button.
     /// </summary>
     private HashSet<string> _wikiExclusions   = new(StringComparer.OrdinalIgnoreCase);
+    partial void OnDcModeEnabledChanged(bool v) => SaveNameMappings();
+
+    public bool IsDcModeExcluded(string gameName)  => _dcModeExcludedGames.Contains(gameName);
+    public void ToggleDcModeExclusion(string gameName)
+    {
+        if (_dcModeExcludedGames.Contains(gameName))
+            _dcModeExcludedGames.Remove(gameName);
+        else
+            _dcModeExcludedGames.Add(gameName);
+        SaveNameMappings();
+        // Update the card immediately
+        var card = _allCards.FirstOrDefault(c => c.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase));
+        if (card != null) card.DcModeExcluded = _dcModeExcludedGames.Contains(gameName);
+    }
     /// <summary>Games for which the user has toggled UE-Extended ON.</summary>
     private HashSet<string> _ueExtendedGames = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Games excluded from global DC Mode — always use normal file naming.</summary>
+    private HashSet<string> _dcModeExcludedGames = new(StringComparer.OrdinalIgnoreCase);
     private void LoadNameMappings()
     {
         try
@@ -112,12 +131,23 @@ public partial class MainViewModel : ObservableObject
                     StringComparer.OrdinalIgnoreCase);
             else
                 _ueExtendedGames = new(StringComparer.OrdinalIgnoreCase);
+
+            if (s.TryGetValue("DcModeEnabled", out var dcMode))
+                DcModeEnabled = dcMode.Equals("True", StringComparison.OrdinalIgnoreCase);
+
+            if (s.TryGetValue("DcModeExcluded", out var dcExcJson) && !string.IsNullOrEmpty(dcExcJson))
+                _dcModeExcludedGames = new HashSet<string>(
+                    JsonSerializer.Deserialize<List<string>>(dcExcJson) ?? new(),
+                    StringComparer.OrdinalIgnoreCase);
+            else
+                _dcModeExcludedGames = new(StringComparer.OrdinalIgnoreCase);
         }
         catch
         {
-            _nameMappings    = new(StringComparer.OrdinalIgnoreCase);
-            _wikiExclusions  = new(StringComparer.OrdinalIgnoreCase);
-            _ueExtendedGames = new(StringComparer.OrdinalIgnoreCase);
+            _nameMappings        = new(StringComparer.OrdinalIgnoreCase);
+            _wikiExclusions      = new(StringComparer.OrdinalIgnoreCase);
+            _ueExtendedGames     = new(StringComparer.OrdinalIgnoreCase);
+            _dcModeExcludedGames = new(StringComparer.OrdinalIgnoreCase);
         }
     }
 
@@ -286,16 +316,82 @@ public partial class MainViewModel : ObservableObject
             }
         }
 
-        // If the extended addon is now the active one (and was already installed),
-        // update the installed record's SnapshotUrl so future update checks are correct.
+        // The toggle has swapped the target addon file. The old file was deleted above,
+        // so the card is no longer "installed" — reset to Available and clear the record.
+        // Leaving a stale InstalledRecord with the old RemoteFileSize would cause
+        // CheckForUpdateAsync to compare the new URL's size against the old addon's size
+        // and fire a false "update available" on the next refresh.
         if (card.InstalledRecord != null)
         {
-            card.InstalledRecord.SnapshotUrl = nowExtended ? UeExtendedUrl : WikiService.GenericUnrealUrl;
-            _installer.SaveRecordPublic(card.InstalledRecord);
+            _installer.RemoveRecord(card.InstalledRecord);
+            card.InstalledRecord        = null;
+            card.InstalledAddonFileName = null;
+            card.Status                 = GameStatus.Available;
         }
 
         card.UseUeExtended = nowExtended;
         card.NotifyAll();
+    }
+
+    private record CardOverride(
+        string? Notes,
+        string? DiscordUrl,
+        bool ForceDiscord,
+        string? NameUrl       = null,   // 💬 discussion button URL
+        string? NotesUrl      = null,   // clickable link inside the notes dialog
+        string? NotesUrlLabel = null);  // display label for that link
+
+    /// <summary>
+    /// Applies hardcoded per-game card overrides after BuildCards completes.
+    /// Use this for games that need custom notes, forced Discord routing, or
+    /// other card-level adjustments that can't be expressed in WikiService alone.
+    /// </summary>
+    private static void ApplyCardOverrides(List<GameCardViewModel> cards)
+    {
+        var overrides = new Dictionary<string, CardOverride>(StringComparer.OrdinalIgnoreCase)
+        {
+            // Cyberpunk 2077 — WIP mod, always direct to Discord for the latest build
+            ["Cyberpunk 2077"] = new CardOverride(
+                Notes: "⚠️ The RenoDX mod for Cyberpunk 2077 is a WIP. " +
+                       "Always get the latest build directly from the RenoDX Discord — " +
+                       "it is updated more frequently than any wiki download.\n\n" +
+                       "See Creepy's Cyberpunk RenoDX Guide for setup instructions:",
+                DiscordUrl: "https://discord.gg/gF4GRJWZ2A",
+                ForceDiscord: true,
+                NameUrl:       "https://www.hdrmods.com/Cyberpunk",
+                NotesUrl:      "https://www.hdrmods.com/Cyberpunk",
+                NotesUrlLabel: "Creepy's Cyberpunk RenoDX Guide"),
+        };
+
+        foreach (var card in cards)
+        {
+            if (!overrides.TryGetValue(card.GameName, out var ov)) continue;
+
+            if (ov.ForceDiscord)
+            {
+                // Strip any snapshot URL so no install button appears
+                if (card.Mod != null)
+                    card.Mod.SnapshotUrl = null;
+
+                card.IsExternalOnly  = true;
+                card.ExternalUrl     = ov.DiscordUrl ?? "https://discord.gg/gF4GRJWZ2A";
+                card.ExternalLabel   = "Get on Discord";
+                card.DiscordUrl      = ov.DiscordUrl ?? "https://discord.gg/gF4GRJWZ2A";
+                card.WikiStatus      = "💬";
+            }
+
+            if (!string.IsNullOrEmpty(ov.Notes))
+                card.Notes = ov.Notes;
+
+            if (!string.IsNullOrEmpty(ov.NameUrl))
+                card.NameUrl = ov.NameUrl;
+
+            if (!string.IsNullOrEmpty(ov.NotesUrl))
+            {
+                card.NotesUrl      = ov.NotesUrl;
+                card.NotesUrlLabel = ov.NotesUrlLabel;
+            }
+        }
     }
 
     private void SaveNameMappings()
@@ -306,6 +402,8 @@ public partial class MainViewModel : ObservableObject
             s["NameMappings"]    = JsonSerializer.Serialize(_nameMappings);
             s["WikiExclusions"]  = JsonSerializer.Serialize(_wikiExclusions.ToList());
             s["UeExtendedGames"] = JsonSerializer.Serialize(_ueExtendedGames.ToList());
+            s["DcModeEnabled"]   = DcModeEnabled.ToString();
+            s["DcModeExcluded"]  = JsonSerializer.Serialize(_dcModeExcludedGames.ToList());
             SaveSettingsFile(s);
         }
         catch { }
@@ -502,6 +600,14 @@ public partial class MainViewModel : ObservableObject
             };
         }
 
+        var auxRecordsManual = _auxInstaller.LoadAll();
+        var dcRecManual = auxRecordsManual.FirstOrDefault(r =>
+            r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase) &&
+            r.AddonType == AuxInstallService.TypeDc);
+        var rsRecManual = auxRecordsManual.FirstOrDefault(r =>
+            r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase) &&
+            r.AddonType == AuxInstallService.TypeReShade);
+
         var card = new GameCardViewModel
         {
             GameName       = game.Name,
@@ -538,6 +644,12 @@ public partial class MainViewModel : ObservableObject
                               : effectiveMod?.DiscordUrl,
             NameUrl         = effectiveMod?.NameUrl,
             IsManuallyAdded = true,
+            DcRecord        = dcRecManual,
+            DcStatus        = dcRecManual != null ? GameStatus.Installed : GameStatus.NotInstalled,
+            DcInstalledFile = dcRecManual?.InstalledAs,
+            RsRecord        = rsRecManual,
+            RsStatus        = rsRecManual != null ? GameStatus.Installed : GameStatus.NotInstalled,
+            RsInstalledFile = rsRecManual?.InstalledAs,
         };
 
         _allCards.Add(card);
@@ -620,6 +732,108 @@ public partial class MainViewModel : ObservableObject
         UpdateCounts();
     }
 
+    // ── Display Commander commands ────────────────────────────────────────────────
+
+    [RelayCommand]
+    public async Task InstallDcAsync(GameCardViewModel? card)
+    {
+        if (card == null) return;
+        if (string.IsNullOrEmpty(card.InstallPath) || !Directory.Exists(card.InstallPath))
+        {
+            card.DcActionMessage = "No install path — use 📁 to pick the game folder.";
+            return;
+        }
+        card.DcIsInstalling  = true;
+        card.DcActionMessage = "Starting DC download...";
+        try
+        {
+            var progress = new Progress<(string msg, double pct)>(p =>
+            {
+                card.DcActionMessage = p.msg;
+                card.DcProgress      = p.pct;
+            });
+            var effectiveDcMode = DcModeEnabled && !card.DcModeExcluded;
+            var record = await _auxInstaller.InstallDcAsync(card.GameName, card.InstallPath, effectiveDcMode, progress);
+            DispatcherQueue?.TryEnqueue(() =>
+            {
+                card.DcRecord        = record;
+                card.DcInstalledFile = record.InstalledAs;
+                card.DcStatus        = GameStatus.Installed;
+                card.DcActionMessage = "✅ Display Commander installed!";
+                card.NotifyAll();
+            });
+        }
+        catch (Exception ex)
+        {
+            card.DcActionMessage = $"❌ DC Failed: {ex.Message}";
+            CrashReporter.WriteCrashReport("InstallDcAsync", ex, note: $"Game: {card.GameName}");
+        }
+        finally { card.DcIsInstalling = false; }
+    }
+
+    [RelayCommand]
+    public void UninstallDc(GameCardViewModel? card)
+    {
+        if (card?.DcRecord == null) return;
+        _auxInstaller.Uninstall(card.DcRecord);
+        card.DcRecord        = null;
+        card.DcInstalledFile = null;
+        card.DcStatus        = GameStatus.NotInstalled;
+        card.DcActionMessage = "Display Commander removed.";
+        card.NotifyAll();
+    }
+
+    // ── ReShade commands ──────────────────────────────────────────────────────────
+
+    [RelayCommand]
+    public async Task InstallReShadeAsync(GameCardViewModel? card)
+    {
+        if (card == null) return;
+        if (string.IsNullOrEmpty(card.InstallPath) || !Directory.Exists(card.InstallPath))
+        {
+            card.RsActionMessage = "No install path — use 📁 to pick the game folder.";
+            return;
+        }
+        card.RsIsInstalling  = true;
+        card.RsActionMessage = "Starting ReShade download...";
+        try
+        {
+            var progress = new Progress<(string msg, double pct)>(p =>
+            {
+                card.RsActionMessage = p.msg;
+                card.RsProgress      = p.pct;
+            });
+            var effectiveDcModeRs = DcModeEnabled && !card.DcModeExcluded;
+            var record = await _auxInstaller.InstallReShadeAsync(card.GameName, card.InstallPath, effectiveDcModeRs, progress);
+            DispatcherQueue?.TryEnqueue(() =>
+            {
+                card.RsRecord        = record;
+                card.RsInstalledFile = record.InstalledAs;
+                card.RsStatus        = GameStatus.Installed;
+                card.RsActionMessage = "✅ ReShade installed!";
+                card.NotifyAll();
+            });
+        }
+        catch (Exception ex)
+        {
+            card.RsActionMessage = $"❌ ReShade Failed: {ex.Message}";
+            CrashReporter.WriteCrashReport("InstallReShadeAsync", ex, note: $"Game: {card.GameName}");
+        }
+        finally { card.RsIsInstalling = false; }
+    }
+
+    [RelayCommand]
+    public void UninstallReShade(GameCardViewModel? card)
+    {
+        if (card?.RsRecord == null) return;
+        _auxInstaller.Uninstall(card.RsRecord);
+        card.RsRecord        = null;
+        card.RsInstalledFile = null;
+        card.RsStatus        = GameStatus.NotInstalled;
+        card.RsActionMessage = "ReShade removed.";
+        card.NotifyAll();
+    }
+
     // ── Init ──────────────────────────────────────────────────────────────────────
 
     public async Task InitializeAsync(bool forceRescan = false)
@@ -671,15 +885,16 @@ public partial class MainViewModel : ObservableObject
                 .Concat(_manualGames)
                 .ToList();
 
-            var records = _installer.LoadAll();
+            var records    = _installer.LoadAll();
+            var auxRecords = _auxInstaller.LoadAll();
             SubStatusText = "Matching mods and checking install status...";
             CrashReporter.Log($"Building cards for {allGames.Count} games...");
-            _allCards = await Task.Run(() => BuildCards(allGames, records, addonCache, _genericNotes));
+            _allCards = await Task.Run(() => BuildCards(allGames, records, auxRecords, addonCache, _genericNotes));
             CrashReporter.Log($"BuildCards complete: {_allCards.Count} cards.");
 
             // Check for updates (async, parallel, non-blocking)
             CrashReporter.Log("Starting background update checks...");
-            _ = Task.Run(() => CheckForUpdatesAsync(_allCards, records));
+            _ = Task.Run(() => CheckForUpdatesAsync(_allCards, records, auxRecords));
 
             _allCards = _allCards.OrderBy(c => c.GameName, StringComparer.OrdinalIgnoreCase).ToList();
             SaveLibrary();
@@ -700,10 +915,12 @@ public partial class MainViewModel : ObservableObject
 
     // ── Update checking ───────────────────────────────────────────────────────────
 
-    private async Task CheckForUpdatesAsync(List<GameCardViewModel> cards, List<InstalledModRecord> records)
+    private async Task CheckForUpdatesAsync(List<GameCardViewModel> cards, List<InstalledModRecord> records, List<AuxInstalledRecord> auxRecords)
     {
         var installed = cards
-            .Where(c => c.Status == GameStatus.Installed && c.InstalledRecord?.SnapshotUrl != null)
+            .Where(c => c.Status == GameStatus.Installed
+                     && c.InstalledRecord?.SnapshotUrl != null
+                     && c.InstalledRecord?.RemoteFileSize != null)   // ← only RDXC-installed records have this
             .ToList();
 
         var tasks = installed.Select(async card =>
@@ -722,21 +939,37 @@ public partial class MainViewModel : ObservableObject
                 _installer.SaveRecordPublic(record);
                 DispatcherQueue?.TryEnqueue(() => { card.Status = GameStatus.UpdateAvailable; });
             }
-            else if (!record.RemoteFileSize.HasValue)
-            {
-                // Migration: record didn't have RemoteFileSize (installed before v1.0.2).
-                // CheckForUpdateAsync already did a HEAD — grab the size from the local file
-                // as a reasonable baseline until the next real install records the true value.
-                var localFile = Path.Combine(record.InstallPath, record.AddonFileName);
-                if (File.Exists(localFile))
-                {
-                    record.RemoteFileSize = new FileInfo(localFile).Length;
-                    _installer.SaveRecordPublic(record);
-                }
-            }
         });
 
         await Task.WhenAll(tasks);
+
+        // ── Aux (DC / ReShade) update checks ──────────────────────────────────────
+        var auxInstalled = cards
+            .Where(c => c.DcStatus == GameStatus.Installed || c.RsStatus == GameStatus.Installed)
+            .ToList();
+
+        var auxTasks = auxInstalled.SelectMany(card => new[]
+        {
+            card.DcRecord != null ? CheckAuxUpdate(card, card.DcRecord, isRs: false) : Task.CompletedTask,
+            card.RsRecord != null ? CheckAuxUpdate(card, card.RsRecord, isRs: true)  : Task.CompletedTask,
+        });
+
+        await Task.WhenAll(auxTasks);
+    }
+
+    private async Task CheckAuxUpdate(GameCardViewModel card, AuxInstalledRecord record, bool isRs)
+    {
+        try
+        {
+            bool upd = await _auxInstaller.CheckForUpdateAsync(record);
+            if (upd)
+                DispatcherQueue?.TryEnqueue(() =>
+                {
+                    if (isRs) card.RsStatus = GameStatus.UpdateAvailable;
+                    else      card.DcStatus = GameStatus.UpdateAvailable;
+                });
+        }
+        catch { }
     }
 
     // Dispatcher reference for cross-thread UI updates
@@ -772,6 +1005,14 @@ public partial class MainViewModel : ObservableObject
             .GroupBy(g => g.InstallPath.TrimEnd('\\', '/').ToLowerInvariant())
             .Select(grp => grp.OrderBy(g => g.Name.Length).First())
             .ToList();
+
+        // Permanently exclude specific non-game entries
+        var permanentExclusions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Lossless Scaling",
+            "Steamworks Common Redistributables",
+        };
+        byPath = byPath.Where(g => !permanentExclusions.Contains(g.Name)).ToList();
 
         return byPath;
     }
@@ -817,6 +1058,7 @@ public partial class MainViewModel : ObservableObject
     private List<GameCardViewModel> BuildCards(
         List<DetectedGame> detectedGames,
         List<InstalledModRecord> records,
+        List<AuxInstalledRecord> auxRecords,
         Dictionary<string, bool> addonCache,
         Dictionary<string, string> genericNotes)
     {
@@ -927,6 +1169,14 @@ public partial class MainViewModel : ObservableObject
                     _ueExtendedGames.Add(game.Name);
             }
 
+            // Look up aux records for this game
+            var dcRec = auxRecords.FirstOrDefault(r =>
+                r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase) &&
+                r.AddonType == AuxInstallService.TypeDc);
+            var rsRec = auxRecords.FirstOrDefault(r =>
+                r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase) &&
+                r.AddonType == AuxInstallService.TypeReShade);
+
             cards.Add(new GameCardViewModel
             {
                 GameName               = game.Name,
@@ -965,8 +1215,16 @@ public partial class MainViewModel : ObservableObject
                                          ? "https://discord.gg/gF4GRJWZ2A"
                                          : effectiveMod?.DiscordUrl,
                 NameUrl                = effectiveMod?.NameUrl,
+                DcModeExcluded         = _dcModeExcludedGames.Contains(game.Name),
+                DcRecord               = dcRec,
+                DcStatus               = dcRec != null ? GameStatus.Installed : GameStatus.NotInstalled,
+                DcInstalledFile        = dcRec?.InstalledAs,
+                RsRecord               = rsRec,
+                RsStatus               = rsRec != null ? GameStatus.Installed : GameStatus.NotInstalled,
+                RsInstalledFile        = rsRec?.InstalledAs,
             });
         }
+        ApplyCardOverrides(cards);
         return cards;
     }
 
@@ -1105,6 +1363,13 @@ public partial class MainViewModel : ObservableObject
                 return ShowHidden || !c.IsHidden;
             }
 
+            // Not Installed: non-hidden games without RenoDX mod installed
+            if (FilterMode == "NotInstalled")
+            {
+                if (c.IsHidden) return false;
+                return c.Status != GameStatus.Installed && c.Status != GameStatus.UpdateAvailable;
+            }
+
             // Default: hide hidden games (they belong in Hidden tab)
             if (c.IsHidden) return false;
             return true;
@@ -1125,6 +1390,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(HiddenCount));
     }
 
+    public void SaveLibraryPublic() => SaveLibrary();
     private void SaveLibrary()
     {
         var detectedGames = _allCards

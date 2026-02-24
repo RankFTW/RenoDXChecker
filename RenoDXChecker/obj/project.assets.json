@@ -1833,11 +1833,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RenoDXChecker v1.0.4beta1\\RenoDXChecker\\RenoDXChecker.csproj",
+      "projectUniqueName": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RenoDXCommander_v116\\RenoDXChecker\\RenoDXChecker.csproj",
       "projectName": "RenoDXChecker",
-      "projectPath": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RenoDXChecker v1.0.4beta1\\RenoDXChecker\\RenoDXChecker.csproj",
+      "projectPath": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RenoDXCommander_v116\\RenoDXChecker\\RenoDXChecker.csproj",
       "packagesPath": "C:\\Users\\Mark\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RenoDXChecker v1.0.4beta1\\RenoDXChecker\\obj\\",
+      "outputPath": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RenoDXCommander_v116\\RenoDXChecker\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

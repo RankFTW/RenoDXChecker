@@ -1,14 +1,14 @@
 using System.Security.Cryptography;
 using System.Text.Json;
-using RenoDXChecker.Models;
+using RenoDXCommander.Models;
 
-namespace RenoDXChecker.Services;
+namespace RenoDXCommander.Services;
 
 /// <summary>
 /// Downloads, installs, updates, and uninstalls RenoDX addon files.
 /// Tracks installations via a local JSON database.
 ///
-/// Download cache: files go to %LocalAppData%\RenoDXChecker\downloads\ so
+/// Download cache: files go to %LocalAppData%\RenoDXCommander\downloads\ so
 /// reinstalling or installing the same addon on another game skips the download.
 ///
 /// Update detection: stores RemoteFileSize at install time and compares against
@@ -21,11 +21,11 @@ public class ModInstallService
 
     private static readonly string DbPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "RenoDXChecker", "installed.json");
+        "RenoDXCommander", "installed.json");
 
     public static readonly string DownloadCacheDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "RenoDXChecker", "downloads");
+        "RenoDXCommander", "downloads");
 
     private readonly HttpClient _http;
 
@@ -239,15 +239,34 @@ public class ModInstallService
 
                 if (record.RemoteFileSize.HasValue)
                 {
-                    // Best path: compare stored install-time size vs current remote size
-                    return currentRemoteSize.Value != record.RemoteFileSize.Value;
+                    // Primary check: stored install-time size vs current remote HEAD size.
+                    if (currentRemoteSize.Value == record.RemoteFileSize.Value)
+                        return false; // sizes match — no update
+
+                    // Sizes differ — but github.io CDN can return inconsistent Content-Length
+                    // values across HEAD requests (edge server variation). As a second gate,
+                    // check whether the local file on disk still matches the stored install-time
+                    // size. If it does, the CDN is just being inconsistent and there is no real
+                    // update — suppress the false positive.
+                    if (File.Exists(localFile))
+                    {
+                        var localSize = new FileInfo(localFile).Length;
+                        if (localSize == record.RemoteFileSize.Value)
+                            return false; // local file matches stored size — CDN inconsistency, not a real update
+                    }
+
+                    return true; // both remote AND local differ from stored — real update
                 }
                 else
                 {
-                    // Fallback for records installed before RemoteFileSize was added:
-                    // compare remote size vs local file size
-                    var localSize = new FileInfo(localFile).Length;
-                    return currentRemoteSize.Value != localSize;
+                    // Fallback for legacy records without RemoteFileSize.
+                    // Compare remote size against local file size.
+                    if (File.Exists(localFile))
+                    {
+                        var localSize = new FileInfo(localFile).Length;
+                        return currentRemoteSize.Value != localSize;
+                    }
+                    return false;
                 }
             }
         }
@@ -282,6 +301,14 @@ public class ModInstallService
     }
 
     public void SaveRecordPublic(InstalledModRecord record) => SaveRecord(record);
+
+    /// <summary>Removes the install record from the DB without touching any files on disk.</summary>
+    public void RemoveRecord(InstalledModRecord record)
+    {
+        var db = LoadDb();
+        db.RemoveAll(r => r.GameName == record.GameName && r.InstallPath == record.InstallPath);
+        SaveDb(db);
+    }
 
     private void SaveRecord(InstalledModRecord record)
     {

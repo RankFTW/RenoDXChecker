@@ -1,7 +1,7 @@
 using Microsoft.UI.Xaml;
-using RenoDXChecker.Services;
+using RenoDXCommander.Services;
 
-namespace RenoDXChecker;
+namespace RenoDXCommander;
 
 public partial class App : Application
 {

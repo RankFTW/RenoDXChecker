@@ -1,13 +1,13 @@
 using System.Text.Json;
-using RenoDXChecker.Models;
+using RenoDXCommander.Models;
 
-namespace RenoDXChecker.Services;
+namespace RenoDXCommander.Services;
 
 public static class GameLibraryService
 {
     private static readonly string LibraryPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "RenoDXChecker", "game_library.json");
+        "RenoDXCommander", "game_library.json");
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
     public static SavedGameLibrary? Load()

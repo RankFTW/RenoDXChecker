@@ -1,7 +1,7 @@
 using HtmlAgilityPack;
-using RenoDXChecker.Models;
+using RenoDXCommander.Models;
 
-namespace RenoDXChecker.Services;
+namespace RenoDXCommander.Services;
 
 public static class WikiService
 {

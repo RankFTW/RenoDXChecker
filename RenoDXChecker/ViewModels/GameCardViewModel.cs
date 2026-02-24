@@ -1,8 +1,9 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI.Xaml;
-using RenoDXChecker.Models;
+using RenoDXCommander.Models;
+using RenoDXCommander.Services;
 
-namespace RenoDXChecker.ViewModels;
+namespace RenoDXCommander.ViewModels;
 
 public enum GameStatus { NotInstalled, Available, Installed, UpdateAvailable }
 
@@ -30,9 +31,47 @@ public partial class GameCardViewModel : ObservableObject
     [ObservableProperty] private GameMod? _mod;
     [ObservableProperty] private bool _useUeExtended;
 
+    // ── Display Commander state ──────────────────────────────────────────────────
+    [ObservableProperty] private GameStatus _dcStatus  = GameStatus.NotInstalled;
+    [ObservableProperty] private bool       _dcIsInstalling;
+    [ObservableProperty] private double     _dcProgress;
+    [ObservableProperty] private string     _dcActionMessage = "";
+    [ObservableProperty] private string?    _dcInstalledFile;
+    public AuxInstalledRecord? DcRecord { get; set; }
+
+    // ── ReShade state ─────────────────────────────────────────────────────────────
+    [ObservableProperty] private GameStatus _rsStatus  = GameStatus.NotInstalled;
+    [ObservableProperty] private bool       _rsIsInstalling;
+    [ObservableProperty] private double     _rsProgress;
+    [ObservableProperty] private string     _rsActionMessage = "";
+    [ObservableProperty] private string?    _rsInstalledFile;
+    public AuxInstalledRecord? RsRecord { get; set; }
+
     // Plain properties — not mutated after card creation, no need to observe
     public string EngineHint    { get; set; } = "";
     public string? NameUrl      { get; set; }   // Discussion/instructions link from wiki game name cell
+    /// <summary>When true this game ignores the global DC Mode toggle and always uses normal naming.</summary>
+    public bool DcModeExcluded  { get; set; }
+
+    // ── INI preset existence (re-checked on every NotifyAll call) ─────────────────
+    /// <summary>True when reshade.ini is present in the inis folder — enables the 📋 button.</summary>
+    public bool RsIniExists => File.Exists(AuxInstallService.RsIniPath);
+    /// <summary>True when DisplayCommander.toml is present in the inis folder — enables the 📋 button.</summary>
+    public bool DcIniExists => File.Exists(AuxInstallService.DcIniPath);
+
+    // INI button corner radius: rounded right when it is the rightmost button (delete hidden)
+    private bool RsDeleteVisible => RsStatus == GameStatus.Installed || RsStatus == GameStatus.UpdateAvailable;
+    private bool DcDeleteVisible => DcStatus == GameStatus.Installed || DcStatus == GameStatus.UpdateAvailable;
+
+    public string RsIniCornerRadius    => RsDeleteVisible ? "0"        : "0,10,10,0";
+    public string RsIniBorderThickness => RsDeleteVisible ? "0,1,0,1"  : "0,1,1,1";
+    public string RsIniMargin          => RsDeleteVisible ? "0,0,1,0"  : "0";
+
+    public string DcIniCornerRadius    => DcDeleteVisible ? "0"        : "0,10,10,0";
+    public string DcIniBorderThickness => DcDeleteVisible ? "0,1,0,1"  : "0,1,1,1";
+    public string DcIniMargin          => DcDeleteVisible ? "0,0,1,0"  : "0";
+    public string? NotesUrl     { get; set; }   // Clickable link embedded in the notes dialog
+    public string? NotesUrlLabel { get; set; }  // Display label for the notes link
     public bool IsManuallyAdded { get; set; }
     public DetectedGame? DetectedGame         { get; set; }
     public InstalledModRecord? InstalledRecord { get; set; }
@@ -63,6 +102,75 @@ public partial class GameCardViewModel : ObservableObject
     public Visibility UeExtendedToggleVisibility =>
         (IsGenericMod && EngineHint.Contains("Unreal") && !EngineHint.Contains("Legacy"))
             ? Visibility.Visible : Visibility.Collapsed;
+
+    // ── DC / ReShade action labels ───────────────────────────────────────────────
+    // ── Dynamic corner radius for install buttons ────────────────────────────────
+    // Row 7b: Install-only variant — round right side if UE-Extended not visible
+    public string R7bInstallCornerRadius     => UeExtendedToggleVisibility == Visibility.Visible ? "10,0,0,10" : "10";
+    public string R7bInstallBorderThickness  => UeExtendedToggleVisibility == Visibility.Visible ? "1,1,0,1"   : "1";
+    public string R7bInstallMargin           => UeExtendedToggleVisibility == Visibility.Visible ? "0,0,1,0"   : "0";
+
+    // ── Dynamic corner radius for install buttons ────────────────────────────────
+    // When the delete button is hidden, the install button rounds its right corners
+    public string RsInstallCornerRadius => (RsStatus == GameStatus.Installed || RsStatus == GameStatus.UpdateAvailable)
+        ? "10,0,0,10" : "10";
+    public string DcInstallCornerRadius => (DcStatus == GameStatus.Installed || DcStatus == GameStatus.UpdateAvailable)
+        ? "10,0,0,10" : "10";
+    // RS border: right border only when delete is hidden (full border when no delete)
+    public string RsInstallBorderThickness => (RsStatus == GameStatus.Installed || RsStatus == GameStatus.UpdateAvailable)
+        ? "1,1,0,1" : "1";
+    public string DcInstallBorderThickness => (DcStatus == GameStatus.Installed || DcStatus == GameStatus.UpdateAvailable)
+        ? "1,1,0,1" : "1";
+    // RS/DC margin: right margin gap only when delete button follows
+    public string RsInstallMargin => (RsStatus == GameStatus.Installed || RsStatus == GameStatus.UpdateAvailable)
+        ? "0,0,1,0" : "0";
+    public string DcInstallMargin => (DcStatus == GameStatus.Installed || DcStatus == GameStatus.UpdateAvailable)
+        ? "0,0,1,0" : "0";
+
+    // Negated installing flags — used for IsEnabled bindings to avoid converter in DataTemplate
+    public bool IsNotInstalling   => !IsInstalling;
+    public bool IsDcNotInstalling => !DcIsInstalling;
+    public bool IsRsNotInstalling => !RsIsInstalling;
+
+    public string DcActionLabel
+    {
+        get
+        {
+            if (DcIsInstalling) return "Installing...";
+            return DcStatus == GameStatus.UpdateAvailable ? "⬆  Update Display Commander"
+                 : DcStatus == GameStatus.Installed       ? "↺  Reinstall Display Commander"
+                 : "⬇  Install Display Commander";
+        }
+    }
+    public string RsActionLabel
+    {
+        get
+        {
+            if (RsIsInstalling) return "Installing...";
+            return RsStatus == GameStatus.UpdateAvailable ? "⬆  Update ReShade"
+                 : RsStatus == GameStatus.Installed       ? "↺  Reinstall ReShade"
+                 : "⬇  Install ReShade";
+        }
+    }
+
+    // Background colours for DC/RS buttons (purple tint when update available, blue otherwise)
+    public string DcBtnBackground  => DcStatus == GameStatus.UpdateAvailable ? "#2A1A40" : "#22386A";
+    public string DcBtnForeground  => DcStatus == GameStatus.UpdateAvailable ? "#C0A0E8" : "#AACCFF";
+    public string DcBtnBorderBrush => DcStatus == GameStatus.UpdateAvailable ? "#6040A0" : "#3050A0";
+    public string RsBtnBackground  => RsStatus == GameStatus.UpdateAvailable ? "#2A1A40" : "#22386A";
+    public string RsBtnForeground  => RsStatus == GameStatus.UpdateAvailable ? "#C0A0E8" : "#AACCFF";
+    public string RsBtnBorderBrush => RsStatus == GameStatus.UpdateAvailable ? "#6040A0" : "#3050A0";
+
+    public Visibility DcProgressVisibility => DcIsInstalling ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility DcMessageVisibility  => string.IsNullOrEmpty(DcActionMessage) ? Visibility.Collapsed : Visibility.Visible;
+    public Visibility DcInstalledVisible   => !string.IsNullOrEmpty(DcInstalledFile) ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility DcDeleteVisibility   => DcStatus == GameStatus.Installed || DcStatus == GameStatus.UpdateAvailable
+                                               ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility RsProgressVisibility => RsIsInstalling ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility RsMessageVisibility  => string.IsNullOrEmpty(RsActionMessage) ? Visibility.Collapsed : Visibility.Visible;
+    public Visibility RsInstalledVisible   => !string.IsNullOrEmpty(RsInstalledFile) ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility RsDeleteVisibility   => RsStatus == GameStatus.Installed || RsStatus == GameStatus.UpdateAvailable
+                                               ? Visibility.Visible : Visibility.Collapsed;
 
     public string SourceIcon => Source switch
     {
@@ -97,9 +205,9 @@ public partial class GameCardViewModel : ObservableObject
         get
         {
             if (IsInstalling) return "Installing...";
-            return Status == GameStatus.UpdateAvailable ? "⬆  Update"
-                 : Status == GameStatus.Installed       ? "↺  Reinstall"
-                 : "⬇  Install";
+            return Status == GameStatus.UpdateAvailable ? "⬆  Update RenoDX"
+                 : Status == GameStatus.Installed       ? "↺  Reinstall RenoDX"
+                 : "⬇  Install RenoDX";
         }
     }
 
@@ -171,12 +279,57 @@ public partial class GameCardViewModel : ObservableObject
         OnPropertyChanged(nameof(UeExtendedForeground));
         OnPropertyChanged(nameof(UeExtendedBorderBrush));
         OnPropertyChanged(nameof(UeExtendedToggleVisibility));
+        OnPropertyChanged(nameof(IsNotInstalling));
+        OnPropertyChanged(nameof(IsDcNotInstalling));
+        OnPropertyChanged(nameof(IsRsNotInstalling));
+        OnPropertyChanged(nameof(RsIniExists));
+        OnPropertyChanged(nameof(DcIniExists));
+        OnPropertyChanged(nameof(RsIniCornerRadius));
+        OnPropertyChanged(nameof(RsIniBorderThickness));
+        OnPropertyChanged(nameof(RsIniMargin));
+        OnPropertyChanged(nameof(DcIniCornerRadius));
+        OnPropertyChanged(nameof(DcIniBorderThickness));
+        OnPropertyChanged(nameof(DcIniMargin));
+        OnPropertyChanged(nameof(R7bInstallCornerRadius));
+        OnPropertyChanged(nameof(R7bInstallBorderThickness));
+        OnPropertyChanged(nameof(R7bInstallMargin));
+        // DC/RS corner radius
+        OnPropertyChanged(nameof(RsInstallCornerRadius));
+        OnPropertyChanged(nameof(RsInstallBorderThickness));
+        OnPropertyChanged(nameof(RsInstallMargin));
+        OnPropertyChanged(nameof(DcInstallCornerRadius));
+        OnPropertyChanged(nameof(DcInstallBorderThickness));
+        OnPropertyChanged(nameof(DcInstallMargin));
+        // DC
+        OnPropertyChanged(nameof(DcActionLabel));
+        OnPropertyChanged(nameof(DcBtnBackground));
+        OnPropertyChanged(nameof(DcBtnForeground));
+        OnPropertyChanged(nameof(DcBtnBorderBrush));
+        OnPropertyChanged(nameof(DcProgressVisibility));
+        OnPropertyChanged(nameof(DcMessageVisibility));
+        OnPropertyChanged(nameof(DcInstalledVisible));
+        OnPropertyChanged(nameof(DcDeleteVisibility));
+        // ReShade
+        OnPropertyChanged(nameof(RsActionLabel));
+        OnPropertyChanged(nameof(RsBtnBackground));
+        OnPropertyChanged(nameof(RsBtnForeground));
+        OnPropertyChanged(nameof(RsBtnBorderBrush));
+        OnPropertyChanged(nameof(RsProgressVisibility));
+        OnPropertyChanged(nameof(RsMessageVisibility));
+        OnPropertyChanged(nameof(RsInstalledVisible));
+        OnPropertyChanged(nameof(RsDeleteVisibility));
     }
 
     partial void OnStatusChanged(GameStatus v)              => NotifyAll();
+    partial void OnDcStatusChanged(GameStatus v)            => NotifyAll();
+    partial void OnRsStatusChanged(GameStatus v)            => NotifyAll();
+    partial void OnDcIsInstallingChanged(bool v)            => NotifyAll();
+    partial void OnRsIsInstallingChanged(bool v)            => NotifyAll();
     partial void OnIsInstallingChanged(bool v)              => NotifyAll();
     partial void OnInstalledAddonFileNameChanged(string? v) => NotifyAll();
     partial void OnActionMessageChanged(string v)           => OnPropertyChanged(nameof(MessageVisibility));
+    partial void OnDcActionMessageChanged(string v)         => OnPropertyChanged(nameof(DcMessageVisibility));
+    partial void OnRsActionMessageChanged(string v)         => OnPropertyChanged(nameof(RsMessageVisibility));
     partial void OnIsHiddenChanged(bool v)                  => OnPropertyChanged(nameof(HideButtonLabel));
     partial void OnInstallPathChanged(string v)             => OnPropertyChanged(nameof(InstallPathDisplay));
     partial void OnSourceChanged(string v)                  => OnPropertyChanged(nameof(SourceBadgeVisibility));

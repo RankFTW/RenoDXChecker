@@ -2,11 +2,11 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text;
 
-namespace RenoDXChecker.Services;
+namespace RenoDXCommander.Services;
 
 /// <summary>
 /// Captures unhandled exceptions and operational log entries, writing structured
-/// crash reports to %LocalAppData%\RenoDXChecker\logs\.
+/// crash reports to %LocalAppData%\RenoDXCommander\logs\.
 ///
 /// Call CrashReporter.Log() at key points throughout the app so each crash file
 /// contains a breadcrumb trail of what was happening before the crash.
@@ -15,11 +15,11 @@ public static class CrashReporter
 {
     // ── Config ────────────────────────────────────────────────────────────────────
 
-    public const string AppVersion = "1.0.4";
+    public const string AppVersion = "1.1.0";
 
     private static readonly string LogDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "RenoDXChecker", "logs");
+        "RenoDXCommander", "logs");
 
     /// <summary>Maximum number of crash/error log files kept on disk.</summary>
     private const int MaxLogFiles = 10;

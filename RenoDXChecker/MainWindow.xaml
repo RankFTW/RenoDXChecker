@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Window
-    x:Class="RenoDXChecker.MainWindow"
+    x:Class="RenoDXCommander.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:vm="using:RenoDXChecker.ViewModels"
-    Title="RDXC - RenoDXChecker">
+    xmlns:vm="using:RenoDXCommander.ViewModels"
+    Title="RDXC - RenoDXCommander">
 
-    <!-- Palette: #10141F bg, #1A2035 card, #6B7FCB accent, #4E9B6F green, #C07A50 amber -->
+    <!-- Palette: #0D1117 bg, #131A24 card, #00C8FF cyan-accent, #39FF14 neon-green, #7A8AAA text -->
 
-    <Grid Background="#10141F">
+    <Grid Background="#0D1117">
         <Grid.Resources>
             <x:Double x:Key="CardItemWidth">390</x:Double>
         </Grid.Resources>
@@ -20,8 +20,8 @@
         </Grid.RowDefinitions>
 
         <!-- ══ HEADER ══════════════════════════════════════════════════════════════ -->
-        <Border Grid.Row="0" Padding="20,14" Background="#0C1020"
-                BorderBrush="#222A45" BorderThickness="0,0,0,1">
+        <Border Grid.Row="0" Padding="20,14" Background="#090E16"
+                BorderBrush="#1A2535" BorderThickness="0,0,0,1">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -31,18 +31,15 @@
 
                 <!-- Logo + title -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                    <Border Width="36" Height="36" CornerRadius="10" Background="#2A3A6A">
-                        <TextBlock Text="RDXC" FontSize="11" FontWeight="Bold" Foreground="#8BA4E8"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <Border Width="40" Height="40" CornerRadius="10">
+                        <Image Source="icon.ico" Width="40" Height="40" Stretch="Uniform"/>
                     </Border>
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock FontSize="16" FontWeight="SemiBold">
-                            <Run Text="RDXC" Foreground="#8BA4E8"/>
+                        <TextBlock FontSize="16" FontWeight="Bold">
+                            <Run Text="RDXC" Foreground="#00C8FF"/>
                         </TextBlock>
-                        <TextBlock Text="RenoDX Mod Installer" FontSize="11" Foreground="#404870"/>
+                        <TextBlock Text="RenoDXCommander" FontSize="11" Foreground="#3A7A8A"/>
                     </StackPanel>
-
-
                 </StackPanel>
 
                 <!-- Search -->
@@ -50,29 +47,41 @@
                          x:Name="SearchBox"
                          PlaceholderText="🔍  Search games..."
                          TextChanged="SearchBox_TextChanged"
-                         Background="#141828" Foreground="#B0BAD8"
-                         BorderBrush="#252E50" BorderThickness="1"
+                         Background="#0F1820" Foreground="#A0B8C8"
+                         BorderBrush="#1A3040" BorderThickness="1"
                          CornerRadius="8" Padding="12,8"
                          FontSize="13"
                          MaxWidth="380" HorizontalAlignment="Center" VerticalAlignment="Center"/>
 
-                <!-- Action buttons -->
+                <!-- Action buttons: DC Mode | Add Game | Support | Refresh | About -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <ToggleButton x:Name="DcModeToggle"
+                                 IsChecked="{x:Bind ViewModel.DcModeEnabled, Mode=TwoWay}"
+                                 Content="⚙ DC Mode"
+                                 Background="#0F1E2A" Foreground="#00C8FF"
+                                 BorderBrush="#1A3A4A" BorderThickness="1"
+                                 CornerRadius="8" Padding="12,7" FontSize="12"
+                                 ToolTipService.ToolTip="DC Mode ON: Display Commander → dxgi.dll, ReShade → ReShade64.dll"/>
                     <Button x:Name="AddGameBtn" Content="➕ Add Game"
                             Click="AddGameButton_Click"
-                            Background="#1A2840" Foreground="#7AACDA"
-                            BorderBrush="#2A4060" BorderThickness="1"
+                            Background="#0F1E2A" Foreground="#39FF14"
+                            BorderBrush="#1A3A20" BorderThickness="1"
                             CornerRadius="8" Padding="12,7" FontSize="12"/>
-                    <!-- Single Refresh button (permanent full rescan) -->
+                    <Button x:Name="SupportBtn" Content="💬 Support"
+                            Click="SupportButton_Click"
+                            Background="#0F1E2A" Foreground="#00C8FF"
+                            BorderBrush="#1A3A4A" BorderThickness="1"
+                            CornerRadius="8" Padding="12,7" FontSize="12"
+                            ToolTipService.ToolTip="Open RenoDXCommander support channel on Discord"/>
                     <Button x:Name="RefreshBtn" Content="↻ Refresh"
                             Click="RefreshButton_Click"
-                            Background="#161E38" Foreground="#8896C0"
-                            BorderBrush="#222A45" BorderThickness="1"
+                            Background="#0F1820" Foreground="#7A9AAA"
+                            BorderBrush="#1A3040" BorderThickness="1"
                             CornerRadius="8" Padding="12,7" FontSize="12"/>
                     <Button x:Name="AboutBtn" Content="?"
                             Click="AboutButton_Click"
-                            Background="#161E38" Foreground="#6070A0"
-                            BorderBrush="#222A45" BorderThickness="1"
+                            Background="#0F1820" Foreground="#7A9AAA"
+                            BorderBrush="#1A3040" BorderThickness="1"
                             CornerRadius="8" Width="34" FontSize="14"/>
                 </StackPanel>
             </Grid>
@@ -96,7 +105,7 @@
                             Click="Filter_Click"
                             Background="#161E38" Foreground="#8896C0"
                             BorderThickness="0" CornerRadius="7" Padding="12,6" FontSize="12"/>
-                    <Button x:Name="FilterHidden" Content="🙈 Hidden" Tag="Hidden"
+                    <Button x:Name="FilterNotInstalled" Content="✗ Not Installed" Tag="NotInstalled"
                             Click="Filter_Click"
                             Background="#161E38" Foreground="#8896C0"
                             BorderThickness="0" CornerRadius="7" Padding="12,6" FontSize="12"/>
@@ -122,7 +131,10 @@
                                FontSize="11" Foreground="#4E7860" VerticalAlignment="Center"/>
                     <TextBlock x:Name="HiddenCountText" Text=""
                                FontSize="11" Foreground="#604868" VerticalAlignment="Center"/>
-                    <!-- ShowHidden toggle removed; hidden games are shown via the Hidden tab -->
+                    <Button x:Name="FilterHidden" Content="🙈 Hidden" Tag="Hidden"
+                            Click="Filter_Click"
+                            Background="#161E38" Foreground="#8896C0"
+                            BorderThickness="0" CornerRadius="7" Padding="12,6" FontSize="12"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -142,10 +154,10 @@
             </StackPanel>
 
             <!-- ══ ABOUT PANEL (overlays the cards area, hidden by default) ══════════ -->
-            <Grid x:Name="AboutPanel" Visibility="Collapsed" Background="#10141F">
+            <Grid x:Name="AboutPanel" Visibility="Collapsed" Background="#0D1117">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>  <!-- back button bar -->
-                    <RowDefinition Height="*"/>     <!-- scrollable content -->
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
                 <!-- Back button bar -->
@@ -157,29 +169,28 @@
                                 Background="#1A2840" Foreground="#7AACDA"
                                 BorderBrush="#2A4060" BorderThickness="1"
                                 CornerRadius="8" Padding="12,6" FontSize="12"/>
-                        <TextBlock Text="About" FontSize="15" FontWeight="SemiBold"
+                        <TextBlock Text="About RenoDXCommander" FontSize="15" FontWeight="SemiBold"
                                    Foreground="#8090C0" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Border>
 
-                <!-- Scrollable about content -->
+                <!-- Scrollable content -->
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                    <StackPanel Padding="32,24,32,40" Spacing="16" MaxWidth="680"
+                    <StackPanel Padding="32,24,32,40" Spacing="14" MaxWidth="700"
                                 HorizontalAlignment="Left">
 
-                        <!-- Hero row -->
-                        <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,0,0,8">
-                            <Border Width="52" Height="52" CornerRadius="14" Background="#1A2448">
-                                <TextBlock Text="R" FontSize="28" FontWeight="Bold" Foreground="#7A9AD8"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
+                        <!-- Hero -->
+                        <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,0,0,4">
+                            <Image Source="icon.ico" Width="52" Height="52"/>
                             <StackPanel VerticalAlignment="Center" Spacing="4">
                                 <TextBlock FontSize="22" FontWeight="Bold">
-                                    <Run Text="RDXC" Foreground="#8BA4E8"/>
-                                    <Run Text=" — RenoDX Mod Manager" Foreground="#C0C8E8"/>
+                                    <Run Text="RenoDXCommander" Foreground="#00C8FF"/>
                                 </TextBlock>
-                                <TextBlock Text="Version 1.0.4  ·  Unofficial companion tool by RankFTW"
-                                           FontSize="12" Foreground="#3A4466"/>
+                                <TextBlock FontSize="12" Foreground="#4A5878">
+                                    <Run Text="v1.2.0  ·  HDR mod manager by "/>
+                                    <Run Text="RankFTW" FontWeight="SemiBold" Foreground="#6070A0"/>
+                                    <Run Text="  ·  Unofficial companion tool"/>
+                                </TextBlock>
                             </StackPanel>
                         </StackPanel>
 
@@ -189,121 +200,84 @@
                             <StackPanel Spacing="6">
                                 <TextBlock Text="⚠  Disclaimer" FontSize="12" FontWeight="SemiBold"
                                            Foreground="#A07050"/>
-                                <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#A090A0" LineHeight="20">
-                                    <Run Text="This is an unofficial third-party tool, "/>
-                                    <Run Text="not affiliated with or endorsed by the RenoDX project."
+                                <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#9080A0" LineHeight="20">
+                                    <Run Text="RenoDXCommander is an unofficial third-party tool "/>
+                                    <Run Text="not affiliated with or endorsed by the RenoDX project, Crosire, or pmnoxx."
                                          FontWeight="SemiBold" Foreground="#C0A0B0"/>
-                                    <Run Text=" All mod files are downloaded directly from official RenoDX GitHub snapshots."/>
+                                    <Run Text=" RenoDX mod files are fetched from official RenoDX GitHub snapshots. Display Commander is downloaded from pmnoxx's GitHub. ReShade (bundled) is redistributed under its BSD 3-Clause licence. No mod files are modified — everything is used directly from its official source."/>
                                 </TextBlock>
                             </StackPanel>
                         </Border>
 
                         <!-- What it does -->
-                        <Border Background="#121828" CornerRadius="10" Padding="16,12"
+                        <Border Background="#111A28" CornerRadius="10" Padding="16,12"
                                 BorderBrush="#1C2440" BorderThickness="1">
                             <StackPanel Spacing="8">
                                 <TextBlock Text="What this app does" FontSize="12" FontWeight="SemiBold"
                                            Foreground="#A0B0D8"/>
-                                <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#8090B0" LineHeight="20">
-                                    Automatically detects games installed via Steam, GOG, Epic Games, and EA App.
-                                    Matches them against the RenoDX wiki mod list and lets you install or update HDR mods
-                                    with a single click. Identifies Unreal Engine and Unity games and offers generic
-                                    engine plugins where no game-specific mod exists. Tracks installed mods and alerts
-                                    you when updates are available.
+                                <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#7A8EAE" LineHeight="20">
+                                    RenoDXCommander is a one-stop HDR mod manager. It automatically detects games via Steam, GOG, Epic Games, and EA App, then installs and manages three components per game: ReShade (post-processing), Display Commander (display management), and the RenoDX HDR mod itself. ReShade DLLs are bundled with the app and staged to AppData on first use. Display Commander is downloaded from pmnoxx's GitHub. RenoDX mods are matched against the live wiki and installed with one click. Updates are detected automatically.
                                 </TextBlock>
                             </StackPanel>
                         </Border>
 
                         <!-- How to use -->
-                        <Border Background="#121828" CornerRadius="10" Padding="16,14"
+                        <Border Background="#111A28" CornerRadius="10" Padding="16,14"
                                 BorderBrush="#1C2440" BorderThickness="1">
                             <StackPanel Spacing="12">
                                 <TextBlock Text="How to use" FontSize="12" FontWeight="SemiBold"
                                            Foreground="#A0B0D8"/>
                                 <StackPanel Spacing="10">
 
+                                    <!-- Step helper macro via repeated blocks -->
                                     <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <Border Grid.Column="0" Background="#1E2A50" CornerRadius="12" Width="24" Height="24">
-                                            <TextBlock Text="1" FontSize="11" FontWeight="Bold" Foreground="#6888D0"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <Border Background="#1A2848" CornerRadius="14" Width="24" Height="24" HorizontalAlignment="Left">
+                                            <TextBlock Text="1" FontSize="11" FontWeight="Bold" Foreground="#00C8FF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
-                                        <TextBlock Grid.Column="1" TextWrapping="Wrap" FontSize="12" Foreground="#8090B0" LineHeight="19" VerticalAlignment="Center" Margin="12,0,0,0">
-                                            <Run FontWeight="SemiBold" Foreground="#8090C0">Install ReShade with Addon Support</Run>
-                                            <Run Text=" — download from reshade.me. When installing, select 'with full addon support'. No shader packages needed."/>
+                                        <TextBlock Grid.Column="1" TextWrapping="Wrap" FontSize="12" Foreground="#7A8EAE" LineHeight="19" VerticalAlignment="Center">
+                                            <Run FontWeight="SemiBold" Foreground="#A0B8D8">Find your game</Run>
+                                            <Run Text=" — RDXC detects Steam, GOG, Epic, and EA App automatically. Click ➕ Add Game to add manually."/>
                                         </TextBlock>
                                     </Grid>
-
                                     <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <Border Grid.Column="0" Background="#1E2A50" CornerRadius="12" Width="24" Height="24">
-                                            <TextBlock Text="2" FontSize="11" FontWeight="Bold" Foreground="#6888D0"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <Border Background="#1A2848" CornerRadius="14" Width="24" Height="24" HorizontalAlignment="Left">
+                                            <TextBlock Text="2" FontSize="11" FontWeight="Bold" Foreground="#00C8FF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
-                                        <TextBlock Grid.Column="1" TextWrapping="Wrap" FontSize="12" Foreground="#8090B0" LineHeight="19" VerticalAlignment="Center" Margin="12,0,0,0">
-                                            <Run FontWeight="SemiBold" Foreground="#8090C0">Find your game in the list</Run>
-                                            <Run Text=" — games are detected automatically. If yours is missing, click "/>
-                                            <Run Text="➕ Add Game" FontWeight="SemiBold" Foreground="#6878A0"/>
-                                            <Run Text=" and enter the game name and folder."/>
+                                        <TextBlock Grid.Column="1" TextWrapping="Wrap" FontSize="12" Foreground="#7A8EAE" LineHeight="19" VerticalAlignment="Center">
+                                            <Run FontWeight="SemiBold" Foreground="#A0B8D8">Install ReShade</Run>
+                                            <Run Text=" — Click ⬇ Install ReShade. The bundled ReShade64.dll is staged to AppData and copied to your game folder as dxgi.dll (or ReShade64.dll in DC Mode)."/>
                                         </TextBlock>
                                     </Grid>
-
                                     <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <Border Grid.Column="0" Background="#1E2A50" CornerRadius="12" Width="24" Height="24">
-                                            <TextBlock Text="3" FontSize="11" FontWeight="Bold" Foreground="#6888D0"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <Border Background="#1A2848" CornerRadius="14" Width="24" Height="24" HorizontalAlignment="Left">
+                                            <TextBlock Text="3" FontSize="11" FontWeight="Bold" Foreground="#00C8FF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
-                                        <TextBlock Grid.Column="1" TextWrapping="Wrap" FontSize="12" Foreground="#8090B0" LineHeight="19" VerticalAlignment="Center" Margin="12,0,0,0">
-                                            <Run FontWeight="SemiBold" Foreground="#8090C0">Check ℹ and 💬</Run>
-                                            <Run Text=" — tap ℹ for game-specific setup notes. Tap 💬 (when shown) to open the RenoDX discussion thread for that game."/>
+                                        <TextBlock Grid.Column="1" TextWrapping="Wrap" FontSize="12" Foreground="#7A8EAE" LineHeight="19" VerticalAlignment="Center">
+                                            <Run FontWeight="SemiBold" Foreground="#A0B8D8">Install Display Commander</Run>
+                                            <Run Text=" — Click ⬇ Install Display Commander. RDXC downloads the latest addon from pmnoxx's GitHub releases."/>
                                         </TextBlock>
                                     </Grid>
-
                                     <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <Border Grid.Column="0" Background="#1E2A50" CornerRadius="12" Width="24" Height="24">
-                                            <TextBlock Text="4" FontSize="11" FontWeight="Bold" Foreground="#6888D0"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <Border Background="#1A2848" CornerRadius="14" Width="24" Height="24" HorizontalAlignment="Left">
+                                            <TextBlock Text="4" FontSize="11" FontWeight="Bold" Foreground="#00C8FF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
-                                        <TextBlock Grid.Column="1" TextWrapping="Wrap" FontSize="12" Foreground="#8090B0" LineHeight="19" VerticalAlignment="Center" Margin="12,0,0,0">
-                                            <Run FontWeight="SemiBold" Foreground="#8090C0">Click Install</Run>
-                                            <Run Text=" — the .addon64 file is placed next to the game exe. For Unreal games: "/>
-                                            <Run Text="Binaries\Win64" FontFamily="Consolas" Foreground="#6878A0"/>
-                                            <Run Text=". For Unity games: next to "/>
-                                            <Run Text="UnityPlayer.dll" FontFamily="Consolas" Foreground="#6878A0"/>
-                                            <Run Text="."/>
+                                        <TextBlock Grid.Column="1" TextWrapping="Wrap" FontSize="12" Foreground="#7A8EAE" LineHeight="19" VerticalAlignment="Center">
+                                            <Run FontWeight="SemiBold" Foreground="#A0B8D8">Install RenoDX mod</Run>
+                                            <Run Text=" — Click ⬇ Install RenoDX. For Unreal Engine games: Binaries\Win64. For Unity: next to UnityPlayer.dll."/>
                                         </TextBlock>
                                     </Grid>
-
                                     <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <Border Grid.Column="0" Background="#1E2A50" CornerRadius="12" Width="24" Height="24">
-                                            <TextBlock Text="5" FontSize="11" FontWeight="Bold" Foreground="#6888D0"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <Border Background="#1A2848" CornerRadius="14" Width="24" Height="24" HorizontalAlignment="Left">
+                                            <TextBlock Text="5" FontSize="11" FontWeight="Bold" Foreground="#00C8FF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
-                                        <TextBlock Grid.Column="1" TextWrapping="Wrap" FontSize="12" Foreground="#8090B0" LineHeight="19" VerticalAlignment="Center" Margin="12,0,0,0">
-                                            <Run FontWeight="SemiBold" Foreground="#8090C0">Launch your game</Run>
-                                            <Run Text=" — press "/>
-                                            <Run Text="Home" FontWeight="SemiBold" Foreground="#6878A0"/>
-                                            <Run Text=" to open the ReShade menu. Go to the "/>
-                                            <Run Text="Add-ons" FontWeight="SemiBold" Foreground="#6878A0"/>
-                                            <Run Text=" tab to configure RenoDX."/>
+                                        <TextBlock Grid.Column="1" TextWrapping="Wrap" FontSize="12" Foreground="#7A8EAE" LineHeight="19" VerticalAlignment="Center">
+                                            <Run FontWeight="SemiBold" Foreground="#A0B8D8">Launch &amp; configure</Run>
+                                            <Run Text=" — Press Home in-game to open the ReShade overlay. Go to Add-ons → RenoDX to configure HDR. Tap ℹ on the card for game-specific notes."/>
                                         </TextBlock>
                                     </Grid>
 
@@ -311,65 +285,159 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Credits & Acknowledgements -->
+                        <Border Background="#111A28" CornerRadius="10" Padding="16,14"
+                                BorderBrush="#1C2440" BorderThickness="1">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="Credits &amp; Acknowledgements" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="#A0B0D8"/>
+                                <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#4A5878" LineHeight="20"
+                                           Text="This app would not exist without the work of the following people and projects."/>
+
+                                <!-- RenoDX -->
+                                <Border Background="#0D1520" CornerRadius="8" Padding="12,10" BorderBrush="#182030" BorderThickness="1">
+                                    <StackPanel Spacing="3">
+                                        <TextBlock FontSize="12">
+                                            <Run Text="⭐ " Foreground="#706040"/>
+                                            <Run Text="RenoDX" FontWeight="SemiBold" Foreground="#00C8FF"/>
+                                            <Run Text=" by clshortfuse &amp; contributors" Foreground="#8090B8"/>
+                                            <Run Text="  ·  MIT Licence" Foreground="#405068" FontSize="11"/>
+                                        </TextBlock>
+                                        <TextBlock FontSize="11" Foreground="#3A4860" Margin="18,0,0,0"
+                                                   Text="HDR mod framework powering 150+ games. The entire reason this app exists."/>
+                                        <HyperlinkButton NavigateUri="https://github.com/clshortfuse/renodx" Padding="18,2,0,0" FontSize="11">
+                                            <TextBlock Foreground="#2A5888" Text="github.com/clshortfuse/renodx"/>
+                                        </HyperlinkButton>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- ReShade -->
+                                <Border Background="#0D1520" CornerRadius="8" Padding="12,10" BorderBrush="#182030" BorderThickness="1">
+                                    <StackPanel Spacing="3">
+                                        <TextBlock FontSize="12">
+                                            <Run Text="🎮 " Foreground="#405060"/>
+                                            <Run Text="ReShade" FontWeight="SemiBold" Foreground="#A0C0E0"/>
+                                            <Run Text=" by Crosire" Foreground="#8090B8"/>
+                                            <Run Text="  ·  BSD 3-Clause Licence" Foreground="#405068" FontSize="11"/>
+                                        </TextBlock>
+                                        <TextBlock FontSize="11" Foreground="#3A4860" Margin="18,0,0,0"
+                                                   Text="Post-processing injection framework. Bundled DLLs (ReShade64.dll / ReShade32.dll) redistributed under the BSD 3-Clause licence. Copyright © Crosire."/>
+                                        <HyperlinkButton NavigateUri="https://reshade.me" Padding="18,2,0,0" FontSize="11">
+                                            <TextBlock Foreground="#2A5888" Text="reshade.me  ·  github.com/crosire/reshade"/>
+                                        </HyperlinkButton>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Display Commander -->
+                                <Border Background="#0D1520" CornerRadius="8" Padding="12,10" BorderBrush="#182030" BorderThickness="1">
+                                    <StackPanel Spacing="3">
+                                        <TextBlock FontSize="12">
+                                            <Run Text="🖥 " Foreground="#405060"/>
+                                            <Run Text="Display Commander" FontWeight="SemiBold" Foreground="#A0C0E0"/>
+                                            <Run Text=" by pmnoxx" Foreground="#8090B8"/>
+                                            <Run Text="  ·  Source-available" Foreground="#405068" FontSize="11"/>
+                                        </TextBlock>
+                                        <TextBlock FontSize="11" Foreground="#3A4860" Margin="18,0,0,0"
+                                                   Text="ReShade addon for display, window, and audio management. Downloaded from official GitHub releases."/>
+                                        <HyperlinkButton NavigateUri="https://github.com/pmnoxx/display-commander" Padding="18,2,0,0" FontSize="11">
+                                            <TextBlock Foreground="#2A5888" Text="github.com/pmnoxx/display-commander"/>
+                                        </HyperlinkButton>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- HtmlAgilityPack -->
+                                <Border Background="#0D1520" CornerRadius="8" Padding="12,10" BorderBrush="#182030" BorderThickness="1">
+                                    <StackPanel Spacing="3">
+                                        <TextBlock FontSize="12">
+                                            <Run Text="📦 " Foreground="#405060"/>
+                                            <Run Text="HtmlAgilityPack" FontWeight="SemiBold" Foreground="#A0C0E0"/>
+                                            <Run Text=" by ZZZ Projects" Foreground="#8090B8"/>
+                                            <Run Text="  ·  MIT Licence" Foreground="#405068" FontSize="11"/>
+                                        </TextBlock>
+                                        <TextBlock FontSize="11" Foreground="#3A4860" Margin="18,0,0,0"
+                                                   Text="HTML parser used to scrape game data from the RenoDX wiki. Copyright © ZZZ Projects Inc."/>
+                                        <HyperlinkButton NavigateUri="https://github.com/zzzprojects/html-agility-pack" Padding="18,2,0,0" FontSize="11">
+                                            <TextBlock Foreground="#2A5888" Text="github.com/zzzprojects/html-agility-pack"/>
+                                        </HyperlinkButton>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- CommunityToolkit.Mvvm -->
+                                <Border Background="#0D1520" CornerRadius="8" Padding="12,10" BorderBrush="#182030" BorderThickness="1">
+                                    <StackPanel Spacing="3">
+                                        <TextBlock FontSize="12">
+                                            <Run Text="📦 " Foreground="#405060"/>
+                                            <Run Text="CommunityToolkit.Mvvm" FontWeight="SemiBold" Foreground="#A0C0E0"/>
+                                            <Run Text=" by Microsoft" Foreground="#8090B8"/>
+                                            <Run Text="  ·  MIT Licence" Foreground="#405068" FontSize="11"/>
+                                        </TextBlock>
+                                        <TextBlock FontSize="11" Foreground="#3A4860" Margin="18,0,0,0"
+                                                   Text="MVVM helpers (ObservableObject, RelayCommand, etc.) used throughout the app. Copyright © .NET Foundation."/>
+                                        <HyperlinkButton NavigateUri="https://github.com/CommunityToolkit/dotnet" Padding="18,2,0,0" FontSize="11">
+                                            <TextBlock Foreground="#2A5888" Text="github.com/CommunityToolkit/dotnet"/>
+                                        </HyperlinkButton>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- App author -->
+                                <Border Background="#0A1018" CornerRadius="8" Padding="12,10" BorderBrush="#141E2C" BorderThickness="1">
+                                    <StackPanel Spacing="3">
+                                        <TextBlock FontSize="12">
+                                            <Run Text="🔧 " Foreground="#405060"/>
+                                            <Run Text="RenoDXCommander" FontWeight="SemiBold" Foreground="#39FF14"/>
+                                            <Run Text=" by RankFTW" Foreground="#8090B8"/>
+                                        </TextBlock>
+                                        <TextBlock FontSize="11" Foreground="#3A4860" Margin="18,0,0,0"
+                                                   Text="Unofficial companion app. Not affiliated with RenoDX, Crosire, or pmnoxx."/>
+                                        <HyperlinkButton NavigateUri="https://github.com/RankFTW" Padding="18,2,0,0" FontSize="11">
+                                            <TextBlock Foreground="#2A5888" Text="github.com/RankFTW"/>
+                                        </HyperlinkButton>
+                                    </StackPanel>
+                                </Border>
+
+                            </StackPanel>
+                        </Border>
+
                         <!-- Links -->
-                        <Border Background="#121828" CornerRadius="10" Padding="16,12"
+                        <Border Background="#111A28" CornerRadius="10" Padding="16,12"
                                 BorderBrush="#1C2440" BorderThickness="1">
                             <StackPanel Spacing="8">
                                 <TextBlock Text="Links" FontSize="12" FontWeight="SemiBold" Foreground="#A0B0D8"/>
                                 <HyperlinkButton NavigateUri="https://github.com/clshortfuse/renodx" Padding="0">
-                                    <TextBlock Foreground="#7A9ACA" FontSize="12">🌐  RenoDX Project — github.com/clshortfuse/renodx</TextBlock>
+                                    <TextBlock Foreground="#6A8ABE" FontSize="12">🌐  RenoDX Project — github.com/clshortfuse/renodx</TextBlock>
                                 </HyperlinkButton>
                                 <HyperlinkButton NavigateUri="https://github.com/clshortfuse/renodx/wiki/Mods" Padding="0">
-                                    <TextBlock Foreground="#7A9ACA" FontSize="12">📋  RenoDX Mod List Wiki</TextBlock>
-                                </HyperlinkButton>
-                                <HyperlinkButton NavigateUri="https://reshade.me" Padding="0">
-                                    <TextBlock Foreground="#7A9ACA" FontSize="12">🎮  ReShade (with Addon Support) — reshade.me</TextBlock>
+                                    <TextBlock Foreground="#6A8ABE" FontSize="12">📋  RenoDX Mod Wiki</TextBlock>
                                 </HyperlinkButton>
                                 <HyperlinkButton NavigateUri="https://discord.gg/gF4GRJWZ2A" Padding="0">
-                                    <TextBlock Foreground="#7A9ACA" FontSize="12">💬  RenoDX Discord</TextBlock>
+                                    <TextBlock Foreground="#6A8ABE" FontSize="12">💬  RenoDX Discord</TextBlock>
                                 </HyperlinkButton>
-                                <HyperlinkButton NavigateUri="https://github.com/RankFTW" Padding="0">
-                                    <TextBlock Foreground="#7A9ACA" FontSize="12">🔧  RankFTW GitHub — github.com/RankFTW</TextBlock>
+                                <HyperlinkButton NavigateUri="https://reshade.me" Padding="0">
+                                    <TextBlock Foreground="#6A8ABE" FontSize="12">🎮  ReShade — reshade.me</TextBlock>
+                                </HyperlinkButton>
+                                <HyperlinkButton NavigateUri="https://github.com/pmnoxx/display-commander" Padding="0">
+                                    <TextBlock Foreground="#6A8ABE" FontSize="12">🖥  Display Commander — github.com/pmnoxx/display-commander</TextBlock>
+                                </HyperlinkButton>
+                                <HyperlinkButton NavigateUri="https://www.hdrmods.com/" Padding="0">
+                                    <TextBlock Foreground="#6A8ABE" FontSize="12">🎨  Creepy's HDR Guides — hdrmods.com</TextBlock>
                                 </HyperlinkButton>
                                 <HyperlinkButton NavigateUri="https://discord.gg/pQtPYcdE" Padding="0">
-                                    <TextBlock Foreground="#7A9ACA" FontSize="12">🤝  The Ultra Place / Ultra+ — join our Discord</TextBlock>
+                                    <TextBlock Foreground="#6A8ABE" FontSize="12">🤝  The Ultra Place / Ultra+ Discord</TextBlock>
+                                </HyperlinkButton>
+                                <HyperlinkButton NavigateUri="https://github.com/RankFTW" Padding="0">
+                                    <TextBlock Foreground="#6A8ABE" FontSize="12">🔧  RankFTW GitHub</TextBlock>
                                 </HyperlinkButton>
                             </StackPanel>
                         </Border>
 
-                        <!-- Credits -->
-                        <Border Background="#121828" CornerRadius="10" Padding="16,12"
-                                BorderBrush="#1C2440" BorderThickness="1">
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="Credits" FontSize="12" FontWeight="SemiBold" Foreground="#A0B0D8"/>
-                                <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#3A4868" LineHeight="20"
-                                           Text="All HDR mods are created and maintained by the RenoDX contributors. This app would not exist without their work."/>
-                                <TextBlock FontSize="12">
-                                    <Run Text="⭐  " Foreground="#706048"/>
-                                    <Run Text="clshortfuse" FontWeight="SemiBold" Foreground="#6878A0"/>
-                                    <Run Text=" — RenoDX creator &amp; primary maintainer" Foreground="#6878A0"/>
-                                </TextBlock>
-                                <TextBlock FontSize="12">
-                                    <Run Text="⭐  " Foreground="#706048"/>
-                                    <Run Text="RenoDX community" FontWeight="SemiBold" Foreground="#6878A0"/>
-                                    <Run Text=" — mod authors across 150+ games" Foreground="#6878A0"/>
-                                </TextBlock>
-                                <TextBlock FontSize="12">
-                                    <Run Text="🔧  " Foreground="#405060"/>
-                                    <Run Text="App by RankFTW" FontWeight="SemiBold" Foreground="#5A6A90"/>
-                                    <Run Text=" — unofficial companion tool" Foreground="#6878A0"/>
-                                </TextBlock>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Crash / Error Logs -->
-                        <Border Background="#121820" CornerRadius="10" Padding="16,12"
-                                BorderBrush="#1A2038" BorderThickness="1">
+                        <!-- Crash logs & cache -->
+                        <Border Background="#0E1520" CornerRadius="10" Padding="16,12"
+                                BorderBrush="#1A2438" BorderThickness="1">
                             <StackPanel Spacing="8">
                                 <TextBlock Text="🪲  Crash &amp; Error Logs" FontSize="12" FontWeight="SemiBold" Foreground="#A0B0D8"/>
-                                <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#6878A0" LineHeight="20">
-                                    If the app crashes or behaves unexpectedly, a report is automatically saved to your local AppData folder.
-                                    You can open that folder here and send any <Run Text="crash_*.txt" FontFamily="Consolas" Foreground="#8090B0"/> files to the developer.
+                                <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#5A6880" LineHeight="20">
+                                    If the app crashes or behaves unexpectedly, a report is automatically saved to AppData.
+                                    Send any <Run Text="crash_*.txt" FontFamily="Consolas" Foreground="#7080A0"/> files to the developer.
                                 </TextBlock>
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Button x:Name="OpenLogsBtn"
@@ -385,11 +453,14 @@
                                             BorderBrush="#2A4060" BorderThickness="1"
                                             CornerRadius="8" Padding="12,6" FontSize="12"/>
                                 </StackPanel>
-                                <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#404860" LineHeight="18">
-                                    Logs: <Run Text="%LocalAppData%\RenoDXChecker\logs\" FontFamily="Consolas" Foreground="#506080"/>. Up to 10 reports kept; older ones deleted automatically.
+                                <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#303848" LineHeight="18">
+                                    Logs: <Run Text="%LocalAppData%\RenoDXCommander\logs\" FontFamily="Consolas" Foreground="#405060"/>
                                 </TextBlock>
-                                <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#404860" LineHeight="18">
-                                    Downloads: <Run Text="%LocalAppData%\RenoDXChecker\downloads\" FontFamily="Consolas" Foreground="#506080"/>. Cached addon files — delete to force a fresh download.
+                                <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#303848" LineHeight="18">
+                                    Downloads: <Run Text="%LocalAppData%\RenoDXCommander\downloads\" FontFamily="Consolas" Foreground="#405060"/>
+                                </TextBlock>
+                                <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#303848" LineHeight="18">
+                                    ReShade staging: <Run Text="%LocalAppData%\RenoDXCommander\reshade\" FontFamily="Consolas" Foreground="#405060"/>
                                 </TextBlock>
                             </StackPanel>
                         </Border>
@@ -397,7 +468,6 @@
                     </StackPanel>
                 </ScrollViewer>
             </Grid>
-
             <!-- Cards grid -->
             <!-- ⚡ UE-Extended toast — overlaid top-left, auto-fades ──────────────────── -->
             <Border x:Name="UeExtendedToast"
@@ -426,7 +496,7 @@
                         <DataTemplate x:DataType="vm:GameCardViewModel">
 
                             <Border Margin="6" Padding="14,12" CornerRadius="12"
-                                    Background="#1C2238" Height="240"
+                                    Background="#111820" Height="320"
                                     BorderBrush="#2A3860" BorderThickness="1">
                                 <Grid>
                                     <Grid.RowDefinitions>
@@ -435,20 +505,21 @@
                                         <RowDefinition Height="Auto"/> <!-- 2: file badge (collapses) -->
                                         <RowDefinition Height="26"/>   <!-- 3: path row -->
                                         <RowDefinition Height="*"/>    <!-- 4: spacer -->
-                                        <RowDefinition Height="Auto"/> <!-- 5: UE-Extended toggle (collapses) -->
-                                        <RowDefinition Height="36"/>   <!-- 6: action buttons -->
-                                        <RowDefinition Height="Auto"/> <!-- 7: progress/message -->
+                                        <RowDefinition Height="36"/>   <!-- 5: ReShade row -->
+                                        <RowDefinition Height="36"/>   <!-- 6: Display Commander row -->
+                                        <RowDefinition Height="36"/>   <!-- 7: RenoDX action buttons -->
+                                        <RowDefinition Height="Auto"/> <!-- 8: progress/message -->
                                     </Grid.RowDefinitions>
 
-                                    <!-- Row 0: 💬 | name | ℹ | 🚫 | 🎯 | wiki status -->
+                                    <!-- Row 0: 💬 | name | ℹ | 🎯 | wiki status | 🚫 -->
                                     <Grid Grid.Row="0" VerticalAlignment="Center">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>  <!-- 0: 💬 discussion (before name) -->
                                             <ColumnDefinition Width="*"/>     <!-- 1: game name -->
                                             <ColumnDefinition Width="Auto"/>  <!-- 2: ℹ notes -->
-                                            <ColumnDefinition Width="Auto"/>  <!-- 3: 🚫 hide -->
-                                            <ColumnDefinition Width="Auto"/>  <!-- 4: 🎯 tune -->
-                                            <ColumnDefinition Width="Auto"/>  <!-- 5: wiki status badge -->
+                                            <ColumnDefinition Width="Auto"/>  <!-- 3: 🎯 tune -->
+                                            <ColumnDefinition Width="Auto"/>  <!-- 4: wiki status badge -->
+                                            <ColumnDefinition Width="Auto"/>  <!-- 5: 🚫 hide (far right) -->
                                         </Grid.ColumnDefinitions>
                                         <!-- 💬 discussion / wiki link — shown before the game name so it stands out -->
                                         <Button Grid.Column="0"
@@ -473,29 +544,16 @@
                                                 ToolTipService.ToolTip="View notes">
                                             <TextBlock Text="ℹ" FontSize="13" Foreground="#5A6EA0"/>
                                         </Button>
-                                        <!-- 🚫 hide button -->
-                                        <Button Grid.Column="3"
-                                                Click="HideButton_Click" Tag="{x:Bind}"
-                                                Background="Transparent" BorderThickness="0"
-                                                Width="26" Height="26" Padding="0" Margin="2,0,0,0"
-                                                ToolTipService.ToolTip="{x:Bind HideButtonLabel, Mode=OneWay}">
-                                            <Grid>
-                                                <TextBlock Text="🚫" FontSize="11" Foreground="#9060A0"
-                                                           Visibility="{x:Bind IsHiddenVisibility, Mode=OneWay}"/>
-                                                <TextBlock Text="🚫" FontSize="11" Foreground="#282840"
-                                                           Visibility="{x:Bind IsNotHiddenVisibility, Mode=OneWay}"/>
-                                            </Grid>
-                                        </Button>
                                         <!-- 🎯 per-card wiki name match override -->
-                                        <Button Grid.Column="4"
+                                        <Button Grid.Column="3"
                                                 Click="TuneButton_Card_Click" Tag="{x:Bind}"
                                                 Background="Transparent" BorderThickness="0"
                                                 Width="22" Height="22" Padding="0" Margin="2,0,0,0"
-                                                ToolTipService.ToolTip="Override wiki name matching for this game">
+                                                ToolTipService.ToolTip="Overrides (wiki matching, DC Mode exclusion)">
                                             <TextBlock Text="🎯" FontSize="10" Foreground="#30405A"/>
                                         </Button>
-                                        <!-- Wiki status badge — rightmost -->
-                                        <Border Grid.Column="5" CornerRadius="6" Padding="7,2"
+                                        <!-- Wiki status badge -->
+                                        <Border Grid.Column="4" CornerRadius="6" Padding="7,2"
                                                 Margin="4,0,0,0"
                                                 Background="{x:Bind WikiStatusBadgeBackground, Mode=OneWay}"
                                                 BorderBrush="{x:Bind WikiStatusBadgeBorderBrush, Mode=OneWay}"
@@ -504,6 +562,19 @@
                                                        FontSize="10"
                                                        Foreground="{x:Bind WikiStatusBadgeForeground, Mode=OneWay}"/>
                                         </Border>
+                                        <!-- 🚫 hide button — far right -->
+                                        <Button Grid.Column="5"
+                                                Click="HideButton_Click" Tag="{x:Bind}"
+                                                Background="Transparent" BorderThickness="0"
+                                                Width="26" Height="26" Padding="0" Margin="4,0,0,0"
+                                                ToolTipService.ToolTip="{x:Bind HideButtonLabel, Mode=OneWay}">
+                                            <Grid>
+                                                <TextBlock Text="🚫" FontSize="11" Foreground="#9060A0"
+                                                           Visibility="{x:Bind IsHiddenVisibility, Mode=OneWay}"/>
+                                                <TextBlock Text="🚫" FontSize="11" Foreground="#282840"
+                                                           Visibility="{x:Bind IsNotHiddenVisibility, Mode=OneWay}"/>
+                                            </Grid>
+                                        </Button>
                                     </Grid>
 
                                     <!-- Row 1: Source/Engine/Generic badges -->
@@ -583,26 +654,102 @@
                                     <!-- Row 4: Spacer -->
                                     <Grid Grid.Row="4"/>
 
-                                    <!-- Row 5: UE-Extended toggle — only on Generic UE cards -->
-                                    <Border Grid.Row="5"
-                                            Visibility="{x:Bind UeExtendedToggleVisibility, Mode=OneWay}"
-                                            Margin="0,0,0,4">
-                                        <ToggleButton
-                                            IsChecked="{x:Bind UseUeExtended, Mode=OneWay}"
-                                            Click="UeExtendedToggle_Click" Tag="{x:Bind}"
-                                            HorizontalAlignment="Stretch"
-                                            Background="{x:Bind UeExtendedBackground, Mode=OneWay}"
-                                            Foreground="{x:Bind UeExtendedForeground, Mode=OneWay}"
-                                            BorderBrush="{x:Bind UeExtendedBorderBrush, Mode=OneWay}"
-                                            BorderThickness="1" CornerRadius="8"
-                                            Padding="10,5" FontSize="11" FontWeight="SemiBold"
-                                            ToolTipService.ToolTip="Use UE-Extended addon — check Discord to confirm this game is compatible">
-                                            <TextBlock Text="{x:Bind UeExtendedLabel, Mode=OneWay}" FontSize="11"/>
-                                        </ToggleButton>
-                                    </Border>
+                                    <!-- Row 5: ReShade install row [install*][📋 INI][🗑 delete] -->
+                                    <Grid Grid.Row="5" VerticalAlignment="Stretch" Margin="0,0,0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0"
+                                                IsEnabled="{x:Bind IsRsNotInstalling, Mode=OneWay}"
+                                                Click="InstallRsButton_Click" Tag="{x:Bind}"
+                                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                                CornerRadius="10,0,0,10"
+                                                FontSize="12" FontWeight="SemiBold"
+                                                Background="{x:Bind RsBtnBackground, Mode=OneWay}"
+                                                Foreground="{x:Bind RsBtnForeground, Mode=OneWay}"
+                                                BorderBrush="{x:Bind RsBtnBorderBrush, Mode=OneWay}"
+                                                BorderThickness="1,1,0,1"
+                                                Margin="0,0,1,0">
+                                            <TextBlock Text="{x:Bind RsActionLabel, Mode=OneWay}" FontSize="12"/>
+                                        </Button>
+                                        <!-- 📋 INI button: copies reshade.ini from inis folder to game dir -->
+                                        <Button Grid.Column="1"
+                                                Click="RsIniButton_Click" Tag="{x:Bind}"
+                                                IsEnabled="{x:Bind RsIniExists, Mode=OneWay}"
+                                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                                CornerRadius="{x:Bind RsIniCornerRadius, Mode=OneWay}"
+                                                FontSize="13"
+                                                Background="#0F1E20" Foreground="#2A8080"
+                                                BorderBrush="#1A3838"
+                                                BorderThickness="{x:Bind RsIniBorderThickness, Mode=OneWay}"
+                                                Width="44" Margin="{x:Bind RsIniMargin, Mode=OneWay}"
+                                                ToolTipService.ToolTip="Copy reshade.ini from inis folder to game directory">
+                                            <TextBlock Text="📋" FontSize="13"/>
+                                        </Button>
+                                        <!-- 🗑 Delete -->
+                                        <Button Grid.Column="2"
+                                                Visibility="{x:Bind RsDeleteVisibility, Mode=OneWay}"
+                                                Click="UninstallRsButton_Click" Tag="{x:Bind}"
+                                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                                CornerRadius="0,10,10,0" FontSize="13"
+                                                Background="#1A1020" Foreground="#7A4870"
+                                                BorderBrush="#2A1830" BorderThickness="1"
+                                                Width="44" ToolTipService.ToolTip="Remove ReShade">
+                                            <TextBlock Text="🗑" FontSize="13"/>
+                                        </Button>
+                                    </Grid>
 
-                                    <!-- Row 6a-alt: No mod available label (game not on wiki, no snapshot) -->
-                                    <Border Grid.Row="6"
+                                    <!-- Row 6: Display Commander install row [install*][📋 INI][🗑 delete] -->
+                                    <Grid Grid.Row="6" VerticalAlignment="Stretch" Margin="0,0,0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0"
+                                                IsEnabled="{x:Bind IsDcNotInstalling, Mode=OneWay}"
+                                                Click="InstallDcButton_Click" Tag="{x:Bind}"
+                                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                                CornerRadius="10,0,0,10"
+                                                FontSize="12" FontWeight="SemiBold"
+                                                Background="{x:Bind DcBtnBackground, Mode=OneWay}"
+                                                Foreground="{x:Bind DcBtnForeground, Mode=OneWay}"
+                                                BorderBrush="{x:Bind DcBtnBorderBrush, Mode=OneWay}"
+                                                BorderThickness="1,1,0,1"
+                                                Margin="0,0,1,0">
+                                            <TextBlock Text="{x:Bind DcActionLabel, Mode=OneWay}" FontSize="12"/>
+                                        </Button>
+                                        <!-- 📋 INI button: copies DisplayCommander.toml from inis folder to game dir -->
+                                        <Button Grid.Column="1"
+                                                Click="DcIniButton_Click" Tag="{x:Bind}"
+                                                IsEnabled="{x:Bind DcIniExists, Mode=OneWay}"
+                                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                                CornerRadius="{x:Bind DcIniCornerRadius, Mode=OneWay}"
+                                                FontSize="13"
+                                                Background="#0F1E20" Foreground="#2A8080"
+                                                BorderBrush="#1A3838"
+                                                BorderThickness="{x:Bind DcIniBorderThickness, Mode=OneWay}"
+                                                Width="44" Margin="{x:Bind DcIniMargin, Mode=OneWay}"
+                                                ToolTipService.ToolTip="Copy DisplayCommander.toml from inis folder to game directory">
+                                            <TextBlock Text="📋" FontSize="13"/>
+                                        </Button>
+                                        <!-- 🗑 Delete -->
+                                        <Button Grid.Column="2"
+                                                Visibility="{x:Bind DcDeleteVisibility, Mode=OneWay}"
+                                                Click="UninstallDcButton_Click" Tag="{x:Bind}"
+                                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                                CornerRadius="0,10,10,0" FontSize="13"
+                                                Background="#1A1020" Foreground="#7A4870"
+                                                BorderBrush="#2A1830" BorderThickness="1"
+                                                Width="44" ToolTipService.ToolTip="Remove Display Commander">
+                                            <TextBlock Text="🗑" FontSize="13"/>
+                                        </Button>
+                                    </Grid>
+
+                                    <!-- Row 7a-alt: No mod available label (game not on wiki, no snapshot) -->
+                                    <Border Grid.Row="7"
                                             Visibility="{x:Bind NoModVisibility, Mode=OneWay}"
                                             Background="#181420" CornerRadius="10" Padding="10,0"
                                             BorderBrush="#2A1E38" BorderThickness="1"
@@ -613,8 +760,8 @@
                                                    TextWrapping="Wrap" TextAlignment="Center"/>
                                     </Border>
 
-                                    <!-- Row 6a: External only (Nexus/Discord with no snapshot) -->
-                                    <Button Grid.Row="6"
+                                    <!-- Row 7a: External only (Nexus/Discord with no snapshot) -->
+                                    <Button Grid.Row="7"
                                             Visibility="{x:Bind ExternalBtnVisibility, Mode=OneWay}"
                                             Click="ExternalLink_Click" Tag="{x:Bind}"
                                             HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
@@ -624,20 +771,48 @@
                                         <TextBlock Text="{x:Bind ExternalLabel}" FontSize="12"/>
                                     </Button>
 
-                                    <!-- Row 6b: Single install (not dual-bit) -->
-                                    <Button Grid.Row="6"
-                                            Visibility="{x:Bind InstallOnlyBtnVisibility, Mode=OneWay}"
-                                            IsEnabled="{x:Bind CanInstall, Mode=OneWay}"
-                                            Click="InstallButton_Click" Tag="{x:Bind}"
-                                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                                            CornerRadius="10" FontSize="13" FontWeight="SemiBold"
-                                            Background="#243870" Foreground="#AACCFF"
-                                            BorderBrush="#3050A0" BorderThickness="1">
-                                        <TextBlock Text="⬇  Install" FontSize="13"/>
-                                    </Button>
+                                    <!-- Row 7b: Single install + Nexus + UE-Extended + Delete -->
+                                    <Grid Grid.Row="7"
+                                          Visibility="{x:Bind InstallOnlyBtnVisibility, Mode=OneWay}"
+                                          VerticalAlignment="Stretch">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0"
+                                                IsEnabled="{x:Bind CanInstall, Mode=OneWay}"
+                                                Click="InstallButton_Click" Tag="{x:Bind}"
+                                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                                CornerRadius="{x:Bind R7bInstallCornerRadius, Mode=OneWay}"
+                                                FontSize="13" FontWeight="SemiBold"
+                                                Background="#243870" Foreground="#AACCFF"
+                                                BorderBrush="#3050A0"
+                                                BorderThickness="{x:Bind R7bInstallBorderThickness, Mode=OneWay}"
+                                                Margin="{x:Bind R7bInstallMargin, Mode=OneWay}">
+                                            <TextBlock Text="⬇  Install RenoDX" FontSize="13"/>
+                                        </Button>
+                                        <!-- ⚡ UE-Extended toggle -->
+                                        <Border Grid.Column="1"
+                                                Visibility="{x:Bind UeExtendedToggleVisibility, Mode=OneWay}"
+                                                Margin="0,0,1,0">
+                                            <ToggleButton
+                                                IsChecked="{x:Bind UseUeExtended, Mode=OneWay}"
+                                                Click="UeExtendedToggle_Click" Tag="{x:Bind}"
+                                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                                Background="{x:Bind UeExtendedBackground, Mode=OneWay}"
+                                                Foreground="{x:Bind UeExtendedForeground, Mode=OneWay}"
+                                                BorderBrush="{x:Bind UeExtendedBorderBrush, Mode=OneWay}"
+                                                BorderThickness="0,1,1,1" CornerRadius="0,10,10,0"
+                                                Width="44" Padding="0" FontSize="13"
+                                                ToolTipService.ToolTip="UE-Extended - DO NOT INSTALL UNLESS YOU KNOW IT IS COMPATIBLE - Check Discord">
+                                                <TextBlock Text="⚡" FontSize="13"/>
+                                            </ToggleButton>
+                                        </Border>
+                                    </Grid>
 
-                                    <!-- Row 6c: Dual-bit Unity install -->
-                                    <Grid Grid.Row="6"
+                                    <!-- Row 7c: Dual-bit Unity install -->
+                                    <Grid Grid.Row="7"
                                           Visibility="{x:Bind DualBitInstallVisibility, Mode=OneWay}"
                                           VerticalAlignment="Stretch">
                                         <Grid.ColumnDefinitions>
@@ -663,12 +838,13 @@
                                         </Button>
                                     </Grid>
 
-                                    <!-- Row 6d: Reinstall/Update + Delete + optional Nexus/Discord -->
-                                    <Grid Grid.Row="6"
+                                    <!-- Row 7d: Reinstall/Update + Nexus + UE-Extended + Delete -->
+                                    <Grid Grid.Row="7"
                                           Visibility="{x:Bind ReinstallRowVisibility, Mode=OneWay}"
                                           VerticalAlignment="Stretch">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
@@ -693,25 +869,61 @@
                                                 CornerRadius="0" FontSize="11"
                                                 Background="#141E30" Foreground="#5580A0"
                                                 BorderBrush="#1E3050" BorderThickness="0,1,0,1"
-                                                Margin="0,0,1,0" Width="44"
+                                                Width="44" Margin="0,0,1,0"
                                                 ToolTipService.ToolTip="{x:Bind ExternalLabel}">
                                             <TextBlock Text="🌐" FontSize="13"/>
                                         </Button>
-                                        <!-- Delete -->
-                                        <Button Grid.Column="2"
+                                        <!-- ⚡ UE-Extended toggle -->
+                                        <Border Grid.Column="2"
+                                                Visibility="{x:Bind UeExtendedToggleVisibility, Mode=OneWay}"
+                                                Margin="0,0,1,0">
+                                            <ToggleButton
+                                                IsChecked="{x:Bind UseUeExtended, Mode=OneWay}"
+                                                Click="UeExtendedToggle_Click" Tag="{x:Bind}"
+                                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                                Background="{x:Bind UeExtendedBackground, Mode=OneWay}"
+                                                Foreground="{x:Bind UeExtendedForeground, Mode=OneWay}"
+                                                BorderBrush="{x:Bind UeExtendedBorderBrush, Mode=OneWay}"
+                                                BorderThickness="0,1,0,1" CornerRadius="0"
+                                                Width="44" Padding="0" FontSize="13"
+                                                ToolTipService.ToolTip="UE-Extended - DO NOT INSTALL UNLESS YOU KNOW IT IS COMPATIBLE - Check Discord">
+                                                <TextBlock Text="⚡" FontSize="13"/>
+                                            </ToggleButton>
+                                        </Border>
+                                        <!-- Delete (always present in 7d — gives ⚡ its flat right edge) -->
+                                        <Button Grid.Column="3"
                                                 Click="UninstallButton_Click" Tag="{x:Bind}"
                                                 HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                                 CornerRadius="0,10,10,0" FontSize="13"
-                                                Background="#1E1420" Foreground="#7A4870"
-                                                BorderBrush="#2E1E38" BorderThickness="1"
-                                                Width="40"
+                                                Background="#1A1020" Foreground="#7A4870"
+                                                BorderBrush="#2A1830" BorderThickness="1"
+                                                Width="44"
                                                 ToolTipService.ToolTip="Remove mod">
                                             <TextBlock Text="🗑" FontSize="13"/>
                                         </Button>
                                     </Grid>
 
-                                    <!-- Row 7: Progress + message -->
-                                    <StackPanel Grid.Row="7" Spacing="3" Margin="0,5,0,0">
+                                    <!-- Row 8: Progress + message (ReShade / DC / RenoDX) -->
+                                    <StackPanel Grid.Row="8" Spacing="2" Margin="0,4,0,0">
+                                        <!-- ReShade progress -->
+                                        <ProgressBar Visibility="{x:Bind RsProgressVisibility, Mode=OneWay}"
+                                                     Value="{x:Bind RsProgress, Mode=OneWay}"
+                                                     Maximum="100" Height="3" CornerRadius="2"
+                                                     Foreground="#5E8890" Background="#141E30"/>
+                                        <TextBlock Text="{x:Bind RsActionMessage, Mode=OneWay}"
+                                                   Visibility="{x:Bind RsMessageVisibility, Mode=OneWay}"
+                                                   FontSize="10" Foreground="#80A0B0"
+                                                   TextWrapping="Wrap" MaxLines="1"/>
+                                        <!-- Display Commander progress -->
+                                        <ProgressBar Visibility="{x:Bind DcProgressVisibility, Mode=OneWay}"
+                                                     Value="{x:Bind DcProgress, Mode=OneWay}"
+                                                     Maximum="100" Height="3" CornerRadius="2"
+                                                     Foreground="#4E9888" Background="#141E30"/>
+                                        <TextBlock Text="{x:Bind DcActionMessage, Mode=OneWay}"
+                                                   Visibility="{x:Bind DcMessageVisibility, Mode=OneWay}"
+                                                   FontSize="10" Foreground="#70A090"
+                                                   TextWrapping="Wrap" MaxLines="1"/>
+                                        <!-- RenoDX progress -->
                                         <ProgressBar Visibility="{x:Bind ProgressVisibility, Mode=OneWay}"
                                                      Value="{x:Bind InstallProgress, Mode=OneWay}"
                                                      Maximum="100" Height="3" CornerRadius="2"
@@ -719,7 +931,7 @@
                                         <TextBlock Text="{x:Bind ActionMessage, Mode=OneWay}"
                                                    Visibility="{x:Bind MessageVisibility, Mode=OneWay}"
                                                    FontSize="10" Foreground="#7090C0"
-                                                   TextWrapping="Wrap" MaxLines="2"/>
+                                                   TextWrapping="Wrap" MaxLines="1"/>
                                     </StackPanel>
 
                                 </Grid>
@@ -738,8 +950,8 @@
                 <TextBlock x:Name="StatusBarText" Text="Starting..."
                            FontSize="11" Foreground="#2A3450"/>
                 <TextBlock Text="|" Foreground="#1F2B3A" VerticalAlignment="Center"/>
-                <TextBlock Text="Tip: After installing a mod, click " FontSize="11" Foreground="#4A5878" VerticalAlignment="Center"/>
-                <Button Content="Refresh" Click="RefreshButton_Click" FontSize="11" Padding="6,2" Background="Transparent" Foreground="#6B9ED8" BorderThickness="0" VerticalAlignment="Center"/>
+                <TextBlock Text="ReShade Shaders and Textures are not supplied and need to be sourced manually. Check Creepy's Wiki " FontSize="11" Foreground="#4A5878" VerticalAlignment="Center"/>
+                <HyperlinkButton Content="here" NavigateUri="https://www.hdrmods.com/HDR-Link-Library#hdr-compatible-shaders" FontSize="11" Padding="0,0" Foreground="#6B9ED8" VerticalAlignment="Center"/>
             </StackPanel>
         </Border>
 

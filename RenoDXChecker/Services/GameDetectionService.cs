@@ -3,9 +3,9 @@ using System.Security;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
-using RenoDXChecker.Models;
+using RenoDXCommander.Models;
 
-namespace RenoDXChecker.Services;
+namespace RenoDXCommander.Services;
 
 public static class GameDetectionService
 {
