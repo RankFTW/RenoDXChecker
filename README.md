@@ -1,4 +1,4 @@
-# RenoDXCommander (RDXC) v1.1.6
+# RenoDXCommander (RDXC) v1.2.0
 
 An unofficial companion app for the [RenoDX](https://github.com/clshortfuse/renodx) HDR mod project.
 Automatically detects your installed games and manages all three components needed for HDR modding:
