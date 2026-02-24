@@ -1,4 +1,4 @@
-# RenoDXCommander (RDXC) v1.1.6
+# RenoDXCommander (RDXC) v1.2.0
 
 An unofficial companion app for the [RenoDX](https://github.com/clshortfuse/renodx) HDR mod project.
 Automatically detects your installed games and manages all three components needed for HDR modding:
@@ -14,7 +14,7 @@ Automatically detects your installed games and manages all three components need
 
 | Feature | Details |
 |---------|---------|
-| 🎮 ReShade installer | Fetches latest ReShade with addon support from reshade.me, installs per game |
+| 🎮 ReShade installer | Installs included version of ReShade 6.7.2 |
 | 🖥 Display Commander | Downloads and installs Display Commander per game |
 | ⚙ DC Mode toggle | Global toggle that swaps how ReShade and DC name their files |
 | 🎯 Per-game DC exclusion | Exclude individual games from DC Mode via the Overrides dialog |
