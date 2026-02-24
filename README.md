@@ -1,11 +1,12 @@
-# RDXC — RenoDX Mod Manager v1.0.4
+# RenoDXCommander (RDXC) v1.1.6
 
 An unofficial companion app for the [RenoDX](https://github.com/clshortfuse/renodx) HDR mod project.
-Automatically detects your installed games, matches them against the RenoDX wiki, and lets you
-install or update HDR mods with one click.
+Automatically detects your installed games and manages all three components needed for HDR modding:
+**ReShade**, **Display Commander**, and the **RenoDX HDR mod** — all from one place.
 
-> **Disclaimer:** This is an unofficial third-party tool. It is not affiliated with or endorsed by
-> the RenoDX project. All mod files are downloaded directly from official RenoDX GitHub snapshots.
+> **Disclaimer:** RenoDXCommander is an unofficial third-party tool not affiliated with or endorsed by
+> the RenoDX project, Crosire, or pmnoxx. All files are downloaded directly from their official sources
+> (reshade.me, pmnoxx's GitHub, and the RenoDX GitHub). Nothing is modified or redistributed.
 
 ---
 
@@ -13,26 +14,23 @@ install or update HDR mods with one click.
 
 | Feature | Details |
 |---------|---------|
+| 🎮 ReShade installer | Installs included version of ReShade 6.7.2 |
+| 🖥 Display Commander | Downloads and installs Display Commander per game |
+| ⚙ DC Mode toggle | Global toggle that swaps how ReShade and DC name their files |
+| 🎯 Per-game DC exclusion | Exclude individual games from DC Mode via the Overrides dialog |
+| 📋 INI presets | Copy your reshade.ini / DisplayCommander.toml to any game folder with one click |
+| ⬇ RenoDX one-click install | Downloads and places `.addon64` / `.addon32` in the correct folder |
 | 🔍 Auto-detection | Finds games from Steam, GOG, Epic Games, and EA App |
-| ⬇ One-click install | Downloads and places `.addon64` / `.addon32` in the correct folder |
-| 📦 Download cache | Addon files are cached locally — reinstalling skips the download entirely |
-| 🔄 Update detection | Compares stored install-time file size against remote; flags only real updates |
-| 🎮 Generic engine mods | Offers Generic Unreal Engine and Generic Unity Engine plugins for unlisted games |
-| ⚡ UE-Extended toggle | Switch any Generic UE card to use the extended UE addon from marat569's repo |
-| ℹ Game notes | Per-game setup notes pulled live from the RenoDX wiki |
-| 💬 Discussion links | Shown before the game name for easy access; opens the wiki discussion thread |
-| 💬 Named mod fallback | Games with a named addon but no wiki entry show a Discord link for support |
-| 🌐 Extra links | Nexus Mods / Discord links shown on installed cards when available |
-| ➕ Manual add | Add any game manually if it wasn't auto-detected |
-| 🚫 Hide games | Hide games from the list; toggle back via the Hidden tab |
-| 🔧 Unity 32/64 split | Separate install buttons for 32-bit and 64-bit Unity games |
-| 📦 Installed badge | Shows the installed addon filename on each card |
-| 🔎 Filter tabs | Filter by All Games, Installed, Hidden, Unity, Unreal, or Other |
-| 🎯 Per-card name mapping | Override wiki name matching on individual cards using the 🎯 button |
-| 💾 Window memory | The main window remembers its size and position between sessions |
-| ❓ Unknown status | Games with no RenoDX mod show ❓ Unknown status |
+| 📦 Download cache | All files cached locally — reinstalling skips the download |
+| 🔄 Update detection | Compares stored file size against remote; flags only real updates |
+| 🎮 Generic engine mods | Generic Unreal Engine and Unity plugins for unlisted games |
+| ⚡ UE-Extended toggle | Switch any Generic UE card to use the extended UE addon |
+| ℹ Game notes | Per-game setup notes from the RenoDX wiki |
+| 💬 Support button | Direct link to the RDXC support channel on Discord |
+| ➕ Manual add | Add any game manually |
+| 🚫 Hide games | Hide games from the list |
+| 🔎 Filter tabs | All Games, Installed, Not Installed, Unity, Unreal, Other, Hidden |
 | 🪲 Crash reporting | Unhandled errors saved automatically to the logs folder |
-| ⚡ Instant card update | Installing a mod updates only that card — the rest of the UI is untouched |
 
 ---
 
@@ -40,221 +38,185 @@ install or update HDR mods with one click.
 
 - Windows 10/11 (x64)
 - [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)
-- [ReShade 6.5.1+ with Addon Support](https://reshade.me/downloads/ReShade_Setup_Addon.exe)
+
+> ReShade no longer needs to be installed manually — RDXC handles it for you.
 
 ---
 
 ## Getting Started
 
-### 1. Install ReShade with Addon Support
-Download from [reshade.me](https://reshade.me) and run the installer.
-Choose **"with full add-on support"**. No shader packages needed.
-Point it at your game's main executable (`Binaries\Win64` for Unreal games).
+### 1. Open RDXC
+The app scans your installed games on startup. First launch takes a few seconds; subsequent launches use a cached library.
 
-### 2. Open RDXC
-The app scans your installed games on startup. First launch takes a few seconds;
-subsequent launches use a cached library and are much faster.
+### 2. Find your game
+Use the search bar or filter tabs. If your game isn't detected automatically, click **➕ Add Game**.
 
-### 3. Find your game
-Use the search bar or filter tabs (All Games, Installed, Unity, Unreal, Other, Hidden).
+### 3. Install ReShade
+Click **⬇ Install ReShade** on any game card. RDXC:
+- Copies the bundled `ReShade64.dll` to the staging folder in AppData (first use)
+- Restores from bundle if the staging copy is ever deleted
+- Installs it as `dxgi.dll` in the game's folder
+- No download needed — ReShade is always available offline
 
-### 4. Check ℹ and 💬 before installing
-- **💬** (before the game name) — opens the wiki discussion thread; may contain required setup steps
-- **ℹ** — shows game-specific notes and known issues
+### 4. Install Display Commander
+Click **⬇ Install Display Commander**. Downloaded from pmnoxx's GitHub and placed in the game folder.
 
-### 5. Click Install
-The app checks the local download cache first and copies from there if available.
-After installing the card updates instantly — no full refresh occurs.
+### 5. Install RenoDX
+Click **⬇ Install RenoDX** (bottom button, supported games only). Placed in the same folder as dxgi.dll.
 
 ### 6. Launch the game
-Press **Home** to open the ReShade menu → **Add-ons** tab → configure RenoDX.
+Press **Home** to open ReShade → **Add-ons** tab → configure RenoDX.
 
 ---
 
-## Game Status Indicators
+## DC Mode
 
-| Badge | Meaning |
-|-------|---------|
-| ✅ Working | Listed on the RenoDX wiki with a confirmed working mod |
-| 🚧 In Progress | Listed on the wiki but still being developed |
-| 💬 Discord | A Discord link replaces the install button — check the community for status |
-| ❓ Unknown | Not on the wiki — no dedicated RenoDX mod known for this game |
+The **⚙ DC Mode** toggle in the header changes how files are named on install:
 
-The **💬 Discord** status appears when:
-- The wiki lists the game but only provides a Discord link (no direct download)
-- A named RenoDX addon is installed but the game has no wiki entry
-- You have manually excluded a game from wiki matching via the 🎯 dialog
+| Toggle | ReShade filename | Display Commander filename |
+|--------|-----------------|---------------------------|
+| OFF (default) | `dxgi.dll` | `zzz_display_commander.addon64` |
+| ON | `ReShade64.dll` | `dxgi.dll` |
 
----
+When you switch modes and click Install, the old file is automatically removed and replaced with the correctly named one.
 
-## Card Layout (left to right, top row)
-
-| Element | Position |
-|---------|---------|
-| 💬 | Far left — only shown when a wiki discussion thread exists |
-| Game name | Fills remaining space |
-| ℹ | Notes button — only shown when notes exist |
-| 🚫 | Hide / unhide this game |
-| 🎯 | Override wiki name matching for this game |
-| ✅ / 🚧 / 💬 / ❓ | Wiki status badge — far right |
+### Per-game DC exclusion
+Click 🎯 on a card → **Overrides** → toggle **"Exclude from global DC Mode"**. That game will always use normal naming regardless of the global toggle.
 
 ---
 
-## UE-Extended Addon
+## INI Presets
 
-Generic Unreal Engine cards have a **⚡ UE Extended** toggle above the action buttons row.
+Place your own config files in `%LocalAppData%\RenoDXCommander\inis\`:
 
-Toggling it ON switches the install/reinstall/update button to source `renodx-ue-extended.addon64`
-from [marat569's repository](https://marat569.github.io/renodx/renodx-ue-extended.addon64) instead
-of the standard RenoDX CDN. A toast notification appears reminding you to check Discord and
-confirm compatibility before installing.
+| File | Copied to |
+|------|-----------|
+| `reshade.ini` | Game install folder (as `reshade.ini`) |
+| `DisplayCommander.toml` | Game install folder (as `DisplayCommander.toml`) |
 
-**File cleanup:** switching between modes automatically removes the opposing addon file from the
-game folder — you will never have both files present at the same time.
+The 📋 button on each row is **greyed out** when the file is absent and becomes **active** the moment you place a file there. Clicking it copies a fresh copy of your preset to that game's folder, overwriting any existing config.
 
-**Auto-detection:** if `renodx-ue-extended.addon64` is already in the game folder when RDXC
-launches, the toggle starts in the ON position automatically.
+## ReShade Shaders & Textures
 
-**Persistence:** the toggle state is saved per-game and survives app restarts.
+ReShade shaders and textures are **not supplied** by RDXC and must be sourced manually. See [Creepy's Wiki — HDR-Compatible Shaders](https://www.hdrmods.com/HDR-Link-Library#hdr-compatible-shaders) for a curated list.
 
-> ⚠️ Not all Unreal Engine games are compatible with the extended addon. Always check the
-> [RenoDX Discord](https://discord.gg/gF4GRJWZ2A) before enabling this for a new game.
+### Global shader location (via Display Commander)
 
----
+If you place your shaders and textures in:
 
-## Unreal Engine Version Handling
+```
+%LOCALAPPDATA%\Programs\Display_Commander\Reshade
+```
 
-RenoDX requires **Unreal Engine 4 or later**. Games on UE3 or below (e.g. Rocket League)
-are detected via `.u`/`.upk` files and other markers, shown with an **Unreal (Legacy)**
-badge and ❓ Unknown status — no install button offered.
+Display Commander will load them automatically for every game — you don't need to copy them into each individual game folder.
+
+## Card Layout
+
+| Row | Content |
+|-----|---------|
+| Top | **ReShade** — Install / Reinstall / Update + 🗑 |
+| Middle | **Display Commander** — Install / Reinstall / Update + 🗑 |
+| Bottom | **RenoDX mod** — Install / Reinstall / Update + 🌐 + ⚡ + 🗑 |
+
+Buttons round their right corners automatically when no adjacent button follows. The ⚡ UE-Extended button rounds its right side when it's the last button in the row.
 
 ---
 
 ## Download Cache
 
-Downloaded addon files are stored in `%LocalAppData%\RenoDXChecker\downloads\`.
+Stored in `%LocalAppData%\RenoDXCommander\downloads\`:
 
-The app checks this before downloading. If the cached file matches the remote size it
-copies from cache directly. To force a fresh download: About → **📦 Open Downloads Cache**
-and delete the file.
-
----
-
-## Folder Structure (Unreal Engine)
-
-```
-GameRoot\
-  MyGame\
-    Binaries\
-      Win64\          ← ✅ mod goes here
-  Engine\
-    Binaries\
-      Win64\          ← ❌ not here
-```
-
----
-
-## Cards Reference
-
-| Button | Action |
-|--------|--------|
-| ⬇ Install | Download (or copy from cache) and install |
-| ↺ Reinstall | Re-copy from cache or re-download and overwrite |
-| ⬆ Update | Newer version available — button turns purple to stand out; reverts to blue after updating |
-| 🗑 | Remove the installed file (cache copy kept) |
-| ℹ | View game-specific notes |
-| 💬 | Open wiki discussion thread (before game name) |
-| 🚫 | Hide / unhide |
-| 📁 | Open install folder / change folder |
-| 🌐 | Open Nexus Mods or Discord page |
-| 🎯 | Override wiki name matching for this card |
-| ⚡ UE Extended | Toggle between standard and extended UE addon (Generic UE cards only) |
-
----
-
-## Generic Mods
-
-### Generic Unreal Engine
-- File: `renodx-unrealengine.addon64`
-- ReShade must be in the same folder as `*-Win64-Shipping.exe`
-- UE4/5 only — UE3 and below are not supported
-
-### Generic Unreal Engine Extended
-- File: `renodx-ue-extended.addon64`
-- Source: [marat569's repository](https://marat569.github.io/renodx/renodx-ue-extended.addon64)
-- Enable via the ⚡ UE Extended toggle on any Generic UE card
-- Check Discord for per-game compatibility before using
-
-### Generic Unity Engine
-- Files: `renodx-unityengine.addon64` / `renodx-unityengine.addon32`
-- Install next to `UnityPlayer.dll`
-- 64-bit for modern games; 32-bit for older 32-bit builds
-
----
-
-## Wiki Name Matching Override
-
-If a game isn't matching its wiki mod (e.g. different edition name), click 🎯 on the card.
-Enter the detected game name and the exact wiki name. The app re-matches immediately.
-
-The 🎯 dialog also has an **Exclude from wiki** toggle that removes the game from all wiki
-matching entirely — the card then shows a Discord link instead of an install button. Toggle
-it off at any time to resume wiki matching.
+| File | Description |
+|------|-------------|
+| `ReShade_Setup_X.Y.Z_Addon.exe` | Downloaded ReShade installer |
+| `ReShade64_extracted.dll` | Extracted ReShade DLL (reused across all games) |
+| `zzz_display_commander.addon64` | Cached DC addon |
+| `*.addon64` / `*.addon32` | Cached RenoDX addon files |
 
 ---
 
 ## Data Storage
 
-All under `%LocalAppData%\RenoDXChecker\`:
+All under `%LocalAppData%\RenoDXCommander\`:
 
 | Path | Contents |
 |------|---------|
-| `game_library.json` | Detected games, hidden list, manual games, scan cache |
-| `installed.json` | Install records including stored remote file sizes |
-| `window_main.json` | Window size and position |
-| `settings.json` | Name mappings, wiki exclusions, UE-Extended preferences |
-| `downloads\` | Cached addon files |
-| `logs\` | Crash reports (max 10, oldest deleted automatically) |
+| `game_library.json` | Detected games, hidden list, manual games |
+| `installed.json` | RenoDX install records |
+| `aux_installed.json` | ReShade and DC install records |
+| `settings.json` | Name mappings, exclusions, UE-Extended state, DC Mode, per-game DC exclusions |
+| `downloads\` | Cached files |
+| `inis\` | User-placed preset config files (`reshade.ini`, `DisplayCommander.toml`) |
+| `logs\` | Crash reports |
+
+> **Note:** The data folder is named `RenoDXCommander` for backwards compatibility with existing installs. All your data is preserved when upgrading from older versions.
 
 ---
 
-## Crash & Error Reporting
+## Buttons Reference
 
-Exceptions are automatically written to:
-```
-%LocalAppData%\RenoDXChecker\logs\crash_YYYY-MM-DD_HH-mm-ss.txt
-```
-
-Open **About → 📂 Open Logs Folder** and attach the latest file when reporting a bug.
+| Button | Action |
+|--------|--------|
+| 📋 (ReShade row) | Copy `reshade.ini` from inis folder to game folder |
+| 📋 (DC row) | Copy `DisplayCommander.toml` from inis folder to game folder |
+| ⬇ Install ReShade | Download latest ReShade, extract, install as dxgi.dll |
+| ↺ Reinstall / ⬆ Update ReShade | Re-copy from cache or re-download |
+| ⬇ Install Display Commander | Download DC addon and install |
+| ↺ Reinstall / ⬆ Update DC | Re-copy or re-download |
+| ⬇ Install RenoDX | Download and install RenoDX addon |
+| ↺ Reinstall / ⬆ Update RenoDX | Re-copy or re-download (purple tint = update available) |
+| 🗑 | Remove the installed file (cache kept) |
+| ℹ | Game-specific notes |
+| 💬 | Wiki discussion thread (before game name) |
+| 🚫 | Hide / unhide |
+| 📁 | Open or change install folder |
+| 🌐 | Nexus Mods or Discord page |
+| 🎯 | Overrides (wiki name matching, wiki exclusion, DC Mode exclusion) |
+| ⚡ | Toggle UE-Extended (Generic UE cards only) |
 
 ---
 
 ## Troubleshooting
 
-**Game not detected?** Use ➕ Add Game. Match the wiki name exactly, or use 🎯 for a custom mapping.
+**Game not detected?** Use ➕ Add Game or 🎯 for a custom wiki name mapping.
 
-**Game shows ❓ Unknown?** No wiki entry. May still work with a generic plugin. Check Discord.
+**ReShade not loading?** `dxgi.dll` must be in the same folder as the `.addon64` file. For Unreal: `Binaries\Win64`.
 
-**Game shows Unreal (Legacy)?** UE3 or below — not compatible with RenoDX addons.
+**Black screen (Unreal)?** ReShade → Add-ons → RenoDX → set `R10G10B10A2_UNORM` to `output size`.
 
-**ReShade not loading the mod?** ReShade must be in the same folder as the `.addon64` file. For Unreal: `Binaries\Win64`.
+**Downloads failing?** Click ↻ Refresh. Clear cache: About → 📦 Open Downloads Cache.
 
-**Black screen on launch (Unreal)?** ReShade → Add-ons → RenoDX → set `R10G10B10A2_UNORM` to `output size`.
+**Wrong install path?** Click 📁 to change it.
 
-**Downloads failing?** Click ↻ Refresh. To clear a bad cache file: About → 📦 Open Downloads Cache.
+**Game showing wrong update status?** Only mods installed via RDXC track updates. Manually-placed mods won't show updates.
 
-**Wrong install path?** Click 📁 → Change install folder.
+---
 
-**UE-Extended not working for my game?** Not all UE games are compatible. Check the RenoDX Discord to confirm support before enabling the toggle.
+## Third-Party Components
+
+All open-source components are used in compliance with their respective licences.
+
+| Component | Author | Licence | Use in RDXC |
+|-----------|--------|---------|-------------|
+| [ReShade](https://reshade.me) | Crosire | [BSD 3-Clause](https://github.com/crosire/reshade/blob/main/LICENSE.md) | Post-processing injection framework. `ReShade64.dll` / `ReShade32.dll` are bundled and redistributed under this licence. |
+| [Display Commander](https://github.com/pmnoxx/display-commander) | pmnoxx | Source-available | Display, window, and audio management addon. Downloaded from official GitHub releases at runtime. |
+| [RenoDX](https://github.com/clshortfuse/renodx) | clshortfuse & contributors | [MIT](https://github.com/clshortfuse/renodx/blob/main/LICENSE) | HDR mod framework. Mods fetched from official GitHub snapshots at runtime — not bundled. |
+| [HtmlAgilityPack](https://github.com/zzzprojects/html-agility-pack) | ZZZ Projects Inc. | [MIT](https://github.com/zzzprojects/html-agility-pack/blob/master/LICENSE) | HTML parser used to scrape game data from the RenoDX wiki. |
+| [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) | Microsoft / .NET Foundation | [MIT](https://github.com/CommunityToolkit/dotnet/blob/main/License.md) | MVVM helpers (ObservableObject, RelayCommand, etc.). |
+| [Microsoft.Win32.Registry](https://github.com/dotnet/runtime) | Microsoft / .NET Foundation | [MIT](https://github.com/dotnet/runtime/blob/main/LICENSE.TXT) | Windows Registry access for Steam/GOG/Epic/EA game detection. |
+
+> ReShade is © Crosire and licensed under the BSD 3-Clause licence. Redistribution of the compiled DLLs is permitted provided the licence notice is preserved. The full licence text is available at [github.com/crosire/reshade](https://github.com/crosire/reshade/blob/main/LICENSE.md).
 
 ---
 
 ## Links
 
-- [RenoDX GitHub](https://github.com/clshortfuse/renodx)
+- [RenoDX GitHub](https://github.com/clshortfuse/renodx) by clshortfuse
 - [RenoDX Mod Wiki](https://github.com/clshortfuse/renodx/wiki/Mods)
-- [ReShade](https://reshade.me)
+- [ReShade](https://reshade.me) by Crosire
+- [Display Commander](https://github.com/pmnoxx/display-commander) by pmnoxx
+- [Creepy's HDR Guides](https://www.hdrmods.com)
 - [RenoDX Discord](https://discord.gg/gF4GRJWZ2A)
+- [RDXC Support Channel](https://discordapp.com/channels/1296187754979528747/1475173660686815374)
+- [The Ultra Place / Ultra+ Discord](https://discord.gg/pQtPYcdE)
 - [RankFTW GitHub](https://github.com/RankFTW)
-- [Support](https://discordapp.com/channels/1296187754979528747/1475173660686815374)
-
