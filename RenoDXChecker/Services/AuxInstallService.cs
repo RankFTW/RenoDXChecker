@@ -56,6 +56,26 @@ public class AuxInstallService
         }
     }
 
+    /// <summary>
+    /// Returns true if the file at <paramref name="filePath"/> matches the staged
+    /// ReShade64.dll by size. Used during disk-scan to distinguish ReShade's dxgi.dll
+    /// from Display Commander's dxgi.dll — DC addon files are ~100–500 KB while
+    /// ReShade is ~5 MB. Comparing against the staged copy is exact and instant.
+    /// Falls back to a 2 MB size threshold if the staged file is not present.
+    /// </summary>
+    public static bool IsReShadeFile(string filePath)
+    {
+        if (!File.Exists(filePath)) return false;
+        var fileSize = new FileInfo(filePath).Length;
+
+        // Primary: exact size match against staged ReShade64.dll
+        if (File.Exists(RsStagedPath64))
+            return fileSize == new FileInfo(RsStagedPath64).Length;
+
+        // Fallback: ReShade is always several MB; DC addons are always < 2 MB
+        return fileSize > 2 * 1024 * 1024;
+    }
+
     // Keys used in AuxInstalledRecord.AddonType
     public const string TypeDc      = "DisplayCommander";
     public const string TypeReShade = "ReShade";
@@ -109,6 +129,9 @@ public class AuxInstallService
         string gameName,
         string installPath,
         bool dcMode,
+        AuxInstalledRecord? existingDcRecord = null,
+        AuxInstalledRecord? existingRsRecord = null,
+        bool shaderExcluded = false,
         IProgress<(string message, double percent)>? progress = null)
     {
         Directory.CreateDirectory(DownloadCacheDir);
@@ -117,9 +140,23 @@ public class AuxInstallService
         var destName     = dcMode ? DcDxgiName    : DcNormalName;
         var opposingName = dcMode ? DcNormalName  : DcDxgiName;
         var destPath     = Path.Combine(installPath, destName);
-        // Remove any file installed under the opposing mode's name
+
+        // ── Mode-switch cleanup ───────────────────────────────────────────────────
+        // Remove the previous DC-mode file only if DC itself placed it.
+        // CRITICAL: never delete dxgi.dll if ReShade currently owns it.
+        //   DC Mode OFF → new dest = zzz_display_commander.addon64, opposing = dxgi.dll
+        //                 dxgi.dll may be ReShade's — only remove if DC's own record says it put it there.
+        //   DC Mode ON  → new dest = dxgi.dll, opposing = zzz_display_commander.addon64
+        //                 safe to remove the old zzz file (it's always DC's).
         var opposingPath = Path.Combine(installPath, opposingName);
-        if (File.Exists(opposingPath)) try { File.Delete(opposingPath); } catch { }
+        bool opposingBelongsToDc = existingDcRecord != null
+            && existingDcRecord.InstalledAs.Equals(opposingName, StringComparison.OrdinalIgnoreCase);
+        bool opposingBelongsToRs = existingRsRecord != null
+            && existingRsRecord.InstalledAs.Equals(opposingName, StringComparison.OrdinalIgnoreCase);
+        if (opposingBelongsToDc && !opposingBelongsToRs && File.Exists(opposingPath))
+        {
+            try { File.Delete(opposingPath); } catch { }
+        }
 
         // ── HEAD for remote size ──────────────────────────────────────────────────
         long? remoteSize = null;
@@ -181,6 +218,17 @@ public class AuxInstallService
             File.Copy(cachePath, destPath, overwrite: true);
         }
 
+        // ── Shader deployment ─────────────────────────────────────────────────────
+        // DC installation: remove the local reshade-shaders folder (ReShade will use
+        // the DC global Reshade path instead). If the folder was user-owned, it gets
+        // renamed to reshade-shaders-original and is NOT deleted.
+        if (!shaderExcluded)
+            ShaderPackService.RemoveFromGameFolder(installPath);
+
+        // Deploy shaders to the DC global folder — only if not already there.
+        if (dcMode && !shaderExcluded)
+            ShaderPackService.DeployToDcFolder();
+
         var record = new AuxInstalledRecord
         {
             GameName       = gameName,
@@ -206,6 +254,8 @@ public class AuxInstallService
         string gameName,
         string installPath,
         bool dcMode,
+        bool dcIsInstalled = false,
+        bool shaderExcluded = false,
         IProgress<(string message, double percent)>? progress = null)
     {
         Directory.CreateDirectory(DownloadCacheDir);
@@ -236,6 +286,19 @@ public class AuxInstallService
         progress?.Report(("Installing ReShade...", 80));
         File.Copy(RsStagedPath64, destPath, overwrite: true);
         progress?.Report(("ReShade installed!", 100));
+
+        // ── Shader deployment ─────────────────────────────────────────────────────
+        // DC Mode ON  → shaders go to DC global path.
+        // DC Mode OFF + DC NOT installed → deploy reshade-shaders folder to game dir.
+        // DC Mode OFF + DC IS  installed → DC already handles shaders; skip.
+        // shaderExcluded → user manages their own shaders; skip entirely.
+        if (!shaderExcluded)
+        {
+            if (dcMode)
+                ShaderPackService.DeployToDcFolder();
+            else if (!dcIsInstalled)
+                ShaderPackService.DeployToGameFolder(installPath);
+        }
 
         var record = new AuxInstalledRecord
         {
@@ -283,6 +346,11 @@ public class AuxInstallService
         var path = Path.Combine(record.InstallPath, record.InstalledAs);
         if (File.Exists(path)) File.Delete(path);
         RemoveRecord(record);
+
+        // If a user-owned reshade-shaders folder was renamed to reshade-shaders-original
+        // when we deployed ours, restore it now that RS/DC has been uninstalled.
+        if (!string.IsNullOrEmpty(record.InstallPath))
+            ShaderPackService.RestoreOriginalIfPresent(record.InstallPath);
     }
 
     // ── DB ────────────────────────────────────────────────────────────────────────

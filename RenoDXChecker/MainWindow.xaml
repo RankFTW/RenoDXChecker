@@ -62,6 +62,40 @@
                                  BorderBrush="#1A3A4A" BorderThickness="1"
                                  CornerRadius="8" Padding="12,7" FontSize="12"
                                  ToolTipService.ToolTip="DC Mode ON: Display Commander → dxgi.dll, ReShade → ReShade64.dll"/>
+                    <!-- Update All button — purple when any update available -->
+                    <Button x:Name="UpdateAllBtn"
+                            Click="UpdateAllButton_Click"
+                            Background="{x:Bind ViewModel.UpdateAllBtnBackground, Mode=OneWay}"
+                            Foreground="{x:Bind ViewModel.UpdateAllBtnForeground, Mode=OneWay}"
+                            BorderBrush="{x:Bind ViewModel.UpdateAllBtnBorder, Mode=OneWay}"
+                            BorderThickness="1" CornerRadius="8" Padding="12,7" FontSize="12"
+                            ToolTipService.ToolTip="Update all RenoDX, ReShade or DC installations">
+                        <Button.Content>
+                            <TextBlock Text="⬆ Update All"/>
+                        </Button.Content>
+                        <Button.Flyout>
+                            <MenuFlyout x:Name="UpdateAllFlyout">
+                                <MenuFlyoutItem x:Name="UpdateAllRenoDxItem"
+                                               Text="⬆  Update all RenoDX"
+                                               Click="UpdateAllRenoDx_Click"/>
+                                <MenuFlyoutItem x:Name="UpdateAllReShadeItem"
+                                               Text="⬆  Update all ReShade"
+                                               Click="UpdateAllReShade_Click"/>
+                                <MenuFlyoutItem x:Name="UpdateAllDcItem"
+                                               Text="⬆  Update all Display Commander"
+                                               Click="UpdateAllDc_Click"/>
+                            </MenuFlyout>
+                        </Button.Flyout>
+                    </Button>
+                    <!-- Shaders cycle button: Off → Minimum → All → Off -->
+                    <Button x:Name="ShadersModeBtn"
+                            Content="{x:Bind ViewModel.ShadersBtnLabel, Mode=OneWay}"
+                            Click="ShadersModeButton_Click"
+                            Background="{x:Bind ViewModel.ShadersBtnBackground, Mode=OneWay}"
+                            Foreground="{x:Bind ViewModel.ShadersBtnForeground, Mode=OneWay}"
+                            BorderBrush="{x:Bind ViewModel.ShadersBtnBorder, Mode=OneWay}"
+                            BorderThickness="1" CornerRadius="8" Padding="12,7" FontSize="12"
+                            ToolTipService.ToolTip="Click to cycle shader deploy mode: Off → Minimum (Lilium only) → All packs → User Defined → Off"/>
                     <Button x:Name="AddGameBtn" Content="➕ Add Game"
                             Click="AddGameButton_Click"
                             Background="#0F1E2A" Foreground="#39FF14"
@@ -187,7 +221,7 @@
                                     <Run Text="RenoDXCommander" Foreground="#00C8FF"/>
                                 </TextBlock>
                                 <TextBlock FontSize="12" Foreground="#4A5878">
-                                    <Run Text="v1.2.0  ·  HDR mod manager by "/>
+                                    <Run Text="v1.2.1  ·  HDR mod manager by "/>
                                     <Run Text="RankFTW" FontWeight="SemiBold" Foreground="#6070A0"/>
                                     <Run Text="  ·  Unofficial companion tool"/>
                                 </TextBlock>
@@ -947,11 +981,8 @@
         <Border Grid.Row="3" Padding="20,6" Background="#0A0E1A"
                 BorderBrush="#141C30" BorderThickness="0,1,0,0">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="12">
-                <TextBlock x:Name="StatusBarText" Text="Starting..."
+                <TextBlock x:Name="StatusBarText" Text=""
                            FontSize="11" Foreground="#2A3450"/>
-                <TextBlock Text="|" Foreground="#1F2B3A" VerticalAlignment="Center"/>
-                <TextBlock Text="ReShade Shaders and Textures are not supplied and need to be sourced manually. Check Creepy's Wiki " FontSize="11" Foreground="#4A5878" VerticalAlignment="Center"/>
-                <HyperlinkButton Content="here" NavigateUri="https://www.hdrmods.com/HDR-Link-Library#hdr-compatible-shaders" FontSize="11" Padding="0,0" Foreground="#6B9ED8" VerticalAlignment="Center"/>
             </StackPanel>
         </Border>
 

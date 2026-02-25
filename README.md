@@ -1,12 +1,13 @@
-# RenoDXCommander (RDXC) v1.2.0
+# RenoDXCommander (RDXC) v1.2.1
 
 An unofficial companion app for the [RenoDX](https://github.com/clshortfuse/renodx) HDR mod project.
 Automatically detects your installed games and manages all three components needed for HDR modding:
 **ReShade**, **Display Commander**, and the **RenoDX HDR mod** — all from one place.
 
 > **Disclaimer:** RenoDXCommander is an unofficial third-party tool not affiliated with or endorsed by
-> the RenoDX project, Crosire, or pmnoxx. All files are downloaded directly from their official sources
-> (reshade.me, pmnoxx's GitHub, and the RenoDX GitHub). Nothing is modified or redistributed.
+> the RenoDX project, Crosire, or pmnoxx. ReShade 6.7.2 is bundled with RDXC and redistributed under
+> its BSD 3-Clause licence. Display Commander and RenoDX mods are downloaded directly from their official
+> GitHub sources at runtime. Nothing else is modified or redistributed.
 
 ---
 
@@ -14,7 +15,7 @@ Automatically detects your installed games and manages all three components need
 
 | Feature | Details |
 |---------|---------|
-| 🎮 ReShade installer | Installs included version of ReShade 6.7.2 |
+| 🎮 ReShade 6.7.2 | ReShade 6.7.2 (addon support) is bundled with RDXC and installed per game — no download needed |
 | 🖥 Display Commander | Downloads and installs Display Commander per game |
 | ⚙ DC Mode toggle | Global toggle that swaps how ReShade and DC name their files |
 | 🎯 Per-game DC exclusion | Exclude individual games from DC Mode via the Overrides dialog |
@@ -23,6 +24,7 @@ Automatically detects your installed games and manages all three components need
 | 🔍 Auto-detection | Finds games from Steam, GOG, Epic Games, and EA App |
 | 📦 Download cache | All files cached locally — reinstalling skips the download |
 | 🔄 Update detection | Compares stored file size against remote; flags only real updates |
+| 🎨 Shader packs | Downloads 7 HDR shader packs from GitHub on launch; Off/Minimum/All/User deploy mode via header button |
 | 🎮 Generic engine mods | Generic Unreal Engine and Unity plugins for unlisted games |
 | ⚡ UE-Extended toggle | Switch any Generic UE card to use the extended UE addon |
 | ℹ Game notes | Per-game setup notes from the RenoDX wiki |
@@ -53,10 +55,10 @@ Use the search bar or filter tabs. If your game isn't detected automatically, cl
 
 ### 3. Install ReShade
 Click **⬇ Install ReShade** on any game card. RDXC:
-- Copies the bundled `ReShade64.dll` to the staging folder in AppData (first use)
+- Copies the bundled **ReShade 6.7.2** `ReShade64.dll` to the staging folder in AppData (first use)
 - Restores from bundle if the staging copy is ever deleted
 - Installs it as `dxgi.dll` in the game's folder
-- No download needed — ReShade is always available offline
+- No download needed — ReShade 6.7.2 is bundled and always available offline
 
 ### 4. Install Display Commander
 Click **⬇ Install Display Commander**. Downloaded from pmnoxx's GitHub and placed in the game folder.
@@ -98,17 +100,73 @@ The 📋 button on each row is **greyed out** when the file is absent and become
 
 ## ReShade Shaders & Textures
 
-ReShade shaders and textures are **not supplied** by RDXC and must be sourced manually. See [Creepy's Wiki — HDR-Compatible Shaders](https://www.hdrmods.com/HDR-Link-Library#hdr-compatible-shaders) for a curated list.
+RDXC automatically downloads and maintains a curated set of HDR-compatible ReShade shader packs on every launch. All packs are merged into a shared staging folder and deployed per-game when you install ReShade or Display Commander.
 
-### Global shader location (via Display Commander)
+### Included shader packs
 
-If you place your shaders and textures in:
+| Pack | Author | Source |
+|------|--------|--------|
+| [ReShade HDR Shaders](https://github.com/EndlesslyFlowering/ReShade_HDR_shaders) | EndlesslyFlowering (Lilium) | GitHub Releases — versioned by release asset filename |
+| [PumboAutoHDR](https://github.com/Filoppi/PumboAutoHDR) | Filoppi (Pumbo) | GitHub Releases |
+| [smolbbsoop shaders](https://github.com/smolbbsoop/smolbbsoopshaders) | smolbbsoop | GitHub main branch |
+| [Reshade Simple HDR Shaders](https://github.com/MaxG2D/ReshadeSimpleHDRShaders) | MaxG2D | Direct release asset |
+| [reshade-shaders](https://github.com/clshortfuse/reshade-shaders) | clshortfuse | GitHub main branch |
+| [potatoFX](https://github.com/CreepySasquatch/potatoFX) | CreepySasquatch | GitHub main branch |
+| [reshade-shaders (slim)](https://github.com/crosire/reshade-shaders/tree/slim) | crosire | GitHub slim branch |
 
+All shader files are downloaded directly from their official repositories and are not modified or redistributed by RDXC.
+
+### Where shaders are stored
+
+Staging folder (all packs merged here on download):
 ```
-%LOCALAPPDATA%\Programs\Display_Commander\Reshade
+%LocalAppData%\RenoDXCommander\reshade\Shaders\
+%LocalAppData%\RenoDXCommander\reshade\Textures\
 ```
 
-Display Commander will load them automatically for every game — you don't need to copy them into each individual game folder.
+### Shader deploy mode
+
+The **🎨 Shaders** button in the header cycles through three modes:
+
+| Mode | Behaviour |
+|------|-----------|
+| **Off** (default) | RDXC does not deploy any shaders. Manage your own shaders manually. |
+| **Minimum** | Only the Lilium HDR Shaders pack is deployed. |
+| **All** | All 7 included shader packs are deployed. |
+| **User** | Only files you place in the Custom folder below are deployed. No auto-downloaded packs are used. |
+
+The setting is persisted between sessions.
+
+Clicking ↻ **Refresh** re-evaluates the current mode against every installed game and DC folder. It both **adds** missing files and **removes** files that belong to packs no longer selected by the current mode. This is how you apply a mode change to existing installs.
+
+### Custom shader folder (User mode)
+
+Place your own shader files in:
+```
+%LocalAppData%\RenoDXCommander\reshade\Custom\Shaders\
+%LocalAppData%\RenoDXCommander\reshade\Custom\Textures\
+```
+When Shaders mode is set to **User**, RDXC deploys the contents of this folder to each game and/or the DC global folder, preserving the subfolder structure exactly. No auto-downloaded packs are used in User mode — only your files.
+
+### Per-game shader exclusion
+
+Click 🎯 on a card → **Overrides** → toggle **"Exclude from shader management"**. RDXC will never create, modify or delete the `reshade-shaders` folder for that game — you manage shaders manually for it.
+
+### Preserving existing reshade-shaders folders
+
+If a `reshade-shaders` folder already exists in a game directory when RDXC deploys shaders, and it was **not** placed there by RDXC (identified by the presence of a `Managed by RDXC.txt` file inside), RDXC renames it to `reshade-shaders-original` before creating its own managed folder. When ReShade or Display Commander is uninstalled via RDXC, the managed folder is removed and `reshade-shaders-original` is renamed back to `reshade-shaders` so your original shaders are restored automatically.
+
+### Where shaders are deployed
+
+| Scenario | Destination |
+|----------|-------------|
+| DC Mode ON — any game | `%LOCALAPPDATA%\Programs\Display_Commander\Reshade\Shaders\` and `\Textures\` (copied once; missing files filled in on subsequent installs) |
+| DC Mode OFF — ReShade installed, no DC | `<game folder>\reshade-shaders\Shaders\` and `\Textures\` |
+| DC then installed to a game with reshade-shaders | `reshade-shaders\` folder is removed (ReShade uses the DC global path) |
+
+The full subdirectory structure from inside each `Shaders/` and `Textures/` folder in the archive is preserved exactly as-is. Files that already exist at the destination are never overwritten, preserving any manual edits.
+
+See also [Creepy's Wiki — HDR-Compatible Shaders](https://www.hdrmods.com/HDR-Link-Library#hdr-compatible-shaders) for a broader curated list.
 
 ## Card Layout
 
@@ -171,7 +229,7 @@ All under `%LocalAppData%\RenoDXCommander\`:
 | 🚫 | Hide / unhide |
 | 📁 | Open or change install folder |
 | 🌐 | Nexus Mods or Discord page |
-| 🎯 | Overrides (wiki name matching, wiki exclusion, DC Mode exclusion) |
+| 🎯 | Overrides (wiki name matching, wiki exclusion, DC Mode exclusion, Update All exclusion, shader management exclusion) |
 | ⚡ | Toggle UE-Extended (Generic UE cards only) |
 
 ---
@@ -204,6 +262,14 @@ All open-source components are used in compliance with their respective licences
 | [HtmlAgilityPack](https://github.com/zzzprojects/html-agility-pack) | ZZZ Projects Inc. | [MIT](https://github.com/zzzprojects/html-agility-pack/blob/master/LICENSE) | HTML parser used to scrape game data from the RenoDX wiki. |
 | [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) | Microsoft / .NET Foundation | [MIT](https://github.com/CommunityToolkit/dotnet/blob/main/License.md) | MVVM helpers (ObservableObject, RelayCommand, etc.). |
 | [Microsoft.Win32.Registry](https://github.com/dotnet/runtime) | Microsoft / .NET Foundation | [MIT](https://github.com/dotnet/runtime/blob/main/LICENSE.TXT) | Windows Registry access for Steam/GOG/Epic/EA game detection. |
+| [SharpCompress](https://github.com/adamhathcock/sharpcompress) | Adam Hathcock | [MIT](https://github.com/adamhathcock/sharpcompress/blob/master/LICENSE.txt) | Archive extraction (.7z, .zip) used for shader pack downloads. |
+| [ReShade HDR Shaders](https://github.com/EndlesslyFlowering/ReShade_HDR_shaders) | EndlesslyFlowering (Lilium) | [GPL-3.0](https://github.com/EndlesslyFlowering/ReShade_HDR_shaders/blob/master/LICENSE) | HDR shader pack. Downloaded at runtime from official GitHub releases. |
+| [PumboAutoHDR](https://github.com/Filoppi/PumboAutoHDR) | Filoppi (Pumbo) | See repo | HDR auto-grading shaders. Downloaded at runtime from official GitHub releases. |
+| [smolbbsoop shaders](https://github.com/smolbbsoop/smolbbsoopshaders) | smolbbsoop | See repo | HDR ReShade shaders. Downloaded at runtime from GitHub main branch. |
+| [Reshade Simple HDR Shaders](https://github.com/MaxG2D/ReshadeSimpleHDRShaders) | MaxG2D | See repo | Simple HDR shaders. Downloaded at runtime from official GitHub release. |
+| [reshade-shaders](https://github.com/clshortfuse/reshade-shaders) | clshortfuse | See repo | ReShade shaders. Downloaded at runtime from GitHub main branch. |
+| [potatoFX](https://github.com/CreepySasquatch/potatoFX) | CreepySasquatch | See repo | potatoFX ReShade shader suite. Downloaded at runtime from GitHub main branch. |
+| [reshade-shaders (slim)](https://github.com/crosire/reshade-shaders/tree/slim) | crosire | [BSD 3-Clause](https://github.com/crosire/reshade/blob/main/LICENSE.md) | ReShade shader collection (slim branch). Downloaded at runtime from GitHub. |
 
 > ReShade is © Crosire and licensed under the BSD 3-Clause licence. Redistribution of the compiled DLLs is permitted provided the licence notice is preserved. The full licence text is available at [github.com/crosire/reshade](https://github.com/crosire/reshade/blob/main/LICENSE.md).
 
@@ -220,3 +286,12 @@ All open-source components are used in compliance with their respective licences
 - [RDXC Support Channel](https://discordapp.com/channels/1296187754979528747/1475173660686815374)
 - [The Ultra Place / Ultra+ Discord](https://discord.gg/pQtPYcdE)
 - [RankFTW GitHub](https://github.com/RankFTW)
+
+### Shader Pack Authors
+- [EndlesslyFlowering (Lilium) — ReShade HDR Shaders](https://github.com/EndlesslyFlowering/ReShade_HDR_shaders)
+- [Filoppi (Pumbo) — PumboAutoHDR](https://github.com/Filoppi/PumboAutoHDR)
+- [smolbbsoop — smolbbsoop shaders](https://github.com/smolbbsoop/smolbbsoopshaders)
+- [MaxG2D — Reshade Simple HDR Shaders](https://github.com/MaxG2D/ReshadeSimpleHDRShaders)
+- [clshortfuse — reshade-shaders](https://github.com/clshortfuse/reshade-shaders)
+- [CreepySasquatch — potatoFX](https://github.com/CreepySasquatch/potatoFX)
+- [crosire — reshade-shaders (slim)](https://github.com/crosire/reshade-shaders/tree/slim)

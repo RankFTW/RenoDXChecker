@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RenoDXCommander.Models;
 using RenoDXCommander.Services;
+using ShaderDeployMode = RenoDXCommander.Services.ShaderPackService.DeployMode;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -13,9 +14,72 @@ namespace RenoDXCommander.ViewModels;
 public partial class MainViewModel : ObservableObject
 {
     private readonly HttpClient        _http;
+    public HttpClient HttpClient => _http;
     private readonly ModInstallService _installer;
     private readonly AuxInstallService _auxInstaller;
     [ObservableProperty] private bool _dcModeEnabled;
+    [ObservableProperty] private ShaderDeployMode _shaderDeployMode = ShaderDeployMode.Off;
+
+    partial void OnShaderDeployModeChanged(ShaderDeployMode v)
+    {
+        ShaderPackService.CurrentMode = v;
+        SaveNameMappings();
+        // Notify computed button properties
+        OnPropertyChanged(nameof(ShadersBtnLabel));
+        OnPropertyChanged(nameof(ShadersBtnBackground));
+        OnPropertyChanged(nameof(ShadersBtnForeground));
+        OnPropertyChanged(nameof(ShadersBtnBorder));
+    }
+
+    /// <summary>Cycles Off → Minimum → All → Off and returns new mode.</summary>
+    public ShaderDeployMode CycleShaderDeployMode()
+    {
+        ShaderDeployMode = ShaderDeployMode switch
+        {
+            ShaderDeployMode.Off     => ShaderDeployMode.Minimum,
+            ShaderDeployMode.Minimum => ShaderDeployMode.All,
+            ShaderDeployMode.All     => ShaderDeployMode.User,
+            _                        => ShaderDeployMode.Off,
+        };
+        return ShaderDeployMode;
+    }
+
+    // Shaders button label / colours — shown in the header bar
+    public string ShadersBtnLabel => ShaderDeployMode switch
+    {
+        ShaderDeployMode.Off     => "🎨 Shaders: Off",
+        ShaderDeployMode.Minimum => "🎨 Shaders: Minimum",
+        ShaderDeployMode.All     => "🎨 Shaders: All",
+        ShaderDeployMode.User    => "🎨 Shaders: User",
+        _                        => "🎨 Shaders",
+    };
+    public string ShadersBtnBackground => ShaderDeployMode switch
+    {
+        ShaderDeployMode.Off     => "#1A1820",
+        ShaderDeployMode.Minimum => "#1A1A30",
+        ShaderDeployMode.All     => "#1A1040",
+        ShaderDeployMode.User    => "#0E1E20",
+        _                        => "#1A1820",
+    };
+    public string ShadersBtnForeground => ShaderDeployMode switch
+    {
+        ShaderDeployMode.Off     => "#555066",
+        ShaderDeployMode.Minimum => "#8878C8",
+        ShaderDeployMode.All     => "#C090FF",
+        ShaderDeployMode.User    => "#40C0B0",
+        _                        => "#555066",
+    };
+    public string ShadersBtnBorder => ShaderDeployMode switch
+    {
+        ShaderDeployMode.Off     => "#2A2535",
+        ShaderDeployMode.Minimum => "#3A2880",
+        ShaderDeployMode.All     => "#6030B0",
+        ShaderDeployMode.User    => "#1A5050",
+        _                        => "#2A2535",
+    };
+
+    /// <summary>The current ShaderDeployMode as a string for AuxInstallService calls.</summary>
+    public ShaderDeployMode CurrentShaderMode => ShaderDeployMode;
     private List<GameMod> _allMods = new();
     private Dictionary<string, string> _genericNotes = new(StringComparer.OrdinalIgnoreCase);
     private List<GameCardViewModel> _allCards = new();
@@ -106,7 +170,44 @@ public partial class MainViewModel : ObservableObject
     /// <summary>Games for which the user has toggled UE-Extended ON.</summary>
     private HashSet<string> _ueExtendedGames = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>Games excluded from global DC Mode — always use normal file naming.</summary>
-    private HashSet<string> _dcModeExcludedGames = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> _dcModeExcludedGames    = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> _updateAllExcludedGames  = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> _shaderExcludedGames     = new(StringComparer.OrdinalIgnoreCase);
+
+    public bool IsShaderExcluded(string gameName) => _shaderExcludedGames.Contains(gameName);
+    public void ToggleShaderExclusion(string gameName)
+    {
+        if (_shaderExcludedGames.Contains(gameName))
+            _shaderExcludedGames.Remove(gameName);
+        else
+            _shaderExcludedGames.Add(gameName);
+        SaveNameMappings();
+        var card = _allCards.FirstOrDefault(c => c.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase));
+        if (card != null) card.ExcludeFromShaders = _shaderExcludedGames.Contains(gameName);
+    }
+
+    public bool AnyUpdateAvailable =>
+        _allCards.Any(c => c.Status    == GameStatus.UpdateAvailable ||
+                           c.DcStatus  == GameStatus.UpdateAvailable ||
+                           c.RsStatus  == GameStatus.UpdateAvailable);
+
+    // Button colours — purple when updates available, dim when idle
+    public string UpdateAllBtnBackground => AnyUpdateAvailable ? "#2A1050" : "#1A1230";
+    public string UpdateAllBtnForeground  => AnyUpdateAvailable ? "#D090FF" : "#886899";
+    public string UpdateAllBtnBorder      => AnyUpdateAvailable ? "#7030C0" : "#3A2555";
+
+
+    public bool IsUpdateAllExcluded(string gameName) => _updateAllExcludedGames.Contains(gameName);
+    public void ToggleUpdateAllExclusion(string gameName)
+    {
+        if (_updateAllExcludedGames.Contains(gameName))
+            _updateAllExcludedGames.Remove(gameName);
+        else
+            _updateAllExcludedGames.Add(gameName);
+        SaveNameMappings();
+        var card = _allCards.FirstOrDefault(c => c.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase));
+        if (card != null) card.ExcludeFromUpdateAll = _updateAllExcludedGames.Contains(gameName);
+    }
     private void LoadNameMappings()
     {
         try
@@ -141,13 +242,34 @@ public partial class MainViewModel : ObservableObject
                     StringComparer.OrdinalIgnoreCase);
             else
                 _dcModeExcludedGames = new(StringComparer.OrdinalIgnoreCase);
+
+            if (s.TryGetValue("UpdateAllExcluded", out var uaJson) && !string.IsNullOrEmpty(uaJson))
+                _updateAllExcludedGames = new HashSet<string>(
+                    JsonSerializer.Deserialize<List<string>>(uaJson) ?? new(),
+                    StringComparer.OrdinalIgnoreCase);
+            else
+                _updateAllExcludedGames = new(StringComparer.OrdinalIgnoreCase);
+
+            if (s.TryGetValue("ShaderExcluded", out var seJson) && !string.IsNullOrEmpty(seJson))
+                _shaderExcludedGames = new HashSet<string>(
+                    JsonSerializer.Deserialize<List<string>>(seJson) ?? new(),
+                    StringComparer.OrdinalIgnoreCase);
+            else
+                _shaderExcludedGames = new(StringComparer.OrdinalIgnoreCase);
+
+            if (s.TryGetValue("ShaderDeployMode", out var sdm) &&
+                Enum.TryParse<ShaderDeployMode>(sdm, out var parsedSdm))
+                ShaderDeployMode = parsedSdm;
+            ShaderPackService.CurrentMode = ShaderDeployMode;
         }
         catch
         {
-            _nameMappings        = new(StringComparer.OrdinalIgnoreCase);
-            _wikiExclusions      = new(StringComparer.OrdinalIgnoreCase);
-            _ueExtendedGames     = new(StringComparer.OrdinalIgnoreCase);
-            _dcModeExcludedGames = new(StringComparer.OrdinalIgnoreCase);
+            _nameMappings           = new(StringComparer.OrdinalIgnoreCase);
+            _wikiExclusions         = new(StringComparer.OrdinalIgnoreCase);
+            _ueExtendedGames        = new(StringComparer.OrdinalIgnoreCase);
+            _dcModeExcludedGames    = new(StringComparer.OrdinalIgnoreCase);
+            _updateAllExcludedGames = new(StringComparer.OrdinalIgnoreCase);
+            _shaderExcludedGames    = new(StringComparer.OrdinalIgnoreCase);
         }
     }
 
@@ -403,7 +525,10 @@ public partial class MainViewModel : ObservableObject
             s["WikiExclusions"]  = JsonSerializer.Serialize(_wikiExclusions.ToList());
             s["UeExtendedGames"] = JsonSerializer.Serialize(_ueExtendedGames.ToList());
             s["DcModeEnabled"]   = DcModeEnabled.ToString();
-            s["DcModeExcluded"]  = JsonSerializer.Serialize(_dcModeExcludedGames.ToList());
+            s["DcModeExcluded"]         = JsonSerializer.Serialize(_dcModeExcludedGames.ToList());
+            s["UpdateAllExcluded"]     = JsonSerializer.Serialize(_updateAllExcludedGames.ToList());
+            s["ShaderExcluded"]       = JsonSerializer.Serialize(_shaderExcludedGames.ToList());
+            s["ShaderDeployMode"]    = ShaderDeployMode.ToString();
             SaveSettingsFile(s);
         }
         catch { }
@@ -753,7 +878,11 @@ public partial class MainViewModel : ObservableObject
                 card.DcProgress      = p.pct;
             });
             var effectiveDcMode = DcModeEnabled && !card.DcModeExcluded;
-            var record = await _auxInstaller.InstallDcAsync(card.GameName, card.InstallPath, effectiveDcMode, progress);
+            var record = await _auxInstaller.InstallDcAsync(card.GameName, card.InstallPath, effectiveDcMode,
+                existingDcRecord: card.DcRecord,
+                existingRsRecord: card.RsRecord,
+                shaderExcluded:   card.ExcludeFromShaders,
+                progress:         progress);
             DispatcherQueue?.TryEnqueue(() =>
             {
                 card.DcRecord        = record;
@@ -804,7 +933,10 @@ public partial class MainViewModel : ObservableObject
                 card.RsProgress      = p.pct;
             });
             var effectiveDcModeRs = DcModeEnabled && !card.DcModeExcluded;
-            var record = await _auxInstaller.InstallReShadeAsync(card.GameName, card.InstallPath, effectiveDcModeRs, progress);
+            var record = await _auxInstaller.InstallReShadeAsync(card.GameName, card.InstallPath, effectiveDcModeRs,
+                dcIsInstalled:  card.DcStatus == GameStatus.Installed,
+                shaderExcluded: card.ExcludeFromShaders,
+                progress:       progress);
             DispatcherQueue?.TryEnqueue(() =>
             {
                 card.RsRecord        = record;
@@ -832,6 +964,150 @@ public partial class MainViewModel : ObservableObject
         card.RsStatus        = GameStatus.NotInstalled;
         card.RsActionMessage = "ReShade removed.";
         card.NotifyAll();
+    }
+
+    // ── Update All commands ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Eligibility: card must not be hidden, not excluded from Update All.
+    /// </summary>
+    private IEnumerable<GameCardViewModel> UpdateAllEligible() =>
+        _allCards.Where(c => !c.IsHidden && !c.ExcludeFromUpdateAll
+                          && !string.IsNullOrEmpty(c.InstallPath)
+                          && Directory.Exists(c.InstallPath));
+
+    public async Task UpdateAllRenoDxAsync()
+    {
+        var targets = UpdateAllEligible()
+            .Where(c => c.Status == GameStatus.Installed || c.Status == GameStatus.UpdateAvailable)
+            .Where(c => c.Mod?.SnapshotUrl != null)
+            .ToList();
+
+        foreach (var card in targets)
+        {
+            card.IsInstalling  = true;
+            card.ActionMessage = "Updating...";
+            try
+            {
+                var progress = new Progress<(string msg, double pct)>(p =>
+                {
+                    card.ActionMessage   = p.msg;
+                    card.InstallProgress = p.pct;
+                });
+                var record = await _installer.InstallAsync(card.Mod!, card.InstallPath, progress);
+                DispatcherQueue?.TryEnqueue(() =>
+                {
+                    card.InstalledRecord        = record;
+                    card.InstalledAddonFileName = record.AddonFileName;
+                    card.Status                 = GameStatus.Installed;
+                    card.ActionMessage          = "✅ Updated!";
+                    card.NotifyAll();
+                });
+            }
+            catch (Exception ex)
+            {
+                card.ActionMessage = $"❌ Failed: {ex.Message}";
+            }
+            finally { card.IsInstalling = false; }
+        }
+
+        SaveLibrary();
+        DispatcherQueue?.TryEnqueue(() =>
+        {
+            UpdateCounts();
+            OnPropertyChanged(nameof(AnyUpdateAvailable));
+        });
+    }
+
+    public async Task UpdateAllReShadeAsync()
+    {
+        var targets = UpdateAllEligible()
+            .Where(c => c.RsStatus == GameStatus.Installed || c.RsStatus == GameStatus.UpdateAvailable)
+            .ToList();
+
+        foreach (var card in targets)
+        {
+            card.RsIsInstalling  = true;
+            card.RsActionMessage = "Updating...";
+            try
+            {
+                var progress = new Progress<(string msg, double pct)>(p =>
+                {
+                    card.RsActionMessage = p.msg;
+                    card.RsProgress      = p.pct;
+                });
+                // Respect DC Mode toggle and per-game exclusion
+                var effectiveDcMode = DcModeEnabled && !card.DcModeExcluded;
+                var dcInstalled     = card.DcStatus == GameStatus.Installed
+                                  || card.DcStatus == GameStatus.UpdateAvailable;
+                var record = await _auxInstaller.InstallReShadeAsync(
+                    card.GameName, card.InstallPath, effectiveDcMode,
+                    dcIsInstalled:  dcInstalled,
+                    shaderExcluded: card.ExcludeFromShaders,
+                    progress:       progress);
+                DispatcherQueue?.TryEnqueue(() =>
+                {
+                    card.RsRecord        = record;
+                    card.RsInstalledFile = record.InstalledAs;
+                    card.RsStatus        = GameStatus.Installed;
+                    card.RsActionMessage = "✅ Updated!";
+                    card.NotifyAll();
+                });
+            }
+            catch (Exception ex)
+            {
+                card.RsActionMessage = $"❌ Failed: {ex.Message}";
+                CrashReporter.WriteCrashReport("UpdateAllReShade", ex, note: $"Game: {card.GameName}");
+            }
+            finally { card.RsIsInstalling = false; }
+        }
+
+        DispatcherQueue?.TryEnqueue(() => OnPropertyChanged(nameof(AnyUpdateAvailable)));
+    }
+
+    public async Task UpdateAllDcAsync()
+    {
+        var targets = UpdateAllEligible()
+            .Where(c => c.DcStatus == GameStatus.Installed || c.DcStatus == GameStatus.UpdateAvailable)
+            .ToList();
+
+        foreach (var card in targets)
+        {
+            card.DcIsInstalling  = true;
+            card.DcActionMessage = "Updating...";
+            try
+            {
+                var progress = new Progress<(string msg, double pct)>(p =>
+                {
+                    card.DcActionMessage = p.msg;
+                    card.DcProgress      = p.pct;
+                });
+                // Respect DC Mode toggle and per-game exclusion
+                var effectiveDcMode = DcModeEnabled && !card.DcModeExcluded;
+                var record = await _auxInstaller.InstallDcAsync(
+                    card.GameName, card.InstallPath, effectiveDcMode,
+                    existingDcRecord: card.DcRecord,
+                    existingRsRecord: card.RsRecord,
+                    shaderExcluded:   card.ExcludeFromShaders,
+                    progress:         progress);
+                DispatcherQueue?.TryEnqueue(() =>
+                {
+                    card.DcRecord        = record;
+                    card.DcInstalledFile = record.InstalledAs;
+                    card.DcStatus        = GameStatus.Installed;
+                    card.DcActionMessage = "✅ Updated!";
+                    card.NotifyAll();
+                });
+            }
+            catch (Exception ex)
+            {
+                card.DcActionMessage = $"❌ Failed: {ex.Message}";
+                CrashReporter.WriteCrashReport("UpdateAllDc", ex, note: $"Game: {card.GameName}");
+            }
+            finally { card.DcIsInstalling = false; }
+        }
+
+        DispatcherQueue?.TryEnqueue(() => OnPropertyChanged(nameof(AnyUpdateAvailable)));
     }
 
     // ── Init ──────────────────────────────────────────────────────────────────────
@@ -901,6 +1177,27 @@ public partial class MainViewModel : ObservableObject
             UpdateCounts();
             ApplyFilter();
 
+            // Sync shaders to all installed locations to reflect current deploy mode.
+            // Runs on a background thread — never blocks the UI.
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    var locations = _allCards
+                        .Where(card => !string.IsNullOrEmpty(card.InstallPath))
+                        .Select(card => (
+                            installPath  : card.InstallPath,
+                            dcInstalled  : card.DcStatus  == GameStatus.Installed || card.DcStatus  == GameStatus.UpdateAvailable,
+                            rsInstalled  : card.RsStatus  == GameStatus.Installed || card.RsStatus  == GameStatus.UpdateAvailable,
+                            dcMode       : DcModeEnabled && !card.DcModeExcluded,
+                            shaderExcluded: card.ExcludeFromShaders
+                        ));
+                    ShaderPackService.SyncShadersToAllLocations(locations);
+                }
+                catch (Exception ex)
+                { CrashReporter.Log($"SyncShaders: {ex.Message}"); }
+            });
+
             StatusText    = $"{detectedGames.Count} games detected · {InstalledCount} mods installed";
             SubStatusText = "";
         }
@@ -955,6 +1252,9 @@ public partial class MainViewModel : ObservableObject
         });
 
         await Task.WhenAll(auxTasks);
+
+        // Notify the UI so the Update All button colour updates after scan
+        DispatcherQueue?.TryEnqueue(() => OnPropertyChanged(nameof(AnyUpdateAvailable)));
     }
 
     private async Task CheckAuxUpdate(GameCardViewModel card, AuxInstalledRecord record, bool isRs)
@@ -1177,6 +1477,80 @@ public partial class MainViewModel : ObservableObject
                 r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase) &&
                 r.AddonType == AuxInstallService.TypeReShade);
 
+            // ── Disk detection for ReShade & Display Commander ────────────────────
+            // If no DB record exists, scan disk for the known filenames so that
+            // manually installed or previously installed instances are shown correctly.
+            //
+            // dxgi.dll is AMBIGUOUS — both ReShade (DC Mode OFF) and DC (DC Mode ON) use it.
+            // We distinguish them by file size via AuxInstallService.IsReShadeFile():
+            //   ReShade64.dll is ~5 MB; DC addon files are always < 2 MB.
+            //   The check compares against the staged ReShade copy for an exact size match,
+            //   falling back to a 2 MB threshold if the staged file is unavailable.
+            if (rsRec == null)
+            {
+                // ReShade64.dll (DC Mode ON name) is unambiguous — always ReShade.
+                var rs64Path = Path.Combine(installPath, AuxInstallService.RsDcModeName);
+                if (File.Exists(rs64Path))
+                {
+                    rsRec = new AuxInstalledRecord
+                    {
+                        GameName    = game.Name,
+                        InstallPath = installPath,
+                        AddonType   = AuxInstallService.TypeReShade,
+                        InstalledAs = AuxInstallService.RsDcModeName,
+                        InstalledAt = File.GetLastWriteTimeUtc(rs64Path),
+                    };
+                }
+                else
+                {
+                    // dxgi.dll — only attribute to ReShade if the file size matches ReShade
+                    var dxgiPath = Path.Combine(installPath, AuxInstallService.RsNormalName);
+                    if (File.Exists(dxgiPath) && AuxInstallService.IsReShadeFile(dxgiPath))
+                    {
+                        rsRec = new AuxInstalledRecord
+                        {
+                            GameName    = game.Name,
+                            InstallPath = installPath,
+                            AddonType   = AuxInstallService.TypeReShade,
+                            InstalledAs = AuxInstallService.RsNormalName,
+                            InstalledAt = File.GetLastWriteTimeUtc(dxgiPath),
+                        };
+                    }
+                }
+            }
+            if (dcRec == null)
+            {
+                // zzz_display_commander.addon64 is unambiguous — always DC (normal mode).
+                var dxgiPath = Path.Combine(installPath, AuxInstallService.DcNormalName);
+                if (File.Exists(dxgiPath))
+                {
+                    dcRec = new AuxInstalledRecord
+                    {
+                        GameName    = game.Name,
+                        InstallPath = installPath,
+                        AddonType   = AuxInstallService.TypeDc,
+                        InstalledAs = AuxInstallService.DcNormalName,
+                        InstalledAt = File.GetLastWriteTimeUtc(dxgiPath),
+                    };
+                }
+                else
+                {
+                    // dxgi.dll (DC Mode ON) — only attribute to DC if it is NOT ReShade's file.
+                    var dcDxgiPath = Path.Combine(installPath, AuxInstallService.DcDxgiName);
+                    if (File.Exists(dcDxgiPath) && !AuxInstallService.IsReShadeFile(dcDxgiPath))
+                    {
+                        dcRec = new AuxInstalledRecord
+                        {
+                            GameName    = game.Name,
+                            InstallPath = installPath,
+                            AddonType   = AuxInstallService.TypeDc,
+                            InstalledAs = AuxInstallService.DcDxgiName,
+                            InstalledAt = File.GetLastWriteTimeUtc(dcDxgiPath),
+                        };
+                    }
+                }
+            }
+
             cards.Add(new GameCardViewModel
             {
                 GameName               = game.Name,
@@ -1216,6 +1590,8 @@ public partial class MainViewModel : ObservableObject
                                          : effectiveMod?.DiscordUrl,
                 NameUrl                = effectiveMod?.NameUrl,
                 DcModeExcluded         = _dcModeExcludedGames.Contains(game.Name),
+                ExcludeFromUpdateAll   = _updateAllExcludedGames.Contains(game.Name),
+                ExcludeFromShaders     = _shaderExcludedGames.Contains(game.Name),
                 DcRecord               = dcRec,
                 DcStatus               = dcRec != null ? GameStatus.Installed : GameStatus.NotInstalled,
                 DcInstalledFile        = dcRec?.InstalledAs,

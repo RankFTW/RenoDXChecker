@@ -51,7 +51,9 @@ public partial class GameCardViewModel : ObservableObject
     public string EngineHint    { get; set; } = "";
     public string? NameUrl      { get; set; }   // Discussion/instructions link from wiki game name cell
     /// <summary>When true this game ignores the global DC Mode toggle and always uses normal naming.</summary>
-    public bool DcModeExcluded  { get; set; }
+    public bool DcModeExcluded       { get; set; }
+    public bool ExcludeFromUpdateAll { get; set; }
+    public bool ExcludeFromShaders   { get; set; }
 
     // ── INI preset existence (re-checked on every NotifyAll call) ─────────────────
     /// <summary>True when reshade.ini is present in the inis folder — enables the 📋 button.</summary>

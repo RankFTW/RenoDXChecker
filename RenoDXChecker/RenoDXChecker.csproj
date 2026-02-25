@@ -16,6 +16,10 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <ApplicationIcon>icon.ico</ApplicationIcon>
+    <AssemblyName>RenoDXCommander</AssemblyName>
+    <AssemblyTitle>RenoDXCommander</AssemblyTitle>
+    <AssemblyVersion>1.2.1.0</AssemblyVersion>
+    <FileVersion>1.2.1.0</FileVersion>
   </PropertyGroup>
   <ItemGroup>
     <Content Include="icon.ico" />
@@ -33,5 +37,6 @@
     <PackageReference Include="HtmlAgilityPack" Version="1.11.61" />
     <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+    <PackageReference Include="SharpCompress" Version="0.37.2" />
   </ItemGroup>
 </Project>

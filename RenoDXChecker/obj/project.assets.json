@@ -168,6 +168,18 @@
           }
         }
       },
+      "SharpCompress/0.37.2": {
+        "type": "package",
+        "dependencies": {
+          "ZstdSharp.Port": "0.8.0"
+        },
+        "compile": {
+          "lib/net8.0/SharpCompress.dll": {}
+        },
+        "runtime": {
+          "lib/net8.0/SharpCompress.dll": {}
+        }
+      },
       "System.Security.AccessControl/5.0.0": {
         "type": "package",
         "dependencies": {
@@ -212,6 +224,15 @@
             "assetType": "runtime",
             "rid": "win"
           }
+        }
+      },
+      "ZstdSharp.Port/0.8.0": {
+        "type": "package",
+        "compile": {
+          "lib/net8.0/ZstdSharp.dll": {}
+        },
+        "runtime": {
+          "lib/net8.0/ZstdSharp.dll": {}
         }
       }
     },
@@ -353,6 +374,18 @@
           "buildTransitive/Microsoft.WindowsAppSDK.targets": {}
         }
       },
+      "SharpCompress/0.37.2": {
+        "type": "package",
+        "dependencies": {
+          "ZstdSharp.Port": "0.8.0"
+        },
+        "compile": {
+          "lib/net8.0/SharpCompress.dll": {}
+        },
+        "runtime": {
+          "lib/net8.0/SharpCompress.dll": {}
+        }
+      },
       "System.Security.AccessControl/5.0.0": {
         "type": "package",
         "dependencies": {
@@ -381,6 +414,15 @@
           "runtimes/win/lib/netcoreapp2.1/System.Security.Principal.Windows.dll": {
             "related": ".xml"
           }
+        }
+      },
+      "ZstdSharp.Port/0.8.0": {
+        "type": "package",
+        "compile": {
+          "lib/net8.0/ZstdSharp.dll": {}
+        },
+        "runtime": {
+          "lib/net8.0/ZstdSharp.dll": {}
         }
       }
     },
@@ -522,6 +564,18 @@
           "buildTransitive/Microsoft.WindowsAppSDK.targets": {}
         }
       },
+      "SharpCompress/0.37.2": {
+        "type": "package",
+        "dependencies": {
+          "ZstdSharp.Port": "0.8.0"
+        },
+        "compile": {
+          "lib/net8.0/SharpCompress.dll": {}
+        },
+        "runtime": {
+          "lib/net8.0/SharpCompress.dll": {}
+        }
+      },
       "System.Security.AccessControl/5.0.0": {
         "type": "package",
         "dependencies": {
@@ -550,6 +604,15 @@
           "runtimes/win/lib/netcoreapp2.1/System.Security.Principal.Windows.dll": {
             "related": ".xml"
           }
+        }
+      },
+      "ZstdSharp.Port/0.8.0": {
+        "type": "package",
+        "compile": {
+          "lib/net8.0/ZstdSharp.dll": {}
+        },
+        "runtime": {
+          "lib/net8.0/ZstdSharp.dll": {}
         }
       }
     },
@@ -691,6 +754,18 @@
           "buildTransitive/Microsoft.WindowsAppSDK.targets": {}
         }
       },
+      "SharpCompress/0.37.2": {
+        "type": "package",
+        "dependencies": {
+          "ZstdSharp.Port": "0.8.0"
+        },
+        "compile": {
+          "lib/net8.0/SharpCompress.dll": {}
+        },
+        "runtime": {
+          "lib/net8.0/SharpCompress.dll": {}
+        }
+      },
       "System.Security.AccessControl/5.0.0": {
         "type": "package",
         "dependencies": {
@@ -719,6 +794,15 @@
           "runtimes/win/lib/netcoreapp2.1/System.Security.Principal.Windows.dll": {
             "related": ".xml"
           }
+        }
+      },
+      "ZstdSharp.Port/0.8.0": {
+        "type": "package",
+        "compile": {
+          "lib/net8.0/ZstdSharp.dll": {}
+        },
+        "runtime": {
+          "lib/net8.0/ZstdSharp.dll": {}
         }
       }
     }
@@ -1714,6 +1798,23 @@
         "tools/x86/GenXbf.dll"
       ]
     },
+    "SharpCompress/0.37.2": {
+      "sha512": "cFBpTct57aubLQXkdqMmgP8GGTFRh7fnRWP53lgE/EYUpDZJ27SSvTkdjB4OYQRZ20SJFpzczUquKLbt/9xkhw==",
+      "type": "package",
+      "path": "sharpcompress/0.37.2",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "README.md",
+        "lib/net462/SharpCompress.dll",
+        "lib/net6.0/SharpCompress.dll",
+        "lib/net8.0/SharpCompress.dll",
+        "lib/netstandard2.0/SharpCompress.dll",
+        "lib/netstandard2.1/SharpCompress.dll",
+        "sharpcompress.0.37.2.nupkg.sha512",
+        "sharpcompress.nuspec"
+      ]
+    },
     "System.Security.AccessControl/5.0.0": {
       "sha512": "dagJ1mHZO3Ani8GH0PHpPEe/oYO+rVdbQjvjJkBRNQkX4t0r1iaeGn8+/ybkSLEan3/slM0t59SVdHzuHf2jmw==",
       "type": "package",
@@ -1815,6 +1916,25 @@
         "useSharedDesignerContext.txt",
         "version.txt"
       ]
+    },
+    "ZstdSharp.Port/0.8.0": {
+      "sha512": "Z62eNBIu8E8YtbqlMy57tK3dV1+m2b9NhPeaYovB5exmLKvrGCqOhJTzrEUH5VyUWU6vwX3c1XHJGhW5HVs8dA==",
+      "type": "package",
+      "path": "zstdsharp.port/0.8.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "lib/net462/ZstdSharp.dll",
+        "lib/net5.0/ZstdSharp.dll",
+        "lib/net6.0/ZstdSharp.dll",
+        "lib/net7.0/ZstdSharp.dll",
+        "lib/net8.0/ZstdSharp.dll",
+        "lib/netcoreapp3.1/ZstdSharp.dll",
+        "lib/netstandard2.0/ZstdSharp.dll",
+        "lib/netstandard2.1/ZstdSharp.dll",
+        "zstdsharp.port.0.8.0.nupkg.sha512",
+        "zstdsharp.port.nuspec"
+      ]
     }
   },
   "projectFileDependencyGroups": {
@@ -1823,7 +1943,8 @@
       "HtmlAgilityPack >= 1.11.61",
       "Microsoft.Win32.Registry >= 5.0.0",
       "Microsoft.Windows.SDK.BuildTools >= 10.0.22621.756",
-      "Microsoft.WindowsAppSDK >= 1.5.240627000"
+      "Microsoft.WindowsAppSDK >= 1.5.240627000",
+      "SharpCompress >= 0.37.2"
     ]
   },
   "packageFolders": {
@@ -1833,11 +1954,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RenoDXCommander_v116\\RenoDXChecker\\RenoDXChecker.csproj",
-      "projectName": "RenoDXChecker",
-      "projectPath": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RenoDXCommander_v116\\RenoDXChecker\\RenoDXChecker.csproj",
+      "projectUniqueName": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RenoDXCommander_v121\\RenoDXChecker\\RenoDXChecker.csproj",
+      "projectName": "RenoDXCommander",
+      "projectPath": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RenoDXCommander_v121\\RenoDXChecker\\RenoDXChecker.csproj",
       "packagesPath": "C:\\Users\\Mark\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RenoDXCommander_v116\\RenoDXChecker\\obj\\",
+      "outputPath": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RenoDXCommander_v121\\RenoDXChecker\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -1896,6 +2017,10 @@
           "Microsoft.WindowsAppSDK": {
             "target": "Package",
             "version": "[1.5.240627000, )"
+          },
+          "SharpCompress": {
+            "target": "Package",
+            "version": "[0.37.2, )"
           }
         },
         "imports": [

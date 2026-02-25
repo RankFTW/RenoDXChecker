@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RenoDXCommander_v116\\RenoDXChecker\\RenoDXChecker.csproj": {}
+    "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RenoDXCommander_v121\\RenoDXChecker\\RenoDXChecker.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RenoDXCommander_v116\\RenoDXChecker\\RenoDXChecker.csproj": {
+    "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RenoDXCommander_v121\\RenoDXChecker\\RenoDXChecker.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RenoDXCommander_v116\\RenoDXChecker\\RenoDXChecker.csproj",
-        "projectName": "RenoDXChecker",
-        "projectPath": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RenoDXCommander_v116\\RenoDXChecker\\RenoDXChecker.csproj",
+        "projectUniqueName": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RenoDXCommander_v121\\RenoDXChecker\\RenoDXChecker.csproj",
+        "projectName": "RenoDXCommander",
+        "projectPath": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RenoDXCommander_v121\\RenoDXChecker\\RenoDXChecker.csproj",
         "packagesPath": "C:\\Users\\Mark\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RenoDXCommander_v116\\RenoDXChecker\\obj\\",
+        "outputPath": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RenoDXCommander_v121\\RenoDXChecker\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -70,6 +70,10 @@
             "Microsoft.WindowsAppSDK": {
               "target": "Package",
               "version": "[1.5.240627000, )"
+            },
+            "SharpCompress": {
+              "target": "Package",
+              "version": "[0.37.2, )"
             }
           },
           "imports": [

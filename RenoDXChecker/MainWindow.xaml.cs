@@ -26,6 +26,8 @@ public sealed partial class MainWindow : Window
         AuxInstallService.EnsureInisDir();       // create inis folder on first run
         AuxInstallService.EnsureReShadeStaging(); // copy bundled ReShade DLLs to staging if needed
         Title = "RDXC - RenoDXCommander";
+        // Fire-and-forget: check/download Lilium HDR shaders in the background
+        _ = ShaderPackService.EnsureLatestAsync(ViewModel.HttpClient);
         CrashReporter.Log("MainWindow: InitializeComponent complete");
         // Set a sensible default size immediately so the window isn't huge on first launch.
         // TryRestoreWindowBounds (called on Activated) will then override this with the
@@ -162,6 +164,86 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(dcExcludeBtn);
         panel.Children.Add(dcExcludeNote);
 
+        panel.Children.Add(new Border
+        {
+            Height = 1,
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 40, 60)),
+            Margin = new Thickness(0, 4, 0, 4),
+        });
+
+        bool isUaExcluded = !string.IsNullOrEmpty(prefilledDetected) &&
+                            ViewModel.IsUpdateAllExcluded(prefilledDetected);
+
+        var uaExcludeBtn = new ToggleButton
+        {
+            Content    = "⬆  Exclude from Update All",
+            IsChecked  = isUaExcluded,
+            FontSize   = 12,
+            Padding    = new Thickness(10, 6, 10, 6),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 22, 10, 42)),
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 160, 100, 220)),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 80, 30, 140)),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+
+        var uaExcludeNote = new TextBlock
+        {
+            Text         = isUaExcluded
+                           ? "✅ Excluded — this game is skipped by all Update All actions."
+                           : "Toggle on to skip this game when using Update All RenoDX, Update All ReShade or Update All DC.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize     = 11,
+            Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 120, 80, 180)),
+        };
+
+        uaExcludeBtn.Checked   += (s, e) => uaExcludeNote.Text =
+            "✅ Excluded — this game is skipped by all Update All actions.";
+        uaExcludeBtn.Unchecked += (s, e) => uaExcludeNote.Text =
+            "Toggle on to skip this game when using Update All RenoDX, Update All ReShade or Update All DC.";
+
+        panel.Children.Add(uaExcludeBtn);
+        panel.Children.Add(uaExcludeNote);
+
+        panel.Children.Add(new Border
+        {
+            Height = 1,
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 40, 60)),
+            Margin = new Thickness(0, 4, 0, 4),
+        });
+
+        bool isShaderExcluded = !string.IsNullOrEmpty(prefilledDetected) &&
+                                ViewModel.IsShaderExcluded(prefilledDetected);
+
+        var shaderExcludeBtn = new ToggleButton
+        {
+            Content    = "🎨  Exclude from shader management",
+            IsChecked  = isShaderExcluded,
+            FontSize   = 12,
+            Padding    = new Thickness(10, 6, 10, 6),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 20, 12, 35)),
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 140, 90, 200)),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 70, 25, 120)),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+
+        var shaderExcludeNote = new TextBlock
+        {
+            Text         = isShaderExcluded
+                           ? "✅ Excluded — RDXC will not deploy or manage shaders for this game. Manage your own shaders manually."
+                           : "Toggle on to stop RDXC managing shaders for this game. No reshade-shaders folder will be created or removed.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize     = 11,
+            Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 110, 70, 160)),
+        };
+
+        shaderExcludeBtn.Checked   += (s, e) => shaderExcludeNote.Text =
+            "✅ Excluded — RDXC will not deploy or manage shaders for this game. Manage your own shaders manually.";
+        shaderExcludeBtn.Unchecked += (s, e) => shaderExcludeNote.Text =
+            "Toggle on to stop RDXC managing shaders for this game. No reshade-shaders folder will be created or removed.";
+
+        panel.Children.Add(shaderExcludeBtn);
+        panel.Children.Add(shaderExcludeNote);
+
         var dlg = new ContentDialog
         {
             Title             = "Overrides",
@@ -190,6 +272,16 @@ public sealed partial class MainWindow : Window
                 bool nowDcExcluded = dcExcludeBtn.IsChecked == true;
                 if (!string.IsNullOrEmpty(det) && nowDcExcluded != ViewModel.IsDcModeExcluded(det))
                     ViewModel.ToggleDcModeExclusion(det);
+
+                // Handle Update All exclusion toggle
+                bool nowUaExcluded = uaExcludeBtn.IsChecked == true;
+                if (!string.IsNullOrEmpty(det) && nowUaExcluded != ViewModel.IsUpdateAllExcluded(det))
+                    ViewModel.ToggleUpdateAllExclusion(det);
+
+                // Handle shader exclusion toggle
+                bool nowShaderExcluded = shaderExcludeBtn.IsChecked == true;
+                if (!string.IsNullOrEmpty(det) && nowShaderExcluded != ViewModel.IsShaderExcluded(det))
+                    ViewModel.ToggleShaderExclusion(det);
 
                 // Save name mapping if provided and not excluded
                 var key = wikiBox.Text?.Trim();
@@ -468,6 +560,28 @@ public sealed partial class MainWindow : Window
         if ((sender as FrameworkElement)?.Tag is GameCardViewModel card)
             ViewModel.UninstallReShadeCommand.Execute(card);
     }
+
+    // ── Shaders mode cycle handler ──────────────────────────────────────────
+
+    private void ShadersModeButton_Click(object sender, RoutedEventArgs e)
+        => ViewModel.CycleShaderDeployMode();
+
+    // ── Update All handlers ──────────────────────────────────────────────────
+
+    private void UpdateAllButton_Click(object sender, RoutedEventArgs e)
+    {
+        // The button opens its flyout automatically; nothing extra needed here.
+        // (WinUI Button.Flyout opens on click.)
+    }
+
+    private async void UpdateAllRenoDx_Click(object sender, RoutedEventArgs e)
+        => await ViewModel.UpdateAllRenoDxAsync();
+
+    private async void UpdateAllReShade_Click(object sender, RoutedEventArgs e)
+        => await ViewModel.UpdateAllReShadeAsync();
+
+    private async void UpdateAllDc_Click(object sender, RoutedEventArgs e)
+        => await ViewModel.UpdateAllDcAsync();
 
     private async void InstallDcButton_Click(object sender, RoutedEventArgs e)
     {
