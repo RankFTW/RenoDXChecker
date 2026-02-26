@@ -55,6 +55,9 @@ public partial class GameCardViewModel : ObservableObject
     public bool ExcludeFromUpdateAll { get; set; }
     public bool ExcludeFromShaders   { get; set; }
 
+    // ── 32-bit mode ───────────────────────────────────────────────────────────────
+    [ObservableProperty] private bool _is32Bit = false;
+
     // ── INI preset existence (re-checked on every NotifyAll call) ─────────────────
     /// <summary>True when reshade.ini is present in the inis folder — enables the 📋 button.</summary>
     public bool RsIniExists => File.Exists(AuxInstallService.RsIniPath);
@@ -102,7 +105,8 @@ public partial class GameCardViewModel : ObservableObject
     public string UeExtendedBorderBrush => UseUeExtended ? "#5030A0" : "#202840";
     // Visible only on Generic UE cards (not Unity, not specific-mod cards)
     public Visibility UeExtendedToggleVisibility =>
-        (IsGenericMod && EngineHint.Contains("Unreal") && !EngineHint.Contains("Legacy"))
+        (IsGenericMod && EngineHint.Contains("Unreal") && !EngineHint.Contains("Legacy")
+         && !IsNativeHdrGame)
             ? Visibility.Visible : Visibility.Collapsed;
 
     // ── DC / ReShade action labels ───────────────────────────────────────────────
@@ -181,7 +185,21 @@ public partial class GameCardViewModel : ObservableObject
     };
 
     public string GenericModLabel => IsGenericMod
-        ? (EngineHint.Contains("Unity") ? "Generic Unity" : "Generic UE") : "";
+        ? (EngineHint.Contains("Unity")
+           ? "Generic Unity"
+           : (IsNativeHdrGame ? "Extended UE Native HDR" : "Generic UE"))
+        : "";
+
+    /// <summary>Set by MainViewModel for games that default to UE-Extended + Native HDR label.</summary>
+    public bool IsNativeHdrGame { get; set; }
+
+    /// <summary>Visible when the game is flagged as 32-bit (shows badge next to source/engine).</summary>
+    public Visibility Is32BitBadgeVisibility => Is32Bit ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Visible on 32-bit UE cards — shows WIP placeholder instead of install button.</summary>
+    public Visibility Is32BitUeWipVisibility =>
+        (Is32Bit && IsGenericMod && EngineHint.Contains("Unreal") && !EngineHint.Contains("Legacy"))
+            ? Visibility.Visible : Visibility.Collapsed;
 
     public string InstallPathDisplay
     {
@@ -224,17 +242,20 @@ public partial class GameCardViewModel : ObservableObject
     public Visibility ExternalBtnVisibility      => IsExternalOnly ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ExtraLinkVisibility        => HasExtraLinks && !IsExternalOnly ? Visibility.Visible : Visibility.Collapsed;
     public Visibility InstalledFileLabelVisible  => !string.IsNullOrEmpty(InstalledAddonFileName) ? Visibility.Visible : Visibility.Collapsed;
-    // Install single button (not unity dual-bit, not yet installed)
+    // Install single button — visible for all installable cards (64-bit default; 32-bit via Overrides toggle)
+    // WIP UE 32-bit cards show the WIP button instead of the install button
     public Visibility InstallOnlyBtnVisibility   => (!IsExternalOnly && Mod?.SnapshotUrl != null
                                                      && Status == GameStatus.Available
-                                                     && !HasDualBitMod) ? Visibility.Visible : Visibility.Collapsed;
+                                                     && Is32BitUeWipVisibility == Visibility.Collapsed)
+                                                     ? Visibility.Visible : Visibility.Collapsed;
     // Reinstall/Update row (installed)
     public Visibility ReinstallRowVisibility     => (!IsExternalOnly && Mod?.SnapshotUrl != null
                                                      && (Status == GameStatus.Installed || Status == GameStatus.UpdateAvailable))
                                                      ? Visibility.Visible : Visibility.Collapsed;
     // Unity dual-bit install row
-    public Visibility DualBitInstallVisibility   => (!IsExternalOnly && HasDualBitMod
-                                                     && Status == GameStatus.Available) ? Visibility.Visible : Visibility.Collapsed;
+    // Unity dual-bit row is no longer used — Unity defaults to 64-bit on the main card.
+    // 32-bit install is triggered via the per-game 32-bit toggle in Overrides.
+    public Visibility DualBitInstallVisibility   => Visibility.Collapsed;
     public Visibility UpdateBadgeVisibility      => Status == GameStatus.UpdateAvailable ? Visibility.Visible : Visibility.Collapsed;
     public Visibility IsHiddenVisibility         => IsHidden ? Visibility.Visible : Visibility.Collapsed;
     public Visibility IsNotHiddenVisibility      => IsHidden ? Visibility.Collapsed : Visibility.Visible;
@@ -276,6 +297,8 @@ public partial class GameCardViewModel : ObservableObject
         OnPropertyChanged(nameof(InstallBtnForeground));
         OnPropertyChanged(nameof(InstallBtnBorderBrush));
         OnPropertyChanged(nameof(GenericModLabel));
+        OnPropertyChanged(nameof(Is32BitBadgeVisibility));
+        OnPropertyChanged(nameof(Is32BitUeWipVisibility));
         OnPropertyChanged(nameof(UeExtendedLabel));
         OnPropertyChanged(nameof(UeExtendedBackground));
         OnPropertyChanged(nameof(UeExtendedForeground));

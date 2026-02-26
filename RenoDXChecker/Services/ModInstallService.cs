@@ -47,6 +47,17 @@ public class ModInstallService
     };
 
     /// <summary>
+    /// URLs whose CDN does not serve a reliable Content-Length on HEAD requests.
+    /// For these, update detection downloads the file to a temp path and compares
+    /// its size (and optionally hash) against the stored install-time values.
+    /// </summary>
+    private static readonly HashSet<string> _downloadCheckUrls =
+        new(StringComparer.OrdinalIgnoreCase)
+    {
+        "https://marat569.github.io/renodx/renodx-ue-extended.addon64",
+    };
+
+    /// <summary>
     /// Returns the authoritative URL for a snapshot URL, substituting an override
     /// when the addon filename has a known alternative source.
     /// </summary>
@@ -227,6 +238,11 @@ public class ModInstallService
         // the override table existed (their stored URL may be the generic CDN).
         var checkUrl = ResolveSnapshotUrl(record.SnapshotUrl);
 
+        // For CDNs that don't serve reliable Content-Length on HEAD (e.g. marat569
+        // github.io), fall back to a full download comparison.
+        if (_downloadCheckUrls.Contains(checkUrl))
+            return await CheckForUpdateByDownloadAsync(record, checkUrl, localFile);
+
         try
         {
             var req  = new HttpRequestMessage(HttpMethod.Head, checkUrl);
@@ -273,6 +289,68 @@ public class ModInstallService
         catch { /* network issue — assume no update */ }
 
         return false;
+    }
+
+    // ── Download-based update detection ──────────────────────────────────────────
+
+    /// <summary>
+    /// For CDNs where HEAD Content-Length is unreliable, downloads the remote file
+    /// to a temp path and compares its size against the locally installed file.
+    /// If a genuine update is detected, the downloaded file is moved into the
+    /// download cache so the next install can reuse it without re-downloading.
+    /// </summary>
+    private async Task<bool> CheckForUpdateByDownloadAsync(
+        InstalledModRecord record,
+        string url,
+        string localFile)
+    {
+        var cacheFile = Path.Combine(DownloadCacheDir, Path.GetFileName(localFile));
+        var tempFile  = cacheFile + ".update_check.tmp";
+
+        try
+        {
+            Directory.CreateDirectory(DownloadCacheDir);
+
+            // Download the remote file to a temp path
+            var resp = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+            if (!resp.IsSuccessStatusCode) return false;
+
+            using (var net  = await resp.Content.ReadAsStreamAsync())
+            using (var file = File.Create(tempFile))
+            {
+                var buf = new byte[81920];
+                int read;
+                while ((read = await net.ReadAsync(buf)) > 0)
+                    await file.WriteAsync(buf.AsMemory(0, read));
+            }
+
+            var localSize  = new FileInfo(localFile).Length;
+            var remoteSize = new FileInfo(tempFile).Length;
+
+            if (remoteSize == localSize)
+            {
+                // No update — clean up temp, done
+                File.Delete(tempFile);
+                return false;
+            }
+
+            // Real update detected — move temp into cache so install can reuse it
+            if (File.Exists(cacheFile)) File.Delete(cacheFile);
+            File.Move(tempFile, cacheFile);
+
+            // Update the stored RemoteFileSize so the record reflects the new version
+            record.RemoteFileSize = remoteSize;
+            SaveRecordPublic(record);
+
+            CrashReporter.Log($"UpdateCheck [{Path.GetFileName(localFile)}]: update detected via download ({localSize} → {remoteSize} bytes)");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"UpdateCheck [{Path.GetFileName(localFile)}]: download check failed: {ex.Message}");
+            if (File.Exists(tempFile)) try { File.Delete(tempFile); } catch { }
+            return false;
+        }
     }
 
     // ── Uninstall ─────────────────────────────────────────────────────────────────

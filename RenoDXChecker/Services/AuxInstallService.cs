@@ -12,15 +12,19 @@ public class AuxInstallService
 {
     // ── URLs & filenames ──────────────────────────────────────────────────────────
     public const string DcUrl        = "https://github.com/pmnoxx/display-commander/releases/download/latest_build/zzz_display_commander.addon64";
+    public const string DcUrl32      = "https://github.com/pmnoxx/display-commander/releases/download/latest_build/zzz_display_commander.addon32";
     public const string DcCacheFile  = "zzz_display_commander.addon64";
+    public const string DcCacheFile32 = "zzz_display_commander.addon32";
     public const string DcNormalName = "zzz_display_commander.addon64";
+    public const string DcNormalName32 = "zzz_display_commander.addon32";
     public const string DcDxgiName   = "dxgi.dll";
 
     // ReShade is bundled alongside the app exe (ReShade64.dll / ReShade32.dll).
     // On first install the DLLs are copied into the staging folder and used from there.
     // If the staging copies are deleted, they are restored from the app bundle automatically.
     public const string RsNormalName  = "dxgi.dll";       // install name when DC Mode OFF
-    public const string RsDcModeName  = "ReShade64.dll";  // install name when DC Mode ON
+    public const string RsDcModeName  = "ReShade64.dll";  // install name when DC Mode ON (64-bit)
+    public const string RsDcModeName32 = "ReShade32.dll"; // install name when DC Mode ON (32-bit)
     public const string RsBundle64    = "ReShade64.dll";  // filename next to the app exe
     public const string RsBundle32    = "ReShade32.dll";  // 32-bit variant (bundled, not currently installed)
     public const string RsStaged64    = "ReShade64.dll";  // filename inside staging folder
@@ -57,23 +61,115 @@ public class AuxInstallService
     }
 
     /// <summary>
-    /// Returns true if the file at <paramref name="filePath"/> matches the staged
-    /// ReShade64.dll by size. Used during disk-scan to distinguish ReShade's dxgi.dll
-    /// from Display Commander's dxgi.dll — DC addon files are ~100–500 KB while
-    /// ReShade is ~5 MB. Comparing against the staged copy is exact and instant.
-    /// Falls back to a 2 MB size threshold if the staged file is not present.
+    /// Classifies what a dxgi.dll file is based on its content.
     /// </summary>
-    public static bool IsReShadeFile(string filePath)
+    public enum DxgiFileType { Unknown, ReShade, DisplayCommander }
+
+    /// <summary>
+    /// Identifies what type of dxgi.dll is at the given path.
+    /// Uses strict checks: exact size match against known staged/cached binaries,
+    /// and binary string scanning for definitive markers.
+    /// Returns Unknown unless there is positive evidence — never guesses based on size alone.
+    /// </summary>
+    public static DxgiFileType IdentifyDxgiFile(string filePath)
+    {
+        if (!File.Exists(filePath)) return DxgiFileType.Unknown;
+
+        if (IsReShadeFileStrict(filePath)) return DxgiFileType.ReShade;
+        if (IsDcFileStrict(filePath))      return DxgiFileType.DisplayCommander;
+
+        return DxgiFileType.Unknown;
+    }
+
+    /// <summary>
+    /// Strict ReShade check: exact size match against staged ReShade DLLs,
+    /// OR binary scan for ReShade-specific strings. Never falls back to a size threshold.
+    /// </summary>
+    public static bool IsReShadeFileStrict(string filePath)
     {
         if (!File.Exists(filePath)) return false;
         var fileSize = new FileInfo(filePath).Length;
 
-        // Primary: exact size match against staged ReShade64.dll
-        if (File.Exists(RsStagedPath64))
-            return fileSize == new FileInfo(RsStagedPath64).Length;
+        // Exact size match against staged ReShade64.dll
+        if (File.Exists(RsStagedPath64) && fileSize == new FileInfo(RsStagedPath64).Length)
+            return true;
+        // Exact size match against staged ReShade32.dll
+        if (File.Exists(RsStagedPath32) && fileSize == new FileInfo(RsStagedPath32).Length)
+            return true;
 
-        // Fallback: ReShade is always several MB; DC addons are always < 2 MB
-        return fileSize > 2 * 1024 * 1024;
+        // Binary string scan for ReShade markers
+        try
+        {
+            var bytes = File.ReadAllBytes(filePath);
+            var text = System.Text.Encoding.ASCII.GetString(bytes);
+            // ReShade embeds its own name in the DLL
+            if (text.Contains("ReShade", StringComparison.Ordinal) &&
+                (text.Contains("reshade.me", StringComparison.OrdinalIgnoreCase) ||
+                 text.Contains("crosire", StringComparison.OrdinalIgnoreCase) ||
+                 text.Contains("ReShade DLL", StringComparison.OrdinalIgnoreCase)))
+                return true;
+        }
+        catch { }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Strict DC check: exact size match against cached DC binaries,
+    /// OR binary scan for DC-specific strings. Never guesses based on size alone.
+    /// </summary>
+    public static bool IsDcFileStrict(string filePath)
+    {
+        if (!File.Exists(filePath)) return false;
+        var fileSize = new FileInfo(filePath).Length;
+
+        // Exact size match against cached DC files
+        try
+        {
+            var dc64Cache = Path.Combine(DownloadCacheDir, DcCacheFile);
+            var dc32Cache = Path.Combine(DownloadCacheDir, DcCacheFile32);
+            if (File.Exists(dc64Cache) && fileSize == new FileInfo(dc64Cache).Length)
+                return true;
+            if (File.Exists(dc32Cache) && fileSize == new FileInfo(dc32Cache).Length)
+                return true;
+        }
+        catch { }
+
+        // Binary string scan for DC-specific markers
+        try
+        {
+            var bytes = File.ReadAllBytes(filePath);
+            var text = System.Text.Encoding.ASCII.GetString(bytes);
+            if (text.Contains("display_commander", StringComparison.OrdinalIgnoreCase) ||
+                text.Contains("DisplayCommander", StringComparison.Ordinal))
+                return true;
+        }
+        catch { }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Returns true if the file at <paramref name="filePath"/> is a ReShade DLL.
+    /// Uses exact size match against staged copies first, then binary string scan.
+    /// Falls back to a 2 MB size threshold ONLY if neither staged copies nor
+    /// binary markers are available — this is the legacy heuristic and is less reliable.
+    /// </summary>
+    public static bool IsReShadeFile(string filePath)
+    {
+        if (!File.Exists(filePath)) return false;
+
+        // Prefer the strict check which requires positive evidence
+        if (IsReShadeFileStrict(filePath)) return true;
+
+        // Legacy fallback: if no staged copies exist AND binary scan didn't find markers,
+        // use the size heuristic. This only triggers on first run before staging.
+        var fileSize = new FileInfo(filePath).Length;
+        bool hasStagedCopies = File.Exists(RsStagedPath64) || File.Exists(RsStagedPath32);
+        if (!hasStagedCopies && fileSize > 2 * 1024 * 1024)
+            return true;
+
+        return false;
     }
 
     // Keys used in AuxInstalledRecord.AddonType
@@ -98,8 +194,33 @@ public class AuxInstallService
     public static string RsIniPath => Path.Combine(InisDir, "reshade.ini");
     public static string DcIniPath => Path.Combine(InisDir, "DisplayCommander.toml");
 
-    /// <summary>Ensures the inis directory exists (call on startup).</summary>
-    public static void EnsureInisDir() => Directory.CreateDirectory(InisDir);
+    /// <summary>
+    /// Ensures the inis directory exists and seeds the default reshade.ini if missing.
+    /// The bundled ReShade.ini is copied from the app directory on first run or whenever
+    /// the file is absent — an existing user-modified reshade.ini is never overwritten.
+    /// </summary>
+    public static void EnsureInisDir()
+    {
+        Directory.CreateDirectory(InisDir);
+
+        // Seed bundled reshade.ini if the user doesn't already have one
+        if (!File.Exists(RsIniPath))
+        {
+            var bundled = Path.Combine(AppContext.BaseDirectory, "ReShade.ini");
+            if (File.Exists(bundled))
+            {
+                try
+                {
+                    File.Copy(bundled, RsIniPath, overwrite: false);
+                    CrashReporter.Log("EnsureInisDir: seeded default reshade.ini from bundle");
+                }
+                catch (Exception ex)
+                {
+                    CrashReporter.Log($"EnsureInisDir: failed to seed reshade.ini — {ex.Message}");
+                }
+            }
+        }
+    }
 
     /// <summary>Copies reshade.ini from the inis folder to the given game directory.</summary>
     public static void CopyRsIni(string gameDir)
@@ -132,22 +253,25 @@ public class AuxInstallService
         AuxInstalledRecord? existingDcRecord = null,
         AuxInstalledRecord? existingRsRecord = null,
         bool shaderExcluded = false,
+        bool use32Bit = false,
         IProgress<(string message, double percent)>? progress = null)
     {
         Directory.CreateDirectory(DownloadCacheDir);
 
-        var cachePath = Path.Combine(DownloadCacheDir, DcCacheFile);
-        var destName     = dcMode ? DcDxgiName    : DcNormalName;
-        var opposingName = dcMode ? DcNormalName  : DcDxgiName;
+        var activeUrl    = use32Bit ? DcUrl32       : DcUrl;
+        var cachePath    = Path.Combine(DownloadCacheDir, use32Bit ? DcCacheFile32 : DcCacheFile);
+        var destName     = dcMode ? DcDxgiName : (use32Bit ? DcNormalName32 : DcNormalName);
+        var opposingName = dcMode ? (use32Bit ? DcNormalName32 : DcNormalName) : DcDxgiName;
         var destPath     = Path.Combine(installPath, destName);
 
         // ── Mode-switch cleanup ───────────────────────────────────────────────────
         // Remove the previous DC-mode file only if DC itself placed it.
         // CRITICAL: never delete dxgi.dll if ReShade currently owns it.
-        //   DC Mode OFF → new dest = zzz_display_commander.addon64, opposing = dxgi.dll
+        //   DC Mode OFF → new dest = zzz_display_commander.addon(32|64), opposing = dxgi.dll
         //                 dxgi.dll may be ReShade's — only remove if DC's own record says it put it there.
-        //   DC Mode ON  → new dest = dxgi.dll, opposing = zzz_display_commander.addon64
+        //   DC Mode ON  → new dest = dxgi.dll, opposing = zzz_display_commander.addon(32|64)
         //                 safe to remove the old zzz file (it's always DC's).
+        // Also clean up the opposite-bitness opposing file when DC mode is on.
         var opposingPath = Path.Combine(installPath, opposingName);
         bool opposingBelongsToDc = existingDcRecord != null
             && existingDcRecord.InstalledAs.Equals(opposingName, StringComparison.OrdinalIgnoreCase);
@@ -162,7 +286,7 @@ public class AuxInstallService
         long? remoteSize = null;
         try
         {
-            var head = await _http.SendAsync(new HttpRequestMessage(HttpMethod.Head, DcUrl));
+            var head = await _http.SendAsync(new HttpRequestMessage(HttpMethod.Head, activeUrl));
             if (head.IsSuccessStatusCode)
                 remoteSize = head.Content.Headers.ContentLength;
         }
@@ -186,7 +310,7 @@ public class AuxInstallService
         if (!usedCache)
         {
             progress?.Report(("Downloading Display Commander...", 0));
-            var response = await _http.GetAsync(DcUrl, HttpCompletionOption.ResponseHeadersRead);
+            var response = await _http.GetAsync(activeUrl, HttpCompletionOption.ResponseHeadersRead);
             if (!response.IsSuccessStatusCode)
                 throw new HttpRequestException($"Display Commander download failed: {response.StatusCode}");
 
@@ -235,7 +359,7 @@ public class AuxInstallService
             InstallPath    = installPath,
             AddonType      = TypeDc,
             InstalledAs    = destName,
-            SourceUrl      = DcUrl,
+            SourceUrl      = activeUrl,
             RemoteFileSize = remoteSize,
             InstalledAt    = DateTime.UtcNow,
         };
@@ -256,35 +380,45 @@ public class AuxInstallService
         bool dcMode,
         bool dcIsInstalled = false,
         bool shaderExcluded = false,
+        bool use32Bit = false,
         IProgress<(string message, double percent)>? progress = null)
     {
         Directory.CreateDirectory(DownloadCacheDir);
 
-        var destName = dcMode ? RsDcModeName : RsNormalName;
+        // 32-bit mode: install as dxgi.dll (same name) but from the 32-bit DLL.
+        // DC Mode ON + 32-bit: install as ReShade32.dll.
+        // DC Mode ON + 64-bit: install as ReShade64.dll.
+        var destName = dcMode
+            ? (use32Bit ? RsDcModeName32 : RsDcModeName)
+            : RsNormalName;
         var destPath = Path.Combine(installPath, destName);
 
         // Remove the opposing-mode ReShade file if DC Mode is OFF
-        // (when OFF, old DC-mode ReShade64.dll can be safely replaced).
+        // (when OFF, old DC-mode ReShade64.dll/ReShade32.dll can be safely replaced).
         // Never touch dxgi.dll here — it may belong to DC.
         if (!dcMode)
         {
-            var rsOldPath = Path.Combine(installPath, RsDcModeName);
-            if (File.Exists(rsOldPath)) try { File.Delete(rsOldPath); } catch { }
+            var rsOldPath64 = Path.Combine(installPath, RsDcModeName);
+            if (File.Exists(rsOldPath64)) try { File.Delete(rsOldPath64); } catch { }
+            var rsOldPath32 = Path.Combine(installPath, RsDcModeName32);
+            if (File.Exists(rsOldPath32)) try { File.Delete(rsOldPath32); } catch { }
         }
 
         // ── Ensure staged DLLs exist (restore from app bundle if missing) ────────
         progress?.Report(("Preparing ReShade files...", 10));
         EnsureReShadeStaging();
 
-        if (!File.Exists(RsStagedPath64))
+        var rsStagedPath = use32Bit ? RsStagedPath32 : RsStagedPath64;
+        var rsBundleName = use32Bit ? RsBundle32     : RsBundle64;
+        if (!File.Exists(rsStagedPath))
             throw new FileNotFoundException(
-                "ReShade64.dll was not found in the app folder or staging directory.\n" +
-                $"Expected: {RsStagedPath64}\n" +
-                "Please ensure ReShade64.dll is placed next to RenoDXCommander.exe.");
+                $"{rsBundleName} was not found in the app folder or staging directory.\n" +
+                $"Expected: {rsStagedPath}\n" +
+                $"Please ensure {rsBundleName} is placed next to RenoDXCommander.exe.");
 
         // ── Copy staged DLL to game folder ────────────────────────────────────────
         progress?.Report(("Installing ReShade...", 80));
-        File.Copy(RsStagedPath64, destPath, overwrite: true);
+        File.Copy(rsStagedPath, destPath, overwrite: true);
         progress?.Report(("ReShade installed!", 100));
 
         // ── Shader deployment ─────────────────────────────────────────────────────

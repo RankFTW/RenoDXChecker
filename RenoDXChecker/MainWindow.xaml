@@ -221,7 +221,7 @@
                                     <Run Text="RenoDXCommander" Foreground="#00C8FF"/>
                                 </TextBlock>
                                 <TextBlock FontSize="12" Foreground="#4A5878">
-                                    <Run Text="v1.2.1  ·  HDR mod manager by "/>
+                                    <Run Text="v1.2.2  ·  HDR mod manager by "/>
                                     <Run Text="RankFTW" FontWeight="SemiBold" Foreground="#6070A0"/>
                                     <Run Text="  ·  Unofficial companion tool"/>
                                 </TextBlock>
@@ -641,6 +641,13 @@
                                             <TextBlock Text="⬆ Update Available"
                                                        FontSize="10" Foreground="#80B860"/>
                                         </Border>
+                                        <!-- 32-bit mode badge -->
+                                        <Border Background="#1E0C04" CornerRadius="5" Padding="6,2"
+                                                BorderBrush="#5A2810" BorderThickness="1"
+                                                Visibility="{x:Bind Is32BitBadgeVisibility, Mode=OneWay}">
+                                            <TextBlock Text="32-bit"
+                                                       FontSize="10" Foreground="#E08040"/>
+                                        </Border>
                                     </StackPanel>
 
                                     <!-- Row 2: Installed file badge (full width) -->
@@ -845,7 +852,19 @@
                                         </Border>
                                     </Grid>
 
-                                    <!-- Row 7c: Dual-bit Unity install -->
+                                    <!-- Row 7b2: 32-bit UE WIP placeholder -->
+                                    <Button Grid.Row="7"
+                                            Visibility="{x:Bind Is32BitUeWipVisibility, Mode=OneWay}"
+                                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                            CornerRadius="10" FontSize="12" FontWeight="SemiBold"
+                                            Background="#1C1008" Foreground="#806030"
+                                            BorderBrush="#403018" BorderThickness="1"
+                                            IsEnabled="False"
+                                            ToolTipService.ToolTip="32-bit Unreal Engine addon support is work in progress.">
+                                        <TextBlock Text="⚠  UE 32-bit — WIP" FontSize="12"/>
+                                    </Button>
+
+                                    <!-- Row 7c: Dual-bit Unity install (legacy - now collapsed) -->
                                     <Grid Grid.Row="7"
                                           Visibility="{x:Bind DualBitInstallVisibility, Mode=OneWay}"
                                           VerticalAlignment="Stretch">

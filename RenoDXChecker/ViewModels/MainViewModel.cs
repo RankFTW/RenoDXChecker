@@ -18,7 +18,16 @@ public partial class MainViewModel : ObservableObject
     private readonly ModInstallService _installer;
     private readonly AuxInstallService _auxInstaller;
     [ObservableProperty] private bool _dcModeEnabled;
-    [ObservableProperty] private ShaderDeployMode _shaderDeployMode = ShaderDeployMode.Off;
+    [ObservableProperty] private ShaderDeployMode _shaderDeployMode = ShaderDeployMode.Minimum;
+
+    /// <summary>
+    /// Raised when an install would overwrite a dxgi.dll that RDXC cannot identify
+    /// as ReShade or Display Commander. The UI should show a confirmation dialog
+    /// <summary>
+    /// Async callback set by the UI layer. Called when a foreign dxgi.dll is detected.
+    /// Returns true if the user confirms overwrite, false to cancel.
+    /// </summary>
+    public Func<GameCardViewModel, string, Task<bool>>? ConfirmForeignDxgiOverwrite { get; set; }
 
     partial void OnShaderDeployModeChanged(ShaderDeployMode v)
     {
@@ -173,6 +182,82 @@ public partial class MainViewModel : ObservableObject
     private HashSet<string> _dcModeExcludedGames    = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _updateAllExcludedGames  = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _shaderExcludedGames     = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> _is32BitGames            = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Games that default to UE-Extended and show "Extended UE Native HDR" instead of "Generic UE".
+    /// These games are auto-set to UE-Extended on first build — no toggle needed.
+    /// </summary>
+    private static readonly HashSet<string> NativeHdrGames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Avowed",
+        "Lies of P",
+        "Lost Soul Aside",
+        "Hell is Us",
+        "Mafia: The Old Country",
+        "Returnal",
+        "Marvel's Midnight Suns",
+        "Mortal Kombat 1",
+        "Alone in the Dark",
+        "Still Wakes the Deep",
+    };
+
+    /// <summary>
+    /// Checks if a game name matches any entry in the NativeHdrGames whitelist.
+    /// Strips ™, ®, © symbols before comparison to handle store names like "Lost Soul Aside™".
+    /// </summary>
+    private static bool IsNativeHdrGameMatch(string gameName)
+        => MatchesGameSet(gameName, NativeHdrGames);
+
+    /// <summary>
+    /// Checks if a game name matches any entry in the user's _ueExtendedGames set.
+    /// Strips ™, ®, © symbols before comparison.
+    /// </summary>
+    private bool IsUeExtendedGameMatch(string gameName)
+        => MatchesGameSet(gameName, _ueExtendedGames);
+
+    /// <summary>
+    /// Checks if <paramref name="gameName"/> matches any entry in <paramref name="gameSet"/>.
+    /// Tries exact match first, then stripped (™®© removed), then fully normalised.
+    /// </summary>
+    private static bool MatchesGameSet(string gameName, IEnumerable<string> gameSet)
+    {
+        // Fast path: exact match (works for HashSet and static lists)
+        if (gameSet is ICollection<string> col && col.Contains(gameName)) return true;
+        if (gameSet is not ICollection<string> && gameSet.Contains(gameName)) return true;
+
+        // Strip trademark symbols and retry
+        var stripped = gameName.Replace("™", "").Replace("®", "").Replace("©", "").Trim();
+        if (stripped != gameName)
+        {
+            if (gameSet is ICollection<string> col2 && col2.Contains(stripped)) return true;
+            if (gameSet is not ICollection<string> && gameSet.Contains(stripped)) return true;
+        }
+
+        // Normalised comparison as last resort
+        var norm = NormalizeForLookup(gameName);
+        foreach (var entry in gameSet)
+        {
+            if (NormalizeForLookup(entry) == norm) return true;
+        }
+        return false;
+    }
+
+    public bool Is32BitGame(string gameName) => _is32BitGames.Contains(gameName);
+    public void Toggle32Bit(string gameName)
+    {
+        if (_is32BitGames.Contains(gameName))
+            _is32BitGames.Remove(gameName);
+        else
+            _is32BitGames.Add(gameName);
+        SaveNameMappings();
+        var card = _allCards.FirstOrDefault(c => c.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase));
+        if (card != null)
+        {
+            card.Is32Bit = _is32BitGames.Contains(gameName);
+            card.NotifyAll();
+        }
+    }
 
     public bool IsShaderExcluded(string gameName) => _shaderExcludedGames.Contains(gameName);
     public void ToggleShaderExclusion(string gameName)
@@ -257,6 +342,13 @@ public partial class MainViewModel : ObservableObject
             else
                 _shaderExcludedGames = new(StringComparer.OrdinalIgnoreCase);
 
+            if (s.TryGetValue("Is32BitGames", out var b32Json) && !string.IsNullOrEmpty(b32Json))
+                _is32BitGames = new HashSet<string>(
+                    JsonSerializer.Deserialize<List<string>>(b32Json) ?? new(),
+                    StringComparer.OrdinalIgnoreCase);
+            else
+                _is32BitGames = new(StringComparer.OrdinalIgnoreCase);
+
             if (s.TryGetValue("ShaderDeployMode", out var sdm) &&
                 Enum.TryParse<ShaderDeployMode>(sdm, out var parsedSdm))
                 ShaderDeployMode = parsedSdm;
@@ -270,6 +362,7 @@ public partial class MainViewModel : ObservableObject
             _dcModeExcludedGames    = new(StringComparer.OrdinalIgnoreCase);
             _updateAllExcludedGames = new(StringComparer.OrdinalIgnoreCase);
             _shaderExcludedGames    = new(StringComparer.OrdinalIgnoreCase);
+            _is32BitGames           = new(StringComparer.OrdinalIgnoreCase);
         }
     }
 
@@ -385,7 +478,7 @@ public partial class MainViewModel : ObservableObject
             card.Notes          = effectiveMod != null
                                   ? BuildNotes(game.Name, effectiveMod, fallback, _genericNotes)
                                   : "";
-            card.IsGenericMod   = fallback != null && mod == null;
+            card.IsGenericMod   = card.UseUeExtended || (fallback != null && mod == null);
             if (card.Status != GameStatus.Installed)
                 card.Status = effectiveMod != null ? GameStatus.Available : GameStatus.Available;
         }
@@ -528,6 +621,7 @@ public partial class MainViewModel : ObservableObject
             s["DcModeExcluded"]         = JsonSerializer.Serialize(_dcModeExcludedGames.ToList());
             s["UpdateAllExcluded"]     = JsonSerializer.Serialize(_updateAllExcludedGames.ToList());
             s["ShaderExcluded"]       = JsonSerializer.Serialize(_shaderExcludedGames.ToList());
+            s["Is32BitGames"]         = JsonSerializer.Serialize(_is32BitGames.ToList());
             s["ShaderDeployMode"]    = ShaderDeployMode.ToString();
             SaveSettingsFile(s);
         }
@@ -544,7 +638,7 @@ public partial class MainViewModel : ObservableObject
     {
         if (string.IsNullOrEmpty(s)) return "";
         // Remove common trademark symbols
-        s = s.Replace("™", "").Replace("®", "");
+        s = s.Replace("™", "").Replace("®", "").Replace("©", "");
         // Remove parenthetical content
         s = Regex.Replace(s, "\\([^)]*\\)", "");
         s = Regex.Replace(s, "\\[[^]]*\\]", "");
@@ -669,6 +763,15 @@ public partial class MainViewModel : ObservableObject
 
         // Build card for this game immediately
         var (installPath, engine) = GameDetectionService.DetectEngineAndPath(game.InstallPath);
+
+        // Apply per-game install path overrides (e.g. Cyberpunk 2077 → bin\x64)
+        if (_installPathOverrides.TryGetValue(game.Name, out var manualSubPath))
+        {
+            var overridePath = Path.Combine(game.InstallPath, manualSubPath);
+            if (Directory.Exists(overridePath))
+                installPath = overridePath;
+        }
+
         var mod = GameDetectionService.MatchGame(game, _allMods, _nameMappings);
         var genericUnreal = MakeGenericUnreal();
         var genericUnity  = MakeGenericUnity();
@@ -725,6 +828,47 @@ public partial class MainViewModel : ObservableObject
             };
         }
 
+        // ── Apply NativeHdr / UE-Extended whitelist (same logic as BuildCards) ────
+        bool isNativeHdr = IsNativeHdrGameMatch(game.Name);
+        bool useUeExt = (addonOnDisk == UeExtendedFile)
+                        || (IsUeExtendedGameMatch(game.Name) && (effectiveMod?.IsGenericUnreal == true || engine == EngineType.Unreal))
+                        || (isNativeHdr && (effectiveMod?.IsGenericUnreal == true || engine == EngineType.Unreal));
+        if (useUeExt && (effectiveMod?.IsGenericUnreal == true || engine == EngineType.Unreal))
+        {
+            effectiveMod = new GameMod
+            {
+                Name            = effectiveMod?.Name ?? "Generic Unreal Engine",
+                Maintainer      = effectiveMod?.Maintainer ?? "ShortFuse",
+                SnapshotUrl     = UeExtendedUrl,
+                Status          = effectiveMod?.Status ?? "✅",
+                Notes           = effectiveMod?.Notes,
+                IsGenericUnreal = true,
+            };
+            if (addonOnDisk == UeExtendedFile || isNativeHdr)
+                _ueExtendedGames.Add(game.Name);
+        }
+        else if (useUeExt && effectiveMod == null)
+        {
+            effectiveMod = new GameMod
+            {
+                Name            = "Generic Unreal Engine",
+                Maintainer      = "ShortFuse",
+                SnapshotUrl     = UeExtendedUrl,
+                Status          = "✅",
+                IsGenericUnreal = true,
+            };
+            fallback = effectiveMod;
+            if (isNativeHdr)
+                _ueExtendedGames.Add(game.Name);
+        }
+
+        // UE-Extended whitelist supersedes Nexus/Discord external links
+        if (useUeExt && effectiveMod != null)
+        {
+            effectiveMod.NexusUrl   = null;
+            effectiveMod.DiscordUrl = null;
+        }
+
         var auxRecordsManual = _auxInstaller.LoadAll();
         var dcRecManual = auxRecordsManual.FirstOrDefault(r =>
             r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase) &&
@@ -747,8 +891,9 @@ public partial class MainViewModel : ObservableObject
                               ? "💬"
                               : effectiveMod?.Status ?? "—",
             Maintainer     = effectiveMod?.Maintainer ?? "",
-            IsGenericMod   = fallback != null && mod == null,
-            EngineHint     = engine == EngineType.Unreal       ? "Unreal Engine"
+            IsGenericMod   = useUeExt || (fallback != null && mod == null),
+            EngineHint     = (useUeExt && engine == EngineType.Unknown) ? "Unreal Engine"
+                           : engine == EngineType.Unreal       ? "Unreal Engine"
                            : engine == EngineType.UnrealLegacy ? "Unreal (Legacy)"
                            : engine == EngineType.Unity        ? "Unity" : "",
             Notes          = effectiveMod != null ? BuildNotes(game.Name, effectiveMod, fallback, _genericNotes) : "",
@@ -769,6 +914,12 @@ public partial class MainViewModel : ObservableObject
                               : effectiveMod?.DiscordUrl,
             NameUrl         = effectiveMod?.NameUrl,
             IsManuallyAdded = true,
+            UseUeExtended          = useUeExt,
+            IsNativeHdrGame        = isNativeHdr,
+            DcModeExcluded         = _dcModeExcludedGames.Contains(game.Name),
+            ExcludeFromUpdateAll   = _updateAllExcludedGames.Contains(game.Name),
+            ExcludeFromShaders     = _shaderExcludedGames.Contains(game.Name),
+            Is32Bit                = _is32BitGames.Contains(game.Name),
             DcRecord        = dcRecManual,
             DcStatus        = dcRecManual != null ? GameStatus.Installed : GameStatus.NotInstalled,
             DcInstalledFile = dcRecManual?.InstalledAs,
@@ -788,6 +939,12 @@ public partial class MainViewModel : ObservableObject
     {
         // Install invoked
         if (card?.Mod?.SnapshotUrl == null) return;
+
+        // 32-bit toggle: swap URL before install, restore after
+        string? originalSnapshotUrl = card.Mod.SnapshotUrl;
+        bool swappedTo32 = card.Is32Bit && card.Mod.SnapshotUrl32 != null;
+        if (swappedTo32)
+            card.Mod.SnapshotUrl = card.Mod.SnapshotUrl32;
         if (string.IsNullOrEmpty(card.InstallPath))
         {
             card.ActionMessage = "No install path — use 📁 to pick the game folder.";
@@ -831,7 +988,13 @@ public partial class MainViewModel : ObservableObject
             card.ActionMessage = $"❌ Failed: {ex.Message}";
             CrashReporter.WriteCrashReport("InstallModAsync", ex, note: $"Game: {card.GameName}, Path: {card.InstallPath}");
         }
-        finally { card.IsInstalling = false; }
+        finally
+        {
+            card.IsInstalling = false;
+            // Restore original URL if we swapped to 32-bit for the install
+            if (swappedTo32 && card.Mod != null && originalSnapshotUrl != null)
+                card.Mod.SnapshotUrl = originalSnapshotUrl;
+        }
     }
 
     [RelayCommand]
@@ -868,6 +1031,36 @@ public partial class MainViewModel : ObservableObject
             card.DcActionMessage = "No install path — use 📁 to pick the game folder.";
             return;
         }
+
+        // Check for foreign dxgi.dll before overwriting
+        var effectiveDcMode = DcModeEnabled && !card.DcModeExcluded;
+        if (effectiveDcMode)
+        {
+            var dxgiPath = Path.Combine(card.InstallPath, "dxgi.dll");
+            if (File.Exists(dxgiPath))
+            {
+                var fileType = AuxInstallService.IdentifyDxgiFile(dxgiPath);
+                if (fileType == AuxInstallService.DxgiFileType.Unknown)
+                {
+                    // Ask the UI for confirmation via async callback
+                    if (ConfirmForeignDxgiOverwrite != null)
+                    {
+                        var confirmed = await ConfirmForeignDxgiOverwrite(card, dxgiPath);
+                        if (!confirmed)
+                        {
+                            card.DcActionMessage = "⚠ Skipped — unknown dxgi.dll found. Use Overrides to proceed.";
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        card.DcActionMessage = "⚠ Skipped — unknown dxgi.dll found.";
+                        return;
+                    }
+                }
+            }
+        }
+
         card.DcIsInstalling  = true;
         card.DcActionMessage = "Starting DC download...";
         try
@@ -877,11 +1070,11 @@ public partial class MainViewModel : ObservableObject
                 card.DcActionMessage = p.msg;
                 card.DcProgress      = p.pct;
             });
-            var effectiveDcMode = DcModeEnabled && !card.DcModeExcluded;
             var record = await _auxInstaller.InstallDcAsync(card.GameName, card.InstallPath, effectiveDcMode,
                 existingDcRecord: card.DcRecord,
                 existingRsRecord: card.RsRecord,
                 shaderExcluded:   card.ExcludeFromShaders,
+                use32Bit:         card.Is32Bit,
                 progress:         progress);
             DispatcherQueue?.TryEnqueue(() =>
             {
@@ -904,12 +1097,20 @@ public partial class MainViewModel : ObservableObject
     public void UninstallDc(GameCardViewModel? card)
     {
         if (card?.DcRecord == null) return;
-        _auxInstaller.Uninstall(card.DcRecord);
-        card.DcRecord        = null;
-        card.DcInstalledFile = null;
-        card.DcStatus        = GameStatus.NotInstalled;
-        card.DcActionMessage = "Display Commander removed.";
-        card.NotifyAll();
+        try
+        {
+            _auxInstaller.Uninstall(card.DcRecord);
+            card.DcRecord        = null;
+            card.DcInstalledFile = null;
+            card.DcStatus        = GameStatus.NotInstalled;
+            card.DcActionMessage = "Display Commander removed.";
+            card.NotifyAll();
+        }
+        catch (Exception ex)
+        {
+            card.DcActionMessage = $"❌ Uninstall failed: {ex.Message}";
+            CrashReporter.WriteCrashReport("UninstallDc", ex, note: $"Game: {card.GameName}");
+        }
     }
 
     // ── ReShade commands ──────────────────────────────────────────────────────────
@@ -923,6 +1124,35 @@ public partial class MainViewModel : ObservableObject
             card.RsActionMessage = "No install path — use 📁 to pick the game folder.";
             return;
         }
+
+        // Check for foreign dxgi.dll before overwriting (when DC mode is OFF, ReShade installs as dxgi.dll)
+        var effectiveDcModeRs = DcModeEnabled && !card.DcModeExcluded;
+        if (!effectiveDcModeRs)
+        {
+            var dxgiPath = Path.Combine(card.InstallPath, "dxgi.dll");
+            if (File.Exists(dxgiPath))
+            {
+                var fileType = AuxInstallService.IdentifyDxgiFile(dxgiPath);
+                if (fileType == AuxInstallService.DxgiFileType.Unknown)
+                {
+                    if (ConfirmForeignDxgiOverwrite != null)
+                    {
+                        var confirmed = await ConfirmForeignDxgiOverwrite(card, dxgiPath);
+                        if (!confirmed)
+                        {
+                            card.RsActionMessage = "⚠ Skipped — unknown dxgi.dll found. Use Overrides to proceed.";
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        card.RsActionMessage = "⚠ Skipped — unknown dxgi.dll found.";
+                        return;
+                    }
+                }
+            }
+        }
+
         card.RsIsInstalling  = true;
         card.RsActionMessage = "Starting ReShade download...";
         try
@@ -932,10 +1162,10 @@ public partial class MainViewModel : ObservableObject
                 card.RsActionMessage = p.msg;
                 card.RsProgress      = p.pct;
             });
-            var effectiveDcModeRs = DcModeEnabled && !card.DcModeExcluded;
             var record = await _auxInstaller.InstallReShadeAsync(card.GameName, card.InstallPath, effectiveDcModeRs,
                 dcIsInstalled:  card.DcStatus == GameStatus.Installed,
                 shaderExcluded: card.ExcludeFromShaders,
+                use32Bit:       card.Is32Bit,
                 progress:       progress);
             DispatcherQueue?.TryEnqueue(() =>
             {
@@ -958,12 +1188,28 @@ public partial class MainViewModel : ObservableObject
     public void UninstallReShade(GameCardViewModel? card)
     {
         if (card?.RsRecord == null) return;
-        _auxInstaller.Uninstall(card.RsRecord);
-        card.RsRecord        = null;
-        card.RsInstalledFile = null;
-        card.RsStatus        = GameStatus.NotInstalled;
-        card.RsActionMessage = "ReShade removed.";
-        card.NotifyAll();
+
+        try
+        {
+            // Remove the RDXC-managed reshade-shaders folder BEFORE calling Uninstall.
+            if (card.DcStatus != GameStatus.Installed && card.DcStatus != GameStatus.UpdateAvailable)
+            {
+                if (!string.IsNullOrEmpty(card.InstallPath))
+                    ShaderPackService.RemoveFromGameFolder(card.InstallPath);
+            }
+
+            _auxInstaller.Uninstall(card.RsRecord);
+            card.RsRecord        = null;
+            card.RsInstalledFile = null;
+            card.RsStatus        = GameStatus.NotInstalled;
+            card.RsActionMessage = "ReShade removed.";
+            card.NotifyAll();
+        }
+        catch (Exception ex)
+        {
+            card.RsActionMessage = $"❌ Uninstall failed: {ex.Message}";
+            CrashReporter.WriteCrashReport("UninstallReShade", ex, note: $"Game: {card.GameName}");
+        }
     }
 
     // ── Update All commands ──────────────────────────────────────────────────────
@@ -1027,6 +1273,26 @@ public partial class MainViewModel : ObservableObject
 
         foreach (var card in targets)
         {
+            // Skip games with foreign dxgi.dll during Update All (when DC mode is OFF, RS = dxgi.dll)
+            var effectiveDcMode = DcModeEnabled && !card.DcModeExcluded;
+            if (!effectiveDcMode)
+            {
+                var dxgiPath = Path.Combine(card.InstallPath, "dxgi.dll");
+                if (File.Exists(dxgiPath))
+                {
+                    var fileType = AuxInstallService.IdentifyDxgiFile(dxgiPath);
+                    if (fileType == AuxInstallService.DxgiFileType.Unknown)
+                    {
+                        CrashReporter.Log($"UpdateAllReShade: skipping {card.GameName} — foreign dxgi.dll detected");
+                        DispatcherQueue?.TryEnqueue(() =>
+                        {
+                            card.RsActionMessage = "⚠ Skipped — unknown dxgi.dll";
+                        });
+                        continue;
+                    }
+                }
+            }
+
             card.RsIsInstalling  = true;
             card.RsActionMessage = "Updating...";
             try
@@ -1037,13 +1303,13 @@ public partial class MainViewModel : ObservableObject
                     card.RsProgress      = p.pct;
                 });
                 // Respect DC Mode toggle and per-game exclusion
-                var effectiveDcMode = DcModeEnabled && !card.DcModeExcluded;
                 var dcInstalled     = card.DcStatus == GameStatus.Installed
                                   || card.DcStatus == GameStatus.UpdateAvailable;
                 var record = await _auxInstaller.InstallReShadeAsync(
                     card.GameName, card.InstallPath, effectiveDcMode,
                     dcIsInstalled:  dcInstalled,
                     shaderExcluded: card.ExcludeFromShaders,
+                    use32Bit:       card.Is32Bit,
                     progress:       progress);
                 DispatcherQueue?.TryEnqueue(() =>
                 {
@@ -1073,6 +1339,26 @@ public partial class MainViewModel : ObservableObject
 
         foreach (var card in targets)
         {
+            // Skip games with foreign dxgi.dll during Update All — keep purple button
+            var effectiveDcMode = DcModeEnabled && !card.DcModeExcluded;
+            if (effectiveDcMode)
+            {
+                var dxgiPath = Path.Combine(card.InstallPath, "dxgi.dll");
+                if (File.Exists(dxgiPath))
+                {
+                    var fileType = AuxInstallService.IdentifyDxgiFile(dxgiPath);
+                    if (fileType == AuxInstallService.DxgiFileType.Unknown)
+                    {
+                        CrashReporter.Log($"UpdateAllDc: skipping {card.GameName} — foreign dxgi.dll detected");
+                        DispatcherQueue?.TryEnqueue(() =>
+                        {
+                            card.DcActionMessage = "⚠ Skipped — unknown dxgi.dll";
+                        });
+                        continue;
+                    }
+                }
+            }
+
             card.DcIsInstalling  = true;
             card.DcActionMessage = "Updating...";
             try
@@ -1083,12 +1369,12 @@ public partial class MainViewModel : ObservableObject
                     card.DcProgress      = p.pct;
                 });
                 // Respect DC Mode toggle and per-game exclusion
-                var effectiveDcMode = DcModeEnabled && !card.DcModeExcluded;
                 var record = await _auxInstaller.InstallDcAsync(
                     card.GameName, card.InstallPath, effectiveDcMode,
                     existingDcRecord: card.DcRecord,
                     existingRsRecord: card.RsRecord,
                     shaderExcluded:   card.ExcludeFromShaders,
+                    use32Bit:         card.Is32Bit,
                     progress:         progress);
                 DispatcherQueue?.TryEnqueue(() =>
                 {
@@ -1131,12 +1417,29 @@ public partial class MainViewModel : ObservableObject
             if (savedLib != null && !forceRescan)
             {
                 StatusText    = $"Library loaded ({savedLib.Games.Count} games, scanned {FormatAge(savedLib.LastScanned)})";
-                SubStatusText = "Fetching latest mod info...";
-                detectedGames = GameLibraryService.ToDetectedGames(savedLib);
+                SubStatusText = "Checking for new games and fetching latest mod info...";
                 addonCache    = savedLib.AddonScanCache;
-                var wr = await WikiService.FetchAllAsync(_http);
-                _allMods      = wr.Mods;
-                _genericNotes = wr.GenericNotes;
+
+                // Always re-detect games so newly installed titles (especially Xbox) appear
+                // without requiring the user to delete cache files or manually refresh.
+                var wikiTask   = WikiService.FetchAllAsync(_http);
+                var detectTask = Task.Run(DetectAllGamesDeduped);
+                await Task.WhenAll(wikiTask, detectTask);
+                _allMods      = wikiTask.Result.Mods;
+                _genericNotes = wikiTask.Result.GenericNotes;
+
+                var freshGames = detectTask.Result;
+                var cachedGames = GameLibraryService.ToDetectedGames(savedLib);
+
+                // Merge: start with fresh scan, then add any cached games that weren't re-detected
+                // (e.g. games on a disconnected drive). Fresh scan wins for duplicates.
+                var freshNorms = freshGames.Select(g => GameDetectionService.NormalizeName(g.Name))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                detectedGames = freshGames
+                    .Concat(cachedGames.Where(g => !freshNorms.Contains(GameDetectionService.NormalizeName(g.Name))))
+                    .ToList();
+
+                CrashReporter.Log($"Merged library: {freshGames.Count} detected + {cachedGames.Count} cached → {detectedGames.Count} total");
             }
             else
             {
@@ -1179,6 +1482,7 @@ public partial class MainViewModel : ObservableObject
 
             // Sync shaders to all installed locations to reflect current deploy mode.
             // Runs on a background thread — never blocks the UI.
+            SubStatusText = "Deploying shaders to installed games...";
             _ = Task.Run(() =>
             {
                 try
@@ -1196,6 +1500,13 @@ public partial class MainViewModel : ObservableObject
                 }
                 catch (Exception ex)
                 { CrashReporter.Log($"SyncShaders: {ex.Message}"); }
+                finally
+                {
+                    DispatcherQueue?.TryEnqueue(() =>
+                    {
+                        SubStatusText = "";
+                    });
+                }
             });
 
             StatusText    = $"{detectedGames.Count} games detected · {InstalledCount} mods installed";
@@ -1214,10 +1525,16 @@ public partial class MainViewModel : ObservableObject
 
     private async Task CheckForUpdatesAsync(List<GameCardViewModel> cards, List<InstalledModRecord> records, List<AuxInstalledRecord> auxRecords)
     {
+        // Check all installed cards that have a SnapshotUrl and are directly installable.
+        // Exclude IsExternalOnly cards (Nexus/Discord-only mods) — we have no way to
+        // check for updates on external sources.
+        // Don't filter on RemoteFileSize — the download-based check path
+        // (used for UE-Extended and other github.io CDN mods) doesn't need it.
         var installed = cards
             .Where(c => c.Status == GameStatus.Installed
-                     && c.InstalledRecord?.SnapshotUrl != null
-                     && c.InstalledRecord?.RemoteFileSize != null)   // ← only RDXC-installed records have this
+                     && !c.IsExternalOnly
+                     && c.Mod?.SnapshotUrl != null
+                     && c.InstalledRecord?.SnapshotUrl != null)
             .ToList();
 
         var tasks = installed.Select(async card =>
@@ -1286,6 +1603,7 @@ public partial class MainViewModel : ObservableObject
             Task.Run(GameDetectionService.FindGogGames),
             Task.Run(GameDetectionService.FindEpicGames),
             Task.Run(GameDetectionService.FindEaGames),
+            Task.Run(GameDetectionService.FindXboxGames),
         };
         Task.WhenAll(tasks).Wait();
 
@@ -1331,6 +1649,17 @@ public partial class MainViewModel : ObservableObject
     };
 
     /// <summary>
+    /// Per-game install path overrides: maps game name to a sub-path relative to the
+    /// detected root. Used when the game exe lives in a non-standard location that the
+    /// engine-detection heuristics do not resolve automatically.
+    /// </summary>
+    private static readonly Dictionary<string, string> _installPathOverrides =
+        new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Cyberpunk 2077"] = @"bin\x64",
+    };
+
+    /// <summary>
     /// Returns the authoritative download URL for a given addon filename,
     /// substituting an override when the file has a known alternative source.
     /// Falls back to the generic Unreal URL for all other .addon64 files.
@@ -1369,6 +1698,15 @@ public partial class MainViewModel : ObservableObject
         var gameInfos = detectedGames.AsParallel().Select(game =>
         {
             var (installPath, engine) = GameDetectionService.DetectEngineAndPath(game.InstallPath);
+
+            // Apply per-game install path overrides (e.g. Cyberpunk 2077 → bin\x64)
+            if (_installPathOverrides.TryGetValue(game.Name, out var subPath))
+            {
+                var overridePath = Path.Combine(game.InstallPath, subPath);
+                if (Directory.Exists(overridePath))
+                    installPath = overridePath;
+            }
+
             var mod      = GameDetectionService.MatchGame(game, _allMods, _nameMappings);
             // UnrealLegacy (UE3 and below) cannot use the RenoDX addon system — no fallback mod offered.
             var fallback = mod == null ? (engine == EngineType.Unreal      ? genericUnreal
@@ -1376,12 +1714,13 @@ public partial class MainViewModel : ObservableObject
             return (game, installPath, engine, mod, fallback);
         }).ToList();
 
-        foreach (var (game, installPath, engine, mod, fallback) in gameInfos)
+        foreach (var (game, installPath, engine, mod, origFallback) in gameInfos)
         {
             // Always show every detected game — even if no wiki mod exists.
             // The card will have no install button if there's no snapshot URL,
             // but a RenoDX addon already on disk will still be detected and shown.
             // Wiki exclusion overrides everything — user explicitly wants no wiki match
+            var fallback     = origFallback;  // mutable local copy
             var effectiveMod = _wikiExclusions.Contains(game.Name) ? null : (mod ?? fallback);
 
             var record = records.FirstOrDefault(r =>
@@ -1451,22 +1790,50 @@ public partial class MainViewModel : ObservableObject
 
             // Apply UE-Extended preference: if the game has it saved OR the file is on disk,
             // force the Mod URL to the marat569 source so the install button targets it.
+            // Native HDR games always use UE-Extended, regardless of user toggle.
+            // UE-Extended whitelist supersedes everything — hide Nexus link and force install/update/reinstall.
+            bool isNativeHdr = IsNativeHdrGameMatch(game.Name);
             bool useUeExt = (addonOnDisk == UeExtendedFile)
-                            || (_ueExtendedGames.Contains(game.Name) && effectiveMod?.IsGenericUnreal == true);
-            if (useUeExt && effectiveMod?.IsGenericUnreal == true)
+                            || (IsUeExtendedGameMatch(game.Name) && (effectiveMod?.IsGenericUnreal == true || engine == EngineType.Unreal))
+                            || (isNativeHdr && (effectiveMod?.IsGenericUnreal == true || engine == EngineType.Unreal));
+            if (useUeExt && (effectiveMod?.IsGenericUnreal == true || engine == EngineType.Unreal))
+            {
+                // Create or override the mod to use UE-Extended URL
+                effectiveMod = new GameMod
+                {
+                    Name            = effectiveMod?.Name ?? "Generic Unreal Engine",
+                    Maintainer      = effectiveMod?.Maintainer ?? "ShortFuse",
+                    SnapshotUrl     = UeExtendedUrl,
+                    Status          = effectiveMod?.Status ?? "✅",
+                    Notes           = effectiveMod?.Notes,
+                    IsGenericUnreal = true,
+                };
+                // Persist preference if it was detected from disk or the game is native HDR
+                if (addonOnDisk == UeExtendedFile || isNativeHdr)
+                    _ueExtendedGames.Add(game.Name);
+            }
+            // UE-Extended whitelist games that have no engine detected — force them to use UE-Extended
+            else if (useUeExt && effectiveMod == null)
             {
                 effectiveMod = new GameMod
                 {
-                    Name            = effectiveMod.Name,
-                    Maintainer      = effectiveMod.Maintainer,
+                    Name            = "Generic Unreal Engine",
+                    Maintainer      = "ShortFuse",
                     SnapshotUrl     = UeExtendedUrl,
-                    Status          = effectiveMod.Status,
-                    Notes           = effectiveMod.Notes,
+                    Status          = "✅",
                     IsGenericUnreal = true,
                 };
-                // Persist preference if it was detected from disk (not yet in settings)
-                if (addonOnDisk == UeExtendedFile)
+                fallback = effectiveMod;
+                if (isNativeHdr)
                     _ueExtendedGames.Add(game.Name);
+            }
+
+            // UE-Extended whitelist supersedes Nexus/Discord external links — force installable
+            if (useUeExt && effectiveMod != null)
+            {
+                // Strip Nexus/Discord links so the card shows install/update/reinstall buttons
+                effectiveMod.NexusUrl   = null;
+                effectiveMod.DiscordUrl = null;
             }
 
             // Look up aux records for this game
@@ -1482,13 +1849,12 @@ public partial class MainViewModel : ObservableObject
             // manually installed or previously installed instances are shown correctly.
             //
             // dxgi.dll is AMBIGUOUS — both ReShade (DC Mode OFF) and DC (DC Mode ON) use it.
-            // We distinguish them by file size via AuxInstallService.IsReShadeFile():
-            //   ReShade64.dll is ~5 MB; DC addon files are always < 2 MB.
-            //   The check compares against the staged ReShade copy for an exact size match,
-            //   falling back to a 2 MB threshold if the staged file is unavailable.
+            // We use strict positive identification (binary string scan + exact size match
+            // against staged/cached copies) to classify it. Files that cannot be positively
+            // identified as ReShade or DC are left alone — no record is created.
             if (rsRec == null)
             {
-                // ReShade64.dll (DC Mode ON name) is unambiguous — always ReShade.
+                // ReShade64.dll (DC Mode ON, 64-bit) is unambiguous — always ReShade.
                 var rs64Path = Path.Combine(installPath, AuxInstallService.RsDcModeName);
                 if (File.Exists(rs64Path))
                 {
@@ -1503,18 +1869,34 @@ public partial class MainViewModel : ObservableObject
                 }
                 else
                 {
-                    // dxgi.dll — only attribute to ReShade if the file size matches ReShade
-                    var dxgiPath = Path.Combine(installPath, AuxInstallService.RsNormalName);
-                    if (File.Exists(dxgiPath) && AuxInstallService.IsReShadeFile(dxgiPath))
+                    // ReShade32.dll (DC Mode ON, 32-bit) is also unambiguous — always ReShade.
+                    var rs32Path = Path.Combine(installPath, AuxInstallService.RsDcModeName32);
+                    if (File.Exists(rs32Path))
                     {
                         rsRec = new AuxInstalledRecord
                         {
                             GameName    = game.Name,
                             InstallPath = installPath,
                             AddonType   = AuxInstallService.TypeReShade,
-                            InstalledAs = AuxInstallService.RsNormalName,
-                            InstalledAt = File.GetLastWriteTimeUtc(dxgiPath),
+                            InstalledAs = AuxInstallService.RsDcModeName32,
+                            InstalledAt = File.GetLastWriteTimeUtc(rs32Path),
                         };
+                    }
+                    else
+                    {
+                        // dxgi.dll — only attribute to ReShade if the file size matches ReShade
+                        var dxgiPath = Path.Combine(installPath, AuxInstallService.RsNormalName);
+                        if (File.Exists(dxgiPath) && AuxInstallService.IsReShadeFile(dxgiPath))
+                        {
+                            rsRec = new AuxInstalledRecord
+                            {
+                                GameName    = game.Name,
+                                InstallPath = installPath,
+                                AddonType   = AuxInstallService.TypeReShade,
+                                InstalledAs = AuxInstallService.RsNormalName,
+                                InstalledAt = File.GetLastWriteTimeUtc(dxgiPath),
+                            };
+                        }
                     }
                 }
             }
@@ -1535,9 +1917,10 @@ public partial class MainViewModel : ObservableObject
                 }
                 else
                 {
-                    // dxgi.dll (DC Mode ON) — only attribute to DC if it is NOT ReShade's file.
+                    // dxgi.dll (DC Mode ON) — only attribute to DC if positively identified as DC.
+                    // A dxgi.dll that is neither ReShade nor DC is foreign (e.g. DXVK, Special K) — leave it alone.
                     var dcDxgiPath = Path.Combine(installPath, AuxInstallService.DcDxgiName);
-                    if (File.Exists(dcDxgiPath) && !AuxInstallService.IsReShadeFile(dcDxgiPath))
+                    if (File.Exists(dcDxgiPath) && AuxInstallService.IsDcFileStrict(dcDxgiPath))
                     {
                         dcRec = new AuxInstalledRecord
                         {
@@ -1565,8 +1948,9 @@ public partial class MainViewModel : ObservableObject
                                           ? "💬"
                                           : effectiveMod?.Status ?? "—",
                 Maintainer             = effectiveMod?.Maintainer ?? "",
-                IsGenericMod           = fallback != null && mod == null,
-                EngineHint             = engine == EngineType.Unreal       ? "Unreal Engine"
+                IsGenericMod           = useUeExt || (fallback != null && mod == null),
+                EngineHint             = (useUeExt && engine == EngineType.Unknown) ? "Unreal Engine"
+                                       : engine == EngineType.Unreal       ? "Unreal Engine"
                                        : engine == EngineType.UnrealLegacy ? "Unreal (Legacy)"
                                        : engine == EngineType.Unity        ? "Unity" : "",
                 Notes                  = effectiveMod != null ? BuildNotes(game.Name, effectiveMod, fallback, genericNotes) : "",
@@ -1592,6 +1976,8 @@ public partial class MainViewModel : ObservableObject
                 DcModeExcluded         = _dcModeExcludedGames.Contains(game.Name),
                 ExcludeFromUpdateAll   = _updateAllExcludedGames.Contains(game.Name),
                 ExcludeFromShaders     = _shaderExcludedGames.Contains(game.Name),
+                Is32Bit                = _is32BitGames.Contains(game.Name),
+                IsNativeHdrGame        = IsNativeHdrGameMatch(game.Name),
                 DcRecord               = dcRec,
                 DcStatus               = dcRec != null ? GameStatus.Installed : GameStatus.NotInstalled,
                 DcInstalledFile        = dcRec?.InstalledAs,
@@ -1795,3 +2181,5 @@ public partial class MainViewModel : ObservableObject
     partial void OnSearchQueryChanged(string v)  => ApplyFilter();
     partial void OnShowHiddenChanged(bool v)     => ApplyFilter();
 }
+
+

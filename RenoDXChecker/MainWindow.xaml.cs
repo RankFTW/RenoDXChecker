@@ -36,9 +36,12 @@ public sealed partial class MainWindow : Window
         // Restore window size & position after activation (ensure HWND is ready)
         this.Activated += MainWindow_Activated;
         ViewModel.SetDispatcher(DispatcherQueue);
+        ViewModel.ConfirmForeignDxgiOverwrite = ShowForeignDxgiConfirmDialogAsync;
         ViewModel.PropertyChanged += OnViewModelChanged;
         GameCardsList.ItemsSource  = ViewModel.DisplayedGames;
         _ = ViewModel.InitializeAsync();
+        // Silent update check — runs in background, shows dialog only if update found
+        _ = CheckForAppUpdateAsync();
         this.Closed += MainWindow_Closed;
     }
 
@@ -244,10 +247,56 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(shaderExcludeBtn);
         panel.Children.Add(shaderExcludeNote);
 
+        panel.Children.Add(new Border
+        {
+            Height = 1,
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 40, 60)),
+            Margin = new Thickness(0, 4, 0, 4),
+        });
+
+        bool is32Bit = !string.IsNullOrEmpty(prefilledDetected) &&
+                       ViewModel.Is32BitGame(prefilledDetected);
+
+        var bit32Btn = new ToggleButton
+        {
+            Content    = "⚠  32-bit mode",
+            IsChecked  = is32Bit,
+            FontSize   = 12,
+            Padding    = new Thickness(10, 6, 10, 6),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 28, 14, 8)),
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 200, 120, 60)),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 120, 50, 20)),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+
+        var bit32Note = new TextBlock
+        {
+            Text         = is32Bit
+                           ? "✅ 32-bit mode ON — ReShade installs as ReShade32.dll, Unity addon uses the 32-bit URL, DC installs zzz_display_commander.addon32. Unreal 32-bit is WIP."
+                           : "Only enable if you know this game is 32-bit. Installs 32-bit versions of ReShade, Unity addon, and Display Commander.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize     = 11,
+            Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 160, 100, 60)),
+        };
+
+        bit32Btn.Checked   += (s, e) => bit32Note.Text =
+            "✅ 32-bit mode ON — ReShade installs as ReShade32.dll, Unity addon uses the 32-bit URL, DC installs zzz_display_commander.addon32. Unreal 32-bit is WIP.";
+        bit32Btn.Unchecked += (s, e) => bit32Note.Text =
+            "Only enable if you know this game is 32-bit. Installs 32-bit versions of ReShade, Unity addon, and Display Commander.";
+
+        panel.Children.Add(bit32Btn);
+        panel.Children.Add(bit32Note);
+
         var dlg = new ContentDialog
         {
             Title             = "Overrides",
-            Content           = panel,
+            Content           = new ScrollViewer
+            {
+                Content = panel,
+                MaxHeight = 480,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                Padding = new Thickness(0, 0, 8, 0),
+            },
             PrimaryButtonText = "Save",
             SecondaryButtonText = !string.IsNullOrEmpty(prefilledDetected) &&
                                   !string.IsNullOrEmpty(ViewModel.GetNameMapping(prefilledDetected ?? ""))
@@ -282,6 +331,11 @@ public sealed partial class MainWindow : Window
                 bool nowShaderExcluded = shaderExcludeBtn.IsChecked == true;
                 if (!string.IsNullOrEmpty(det) && nowShaderExcluded != ViewModel.IsShaderExcluded(det))
                     ViewModel.ToggleShaderExclusion(det);
+
+                // Handle 32-bit mode toggle
+                bool now32Bit = bit32Btn.IsChecked == true;
+                if (!string.IsNullOrEmpty(det) && now32Bit != ViewModel.Is32BitGame(det))
+                    ViewModel.Toggle32Bit(det);
 
                 // Save name mapping if provided and not excluded
                 var key = wikiBox.Text?.Trim();
@@ -400,6 +454,166 @@ public sealed partial class MainWindow : Window
     {
         _ = Windows.System.Launcher.LaunchUriAsync(
             new Uri("https://discordapp.com/channels/1296187754979528747/1475173660686815374"));
+    }
+
+    private async Task<bool> ShowForeignDxgiConfirmDialogAsync(GameCardViewModel card, string dxgiPath)
+    {
+        var fileSize = new System.IO.FileInfo(dxgiPath).Length;
+        var sizeKB   = fileSize / 1024.0;
+
+        var dlg = new ContentDialog
+        {
+            Title               = "⚠ Unknown dxgi.dll Detected",
+            Content             = new TextBlock
+            {
+                TextWrapping = TextWrapping.Wrap,
+                Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 220, 180, 120)),
+                FontSize     = 13,
+                Text         = $"A dxgi.dll file was found in:\n{card.InstallPath}\n\n" +
+                               $"File size: {sizeKB:N0} KB\n\n" +
+                               "RDXC cannot identify this file as ReShade or Display Commander. " +
+                               "It may belong to another mod (e.g. DXVK, Special K, ENB).\n\n" +
+                               "Overwriting it may break the existing mod. Do you want to proceed?",
+            },
+            PrimaryButtonText   = "Overwrite",
+            CloseButtonText     = "Cancel",
+            XamlRoot            = Content.XamlRoot,
+            Background          = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 20, 10)),
+        };
+
+        var result = await dlg.ShowAsync();
+        return result == ContentDialogResult.Primary;
+    }
+
+    // ── Auto-Update ────────────────────────────────────────────────────────────
+
+    private async Task CheckForAppUpdateAsync()
+    {
+        try
+        {
+            // Wait until the XamlRoot is available (window needs to be fully loaded for dialogs)
+            while (Content.XamlRoot == null)
+                await Task.Delay(200);
+
+            var updateInfo = await UpdateService.CheckForUpdateAsync(ViewModel.HttpClient);
+            if (updateInfo == null) return; // up to date or check failed
+
+            // Show update dialog on UI thread
+            DispatcherQueue.TryEnqueue(async () =>
+            {
+                await ShowUpdateDialogAsync(updateInfo);
+            });
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"MainWindow: update check error — {ex.Message}");
+        }
+    }
+
+    private async Task ShowUpdateDialogAsync(UpdateInfo updateInfo)
+    {
+        var dlg = new ContentDialog
+        {
+            Title   = "🔄 Update Available",
+            Content = new StackPanel
+            {
+                Spacing = 8,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        TextWrapping = TextWrapping.Wrap,
+                        Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 180, 220, 255)),
+                        FontSize     = 14,
+                        Text         = $"A new version of RDXC is available!\n\n" +
+                                       $"Installed:  v{updateInfo.CurrentVersion}\n" +
+                                       $"Available:  v{updateInfo.RemoteVersion}\n\n" +
+                                       "Would you like to update now?",
+                    },
+                },
+            },
+            PrimaryButtonText   = "Update Now",
+            CloseButtonText     = "Later",
+            XamlRoot            = Content.XamlRoot,
+            Background          = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 20, 20, 35)),
+        };
+
+        var result = await dlg.ShowAsync();
+        if (result != ContentDialogResult.Primary) return; // user chose "Later"
+
+        // User chose "Update Now" — show downloading dialog
+        await DownloadAndInstallUpdateAsync(updateInfo);
+    }
+
+    private async Task DownloadAndInstallUpdateAsync(UpdateInfo updateInfo)
+    {
+        // Create a non-dismissable progress dialog
+        var progressText = new TextBlock
+        {
+            Text         = "Starting download...",
+            TextWrapping = TextWrapping.Wrap,
+            Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 180, 220, 255)),
+            FontSize     = 13,
+        };
+        var progressBar = new ProgressBar
+        {
+            Minimum = 0,
+            Maximum = 100,
+            Value   = 0,
+            Height  = 6,
+            IsIndeterminate = false,
+        };
+        var downloadDlg = new ContentDialog
+        {
+            Title   = "⬇ Downloading Update",
+            Content = new StackPanel
+            {
+                Spacing = 12,
+                Children = { progressText, progressBar },
+            },
+            XamlRoot   = Content.XamlRoot,
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 20, 20, 35)),
+            // No buttons — dialog will be closed programmatically when download completes
+        };
+
+        // Show dialog non-blocking
+        var dialogTask = downloadDlg.ShowAsync();
+
+        var progress = new Progress<(string msg, double pct)>(p =>
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                progressText.Text = p.msg;
+                progressBar.Value = p.pct;
+            });
+        });
+
+        var installerPath = await UpdateService.DownloadInstallerAsync(
+            ViewModel.HttpClient, updateInfo.DownloadUrl, progress);
+
+        if (string.IsNullOrEmpty(installerPath))
+        {
+            // Download failed — update dialog to show error with a Close button
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                progressText.Text = "❌ Download failed. Please try again later or download manually from GitHub.";
+                progressBar.Value = 0;
+                downloadDlg.CloseButtonText = "Close";
+            });
+            return;
+        }
+
+        // Close the progress dialog
+        downloadDlg.Hide();
+
+        // Launch installer and close RDXC
+        UpdateService.LaunchInstallerAndExit(installerPath, () =>
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                this.Close();
+            });
+        });
     }
 
     private void AboutButton_Click(object sender, RoutedEventArgs e)
