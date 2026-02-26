@@ -421,6 +421,25 @@ public class AuxInstallService
         // ── Copy staged DLL to game folder ────────────────────────────────────────
         progress?.Report(("Installing ReShade...", 80));
         File.Copy(rsStagedPath, destPath, overwrite: true);
+
+        // ── Deploy reshade.ini if not already present ─────────────────────────────
+        // Seeds the game folder with the bundled reshade.ini so ReShade has sane
+        // defaults on first launch. An existing user-modified ini is never overwritten.
+        // The ini is intentionally left in place if ReShade is later uninstalled.
+        try
+        {
+            var gameIniPath = Path.Combine(installPath, "reshade.ini");
+            if (!File.Exists(gameIniPath) && File.Exists(RsIniPath))
+            {
+                File.Copy(RsIniPath, gameIniPath, overwrite: false);
+                CrashReporter.Log($"InstallReShade: seeded reshade.ini to {installPath}");
+            }
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"InstallReShade: failed to seed reshade.ini — {ex.Message}");
+        }
+
         progress?.Report(("ReShade installed!", 100));
 
         // ── Shader deployment ─────────────────────────────────────────────────────

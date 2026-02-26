@@ -1,5 +1,18 @@
 # RenoDXCommander (RDXC) — Patch Notes
 
+## v1.2.5
+
+### Changes
+
+**Updated bundled ReShade.ini**
+- The bundled `ReShade.ini` has been updated with new defaults: Generic Depth and Effect Runtime Sync addons are now disabled, gamepad navigation is off, and the overlay key is set to Home.
+
+**Auto-deploy reshade.ini to game folders**
+- When ReShade is installed to a game folder, the bundled `reshade.ini` is now automatically copied alongside it — but only if a `reshade.ini` does not already exist in the game folder. This gives ReShade sensible defaults on first launch without overwriting any user customisations.
+- The deployed `reshade.ini` is intentionally left in place if ReShade is later uninstalled, so user changes are preserved.
+
+---
+
 ## v1.2.4
 
 ### New Features

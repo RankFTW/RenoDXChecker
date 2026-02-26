@@ -1,4 +1,4 @@
-# RenoDX Commander (RDXC) v1.2.4
+# RenoDX Commander (RDXC) v1.2.5
 
 An unofficial companion app for [RenoDX](https://github.com/clshortfuse/renodx) HDR modding on Windows. RDXC manages **ReShade**, **Display Commander**, and **RenoDX mods** across your entire game library from a single interface — no manual file juggling required.
 
@@ -116,11 +116,13 @@ These cards display **"Extended UE Native HDR"** as their engine label. The ℹ 
 
 RDXC bundles a default `reshade.ini` that is seeded into the inis folder on first launch. If you already have a customised file there, it is never overwritten. If deleted, the bundled default is re-seeded on next launch.
 
+When ReShade is installed to a game folder, the bundled `reshade.ini` is also automatically deployed alongside the DLL — but only if a `reshade.ini` does not already exist in that game folder. This gives ReShade sensible defaults (disabled Generic Depth and Effect Runtime Sync addons, Home key overlay) on first launch without overwriting any existing user customisations. The deployed ini is left in place if ReShade is later uninstalled.
+
 Config files in `%LOCALAPPDATA%\RenoDXCommander\inis\`:
 
 | File | Copied When |
 |------|-------------|
-| `reshade.ini` | You click 📋 on the ReShade row of any game card |
+| `reshade.ini` | Automatically on ReShade install (if absent), or manually via 📋 on the ReShade row |
 | `DisplayCommander.toml` | You click 📋 on the Display Commander row of any game card |
 
 The 📋 button is greyed out when the corresponding file is absent and becomes active once the file exists.
