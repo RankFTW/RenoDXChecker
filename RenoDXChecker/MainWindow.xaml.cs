@@ -150,24 +150,25 @@ public sealed partial class MainWindow : Window
 
         panel.Children.Add(MakeSeparator());
 
-        bool isShaderExcluded = !string.IsNullOrEmpty(prefilledDetected) &&
-                                ViewModel.IsShaderExcluded(prefilledDetected);
+        string currentShaderMode = !string.IsNullOrEmpty(prefilledDetected)
+            ? ViewModel.GetPerGameShaderMode(prefilledDetected)
+            : "Global";
 
-        var shaderExcludeBtn = new ToggleButton
+        var shaderModeOptions = new[] { "Global", "Off", "Minimum", "All", "User" };
+        var shaderModeCombo = new ComboBox
         {
-            Content    = "🎨  Exclude from shader management",
-            IsChecked  = isShaderExcluded,
-            FontSize   = 12,
-            Padding    = new Thickness(10, 6, 10, 6),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 20, 12, 35)),
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 140, 90, 200)),
-            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 70, 25, 120)),
+            ItemsSource  = shaderModeOptions,
+            SelectedItem = currentShaderMode,
+            FontSize     = 12,
             HorizontalAlignment = HorizontalAlignment.Stretch,
+            Header       = "🎨  Shader mode for this game",
         };
-        ToolTipService.SetToolTip(shaderExcludeBtn,
-            "RDXC will not deploy or remove shaders for this game. Manage your own shaders manually.");
+        ToolTipService.SetToolTip(shaderModeCombo,
+            "Global = follow the header toggle. Off = no shaders. Minimum = Lilium only. All = all packs. User = custom folder only.\n" +
+            "Note: Per-game shader mode only applies when ReShade is used standalone (DC Mode OFF). " +
+            "When DC Mode is ON, all DC-mode games share the DC global shader folder.");
 
-        panel.Children.Add(shaderExcludeBtn);
+        panel.Children.Add(shaderModeCombo);
 
         panel.Children.Add(MakeSeparator());
 
@@ -230,10 +231,10 @@ public sealed partial class MainWindow : Window
                 if (!string.IsNullOrEmpty(det) && nowUaExcluded != ViewModel.IsUpdateAllExcluded(det))
                     ViewModel.ToggleUpdateAllExclusion(det);
 
-                // Handle shader exclusion toggle
-                bool nowShaderExcluded = shaderExcludeBtn.IsChecked == true;
-                if (!string.IsNullOrEmpty(det) && nowShaderExcluded != ViewModel.IsShaderExcluded(det))
-                    ViewModel.ToggleShaderExclusion(det);
+                // Handle per-game shader mode
+                var newShaderMode = shaderModeCombo.SelectedItem as string ?? "Global";
+                if (!string.IsNullOrEmpty(det) && newShaderMode != ViewModel.GetPerGameShaderMode(det))
+                    ViewModel.SetPerGameShaderMode(det, newShaderMode);
 
                 // Handle 32-bit mode toggle
                 bool now32Bit = bit32Btn.IsChecked == true;
@@ -394,6 +395,12 @@ public sealed partial class MainWindow : Window
     {
         try
         {
+            if (ViewModel.SkipUpdateCheck)
+            {
+                CrashReporter.Log("MainWindow: update check skipped (disabled in settings)");
+                return;
+            }
+
             // Wait until the XamlRoot is available (window needs to be fully loaded for dialogs)
             while (Content.XamlRoot == null)
                 await Task.Delay(200);
@@ -525,6 +532,17 @@ public sealed partial class MainWindow : Window
         AboutPanel.Visibility  = Visibility.Visible;
         CardsScroll.Visibility = Visibility.Collapsed;
         LoadingPanel.Visibility = Visibility.Collapsed;
+        // Sync toggle state with ViewModel
+        SkipUpdateToggle.IsOn = ViewModel.SkipUpdateCheck;
+    }
+
+    private void SkipUpdateToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleSwitch toggle)
+        {
+            ViewModel.SkipUpdateCheck = toggle.IsOn;
+            ViewModel.SaveSettingsPublic();
+        }
     }
 
     private void OpenLogsFolder_Click(object sender, RoutedEventArgs e)
@@ -927,12 +945,18 @@ public sealed partial class MainWindow : Window
         var inactive = Windows.UI.Color.FromArgb(255, 22, 27, 44);
         var activeFg   = Colors.White;
         var inactiveFg = Windows.UI.Color.FromArgb(255, 160, 170, 200);
-        foreach (var b in new[] { FilterDetected, FilterInstalled, FilterNotInstalled, FilterHidden, FilterUnity, FilterUnreal, FilterOther })
+        foreach (var b in new[] { FilterFavourites, FilterDetected, FilterInstalled, FilterNotInstalled, FilterHidden, FilterUnity, FilterUnreal, FilterOther })
         {
             bool isActive = b == btn;
             b.Background  = new SolidColorBrush(isActive ? active   : inactive);
             b.Foreground  = new SolidColorBrush(isActive ? activeFg : inactiveFg);
         }
+    }
+
+    private void FavouriteButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not GameCardViewModel card) return;
+        ViewModel.ToggleFavouriteCommand.Execute(card);
     }
 
     // ── Card handlers ─────────────────────────────────────────────────────────────

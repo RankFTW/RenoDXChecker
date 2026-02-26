@@ -54,6 +54,7 @@ public class SavedGameLibrary
     public List<SavedGame> Games { get; set; } = new();
     public Dictionary<string, bool> AddonScanCache { get; set; } = new();
     public HashSet<string> HiddenGames { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public HashSet<string> FavouriteGames { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public List<SavedGame> ManualGames { get; set; } = new();
 }
 

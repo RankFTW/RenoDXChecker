@@ -763,7 +763,7 @@ public static class ShaderPackService
     /// • For User mode: removes all pack files, then copies from Custom folder.
     /// • For Off mode: removes all pack files and all custom files previously copied.
     /// </summary>
-    private static void SyncDcFolder(DeployMode m)
+    public static void SyncDcFolder(DeployMode m)
     {
         var (allKnownShaders, allKnownTextures) = AllKnownPackFiles();
 
@@ -829,7 +829,7 @@ public static class ShaderPackService
     /// Synchronises the game-local reshade-shaders folder to exactly match the current mode.
     /// Same pruning + deploy logic as SyncDcFolder but for the per-game folder.
     /// </summary>
-    private static void SyncGameFolder(string gameDir, DeployMode m)
+    public static void SyncGameFolder(string gameDir, DeployMode m)
     {
         var rsShaders = Path.Combine(gameDir, GameReShadeShaders, "Shaders");
         var rsTextures = Path.Combine(gameDir, GameReShadeShaders, "Textures");
@@ -897,10 +897,10 @@ public static class ShaderPackService
     /// Called after ↻ Refresh so mode changes take effect immediately everywhere.
     /// </summary>
     public static void SyncShadersToAllLocations(
-        IEnumerable<(string installPath, bool dcInstalled, bool rsInstalled, bool dcMode, bool shaderExcluded)> locations,
+        IEnumerable<(string installPath, bool dcInstalled, bool rsInstalled, bool dcMode, string? shaderModeOverride)> locations,
         DeployMode? mode = null)
     {
-        var m = mode ?? CurrentMode;
+        var globalMode = mode ?? CurrentMode;
         bool dcSynced = false;
 
         foreach (var loc in locations)
@@ -908,32 +908,35 @@ public static class ShaderPackService
             if (string.IsNullOrEmpty(loc.installPath) || !Directory.Exists(loc.installPath))
                 continue;
 
-            if (loc.shaderExcluded)
-                continue;
+            // Resolve effective mode: per-game override wins, otherwise global
+            var effectiveMode = loc.shaderModeOverride != null
+                && Enum.TryParse<DeployMode>(loc.shaderModeOverride, true, out var overrideMode)
+                ? overrideMode
+                : globalMode;
 
             if (loc.dcInstalled && loc.dcMode)
             {
-                // DC mode: game-local reshade-shaders not used — clean it up if RDXC placed it
+                // DC mode: game-local reshade-shaders not used — clean it up
                 if (IsManagedByRdxc(loc.installPath))
                     RemoveFromGameFolder(loc.installPath);
                 RestoreOriginalIfPresent(loc.installPath);
 
-                // Sync the DC global folder once (all DC-mode games share it)
                 if (!dcSynced)
                 {
-                    SyncDcFolder(m);
+                    SyncDcFolder(effectiveMode);
                     dcSynced = true;
                 }
             }
             else if (loc.rsInstalled && !loc.dcInstalled)
             {
-                SyncGameFolder(loc.installPath, m);
+                // SyncGameFolder handles all modes including Off (removes managed folder)
+                SyncGameFolder(loc.installPath, effectiveMode);
             }
         }
 
         // If no DC game was seen but DC folder exists and mode is Off, still prune it
-        if (!dcSynced && m == DeployMode.Off && Directory.Exists(DcReshadeDir))
-            SyncDcFolder(m);
+        if (!dcSynced && globalMode == DeployMode.Off && Directory.Exists(DcReshadeDir))
+            SyncDcFolder(globalMode);
     }
 
     // ── Private copy helpers ──────────────────────────────────────────────────────

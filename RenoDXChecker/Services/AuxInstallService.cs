@@ -252,7 +252,7 @@ public class AuxInstallService
         bool dcMode,
         AuxInstalledRecord? existingDcRecord = null,
         AuxInstalledRecord? existingRsRecord = null,
-        bool shaderExcluded = false,
+        string? shaderModeOverride = null,
         bool use32Bit = false,
         IProgress<(string message, double percent)>? progress = null)
     {
@@ -346,12 +346,14 @@ public class AuxInstallService
         // DC installation: remove the local reshade-shaders folder (ReShade will use
         // the DC global Reshade path instead). If the folder was user-owned, it gets
         // renamed to reshade-shaders-original and is NOT deleted.
-        if (!shaderExcluded)
-            ShaderPackService.RemoveFromGameFolder(installPath);
+        var effectiveShaderMode = ResolveShaderMode(shaderModeOverride);
+        // DC always takes over shader management — remove local game folder
+        ShaderPackService.RemoveFromGameFolder(installPath);
 
-        // Deploy shaders to the DC global folder — only if not already there.
-        if (dcMode && !shaderExcluded)
-            ShaderPackService.DeployToDcFolder();
+        // Sync shaders to the DC global folder (prune + deploy for mode changes).
+        // Off mode triggers removal inside SyncDcFolder.
+        if (dcMode)
+            ShaderPackService.SyncDcFolder(effectiveShaderMode);
 
         var record = new AuxInstalledRecord
         {
@@ -379,7 +381,7 @@ public class AuxInstallService
         string installPath,
         bool dcMode,
         bool dcIsInstalled = false,
-        bool shaderExcluded = false,
+        string? shaderModeOverride = null,
         bool use32Bit = false,
         IProgress<(string message, double percent)>? progress = null)
     {
@@ -423,16 +425,15 @@ public class AuxInstallService
 
         // ── Shader deployment ─────────────────────────────────────────────────────
         // DC Mode ON  → shaders go to DC global path.
-        // DC Mode OFF + DC NOT installed → deploy reshade-shaders folder to game dir.
+        // DC Mode OFF + DC NOT installed → sync reshade-shaders folder to game dir.
         // DC Mode OFF + DC IS  installed → DC already handles shaders; skip.
-        // shaderExcluded → user manages their own shaders; skip entirely.
-        if (!shaderExcluded)
-        {
-            if (dcMode)
-                ShaderPackService.DeployToDcFolder();
-            else if (!dcIsInstalled)
-                ShaderPackService.DeployToGameFolder(installPath);
-        }
+        // Uses Sync (prune + deploy) so switching shader modes properly removes
+        // files from the previous mode. Off mode triggers removal inside Sync.
+        var effectiveShaderMode = ResolveShaderMode(shaderModeOverride);
+        if (dcMode)
+            ShaderPackService.SyncDcFolder(effectiveShaderMode);
+        else if (!dcIsInstalled)
+            ShaderPackService.SyncGameFolder(installPath, effectiveShaderMode);
 
         var record = new AuxInstalledRecord
         {
@@ -535,5 +536,17 @@ public class AuxInstallService
         Directory.CreateDirectory(Path.GetDirectoryName(DbPath)!);
         File.WriteAllText(DbPath, JsonSerializer.Serialize(db,
             new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    /// <summary>
+    /// Resolves the effective shader deploy mode from a per-game override string.
+    /// null → use the global mode. "Off"/"Minimum"/"All"/"User" → override.
+    /// </summary>
+    private static ShaderPackService.DeployMode ResolveShaderMode(string? shaderModeOverride)
+    {
+        if (shaderModeOverride != null
+            && Enum.TryParse<ShaderPackService.DeployMode>(shaderModeOverride, true, out var overrideMode))
+            return overrideMode;
+        return ShaderPackService.CurrentMode;
     }
 }

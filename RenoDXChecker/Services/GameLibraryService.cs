@@ -21,13 +21,14 @@ public static class GameLibraryService
     }
 
     public static void Save(List<DetectedGame> games, Dictionary<string, bool> addonCache,
-        HashSet<string> hiddenGames, List<DetectedGame> manualGames)
+        HashSet<string> hiddenGames, HashSet<string> favouriteGames, List<DetectedGame> manualGames)
     {
         var lib = new SavedGameLibrary
         {
             LastScanned    = DateTime.UtcNow,
             AddonScanCache = addonCache,
             HiddenGames    = hiddenGames,
+            FavouriteGames = favouriteGames,
             Games = games.Select(g => new SavedGame
             {
                 Name = g.Name, InstallPath = g.InstallPath, Source = g.Source

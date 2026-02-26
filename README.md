@@ -1,4 +1,4 @@
-# RenoDX Commander (RDXC) v1.2.3
+# RenoDX Commander (RDXC) v1.2.4
 
 An unofficial companion app for [RenoDX](https://github.com/clshortfuse/renodx) HDR modding on Windows. RDXC manages **ReShade**, **Display Commander**, and **RenoDX mods** across your entire game library from a single interface — no manual file juggling required.
 
@@ -61,6 +61,7 @@ Additional controls on each card:
 
 | Button | Function |
 |--------|----------|
+| **⭐** | Toggle favourite — favourited games appear in the Favourites tab |
 | **📁** | Open or change the game's install folder |
 | **🎯** | Per-game overrides — hover each toggle for details |
 | **ℹ** | Game info — wiki status, game-specific notes, and common warnings |
@@ -168,14 +169,14 @@ Clicking **↻ Refresh** re-evaluates the current mode against all installed gam
 
 ## Per-Game Overrides
 
-Click **🎯** on any game card to access toggle overrides. Hover each toggle for a description of what it does.
+Click **🎯** on any game card to access overrides. Hover each control for a description of what it does.
 
 | Override | Effect |
 |----------|--------|
 | **Exclude from wiki** | Use a Discord link instead of install — ignore wiki matches |
 | **Exclude from DC Mode** | Always use standard file naming for this game |
 | **Exclude from Update All** | Skip this game during bulk update operations |
-| **Exclude from shader management** | RDXC will not deploy or remove shaders for this game |
+| **Shader mode** | Dropdown: **Global** (follow header toggle), **Off** (no shaders), **Minimum** (Lilium only), **All** (all packs), **User** (custom folder only). Overrides the global shader setting for this game only. Note: per-game shader mode only applies when DC Mode is OFF. When DC Mode is ON, all DC-mode games share the DC global shader folder. |
 | **32-bit mode** | Install 32-bit ReShade, DC, and Unity addon for this game |
 
 The dialog also includes wiki name mapping fields for manually matching a game to a different wiki entry.
@@ -194,13 +195,16 @@ Update availability is indicated by a purple tint on the install/update buttons.
 
 On every launch, RDXC silently checks for new versions at the [GitHub release page](https://github.com/RankFTW/RenoDXChecker/releases/tag/RDXC). If a newer version is found, a dialog offers **Update Now** (downloads the installer, runs it, and closes RDXC) or **Later** (dismisses and continues normally). If the check fails, it is silently ignored.
 
+To disable this check entirely, go to **About → Settings** and toggle **Skip update check on launch**. RDXC will no longer query GitHub for updates until the toggle is switched back off.
+
 ---
 
 ## Filter Tabs
 
 | Tab | Shows |
 |-----|-------|
-| **Detected** | All auto-detected and manually added games |
+| **⭐ Favourites** | Games you've starred as favourites (includes hidden favourites) |
+| **All Games** | All auto-detected and manually added games |
 | **Installed** | Games with at least one component installed |
 | **Not Installed** | Games with no components installed |
 | **Unity** | Unity engine games only |

@@ -19,6 +19,7 @@ public partial class MainViewModel : ObservableObject
     private readonly AuxInstallService _auxInstaller;
     [ObservableProperty] private bool _dcModeEnabled;
     [ObservableProperty] private ShaderDeployMode _shaderDeployMode = ShaderDeployMode.Minimum;
+    [ObservableProperty] private bool _skipUpdateCheck;
 
     /// <summary>
     /// Raised when an install would overwrite a dxgi.dll that RDXC cannot identify
@@ -95,6 +96,7 @@ public partial class MainViewModel : ObservableObject
     public IReadOnlyList<GameCardViewModel> AllCards => _allCards;
     private List<DetectedGame> _manualGames = new();
     private HashSet<string> _hiddenGames = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> _favouriteGames = new(StringComparer.OrdinalIgnoreCase);
 
     // Settings stored as JSON — ApplicationData.Current throws in unpackaged WinUI 3
     private static readonly string _settingsFilePath = System.IO.Path.Combine(
@@ -132,6 +134,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private int _totalGames;
     [ObservableProperty] private int _installedCount;
     [ObservableProperty] private int _hiddenCount;
+    [ObservableProperty] private int _favouriteCount;
 
     public ObservableCollection<GameCardViewModel> DisplayedGames { get; } = new();
 
@@ -182,7 +185,7 @@ public partial class MainViewModel : ObservableObject
     /// <summary>Games excluded from global DC Mode — always use normal file naming.</summary>
     private HashSet<string> _dcModeExcludedGames    = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _updateAllExcludedGames  = new(StringComparer.OrdinalIgnoreCase);
-    private HashSet<string> _shaderExcludedGames     = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, string> _perGameShaderMode = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _is32BitGames            = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
@@ -260,17 +263,28 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    public bool IsShaderExcluded(string gameName) => _shaderExcludedGames.Contains(gameName);
-    public void ToggleShaderExclusion(string gameName)
+    /// <summary>Returns the per-game shader mode override, or "Global" if no override set.</summary>
+    public string GetPerGameShaderMode(string gameName)
+        => _perGameShaderMode.TryGetValue(gameName, out var mode) ? mode : "Global";
+
+    /// <summary>Sets the per-game shader mode override. "Global" removes the override.</summary>
+    public void SetPerGameShaderMode(string gameName, string mode)
     {
-        if (_shaderExcludedGames.Contains(gameName))
-            _shaderExcludedGames.Remove(gameName);
+        if (mode == "Global")
+            _perGameShaderMode.Remove(gameName);
         else
-            _shaderExcludedGames.Add(gameName);
+            _perGameShaderMode[gameName] = mode;
         SaveNameMappings();
         var card = _allCards.FirstOrDefault(c => c.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase));
-        if (card != null) card.ExcludeFromShaders = _shaderExcludedGames.Contains(gameName);
+        if (card != null)
+        {
+            card.ShaderModeOverride = mode == "Global" ? null : mode;
+            card.ExcludeFromShaders = mode == "Off";
+        }
     }
+
+    // Keep backward compat for old callers
+    public bool IsShaderExcluded(string gameName) => _perGameShaderMode.TryGetValue(gameName, out var m) && m == "Off";
 
     public bool AnyUpdateAvailable =>
         _allCards.Any(c => c.Status    == GameStatus.UpdateAvailable ||
@@ -336,12 +350,23 @@ public partial class MainViewModel : ObservableObject
             else
                 _updateAllExcludedGames = new(StringComparer.OrdinalIgnoreCase);
 
-            if (s.TryGetValue("ShaderExcluded", out var seJson) && !string.IsNullOrEmpty(seJson))
-                _shaderExcludedGames = new HashSet<string>(
-                    JsonSerializer.Deserialize<List<string>>(seJson) ?? new(),
-                    StringComparer.OrdinalIgnoreCase);
+            // Per-game shader mode overrides — new format is a dict, old format was a list of excluded names
+            if (s.TryGetValue("PerGameShaderMode", out var pgsmJson) && !string.IsNullOrEmpty(pgsmJson))
+            {
+                _perGameShaderMode = JsonSerializer.Deserialize<Dictionary<string, string>>(pgsmJson)
+                    ?? new(StringComparer.OrdinalIgnoreCase);
+                // Ensure case-insensitive
+                _perGameShaderMode = new Dictionary<string, string>(_perGameShaderMode, StringComparer.OrdinalIgnoreCase);
+            }
+            else if (s.TryGetValue("ShaderExcluded", out var seJson) && !string.IsNullOrEmpty(seJson))
+            {
+                // Migrate old boolean exclusion list → "Off" per-game mode
+                var oldList = JsonSerializer.Deserialize<List<string>>(seJson) ?? new();
+                _perGameShaderMode = new(StringComparer.OrdinalIgnoreCase);
+                foreach (var name in oldList) _perGameShaderMode[name] = "Off";
+            }
             else
-                _shaderExcludedGames = new(StringComparer.OrdinalIgnoreCase);
+                _perGameShaderMode = new(StringComparer.OrdinalIgnoreCase);
 
             if (s.TryGetValue("Is32BitGames", out var b32Json) && !string.IsNullOrEmpty(b32Json))
                 _is32BitGames = new HashSet<string>(
@@ -354,6 +379,9 @@ public partial class MainViewModel : ObservableObject
                 Enum.TryParse<ShaderDeployMode>(sdm, out var parsedSdm))
                 ShaderDeployMode = parsedSdm;
             ShaderPackService.CurrentMode = ShaderDeployMode;
+
+            if (s.TryGetValue("SkipUpdateCheck", out var sucVal))
+                SkipUpdateCheck = sucVal == "true";
         }
         catch
         {
@@ -362,7 +390,7 @@ public partial class MainViewModel : ObservableObject
             _ueExtendedGames        = new(StringComparer.OrdinalIgnoreCase);
             _dcModeExcludedGames    = new(StringComparer.OrdinalIgnoreCase);
             _updateAllExcludedGames = new(StringComparer.OrdinalIgnoreCase);
-            _shaderExcludedGames    = new(StringComparer.OrdinalIgnoreCase);
+            _perGameShaderMode      = new(StringComparer.OrdinalIgnoreCase);
             _is32BitGames           = new(StringComparer.OrdinalIgnoreCase);
         }
     }
@@ -610,8 +638,12 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>Public entry point to persist all settings to disk.</summary>
+    public void SaveSettingsPublic() => SaveNameMappings();
+
     private void SaveNameMappings()
     {
+        // Called SaveNameMappings for historical reasons — actually saves all settings
         try
         {
             var s = LoadSettingsFile();
@@ -621,9 +653,10 @@ public partial class MainViewModel : ObservableObject
             s["DcModeEnabled"]   = DcModeEnabled.ToString();
             s["DcModeExcluded"]         = JsonSerializer.Serialize(_dcModeExcludedGames.ToList());
             s["UpdateAllExcluded"]     = JsonSerializer.Serialize(_updateAllExcludedGames.ToList());
-            s["ShaderExcluded"]       = JsonSerializer.Serialize(_shaderExcludedGames.ToList());
+            s["PerGameShaderMode"]    = JsonSerializer.Serialize(_perGameShaderMode);
             s["Is32BitGames"]         = JsonSerializer.Serialize(_is32BitGames.ToList());
             s["ShaderDeployMode"]    = ShaderDeployMode.ToString();
+            s["SkipUpdateCheck"]     = SkipUpdateCheck ? "true" : "false";
             SaveSettingsFile(s);
         }
         catch { }
@@ -736,6 +769,22 @@ public partial class MainViewModel : ObservableObject
             _hiddenGames.Add(key);
 
         card.IsHidden = _hiddenGames.Contains(key);
+        SaveLibrary();
+        ApplyFilter();
+        UpdateCounts();
+    }
+
+    [RelayCommand]
+    public void ToggleFavourite(GameCardViewModel? card)
+    {
+        if (card == null) return;
+        var key = card.GameName;
+        if (_favouriteGames.Contains(key))
+            _favouriteGames.Remove(key);
+        else
+            _favouriteGames.Add(key);
+
+        card.IsFavourite = _favouriteGames.Contains(key);
         SaveLibrary();
         ApplyFilter();
         UpdateCounts();
@@ -915,11 +964,13 @@ public partial class MainViewModel : ObservableObject
                               : effectiveMod?.DiscordUrl,
             NameUrl         = effectiveMod?.NameUrl,
             IsManuallyAdded = true,
+            IsFavourite            = _favouriteGames.Contains(game.Name),
             UseUeExtended          = useUeExt,
             IsNativeHdrGame        = isNativeHdr,
             DcModeExcluded         = _dcModeExcludedGames.Contains(game.Name),
             ExcludeFromUpdateAll   = _updateAllExcludedGames.Contains(game.Name),
-            ExcludeFromShaders     = _shaderExcludedGames.Contains(game.Name),
+            ExcludeFromShaders     = IsShaderExcluded(game.Name),
+            ShaderModeOverride     = _perGameShaderMode.TryGetValue(game.Name, out var smO) ? smO : null,
             Is32Bit                = _is32BitGames.Contains(game.Name),
             DcRecord        = dcRecManual,
             DcStatus        = dcRecManual != null ? GameStatus.Installed : GameStatus.NotInstalled,
@@ -1074,7 +1125,7 @@ public partial class MainViewModel : ObservableObject
             var record = await _auxInstaller.InstallDcAsync(card.GameName, card.InstallPath, effectiveDcMode,
                 existingDcRecord: card.DcRecord,
                 existingRsRecord: card.RsRecord,
-                shaderExcluded:   card.ExcludeFromShaders,
+                shaderModeOverride: card.ShaderModeOverride,
                 use32Bit:         card.Is32Bit,
                 progress:         progress);
             DispatcherQueue?.TryEnqueue(() =>
@@ -1165,7 +1216,7 @@ public partial class MainViewModel : ObservableObject
             });
             var record = await _auxInstaller.InstallReShadeAsync(card.GameName, card.InstallPath, effectiveDcModeRs,
                 dcIsInstalled:  card.DcStatus == GameStatus.Installed,
-                shaderExcluded: card.ExcludeFromShaders,
+                shaderModeOverride: card.ShaderModeOverride,
                 use32Bit:       card.Is32Bit,
                 progress:       progress);
             DispatcherQueue?.TryEnqueue(() =>
@@ -1309,7 +1360,7 @@ public partial class MainViewModel : ObservableObject
                 var record = await _auxInstaller.InstallReShadeAsync(
                     card.GameName, card.InstallPath, effectiveDcMode,
                     dcIsInstalled:  dcInstalled,
-                    shaderExcluded: card.ExcludeFromShaders,
+                    shaderModeOverride: card.ShaderModeOverride,
                     use32Bit:       card.Is32Bit,
                     progress:       progress);
                 DispatcherQueue?.TryEnqueue(() =>
@@ -1374,7 +1425,7 @@ public partial class MainViewModel : ObservableObject
                     card.GameName, card.InstallPath, effectiveDcMode,
                     existingDcRecord: card.DcRecord,
                     existingRsRecord: card.RsRecord,
-                    shaderExcluded:   card.ExcludeFromShaders,
+                    shaderModeOverride: card.ShaderModeOverride,
                     use32Bit:         card.Is32Bit,
                     progress:         progress);
                 DispatcherQueue?.TryEnqueue(() =>
@@ -1413,6 +1464,7 @@ public partial class MainViewModel : ObservableObject
             Dictionary<string, bool> addonCache;
 
             _hiddenGames = savedLib?.HiddenGames ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            _favouriteGames = savedLib?.FavouriteGames ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             _manualGames = savedLib != null ? GameLibraryService.ToManualGames(savedLib) : new();
 
             if (savedLib != null && !forceRescan)
@@ -1495,7 +1547,7 @@ public partial class MainViewModel : ObservableObject
                             dcInstalled  : card.DcStatus  == GameStatus.Installed || card.DcStatus  == GameStatus.UpdateAvailable,
                             rsInstalled  : card.RsStatus  == GameStatus.Installed || card.RsStatus  == GameStatus.UpdateAvailable,
                             dcMode       : DcModeEnabled && !card.DcModeExcluded,
-                            shaderExcluded: card.ExcludeFromShaders
+                            shaderModeOverride: card.ShaderModeOverride
                         ));
                     ShaderPackService.SyncShadersToAllLocations(locations);
                 }
@@ -1957,6 +2009,7 @@ public partial class MainViewModel : ObservableObject
                 Notes                  = effectiveMod != null ? BuildNotes(game.Name, effectiveMod, fallback, genericNotes, isNativeHdr) : "",
                 InstalledAddonFileName = record?.AddonFileName,
                 IsHidden               = _hiddenGames.Contains(game.Name),
+                IsFavourite            = _favouriteGames.Contains(game.Name),
                 IsManuallyAdded        = game.IsManuallyAdded,
                 UseUeExtended          = useUeExt,
                 IsExternalOnly         = _wikiExclusions.Contains(game.Name)
@@ -1976,10 +2029,10 @@ public partial class MainViewModel : ObservableObject
                 NameUrl                = effectiveMod?.NameUrl,
                 DcModeExcluded         = _dcModeExcludedGames.Contains(game.Name),
                 ExcludeFromUpdateAll   = _updateAllExcludedGames.Contains(game.Name),
-                ExcludeFromShaders     = _shaderExcludedGames.Contains(game.Name),
+                ExcludeFromShaders     = IsShaderExcluded(game.Name),
+                ShaderModeOverride     = _perGameShaderMode.TryGetValue(game.Name, out var smBc) ? smBc : null,
                 Is32Bit                = _is32BitGames.Contains(game.Name),
-                IsNativeHdrGame        = IsNativeHdrGameMatch(game.Name),
-                DcRecord               = dcRec,
+                IsNativeHdrGame        = isNativeHdr,
                 DcStatus               = dcRec != null ? GameStatus.Installed : GameStatus.NotInstalled,
                 DcInstalledFile        = dcRec?.InstalledAs,
                 RsRecord               = rsRec,
@@ -1993,44 +2046,53 @@ public partial class MainViewModel : ObservableObject
 
     private static string BuildNotes(string gameName, GameMod effectiveMod, GameMod? fallback, Dictionary<string, string> genericNotes, bool isNativeHdr = false)
     {
+        // Native HDR / UE-Extended whitelisted games always get the HDR warning,
+        // whether they have a specific wiki mod or are using the generic UE fallback.
+        if (isNativeHdr)
+        {
+            var parts = new List<string>();
+            parts.Add("⚠ In-game HDR must be turned ON for UE-Extended to work correctly in this title.");
+
+            // Include wiki tooltip if present (from a specific mod entry)
+            if (fallback == null && !string.IsNullOrWhiteSpace(effectiveMod.Notes))
+            {
+                parts.Add("");
+                parts.Add(effectiveMod.Notes);
+            }
+
+            // Do NOT include generic UE game-specific settings — these are for the
+            // generic addon, not UE-Extended. UE-Extended whitelisted games don't
+            // need generic addon installation guidance.
+
+            return string.Join("\n", parts);
+        }
+
         // Specific mod — wiki tooltip note (may be null/empty if no tooltip)
         if (fallback == null) return effectiveMod.Notes ?? "";
 
-        var parts = new List<string>();
+        var notesParts = new List<string>();
 
-        if (isNativeHdr)
-        {
-            // Native HDR / UE-Extended whitelisted games — don't show generic UE info
-            parts.Add("⚠ In-game HDR must be turned ON for UE-Extended to work correctly in this title.");
-
-            var specific = GetGenericNote(gameName, genericNotes);
-            if (!string.IsNullOrEmpty(specific))
-            {
-                parts.Add("\n📋 Game-specific settings:");
-                parts.Add(specific);
-            }
-        }
-        else if (effectiveMod.IsGenericUnreal)
+        if (effectiveMod.IsGenericUnreal)
         {
             var specific = GetGenericNote(gameName, genericNotes);
             if (!string.IsNullOrEmpty(specific))
             {
-                parts.Add("📋 Game-specific settings:");
-                parts.Add(specific);
+                notesParts.Add("📋 Game-specific settings:");
+                notesParts.Add(specific);
             }
-            parts.Add(UnrealWarnings);
+            notesParts.Add(UnrealWarnings);
         }
         else // Unity
         {
             var specific = GetGenericNote(gameName, genericNotes);
             if (!string.IsNullOrEmpty(specific))
             {
-                parts.Add("📋 Game-specific settings:");
-                parts.Add(specific);
+                notesParts.Add("📋 Game-specific settings:");
+                notesParts.Add(specific);
             }
         }
 
-        return string.Join("\n", parts);
+        return string.Join("\n", notesParts);
     }
 
     private static string? ScanForInstalledAddon(string installPath, GameMod? mod)
@@ -2096,6 +2158,9 @@ public partial class MainViewModel : ObservableObject
             // Hidden tab always shows hidden games regardless of the ShowHidden toggle
             if (FilterMode == "Hidden") return c.IsHidden;
 
+            // Favourites tab: show favourited games (even if hidden)
+            if (FilterMode == "Favourites") return c.IsFavourite;
+
             // Engine filters
             if (FilterMode == "Unity")
             {
@@ -2150,12 +2215,14 @@ public partial class MainViewModel : ObservableObject
 
     private void UpdateCounts()
     {
-        InstalledCount = _allCards.Count(c => c.Status == GameStatus.Installed || c.Status == GameStatus.UpdateAvailable);
-        HiddenCount    = _allCards.Count(c => c.IsHidden);
-        TotalGames     = DisplayedGames.Count;
+        InstalledCount  = _allCards.Count(c => c.Status == GameStatus.Installed || c.Status == GameStatus.UpdateAvailable);
+        HiddenCount     = _allCards.Count(c => c.IsHidden);
+        FavouriteCount  = _allCards.Count(c => c.IsFavourite);
+        TotalGames      = DisplayedGames.Count;
         OnPropertyChanged(nameof(InstalledCount));
         OnPropertyChanged(nameof(TotalGames));
         OnPropertyChanged(nameof(HiddenCount));
+        OnPropertyChanged(nameof(FavouriteCount));
     }
 
     public void SaveLibraryPublic() => SaveLibrary();
@@ -2172,7 +2239,7 @@ public partial class MainViewModel : ObservableObject
         foreach (var c in _allCards.Where(c => !string.IsNullOrEmpty(c.InstallPath)))
             addonCache[c.InstallPath.ToLowerInvariant()] = !string.IsNullOrEmpty(c.InstalledAddonFileName);
 
-        GameLibraryService.Save(detectedGames, addonCache, _hiddenGames, _manualGames);
+        GameLibraryService.Save(detectedGames, addonCache, _hiddenGames, _favouriteGames, _manualGames);
     }
 
     private static string FormatAge(DateTime utc)

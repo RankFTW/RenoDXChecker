@@ -20,6 +20,7 @@ public partial class GameCardViewModel : ObservableObject
     [ObservableProperty] private string _actionMessage = "";
     [ObservableProperty] private string? _installedAddonFileName;
     [ObservableProperty] private bool _isHidden = false;
+    [ObservableProperty] private bool _isFavourite = false;
 
     [ObservableProperty] private bool _isExternalOnly;
     [ObservableProperty] private bool _isGenericMod;
@@ -54,6 +55,8 @@ public partial class GameCardViewModel : ObservableObject
     public bool DcModeExcluded       { get; set; }
     public bool ExcludeFromUpdateAll { get; set; }
     public bool ExcludeFromShaders   { get; set; }
+    /// <summary>Per-game shader mode override: null = follow global, "Off"/"Minimum"/"All"/"User".</summary>
+    public string? ShaderModeOverride { get; set; }
 
     // ── 32-bit mode ───────────────────────────────────────────────────────────────
     [ObservableProperty] private bool _is32Bit = false;
@@ -219,6 +222,7 @@ public partial class GameCardViewModel : ObservableObject
     public bool HasExtraLinks         => NexusUrl != null || DiscordUrl != null;
     public bool HasNameUrl            => !string.IsNullOrEmpty(NameUrl);
     public string HideButtonLabel     => IsHidden ? "👁 Show" : "🚫 Hide";
+    public string StarForeground       => IsFavourite ? "#FFD700" : "#282840";
 
     public string InstallActionLabel
     {
@@ -278,6 +282,7 @@ public partial class GameCardViewModel : ObservableObject
         OnPropertyChanged(nameof(InstallPathDisplay));
         OnPropertyChanged(nameof(UpdateBadgeVisibility));
         OnPropertyChanged(nameof(HideButtonLabel));
+        OnPropertyChanged(nameof(StarForeground));
         OnPropertyChanged(nameof(IsHiddenVisibility));
         OnPropertyChanged(nameof(IsNotHiddenVisibility));
         // Visibility props that depend on IsExternalOnly / Mod (plain computed properties)
@@ -356,6 +361,7 @@ public partial class GameCardViewModel : ObservableObject
     partial void OnDcActionMessageChanged(string v)         => OnPropertyChanged(nameof(DcMessageVisibility));
     partial void OnRsActionMessageChanged(string v)         => OnPropertyChanged(nameof(RsMessageVisibility));
     partial void OnIsHiddenChanged(bool v)                  => OnPropertyChanged(nameof(HideButtonLabel));
+    partial void OnIsFavouriteChanged(bool v)               => OnPropertyChanged(nameof(StarForeground));
     partial void OnInstallPathChanged(string v)             => OnPropertyChanged(nameof(InstallPathDisplay));
     partial void OnSourceChanged(string v)                  => OnPropertyChanged(nameof(SourceBadgeVisibility));
 }

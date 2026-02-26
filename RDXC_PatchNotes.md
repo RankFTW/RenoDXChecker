@@ -1,5 +1,30 @@
 # RenoDXCommander (RDXC) — Patch Notes
 
+## v1.2.4
+
+### New Features
+
+**Favourites**
+- Each game card now has a ⭐ star icon as the first element on the card header row (before 💬, game name, 🎯, ℹ, 🚫).
+- Click the star to toggle a game as a favourite. Favourited stars are gold, unfavourited stars are dim.
+- A new **⭐ Favourites** filter tab is the first option on the filter row. It shows all favourited games, including hidden games that have been favourited.
+- Favourites are persisted in `game_library.json` across sessions.
+
+### Fixes
+
+**UE-Extended whitelisted games — ℹ info card**
+- Games whitelisted for UE-Extended (Avowed, Lies of P, etc.) now always show the "In-game HDR must be turned ON" warning in the ℹ popup, regardless of whether the game has a specific wiki mod entry or uses the generic UE fallback. Previously, games with a wiki match (like Avowed) bypassed the native HDR branch in `BuildNotes` due to an early return.
+- Generic Unreal addon game-specific fixes (from the wiki `_genericNotes` dictionary) are no longer shown for UE-Extended whitelisted games. These notes apply to the generic addon, not UE-Extended.
+
+**Per-game shader mode — switching now fully syncs**
+- Changing a game's shader mode in Overrides and reinstalling ReShade now correctly removes files from the previous mode before deploying the new one. Previously, `DeployToGameFolder` (add-only) was used instead of `SyncGameFolder` (prune + add), so switching from User to Minimum left custom shaders in place.
+- The same fix applies to DC installs — shader folder syncs now prune before deploying.
+
+**Per-game shader mode — DC Mode clarification**
+- The shader mode dropdown tooltip now notes that per-game shader mode only applies when DC Mode is OFF (ReShade standalone). When DC Mode is ON, all DC-mode games share the DC global shader folder at `%LOCALAPPDATA%\Programs\Display_Commander\Reshade\`, so per-game overrides do not affect DC-mode games.
+
+---
+
 ## v1.2.3
 
 ### UI Cleanup
@@ -14,6 +39,16 @@
 **Condensed Overrides dialog**
 - All toggle description text has been moved to hover tooltips on each toggle button.
 - The dialog is significantly shorter and less cluttered — hover any toggle to read what it does.
+
+**Per-game shader mode override**
+- The shader management toggle in Overrides has been replaced with a dropdown that cycles between: **Global** (follow the header toggle), **Off** (no shaders), **Minimum** (Lilium only), **All** (all packs), and **User** (custom folder only).
+- This allows individual games to use a different shader set than the global default — e.g. setting one game to "User" while the rest follow the global "Minimum" setting.
+- Existing "exclude from shaders" settings are automatically migrated to "Off" mode.
+
+**Skip update check**
+- A new toggle in the About panel (Settings section) allows disabling the automatic update check on launch.
+- When enabled, RDXC will not query GitHub for new versions and the update dialog will never appear.
+- The setting persists across sessions.
 
 ### New Features
 

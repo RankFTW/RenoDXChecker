@@ -131,6 +131,10 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
+                    <Button x:Name="FilterFavourites" Content="⭐ Favourites" Tag="Favourites"
+                            Click="Filter_Click"
+                            Background="#161E38" Foreground="#8896C0"
+                            BorderThickness="0" CornerRadius="7" Padding="12,6" FontSize="12"/>
                     <Button x:Name="FilterDetected" Content="🎮 All Games" Tag="Detected"
                             Click="Filter_Click"
                             Background="#1E2850" Foreground="White"
@@ -221,7 +225,7 @@
                                     <Run Text="RenoDXCommander" Foreground="#00C8FF"/>
                                 </TextBlock>
                                 <TextBlock FontSize="12" Foreground="#4A5878">
-                                    <Run Text="v1.2.2  ·  HDR mod manager by "/>
+                                    <Run Text="v1.2.4  ·  HDR mod manager by "/>
                                     <Run Text="RankFTW" FontWeight="SemiBold" Foreground="#6070A0"/>
                                     <Run Text="  ·  Unofficial companion tool"/>
                                 </TextBlock>
@@ -464,6 +468,20 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Settings -->
+                        <Border Background="#111A28" CornerRadius="10" Padding="16,12"
+                                BorderBrush="#1C2440" BorderThickness="1">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Settings" FontSize="12" FontWeight="SemiBold" Foreground="#A0B0D8"/>
+                                <ToggleSwitch x:Name="SkipUpdateToggle"
+                                              Header="Skip update check on launch"
+                                              Toggled="SkipUpdateToggle_Toggled"
+                                              OnContent="Disabled — RDXC will not check for updates"
+                                              OffContent="Enabled — RDXC checks for updates on launch"
+                                              Foreground="#7A8EAE" FontSize="12"/>
+                            </StackPanel>
+                        </Border>
+
                         <!-- Crash logs & cache -->
                         <Border Background="#0E1520" CornerRadius="10" Padding="16,12"
                                 BorderBrush="#1A2438" BorderThickness="1">
@@ -545,17 +563,27 @@
                                         <RowDefinition Height="Auto"/> <!-- 8: progress/message -->
                                     </Grid.RowDefinitions>
 
-                                    <!-- Row 0: 💬 | name | 🎯 | ℹ | 🚫 -->
+                                    <!-- Row 0: ⭐ | 💬 | name | 🎯 | ℹ | 🚫 -->
                                     <Grid Grid.Row="0" VerticalAlignment="Center">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>  <!-- 0: 💬 discussion (before name) -->
-                                            <ColumnDefinition Width="*"/>     <!-- 1: game name -->
-                                            <ColumnDefinition Width="Auto"/>  <!-- 2: 🎯 tune -->
-                                            <ColumnDefinition Width="Auto"/>  <!-- 3: ℹ info -->
-                                            <ColumnDefinition Width="Auto"/>  <!-- 4: 🚫 hide (far right) -->
+                                            <ColumnDefinition Width="Auto"/>  <!-- 0: ⭐ favourite -->
+                                            <ColumnDefinition Width="Auto"/>  <!-- 1: 💬 discussion (before name) -->
+                                            <ColumnDefinition Width="*"/>     <!-- 2: game name -->
+                                            <ColumnDefinition Width="Auto"/>  <!-- 3: 🎯 tune -->
+                                            <ColumnDefinition Width="Auto"/>  <!-- 4: ℹ info -->
+                                            <ColumnDefinition Width="Auto"/>  <!-- 5: 🚫 hide (far right) -->
                                         </Grid.ColumnDefinitions>
-                                        <!-- 💬 discussion / wiki link — shown before the game name so it stands out -->
+                                        <!-- ⭐ favourite toggle — first element on the row -->
                                         <Button Grid.Column="0"
+                                                Click="FavouriteButton_Click" Tag="{x:Bind}"
+                                                Background="Transparent" BorderThickness="0"
+                                                Width="22" Height="22" Padding="0" Margin="0,0,2,0"
+                                                ToolTipService.ToolTip="Toggle favourite">
+                                            <TextBlock Text="⭐" FontSize="10"
+                                                       Foreground="{x:Bind StarForeground, Mode=OneWay}"/>
+                                        </Button>
+                                        <!-- 💬 discussion / wiki link — shown before the game name so it stands out -->
+                                        <Button Grid.Column="1"
                                                 Visibility="{x:Bind NameLinkVisibility}"
                                                 Click="NameLink_Click" Tag="{x:Bind}"
                                                 Background="Transparent" BorderThickness="0"
@@ -564,12 +592,12 @@
                                             <TextBlock Text="💬" FontSize="11" Foreground="#6A9ABE"/>
                                         </Button>
                                         <!-- Game name -->
-                                        <TextBlock Grid.Column="1" Text="{x:Bind GameName}"
+                                        <TextBlock Grid.Column="2" Text="{x:Bind GameName}"
                                                    FontSize="13" FontWeight="SemiBold" Foreground="#E2E8FF"
                                                    TextTrimming="CharacterEllipsis" MaxLines="1"
                                                    VerticalAlignment="Center"/>
                                         <!-- 🎯 per-card wiki name match override -->
-                                        <Button Grid.Column="2"
+                                        <Button Grid.Column="3"
                                                 Click="TuneButton_Card_Click" Tag="{x:Bind}"
                                                 Background="Transparent" BorderThickness="0"
                                                 Width="22" Height="22" Padding="0" Margin="2,0,0,0"
@@ -577,7 +605,7 @@
                                             <TextBlock Text="🎯" FontSize="10" Foreground="#30405A"/>
                                         </Button>
                                         <!-- ℹ info button — always visible -->
-                                        <Button Grid.Column="3"
+                                        <Button Grid.Column="4"
                                                 Click="NotesButton_Click" Tag="{x:Bind}"
                                                 Background="Transparent" BorderThickness="0"
                                                 Width="26" Height="26" Padding="0" Margin="3,0,0,0"
@@ -585,7 +613,7 @@
                                             <TextBlock Text="ℹ" FontSize="13" Foreground="#5A6EA0"/>
                                         </Button>
                                         <!-- 🚫 hide button — far right -->
-                                        <Button Grid.Column="4"
+                                        <Button Grid.Column="5"
                                                 Click="HideButton_Click" Tag="{x:Bind}"
                                                 Background="Transparent" BorderThickness="0"
                                                 Width="26" Height="26" Padding="0" Margin="4,0,0,0"
