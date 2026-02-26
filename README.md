@@ -1,4 +1,4 @@
-# RenoDX Commander (RDXC) v1.2.2
+# RenoDX Commander (RDXC) v1.2.3
 
 An unofficial companion app for [RenoDX](https://github.com/clshortfuse/renodx) HDR modding on Windows. RDXC manages **ReShade**, **Display Commander**, and **RenoDX mods** across your entire game library from a single interface — no manual file juggling required.
 
@@ -9,7 +9,7 @@ An unofficial companion app for [RenoDX](https://github.com/clshortfuse/renodx) 
 ## Quick Start
 
 1. **Run RDXC** — it automatically detects games from Steam, GOG, Epic, EA App, and Xbox / Game Pass on every launch.
-2. **Find your game** using the search bar or filter tabs. If it's not detected, click **➕ Add Game**.
+2. **Find your game** using the search bar or filter tabs.
 3. **Install ReShade** — top row button on any game card. Bundled with the app, no download needed.
 4. **Install Display Commander** — middle row. Downloaded from GitHub on first install, cached locally after.
 5. **Install RenoDX** — bottom row (supported games only). Downloaded from GitHub.
@@ -26,7 +26,7 @@ An unofficial companion app for [RenoDX](https://github.com/clshortfuse/renodx) 
 
 ## Game Detection
 
-RDXC re-scans all stores on every launch and merges newly installed games into its cached library automatically. You never need to delete cache files — new games just appear.
+RDXC re-scans all stores on every launch and merges newly installed games into its cached library automatically. New games just appear — no need to delete cache files.
 
 | Store | Detection Method |
 |-------|-----------------|
@@ -36,7 +36,14 @@ RDXC re-scans all stores on every launch and merges newly installed games into i
 | **EA App** | `installerdata.xml` files in `ProgramData\EA\content` |
 | **Xbox / Game Pass** | Windows `PackageManager` API — identifies games by `MicrosoftGame.config` presence. Falls back to `.GamingRoot` file parsing, registry, and folder scanning |
 
-Games on a disconnected drive are preserved in the cache until the drive is reconnected. Games not automatically detected can be added manually via **➕ Add Game**.
+Games on a disconnected drive are preserved in the cache until the drive is reconnected.
+
+### Adding Games Manually
+
+Games not automatically detected can be added two ways:
+
+- **➕ Add Game** button — enter the game name and pick the install folder.
+- **Drag and drop** — drag a game's `.exe` file directly onto the RDXC window. RDXC automatically detects the engine type (Unreal, Unity, or Unknown), infers the game root folder by recognising store markers (Steam, GOG, Epic, EA, Xbox) and engine layouts (`Binaries\Win64`, `UnityPlayer.dll`, etc.), and guesses the game name from folder structure and exe name. A confirmation dialog shows all detected info and lets you edit the name before adding. Duplicate detection prevents adding a game that already exists.
 
 ---
 
@@ -55,12 +62,12 @@ Additional controls on each card:
 | Button | Function |
 |--------|----------|
 | **📁** | Open or change the game's install folder |
-| **🎯** | Per-game overrides (name mapping, exclusions, 32-bit mode) |
-| **ℹ** | Game-specific setup notes from the RenoDX wiki |
+| **🎯** | Per-game overrides — hover each toggle for details |
+| **ℹ** | Game info — wiki status, game-specific notes, and common warnings |
 | **💬** | Link to the wiki discussion thread |
 | **🚫** | Hide or unhide the game |
 
-The engine type badge (Unreal, Unity, or Generic) appears on each card alongside the store source (Steam, GOG, Epic, EA App, Xbox).
+The engine type badge (Unreal, Unity, or Generic) and store source (Steam, GOG, Epic, EA App, Xbox) appear on each card.
 
 ---
 
@@ -73,15 +80,24 @@ The **⚙ DC Mode** toggle in the header controls how ReShade and Display Comman
 | **OFF** (default) | `dxgi.dll` | `zzz_display_commander.addon64` |
 | **ON** | `ReShade64.dll` | `dxgi.dll` |
 
-Switching modes and reinstalling automatically removes the old file and places the correctly named one.
+Switching modes and reinstalling automatically removes the old file and places the correctly named one. Individual games can be excluded via **🎯 Overrides → Exclude from global DC Mode**.
 
-Individual games can be excluded from the global toggle via **🎯 Overrides → Exclude from global DC Mode**. Excluded games always use standard naming regardless of the global setting.
+### Why DC Mode is Recommended
+
+DC Mode (loading Display Commander as `dxgi.dll`) is the preferred method of running Display Commander. As explained by pmnoxx (Display Commander's developer), loading DC as a ReShade addon causes it to hook too late, which prevents several features from working correctly. The following issues are resolved by running DC as `dxgi.dll` via DC Mode:
+
+1. **Streamline / DLSS integration** — In many games, it is not possible to swap DLSS files or view/control DLSS and DLSS-FG settings (such as render and quality profiles) when DC loads as an addon, because it hooks too late.
+2. **FPS limiter** — In games without native Reflex, hooking directly into D3D11/D3D12 does not work when DC is an addon, resulting in extra latency.
+3. **VSync control** — Toggling VSync on/off does not currently work when a RenoDX addon is also loaded, due to a ReShade limitation. A fix will be possible when DC runs as `dxgi.dll`.
+4. **Flip swapchain upgrade** — Many games crash when upgrading the swapchain to flip mode. This will be fixable in the future when DC loads as `dxgi.dll`.
+5. **ASI loader functionality** — DC supports loading DLL files as `.asi`. Some addons will not work if DC is not loaded as `dxgi.dll`, because they are loaded too late.
+6. **General addon load order** — DLL load order is game-dependent and unpredictable. Some DC functionality may break when loading as an addon, which is impossible to diagnose due to the variable load order.
 
 ---
 
 ## Foreign dxgi.dll Protection
 
-When installing ReShade or DC as `dxgi.dll`, RDXC checks whether an existing `dxgi.dll` belongs to another tool (DXVK, Special K, ENB, etc.) using binary signature scanning. If the file cannot be positively identified as ReShade or Display Commander, a confirmation dialog asks whether to overwrite it. During Update All, unidentified foreign files are silently skipped to avoid breaking other mods.
+When installing ReShade or DC as `dxgi.dll`, RDXC checks whether an existing `dxgi.dll` belongs to another tool (DXVK, Special K, ENB, etc.) using binary signature scanning. If the file cannot be positively identified as ReShade or Display Commander, a confirmation dialog asks whether to overwrite it. During Update All, unidentified foreign files are silently skipped.
 
 ---
 
@@ -91,13 +107,13 @@ Unreal Engine games with native HDR support benefit from the UE-Extended addon i
 
 Avowed · Lies of P · Lost Soul Aside · Hell is Us · Mafia: The Old Country · Returnal · Marvel's Midnight Suns · Mortal Kombat 1 · Alone in the Dark · Still Wakes the Deep
 
-These cards display **"Extended UE Native HDR"** as their engine label. Other Generic UE cards can be manually toggled to UE-Extended via the **⚡** button.
+These cards display **"Extended UE Native HDR"** as their engine label. The ℹ info popup for these games includes a note that in-game HDR must be turned on for UE-Extended to work correctly. Other Generic UE cards can be manually toggled to UE-Extended via the **⚡** button.
 
 ---
 
 ## INI Presets
 
-RDXC bundles a default `reshade.ini` that is seeded into the inis folder on first launch. If you already have a customised `reshade.ini` there, it is never overwritten. If you delete it, the bundled default is re-seeded on next launch.
+RDXC bundles a default `reshade.ini` that is seeded into the inis folder on first launch. If you already have a customised file there, it is never overwritten. If deleted, the bundled default is re-seeded on next launch.
 
 Config files in `%LOCALAPPDATA%\RenoDXCommander\inis\`:
 
@@ -139,7 +155,7 @@ The **🎨 Shaders** button in the header cycles through four modes:
 
 Custom shaders go in `%LOCALAPPDATA%\RenoDXCommander\reshade\Custom\Shaders\` and `\Textures\`.
 
-Clicking **↻ Refresh** re-evaluates the current mode against all installed games, adding missing files and removing files from packs no longer selected.
+Clicking **↻ Refresh** re-evaluates the current mode against all installed games, adding missing files and removing files from packs no longer selected. The status bar shows shader deployment progress.
 
 ### Deploy Destinations
 
@@ -148,23 +164,21 @@ Clicking **↻ Refresh** re-evaluates the current mode against all installed gam
 | DC Mode ON | `%LOCALAPPDATA%\Programs\Display_Commander\Reshade\Shaders\` and `\Textures\` |
 | DC Mode OFF (no DC installed) | `<game folder>\reshade-shaders\Shaders\` and `\Textures\` |
 
-When DC is installed to a game that already has a local `reshade-shaders\` folder, the local folder is removed because ReShade will use the global DC path instead.
-
 ---
 
 ## Per-Game Overrides
 
-Click **🎯** on any game card to access:
+Click **🎯** on any game card to access toggle overrides. Hover each toggle for a description of what it does.
 
 | Override | Effect |
 |----------|--------|
-| **Wiki name mapping** | Map a detected game name to a different wiki entry for correct mod matching |
-| **Exclude from wiki** | Use only the generic engine mod — ignore wiki matches |
+| **Exclude from wiki** | Use a Discord link instead of install — ignore wiki matches |
 | **Exclude from DC Mode** | Always use standard file naming for this game |
 | **Exclude from Update All** | Skip this game during bulk update operations |
 | **Exclude from shader management** | RDXC will not deploy or remove shaders for this game |
 | **32-bit mode** | Install 32-bit ReShade, DC, and Unity addon for this game |
-| **Path override** | Displayed when the install path has been manually changed via 📁 |
+
+The dialog also includes wiki name mapping fields for manually matching a game to a different wiki entry.
 
 ---
 
@@ -172,13 +186,13 @@ Click **🎯** on any game card to access:
 
 Three **Update All** buttons in the header update ReShade, Display Commander, and RenoDX mods across all eligible games in one click. Games excluded via overrides or with unidentified foreign `dxgi.dll` files are automatically skipped.
 
-Update availability is indicated by a purple tint on the install/update buttons. RDXC compares stored file sizes against the remote source and only flags genuine changes.
+Update availability is indicated by a purple tint on the install/update buttons. RDXC compares stored file sizes against the remote source and only flags genuine changes. UE-Extended addons use download-based comparison for reliable detection.
 
 ---
 
 ## Auto-Update
 
-On every launch, RDXC silently checks for new versions at the [GitHub release page](https://github.com/RankFTW/RenoDXChecker/releases/tag/RDXC). If a newer version is found, a dialog offers **Update Now** (downloads the installer, runs it, and closes RDXC) or **Later** (dismisses and continues normally). If the check fails (no internet, GitHub unreachable), it is silently ignored.
+On every launch, RDXC silently checks for new versions at the [GitHub release page](https://github.com/RankFTW/RenoDXChecker/releases/tag/RDXC). If a newer version is found, a dialog offers **Update Now** (downloads the installer, runs it, and closes RDXC) or **Later** (dismisses and continues normally). If the check fails, it is silently ignored.
 
 ---
 
@@ -198,12 +212,6 @@ The search bar filters within whichever tab is active.
 
 ---
 
-## Download Cache
-
-All downloaded files are cached in `%LOCALAPPDATA%\RenoDXCommander\downloads\`. Reinstalling any component reuses the cached copy instead of re-downloading. The cache can be opened and cleared from **About → 📦 Open Downloads Cache**.
-
----
-
 ## Data Storage
 
 Everything is stored under `%LOCALAPPDATA%\RenoDXCommander\`:
@@ -219,15 +227,17 @@ Everything is stored under `%LOCALAPPDATA%\RenoDXCommander\`:
 | `reshade\` | Staged shader packs and custom shaders |
 | `logs\` | Crash reports with timestamps |
 
+The download cache means reinstalling skips the download. All cached data can be cleared from About → Open Downloads Cache.
+
 ---
 
 ## Troubleshooting
 
 **Game not detected?**
-Click ➕ Add Game to add it manually. For wiki mod matching on a manually added game, use 🎯 to set a custom wiki name mapping.
+Click ➕ Add Game or drag the game's .exe onto the RDXC window. For wiki mod matching, use 🎯 to set a custom wiki name mapping.
 
 **Xbox games not appearing?**
-RDXC uses the Windows PackageManager API. Games should appear automatically on launch. If not, try clicking ↻ Refresh in the header.
+RDXC uses the Windows PackageManager API. Games should appear automatically on launch. If not, click ↻ Refresh.
 
 **ReShade not loading in-game?**
 The `dxgi.dll` file must be in the same folder as the game's main executable. For Unreal Engine games this is typically `Binaries\Win64` or `Binaries\WinGDK`. Check with 📁 that the install path is correct.
@@ -235,14 +245,17 @@ The `dxgi.dll` file must be in the same folder as the game's main executable. Fo
 **Black screen in Unreal games?**
 Open ReShade (Home key) → Add-ons → RenoDX → set `R10G10B10A2_UNORM` to `output size`.
 
+**UE-Extended not working?**
+Ensure in-game HDR is turned ON. UE-Extended requires the game's native HDR output to function correctly.
+
 **Downloads failing?**
-Click ↻ Refresh. If the problem persists, clear the cache from About → 📦 Open Downloads Cache and try again.
+Click ↻ Refresh. If the problem persists, clear the cache from About → 📦 Open Downloads Cache.
 
 **Wrong install path?**
-Click 📁 on the game card to change it. Some games (e.g. Cyberpunk 2077) have automatic path overrides to their correct executable directory.
+Click 📁 on the game card to change it. Some games (e.g. Cyberpunk 2077) have automatic path overrides.
 
 **Foreign dxgi.dll blocking install?**
-RDXC detected a file from another mod (DXVK, Special K, ENB, etc.). Choose **Overwrite** in the confirmation dialog to replace it, or cancel to keep the existing file.
+RDXC detected a file from another mod (DXVK, Special K, ENB, etc.). Choose **Overwrite** in the confirmation dialog or cancel to keep the existing file.
 
 ---
 

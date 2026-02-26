@@ -92,6 +92,7 @@ public partial class MainViewModel : ObservableObject
     private List<GameMod> _allMods = new();
     private Dictionary<string, string> _genericNotes = new(StringComparer.OrdinalIgnoreCase);
     private List<GameCardViewModel> _allCards = new();
+    public IReadOnlyList<GameCardViewModel> AllCards => _allCards;
     private List<DetectedGame> _manualGames = new();
     private HashSet<string> _hiddenGames = new(StringComparer.OrdinalIgnoreCase);
 
@@ -476,7 +477,7 @@ public partial class MainViewModel : ObservableObject
             card.DiscordUrl     = effectiveMod?.DiscordUrl;
             card.WikiStatus     = effectiveMod?.Status ?? "—";
             card.Notes          = effectiveMod != null
-                                  ? BuildNotes(game.Name, effectiveMod, fallback, _genericNotes)
+                                  ? BuildNotes(game.Name, effectiveMod, fallback, _genericNotes, card.IsNativeHdrGame)
                                   : "";
             card.IsGenericMod   = card.UseUeExtended || (fallback != null && mod == null);
             if (card.Status != GameStatus.Installed)
@@ -896,7 +897,7 @@ public partial class MainViewModel : ObservableObject
                            : engine == EngineType.Unreal       ? "Unreal Engine"
                            : engine == EngineType.UnrealLegacy ? "Unreal (Legacy)"
                            : engine == EngineType.Unity        ? "Unity" : "",
-            Notes          = effectiveMod != null ? BuildNotes(game.Name, effectiveMod, fallback, _genericNotes) : "",
+            Notes          = effectiveMod != null ? BuildNotes(game.Name, effectiveMod, fallback, _genericNotes, isNativeHdr) : "",
             InstalledAddonFileName = record?.AddonFileName,
             IsExternalOnly  = _wikiExclusions.Contains(game.Name)
                               ? true
@@ -1953,7 +1954,7 @@ public partial class MainViewModel : ObservableObject
                                        : engine == EngineType.Unreal       ? "Unreal Engine"
                                        : engine == EngineType.UnrealLegacy ? "Unreal (Legacy)"
                                        : engine == EngineType.Unity        ? "Unity" : "",
-                Notes                  = effectiveMod != null ? BuildNotes(game.Name, effectiveMod, fallback, genericNotes) : "",
+                Notes                  = effectiveMod != null ? BuildNotes(game.Name, effectiveMod, fallback, genericNotes, isNativeHdr) : "",
                 InstalledAddonFileName = record?.AddonFileName,
                 IsHidden               = _hiddenGames.Contains(game.Name),
                 IsManuallyAdded        = game.IsManuallyAdded,
@@ -1990,19 +1991,27 @@ public partial class MainViewModel : ObservableObject
         return cards;
     }
 
-    private static string BuildNotes(string gameName, GameMod effectiveMod, GameMod? fallback, Dictionary<string, string> genericNotes)
+    private static string BuildNotes(string gameName, GameMod effectiveMod, GameMod? fallback, Dictionary<string, string> genericNotes, bool isNativeHdr = false)
     {
         // Specific mod — wiki tooltip note (may be null/empty if no tooltip)
         if (fallback == null) return effectiveMod.Notes ?? "";
 
         var parts = new List<string>();
 
-        if (effectiveMod.IsGenericUnreal)
+        if (isNativeHdr)
         {
-            parts.Add("This game uses the Generic Unreal Engine plugin.");
-            parts.Add("📁 Install the .addon64 file next to the *-Win64-Shipping.exe");
-            parts.Add("   (usually GameName\\Binaries\\Win64, NOT in the Engine folder)\n");
+            // Native HDR / UE-Extended whitelisted games — don't show generic UE info
+            parts.Add("⚠ In-game HDR must be turned ON for UE-Extended to work correctly in this title.");
 
+            var specific = GetGenericNote(gameName, genericNotes);
+            if (!string.IsNullOrEmpty(specific))
+            {
+                parts.Add("\n📋 Game-specific settings:");
+                parts.Add(specific);
+            }
+        }
+        else if (effectiveMod.IsGenericUnreal)
+        {
             var specific = GetGenericNote(gameName, genericNotes);
             if (!string.IsNullOrEmpty(specific))
             {
@@ -2013,9 +2022,6 @@ public partial class MainViewModel : ObservableObject
         }
         else // Unity
         {
-            parts.Add("This game uses the Generic Unity Engine plugin.");
-            parts.Add("📁 Install ReShade next to UnityPlayer.dll (usually the game root folder).");
-            parts.Add("   Two versions available — use 64-bit unless your game is 32-bit.\n");
             var specific = GetGenericNote(gameName, genericNotes);
             if (!string.IsNullOrEmpty(specific))
             {

@@ -8,7 +8,7 @@
 
     <!-- Palette: #0D1117 bg, #131A24 card, #00C8FF cyan-accent, #39FF14 neon-green, #7A8AAA text -->
 
-    <Grid Background="#0D1117">
+    <Grid Background="#0D1117" AllowDrop="True" DragOver="Grid_DragOver" Drop="Grid_Drop">
         <Grid.Resources>
             <x:Double x:Key="CardItemWidth">390</x:Double>
         </Grid.Resources>
@@ -545,15 +545,14 @@
                                         <RowDefinition Height="Auto"/> <!-- 8: progress/message -->
                                     </Grid.RowDefinitions>
 
-                                    <!-- Row 0: 💬 | name | ℹ | 🎯 | wiki status | 🚫 -->
+                                    <!-- Row 0: 💬 | name | 🎯 | ℹ | 🚫 -->
                                     <Grid Grid.Row="0" VerticalAlignment="Center">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>  <!-- 0: 💬 discussion (before name) -->
                                             <ColumnDefinition Width="*"/>     <!-- 1: game name -->
-                                            <ColumnDefinition Width="Auto"/>  <!-- 2: ℹ notes -->
-                                            <ColumnDefinition Width="Auto"/>  <!-- 3: 🎯 tune -->
-                                            <ColumnDefinition Width="Auto"/>  <!-- 4: wiki status badge -->
-                                            <ColumnDefinition Width="Auto"/>  <!-- 5: 🚫 hide (far right) -->
+                                            <ColumnDefinition Width="Auto"/>  <!-- 2: 🎯 tune -->
+                                            <ColumnDefinition Width="Auto"/>  <!-- 3: ℹ info -->
+                                            <ColumnDefinition Width="Auto"/>  <!-- 4: 🚫 hide (far right) -->
                                         </Grid.ColumnDefinitions>
                                         <!-- 💬 discussion / wiki link — shown before the game name so it stands out -->
                                         <Button Grid.Column="0"
@@ -569,35 +568,24 @@
                                                    FontSize="13" FontWeight="SemiBold" Foreground="#E2E8FF"
                                                    TextTrimming="CharacterEllipsis" MaxLines="1"
                                                    VerticalAlignment="Center"/>
-                                        <!-- ℹ notes button -->
-                                        <Button Grid.Column="2"
-                                                Visibility="{x:Bind NotesButtonVisibility}"
-                                                Click="NotesButton_Click" Tag="{x:Bind}"
-                                                Background="Transparent" BorderThickness="0"
-                                                Width="26" Height="26" Padding="0" Margin="3,0,0,0"
-                                                ToolTipService.ToolTip="View notes">
-                                            <TextBlock Text="ℹ" FontSize="13" Foreground="#5A6EA0"/>
-                                        </Button>
                                         <!-- 🎯 per-card wiki name match override -->
-                                        <Button Grid.Column="3"
+                                        <Button Grid.Column="2"
                                                 Click="TuneButton_Card_Click" Tag="{x:Bind}"
                                                 Background="Transparent" BorderThickness="0"
                                                 Width="22" Height="22" Padding="0" Margin="2,0,0,0"
                                                 ToolTipService.ToolTip="Overrides (wiki matching, DC Mode exclusion)">
                                             <TextBlock Text="🎯" FontSize="10" Foreground="#30405A"/>
                                         </Button>
-                                        <!-- Wiki status badge -->
-                                        <Border Grid.Column="4" CornerRadius="6" Padding="7,2"
-                                                Margin="4,0,0,0"
-                                                Background="{x:Bind WikiStatusBadgeBackground, Mode=OneWay}"
-                                                BorderBrush="{x:Bind WikiStatusBadgeBorderBrush, Mode=OneWay}"
-                                                BorderThickness="1">
-                                            <TextBlock Text="{x:Bind WikiStatusLabel, Mode=OneWay}"
-                                                       FontSize="10"
-                                                       Foreground="{x:Bind WikiStatusBadgeForeground, Mode=OneWay}"/>
-                                        </Border>
+                                        <!-- ℹ info button — always visible -->
+                                        <Button Grid.Column="3"
+                                                Click="NotesButton_Click" Tag="{x:Bind}"
+                                                Background="Transparent" BorderThickness="0"
+                                                Width="26" Height="26" Padding="0" Margin="3,0,0,0"
+                                                ToolTipService.ToolTip="Game info">
+                                            <TextBlock Text="ℹ" FontSize="13" Foreground="#5A6EA0"/>
+                                        </Button>
                                         <!-- 🚫 hide button — far right -->
-                                        <Button Grid.Column="5"
+                                        <Button Grid.Column="4"
                                                 Click="HideButton_Click" Tag="{x:Bind}"
                                                 Background="Transparent" BorderThickness="0"
                                                 Width="26" Height="26" Padding="0" Margin="4,0,0,0"

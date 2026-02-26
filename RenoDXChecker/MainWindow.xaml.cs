@@ -8,6 +8,7 @@ using RenoDXCommander.Models;
 using RenoDXCommander.ViewModels;
 using Windows.Storage.Pickers;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using WinRT.Interop;
 
 namespace RenoDXCommander;
@@ -76,10 +77,9 @@ public sealed partial class MainWindow : Window
         bool isExcluded = !string.IsNullOrEmpty(prefilledDetected) &&
                           ViewModel.IsWikiExcluded(prefilledDetected);
 
-        // Exclusion toggle button — visually distinct, toggleable
         var excludeBtn = new ToggleButton
         {
-            Content    = "🚫  Exclude from wiki (show Discord link instead)",
+            Content    = "🚫  Exclude from wiki",
             IsChecked  = isExcluded,
             FontSize   = 12,
             Padding    = new Thickness(10, 6, 10, 6),
@@ -88,51 +88,25 @@ public sealed partial class MainWindow : Window
             BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 80, 30, 80)),
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
+        ToolTipService.SetToolTip(excludeBtn,
+            "Exclude this game from all wiki matching. The card will show a Discord link instead of an install button.");
 
-        var excludeNote = new TextBlock
-        {
-            Text         = isExcluded
-                           ? "✅ Excluded — this game shows a Discord link instead of an install button. Toggle off to resume wiki matching."
-                           : "Toggle on to exclude this game from all wiki matching. The card will show a Discord link instead of an install button. Toggle off at any time to restore.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize     = 11,
-            Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 130, 100, 160)),
-        };
-
-        excludeBtn.Checked   += (s, e) => excludeNote.Text =
-            "✅ Excluded — this game shows a Discord link instead of an install button. Toggle off to resume wiki matching.";
-        excludeBtn.Unchecked += (s, e) => excludeNote.Text =
-            "Toggle on to exclude this game from all wiki matching. The card will show a Discord link instead of an install button. Toggle off at any time to restore.";
-
-        var panel = new StackPanel { Spacing = 10 };
+        var panel = new StackPanel { Spacing = 8 };
         panel.Children.Add(new TextBlock
         {
             TextWrapping = TextWrapping.Wrap,
             Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 120, 140, 180)),
             FontSize     = 12,
-            Text         = "If a game isn't matching its wiki mod, enter the detected name " +
-                           "(exactly as shown on the card) and the wiki name " +
-                           "(exactly as listed on the RenoDX wiki). The app will re-match immediately.",
+            Text         = "Map a detected game name to a wiki mod name for correct matching.",
         });
         panel.Children.Add(new TextBlock { Text = "Detected game name:", FontSize = 12 });
         panel.Children.Add(detectedBox);
         panel.Children.Add(new TextBlock { Text = "Wiki mod name:", FontSize = 12 });
         panel.Children.Add(wikiBox);
-        panel.Children.Add(new Border
-        {
-            Height = 1,
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 40, 60)),
-            Margin = new Thickness(0, 4, 0, 4),
-        });
+        panel.Children.Add(MakeSeparator());
         panel.Children.Add(excludeBtn);
-        panel.Children.Add(excludeNote);
 
-        panel.Children.Add(new Border
-        {
-            Height = 1,
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 40, 60)),
-            Margin = new Thickness(0, 4, 0, 4),
-        });
+        panel.Children.Add(MakeSeparator());
 
         bool isDcExcluded = !string.IsNullOrEmpty(prefilledDetected) &&
                             ViewModel.IsDcModeExcluded(prefilledDetected);
@@ -148,31 +122,12 @@ public sealed partial class MainWindow : Window
             BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 70, 110)),
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
-
-        var dcExcludeNote = new TextBlock
-        {
-            Text         = isDcExcluded
-                           ? "✅ Excluded from DC Mode — this game always uses normal file naming (ReShade=dxgi.dll, DC=zzz_display_commander.addon64) regardless of the global DC Mode toggle."
-                           : "Toggle on to exclude this game from global DC Mode. It will always use normal naming regardless of the DC Mode toggle.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize     = 11,
-            Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 80, 130, 170)),
-        };
-
-        dcExcludeBtn.Checked   += (s, e) => dcExcludeNote.Text =
-            "✅ Excluded from DC Mode — this game always uses normal file naming (ReShade=dxgi.dll, DC=zzz_display_commander.addon64) regardless of the global DC Mode toggle.";
-        dcExcludeBtn.Unchecked += (s, e) => dcExcludeNote.Text =
-            "Toggle on to exclude this game from global DC Mode. It will always use normal naming regardless of the DC Mode toggle.";
+        ToolTipService.SetToolTip(dcExcludeBtn,
+            "This game will always use normal file naming (ReShade=dxgi.dll, DC=addon) regardless of the global DC Mode toggle.");
 
         panel.Children.Add(dcExcludeBtn);
-        panel.Children.Add(dcExcludeNote);
 
-        panel.Children.Add(new Border
-        {
-            Height = 1,
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 40, 60)),
-            Margin = new Thickness(0, 4, 0, 4),
-        });
+        panel.Children.Add(MakeSeparator());
 
         bool isUaExcluded = !string.IsNullOrEmpty(prefilledDetected) &&
                             ViewModel.IsUpdateAllExcluded(prefilledDetected);
@@ -188,31 +143,12 @@ public sealed partial class MainWindow : Window
             BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 80, 30, 140)),
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
-
-        var uaExcludeNote = new TextBlock
-        {
-            Text         = isUaExcluded
-                           ? "✅ Excluded — this game is skipped by all Update All actions."
-                           : "Toggle on to skip this game when using Update All RenoDX, Update All ReShade or Update All DC.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize     = 11,
-            Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 120, 80, 180)),
-        };
-
-        uaExcludeBtn.Checked   += (s, e) => uaExcludeNote.Text =
-            "✅ Excluded — this game is skipped by all Update All actions.";
-        uaExcludeBtn.Unchecked += (s, e) => uaExcludeNote.Text =
-            "Toggle on to skip this game when using Update All RenoDX, Update All ReShade or Update All DC.";
+        ToolTipService.SetToolTip(uaExcludeBtn,
+            "Skip this game when using Update All RenoDX, Update All ReShade, or Update All DC.");
 
         panel.Children.Add(uaExcludeBtn);
-        panel.Children.Add(uaExcludeNote);
 
-        panel.Children.Add(new Border
-        {
-            Height = 1,
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 40, 60)),
-            Margin = new Thickness(0, 4, 0, 4),
-        });
+        panel.Children.Add(MakeSeparator());
 
         bool isShaderExcluded = !string.IsNullOrEmpty(prefilledDetected) &&
                                 ViewModel.IsShaderExcluded(prefilledDetected);
@@ -228,31 +164,12 @@ public sealed partial class MainWindow : Window
             BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 70, 25, 120)),
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
-
-        var shaderExcludeNote = new TextBlock
-        {
-            Text         = isShaderExcluded
-                           ? "✅ Excluded — RDXC will not deploy or manage shaders for this game. Manage your own shaders manually."
-                           : "Toggle on to stop RDXC managing shaders for this game. No reshade-shaders folder will be created or removed.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize     = 11,
-            Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 110, 70, 160)),
-        };
-
-        shaderExcludeBtn.Checked   += (s, e) => shaderExcludeNote.Text =
-            "✅ Excluded — RDXC will not deploy or manage shaders for this game. Manage your own shaders manually.";
-        shaderExcludeBtn.Unchecked += (s, e) => shaderExcludeNote.Text =
-            "Toggle on to stop RDXC managing shaders for this game. No reshade-shaders folder will be created or removed.";
+        ToolTipService.SetToolTip(shaderExcludeBtn,
+            "RDXC will not deploy or remove shaders for this game. Manage your own shaders manually.");
 
         panel.Children.Add(shaderExcludeBtn);
-        panel.Children.Add(shaderExcludeNote);
 
-        panel.Children.Add(new Border
-        {
-            Height = 1,
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 40, 60)),
-            Margin = new Thickness(0, 4, 0, 4),
-        });
+        panel.Children.Add(MakeSeparator());
 
         bool is32Bit = !string.IsNullOrEmpty(prefilledDetected) &&
                        ViewModel.Is32BitGame(prefilledDetected);
@@ -268,24 +185,10 @@ public sealed partial class MainWindow : Window
             BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 120, 50, 20)),
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
-
-        var bit32Note = new TextBlock
-        {
-            Text         = is32Bit
-                           ? "✅ 32-bit mode ON — ReShade installs as ReShade32.dll, Unity addon uses the 32-bit URL, DC installs zzz_display_commander.addon32. Unreal 32-bit is WIP."
-                           : "Only enable if you know this game is 32-bit. Installs 32-bit versions of ReShade, Unity addon, and Display Commander.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize     = 11,
-            Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 160, 100, 60)),
-        };
-
-        bit32Btn.Checked   += (s, e) => bit32Note.Text =
-            "✅ 32-bit mode ON — ReShade installs as ReShade32.dll, Unity addon uses the 32-bit URL, DC installs zzz_display_commander.addon32. Unreal 32-bit is WIP.";
-        bit32Btn.Unchecked += (s, e) => bit32Note.Text =
-            "Only enable if you know this game is 32-bit. Installs 32-bit versions of ReShade, Unity addon, and Display Commander.";
+        ToolTipService.SetToolTip(bit32Btn,
+            "Installs 32-bit versions of ReShade, Unity addon, and Display Commander. Only enable if you know this game is 32-bit.");
 
         panel.Children.Add(bit32Btn);
-        panel.Children.Add(bit32Note);
 
         var dlg = new ContentDialog
         {
@@ -698,6 +601,322 @@ public sealed partial class MainWindow : Window
         ViewModel.AddManualGameCommand.Execute(game);
     }
 
+    // ── Drag-and-drop game add ────────────────────────────────────────────────
+
+    private void Grid_DragOver(object sender, DragEventArgs e)
+    {
+        if (e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems))
+        {
+            e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
+            e.DragUIOverride.Caption = "Drop to add game";
+            e.DragUIOverride.IsCaptionVisible = true;
+            e.DragUIOverride.IsGlyphVisible = true;
+        }
+    }
+
+    private async void Grid_Drop(object sender, DragEventArgs e)
+    {
+        if (!e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems))
+            return;
+
+        var items = await e.DataView.GetStorageItemsAsync();
+        foreach (var item in items)
+        {
+            if (item is not Windows.Storage.StorageFile file) continue;
+            if (!file.FileType.Equals(".exe", StringComparison.OrdinalIgnoreCase)) continue;
+
+            var exePath = file.Path;
+            CrashReporter.Log($"DragDrop: received exe '{exePath}'");
+
+            try
+            {
+                await ProcessDroppedExe(exePath);
+            }
+            catch (Exception ex)
+            {
+                CrashReporter.Log($"DragDrop: error processing '{exePath}': {ex.Message}");
+            }
+        }
+    }
+
+    private async Task ProcessDroppedExe(string exePath)
+    {
+        var exeDir  = Path.GetDirectoryName(exePath)!;
+        var exeName = Path.GetFileNameWithoutExtension(exePath);
+
+        // ── Determine the game root folder ────────────────────────────────────
+        // Walk up from the exe to find the likely game root.
+        // For Unreal: the exe is usually in GameRoot\Binaries\Win64 or \WinGDK
+        // For Unity: the exe is usually in the game root next to UnityPlayer.dll
+        // For others: the exe folder or its parent is the game root
+        var gameRoot = InferGameRoot(exeDir);
+        CrashReporter.Log($"DragDrop: inferred game root '{gameRoot}' from exe dir '{exeDir}'");
+
+        // ── Detect engine and correct install path ────────────────────────────
+        var (installPath, engine) = GameDetectionService.DetectEngineAndPath(gameRoot);
+
+        // ── Infer game name ───────────────────────────────────────────────────
+        var gameName = InferGameName(exePath, gameRoot, engine);
+        CrashReporter.Log($"DragDrop: inferred name '{gameName}', engine={engine}");
+
+        // ── Check for duplicates (by install path or normalized name) ─────────
+        var normName = GameDetectionService.NormalizeName(gameName);
+        var normInstall = installPath.TrimEnd(Path.DirectorySeparatorChar).ToLowerInvariant();
+
+        var existingCard = ViewModel.AllCards.FirstOrDefault(c =>
+            GameDetectionService.NormalizeName(c.GameName) == normName
+            || (!string.IsNullOrEmpty(c.InstallPath)
+                && c.InstallPath.TrimEnd(Path.DirectorySeparatorChar)
+                    .Equals(normInstall, StringComparison.OrdinalIgnoreCase)));
+
+        if (existingCard != null)
+        {
+            var dupDialog = new ContentDialog
+            {
+                Title           = "Game Already Exists",
+                Content         = $"\"{existingCard.GameName}\" is already in your library at:\n{existingCard.InstallPath}",
+                CloseButtonText = "OK",
+                XamlRoot        = Content.XamlRoot,
+                Background      = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 16, 20, 40)),
+            };
+            await dupDialog.ShowAsync();
+            return;
+        }
+
+        // ── Confirm with user (allow name edit) ──────────────────────────────
+        var nameBox = new TextBox { Text = gameName, Width = 380 };
+        var engineLabel = engine switch
+        {
+            EngineType.Unreal       => "Unreal Engine",
+            EngineType.UnrealLegacy => "Unreal Engine (Legacy)",
+            EngineType.Unity        => "Unity",
+            _                       => "Unknown"
+        };
+
+        var confirmPanel = new StackPanel { Spacing = 8 };
+        confirmPanel.Children.Add(new TextBlock
+        {
+            Text = "Game name:", Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 180, 190, 220)),
+        });
+        confirmPanel.Children.Add(nameBox);
+        confirmPanel.Children.Add(new TextBlock
+        {
+            Text = $"Engine: {engineLabel}\nInstall path: {installPath}",
+            TextWrapping = TextWrapping.Wrap,
+            Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 130, 145, 175)),
+            FontSize     = 12, Margin = new Thickness(0, 6, 0, 0),
+        });
+
+        var confirmDialog = new ContentDialog
+        {
+            Title             = "➕ Add Dropped Game",
+            Content           = confirmPanel,
+            PrimaryButtonText = "Add Game",
+            CloseButtonText   = "Cancel",
+            XamlRoot          = Content.XamlRoot,
+            Background        = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 16, 20, 40)),
+        };
+        var result = await confirmDialog.ShowAsync();
+        if (result != ContentDialogResult.Primary) return;
+
+        var finalName = nameBox.Text.Trim();
+        if (string.IsNullOrEmpty(finalName)) return;
+
+        CrashReporter.Log($"DragDrop: adding game '{finalName}' at '{installPath}'");
+        var game = new DetectedGame
+        {
+            Name = finalName, InstallPath = gameRoot, Source = "Manual", IsManuallyAdded = true
+        };
+        ViewModel.AddManualGameCommand.Execute(game);
+    }
+
+    /// <summary>
+    /// Walk up from the exe directory to find the game root.
+    /// Stops when we find a directory that looks like a game root.
+    /// For Unreal: recognises Binaries\Win64 structure (2 levels up).
+    /// For other games: checks for store markers (Steam, GOG, Epic, EA, Xbox)
+    /// and defaults to the exe's own directory if no markers are found.
+    /// </summary>
+    private static string InferGameRoot(string exeDir)
+    {
+        var dir = exeDir;
+
+        // If the exe is inside Binaries\Win64, Binaries\WinGDK, or Binaries\Win32,
+        // the game root is two levels up.
+        var dirName   = Path.GetFileName(dir) ?? "";
+        var parentDir = Path.GetDirectoryName(dir);
+        var parentName = parentDir != null ? Path.GetFileName(parentDir) ?? "" : "";
+
+        if (parentName.Equals("Binaries", StringComparison.OrdinalIgnoreCase)
+            && (dirName.Equals("Win64", StringComparison.OrdinalIgnoreCase)
+             || dirName.Equals("WinGDK", StringComparison.OrdinalIgnoreCase)
+             || dirName.Equals("Win32", StringComparison.OrdinalIgnoreCase)))
+        {
+            var grandparent = Path.GetDirectoryName(parentDir);
+            if (grandparent != null) return grandparent;
+        }
+
+        // Walk up looking for game root markers (max 3 levels).
+        // Check the exe's own directory first — most non-Unreal games have
+        // the exe right in the game root alongside store markers.
+        var current = dir;
+        for (int i = 0; i < 3 && current != null; i++)
+        {
+            if (LooksLikeGameRoot(current))
+                return current;
+            current = Path.GetDirectoryName(current);
+        }
+
+        // No markers found at all — the exe directory itself is the safest bet.
+        // Don't walk up further, as that risks hitting a library root or drive root.
+        return dir;
+    }
+
+    /// <summary>
+    /// Returns true if a directory looks like a game root based on store markers
+    /// or engine files. This is intentionally broad to catch Steam, GOG, Epic,
+    /// EA, Xbox, Unity, and Unreal games.
+    /// </summary>
+    private static bool LooksLikeGameRoot(string dirPath)
+    {
+        try
+        {
+            // Steam markers
+            if (File.Exists(Path.Combine(dirPath, "steam_appid.txt"))
+             || File.Exists(Path.Combine(dirPath, "steam_api64.dll"))
+             || File.Exists(Path.Combine(dirPath, "steam_api.dll")))
+                return true;
+
+            // GOG markers — GOG games have goggame-*.dll, goglog.ini, gog.ico, etc.
+            if (File.Exists(Path.Combine(dirPath, "goglog.ini"))
+             || File.Exists(Path.Combine(dirPath, "gog.ico"))
+             || File.Exists(Path.Combine(dirPath, "goggame.sdb")))
+                return true;
+            // Also check for goggame-*.dll pattern
+            if (Directory.GetFiles(dirPath, "goggame-*.dll").Length > 0)
+                return true;
+
+            // Epic markers
+            if (Directory.Exists(Path.Combine(dirPath, ".egstore")))
+                return true;
+
+            // EA markers
+            if (File.Exists(Path.Combine(dirPath, "installerdata.xml"))
+             || File.Exists(Path.Combine(dirPath, "__Installer")))
+                return true;
+
+            // Xbox / Game Pass markers
+            if (File.Exists(Path.Combine(dirPath, "MicrosoftGame.config"))
+             || File.Exists(Path.Combine(dirPath, "appxmanifest.xml")))
+                return true;
+
+            // Unity marker
+            if (File.Exists(Path.Combine(dirPath, "UnityPlayer.dll")))
+                return true;
+
+            // Unreal markers
+            if (Directory.Exists(Path.Combine(dirPath, "Binaries"))
+             || Directory.Exists(Path.Combine(dirPath, "Engine")))
+                return true;
+        }
+        catch { /* permission issues — skip silently */ }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Infer the game name from the exe and folder structure.
+    /// Priority:
+    ///   1. For Unreal: use the top-level folder name under game root (the "project" name)
+    ///   2. For Unity: use the exe name (typically matches the game name)
+    ///   3. Use the game root folder name
+    ///   4. Fallback to exe filename
+    /// Cleans up common suffixes like "-Win64-Shipping", "Shipping", etc.
+    /// </summary>
+    private static string InferGameName(string exePath, string gameRoot, EngineType engine)
+    {
+        var exeName     = Path.GetFileNameWithoutExtension(exePath);
+        var rootDirName = Path.GetFileName(gameRoot) ?? exeName;
+
+        if (engine == EngineType.Unreal || engine == EngineType.UnrealLegacy)
+        {
+            // Unreal games: the exe is often "GameName-Win64-Shipping.exe"
+            // Strip the suffix to get the clean name
+            var cleanExe = CleanUnrealExeName(exeName);
+
+            // Sometimes the root folder is better (e.g. "Avowed" vs "Michigan-Win64-Shipping")
+            // Prefer root folder name if it looks like a proper name (has spaces or is short)
+            if (rootDirName.Contains(' ') || rootDirName.Contains('-'))
+                return CleanFolderName(rootDirName);
+
+            // Check for a content/game subfolder one level into root (common Xbox pattern)
+            try
+            {
+                var subdirs = Directory.GetDirectories(gameRoot)
+                    .Select(Path.GetFileName)
+                    .Where(d => d != null
+                        && !d.Equals("Binaries", StringComparison.OrdinalIgnoreCase)
+                        && !d.Equals("Engine", StringComparison.OrdinalIgnoreCase)
+                        && !d.Equals("Content", StringComparison.OrdinalIgnoreCase)
+                        && !d.StartsWith(".", StringComparison.Ordinal))
+                    .ToList();
+
+                // If there's one or two content folders, the first might be the game name
+                if (subdirs.Count > 0 && subdirs.Count <= 3)
+                {
+                    var candidate = subdirs.FirstOrDefault(d =>
+                        !string.IsNullOrEmpty(d)
+                        && !d.Equals("Saved", StringComparison.OrdinalIgnoreCase)
+                        && !d.Equals("Plugins", StringComparison.OrdinalIgnoreCase)
+                        && !d.Equals("Intermediate", StringComparison.OrdinalIgnoreCase));
+
+                    if (candidate != null && candidate.Length > 2)
+                        return CleanFolderName(candidate);
+                }
+            }
+            catch { }
+
+            return !string.IsNullOrEmpty(cleanExe) ? cleanExe : CleanFolderName(rootDirName);
+        }
+
+        if (engine == EngineType.Unity)
+        {
+            // Unity: exe name typically IS the game name
+            return CleanFolderName(exeName);
+        }
+
+        // Unknown engine: prefer root folder name, fall back to exe name
+        return CleanFolderName(rootDirName);
+    }
+
+    /// <summary>Strips common Unreal exe suffixes to get a clean game name.</summary>
+    private static string CleanUnrealExeName(string exeName)
+    {
+        // Common patterns: "GameName-Win64-Shipping", "GameName-WinGDK-Shipping",
+        // "GameNameShipping", "GameName-Win64-Test"
+        var cleaned = Regex.Replace(exeName, @"[_-]?(Win64|WinGDK|Win32)[_-]?Shipping$", "", RegexOptions.IgnoreCase);
+        cleaned = Regex.Replace(cleaned, @"[_-]?Shipping$", "", RegexOptions.IgnoreCase);
+        cleaned = Regex.Replace(cleaned, @"[_-]?(Win64|WinGDK|Win32)[_-]?Test$", "", RegexOptions.IgnoreCase);
+        cleaned = Regex.Replace(cleaned, @"[_-]?(Win64|WinGDK|Win32)$", "", RegexOptions.IgnoreCase);
+        return cleaned.Trim('-', '_', ' ');
+    }
+
+    /// <summary>
+    /// Cleans a folder or exe name into a presentable game name.
+    /// Replaces underscores and camelCase boundaries with spaces.
+    /// </summary>
+    private static string CleanFolderName(string name)
+    {
+        // Replace underscores and hyphens with spaces
+        var cleaned = name.Replace('_', ' ').Replace('-', ' ');
+        // Insert spaces before uppercase letters in camelCase (e.g. "HighOnLife" → "High On Life")
+        // but not for consecutive caps (e.g. "AFOP" stays "AFOP")
+        cleaned = Regex.Replace(cleaned, @"(?<=[a-z])(?=[A-Z])", " ");
+        // Collapse multiple spaces
+        cleaned = Regex.Replace(cleaned, @"\s+", " ").Trim();
+        return cleaned;
+    }
+
     // ── Filter tabs ───────────────────────────────────────────────────────────────
 
     private void Filter_Click(object sender, RoutedEventArgs e)
@@ -900,72 +1119,123 @@ public sealed partial class MainWindow : Window
     private async void NotesButton_Click(object sender, RoutedEventArgs e)
     {
         var card = GetCardFromSender(sender);
-        if (card == null || string.IsNullOrWhiteSpace(card.Notes)) return;
+        if (card == null) return;
 
-        // Build content — use RichTextBlock when there is an embedded clickable link,
-        // plain TextBlock otherwise so existing notes are unaffected.
-        UIElement content;
-        if (!string.IsNullOrEmpty(card.NotesUrl))
+        var textColour = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 195, 210, 240));
+        var linkColour = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 130, 170, 240));
+        var dimColour  = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 120, 140, 170));
+
+        var outerPanel = new StackPanel { Spacing = 10 };
+
+        // ── Wiki status badge at top-left ─────────────────────────────────────────
+        var statusBg     = card.WikiStatusBadgeBackground;
+        var statusBorder = card.WikiStatusBadgeBorderBrush;
+        var statusFg     = card.WikiStatusBadgeForeground;
+        var statusBadge = new Border
         {
-            var textColour = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 195, 210, 240));
-            var linkColour = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 130, 170, 240));
-
-            var para = new Microsoft.UI.Xaml.Documents.Paragraph();
-
-            // Notes text up to the colon (everything before the link line)
-            para.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run
+            CornerRadius    = new CornerRadius(6),
+            Padding         = new Thickness(10, 4, 10, 4),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Background      = new SolidColorBrush(ParseColor(statusBg)),
+            BorderBrush     = new SolidColorBrush(ParseColor(statusBorder)),
+            BorderThickness = new Thickness(1),
+            Child = new TextBlock
             {
-                Text       = card.Notes,
-                Foreground = textColour,
-                FontSize   = 13,
-            });
+                Text       = card.WikiStatusLabel,
+                FontSize   = 12,
+                Foreground = new SolidColorBrush(ParseColor(statusFg)),
+            }
+        };
+        outerPanel.Children.Add(statusBadge);
 
-            // Line break then the clickable hyperlink
-            para.Inlines.Add(new Microsoft.UI.Xaml.Documents.LineBreak());
-            var link = new Microsoft.UI.Xaml.Documents.Hyperlink
+        // ── Notes content (if any) ────────────────────────────────────────────────
+        if (!string.IsNullOrWhiteSpace(card.Notes))
+        {
+            if (!string.IsNullOrEmpty(card.NotesUrl))
             {
-                NavigateUri = new Uri(card.NotesUrl),
-                Foreground  = linkColour,
-            };
-            link.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run
-            {
-                Text     = card.NotesUrlLabel ?? card.NotesUrl,
-                FontSize = 13,
-            });
-            para.Inlines.Add(link);
+                var para = new Microsoft.UI.Xaml.Documents.Paragraph();
+                para.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run
+                {
+                    Text       = card.Notes,
+                    Foreground = textColour,
+                    FontSize   = 13,
+                });
+                para.Inlines.Add(new Microsoft.UI.Xaml.Documents.LineBreak());
+                var link = new Microsoft.UI.Xaml.Documents.Hyperlink
+                {
+                    NavigateUri = new Uri(card.NotesUrl),
+                    Foreground  = linkColour,
+                };
+                link.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run
+                {
+                    Text     = card.NotesUrlLabel ?? card.NotesUrl,
+                    FontSize = 13,
+                });
+                para.Inlines.Add(link);
 
-            var rtb = new RichTextBlock { IsTextSelectionEnabled = true };
-            rtb.Blocks.Add(para);
-
-            content = new ScrollViewer
+                var rtb = new RichTextBlock { IsTextSelectionEnabled = true };
+                rtb.Blocks.Add(para);
+                outerPanel.Children.Add(rtb);
+            }
+            else
             {
-                Content = rtb,
-                MaxHeight = 400, Padding = new Thickness(0, 4, 12, 0),
-            };
+                outerPanel.Children.Add(new TextBlock
+                {
+                    Text         = card.Notes,
+                    TextWrapping = TextWrapping.Wrap,
+                    Foreground   = textColour,
+                    FontSize     = 13,
+                    LineHeight   = 22,
+                });
+            }
         }
         else
         {
-            content = new ScrollViewer
+            outerPanel.Children.Add(new TextBlock
             {
-                Content = new TextBlock
-                {
-                    Text = card.Notes, TextWrapping = TextWrapping.Wrap,
-                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 195, 210, 240)),
-                    FontSize = 13, LineHeight = 22,
-                },
-                MaxHeight = 400, Padding = new Thickness(0, 4, 12, 0),
-            };
+                Text       = "No additional notes for this game.",
+                Foreground = dimColour,
+                FontSize   = 13,
+            });
         }
+
+        var scrollContent = new ScrollViewer
+        {
+            Content   = outerPanel,
+            MaxHeight = 400,
+            Padding   = new Thickness(0, 4, 12, 0),
+        };
 
         var dialog = new ContentDialog
         {
             Title           = $"ℹ  {card.GameName}",
-            Content         = content,
+            Content         = scrollContent,
             CloseButtonText = "Close",
             XamlRoot        = Content.XamlRoot,
             Background      = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 16, 20, 40)),
         };
         await dialog.ShowAsync();
+    }
+
+    /// <summary>Creates a thin horizontal separator line for dialogs.</summary>
+    private static Border MakeSeparator() => new()
+    {
+        Height = 1,
+        Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 40, 60)),
+        Margin = new Thickness(0, 2, 0, 2),
+    };
+
+    /// <summary>Parses a hex colour string like "#1C2848" into a Windows.UI.Color.</summary>
+    private static Windows.UI.Color ParseColor(string hex)
+    {
+        hex = hex.TrimStart('#');
+        byte a = 255;
+        int offset = 0;
+        if (hex.Length == 8) { a = Convert.ToByte(hex[..2], 16); offset = 2; }
+        byte r = Convert.ToByte(hex.Substring(offset, 2), 16);
+        byte g = Convert.ToByte(hex.Substring(offset + 2, 2), 16);
+        byte b = Convert.ToByte(hex.Substring(offset + 4, 2), 16);
+        return Windows.UI.Color.FromArgb(a, r, g, b);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────────
