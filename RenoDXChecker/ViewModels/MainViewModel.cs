@@ -20,6 +20,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _dcModeEnabled;
     [ObservableProperty] private ShaderDeployMode _shaderDeployMode = ShaderDeployMode.Minimum;
     [ObservableProperty] private bool _skipUpdateCheck;
+    [ObservableProperty] private string _lastSeenVersion = "";
 
     /// <summary>
     /// Raised when an install would overwrite a dxgi.dll that RDXC cannot identify
@@ -382,6 +383,9 @@ public partial class MainViewModel : ObservableObject
 
             if (s.TryGetValue("SkipUpdateCheck", out var sucVal))
                 SkipUpdateCheck = sucVal == "true";
+
+            if (s.TryGetValue("LastSeenVersion", out var lsvVal))
+                LastSeenVersion = lsvVal ?? "";
         }
         catch
         {
@@ -641,6 +645,82 @@ public partial class MainViewModel : ObservableObject
     /// <summary>Public entry point to persist all settings to disk.</summary>
     public void SaveSettingsPublic() => SaveNameMappings();
 
+    /// <summary>Returns true if the current app version differs from the last seen version.</summary>
+    public bool IsNewVersion()
+    {
+        var current = Services.UpdateService.CurrentVersion;
+        var currentStr = $"{current.Major}.{current.Minor}.{current.Build}";
+        return LastSeenVersion != currentStr;
+    }
+
+    /// <summary>Marks the current version as seen and saves settings.</summary>
+    public void MarkVersionSeen()
+    {
+        var current = Services.UpdateService.CurrentVersion;
+        LastSeenVersion = $"{current.Major}.{current.Minor}.{current.Build}";
+        SaveSettingsPublic();
+    }
+
+    /// <summary>
+    /// Reads the bundled RDXC_PatchNotes.md and extracts the last N version sections.
+    /// Each section starts with "## vX.Y.Z".
+    /// </summary>
+    public static string GetRecentPatchNotes(int count = 3)
+    {
+        try
+        {
+            var path = Path.Combine(AppContext.BaseDirectory, "RDXC_PatchNotes.md");
+            if (!File.Exists(path)) return "Patch notes file not found.";
+
+            var lines = File.ReadAllLines(path);
+            var sections = new List<string>();
+            var currentSection = new List<string>();
+            bool inSection = false;
+
+            foreach (var line in lines)
+            {
+                if (line.StartsWith("## v"))
+                {
+                    if (inSection && currentSection.Count > 0)
+                    {
+                        sections.Add(string.Join("\n", currentSection));
+                        if (sections.Count >= count) break;
+                        currentSection.Clear();
+                    }
+                    inSection = true;
+                    currentSection.Add(line);
+                }
+                else if (inSection)
+                {
+                    // Stop at the "---" separator between versions (but don't include it)
+                    if (line.Trim() == "---")
+                    {
+                        sections.Add(string.Join("\n", currentSection));
+                        if (sections.Count >= count) break;
+                        currentSection.Clear();
+                        inSection = false;
+                    }
+                    else
+                    {
+                        currentSection.Add(line);
+                    }
+                }
+            }
+
+            // Capture final section if still in progress
+            if (inSection && currentSection.Count > 0 && sections.Count < count)
+                sections.Add(string.Join("\n", currentSection));
+
+            return sections.Count > 0
+                ? string.Join("\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n", sections)
+                : "No patch notes available.";
+        }
+        catch (Exception ex)
+        {
+            return $"Error reading patch notes: {ex.Message}";
+        }
+    }
+
     private void SaveNameMappings()
     {
         // Called SaveNameMappings for historical reasons — actually saves all settings
@@ -657,6 +737,7 @@ public partial class MainViewModel : ObservableObject
             s["Is32BitGames"]         = JsonSerializer.Serialize(_is32BitGames.ToList());
             s["ShaderDeployMode"]    = ShaderDeployMode.ToString();
             s["SkipUpdateCheck"]     = SkipUpdateCheck ? "true" : "false";
+            s["LastSeenVersion"]     = LastSeenVersion;
             SaveSettingsFile(s);
         }
         catch { }

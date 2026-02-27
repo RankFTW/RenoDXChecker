@@ -223,6 +223,8 @@ public partial class GameCardViewModel : ObservableObject
     public bool HasNameUrl            => !string.IsNullOrEmpty(NameUrl);
     public string HideButtonLabel     => IsHidden ? "👁 Show" : "🚫 Hide";
     public string StarForeground       => IsFavourite ? "#FFD700" : "#282840";
+    public Visibility IsFavouriteVisibility      => IsFavourite ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility IsNotFavouriteVisibility   => IsFavourite ? Visibility.Collapsed : Visibility.Visible;
 
     public string InstallActionLabel
     {
@@ -283,6 +285,8 @@ public partial class GameCardViewModel : ObservableObject
         OnPropertyChanged(nameof(UpdateBadgeVisibility));
         OnPropertyChanged(nameof(HideButtonLabel));
         OnPropertyChanged(nameof(StarForeground));
+        OnPropertyChanged(nameof(IsFavouriteVisibility));
+        OnPropertyChanged(nameof(IsNotFavouriteVisibility));
         OnPropertyChanged(nameof(IsHiddenVisibility));
         OnPropertyChanged(nameof(IsNotHiddenVisibility));
         // Visibility props that depend on IsExternalOnly / Mod (plain computed properties)
@@ -361,7 +365,12 @@ public partial class GameCardViewModel : ObservableObject
     partial void OnDcActionMessageChanged(string v)         => OnPropertyChanged(nameof(DcMessageVisibility));
     partial void OnRsActionMessageChanged(string v)         => OnPropertyChanged(nameof(RsMessageVisibility));
     partial void OnIsHiddenChanged(bool v)                  => OnPropertyChanged(nameof(HideButtonLabel));
-    partial void OnIsFavouriteChanged(bool v)               => OnPropertyChanged(nameof(StarForeground));
+    partial void OnIsFavouriteChanged(bool v)
+    {
+        OnPropertyChanged(nameof(StarForeground));
+        OnPropertyChanged(nameof(IsFavouriteVisibility));
+        OnPropertyChanged(nameof(IsNotFavouriteVisibility));
+    }
     partial void OnInstallPathChanged(string v)             => OnPropertyChanged(nameof(InstallPathDisplay));
     partial void OnSourceChanged(string v)                  => OnPropertyChanged(nameof(SourceBadgeVisibility));
 }

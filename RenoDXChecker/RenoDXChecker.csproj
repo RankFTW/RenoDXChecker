@@ -18,8 +18,8 @@
     <ApplicationIcon>icon.ico</ApplicationIcon>
     <AssemblyName>RenoDXCommander</AssemblyName>
     <AssemblyTitle>RenoDXCommander</AssemblyTitle>
-    <AssemblyVersion>1.2.5.0</AssemblyVersion>
-    <FileVersion>1.2.5.0</FileVersion>
+    <AssemblyVersion>1.2.6.0</AssemblyVersion>
+    <FileVersion>1.2.6.0</FileVersion>
   </PropertyGroup>
   <ItemGroup>
     <Content Include="icon.ico">
@@ -33,6 +33,9 @@
     </Content>
     <Content Include="ReShade.ini">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="RDXC_PatchNotes.md">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 

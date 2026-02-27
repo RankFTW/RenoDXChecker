@@ -225,7 +225,7 @@
                                     <Run Text="RenoDXCommander" Foreground="#00C8FF"/>
                                 </TextBlock>
                                 <TextBlock FontSize="12" Foreground="#4A5878">
-                                    <Run Text="v1.2.5  ·  HDR mod manager by "/>
+                                    <Run Text="v1.2.6  ·  HDR mod manager by "/>
                                     <Run Text="RankFTW" FontWeight="SemiBold" Foreground="#6070A0"/>
                                     <Run Text="  ·  Unofficial companion tool"/>
                                 </TextBlock>
@@ -579,8 +579,12 @@
                                                 Background="Transparent" BorderThickness="0"
                                                 Width="22" Height="22" Padding="0" Margin="0,0,2,0"
                                                 ToolTipService.ToolTip="Toggle favourite">
-                                            <TextBlock Text="⭐" FontSize="10"
-                                                       Foreground="{x:Bind StarForeground, Mode=OneWay}"/>
+                                            <Grid>
+                                                <TextBlock Text="⭐" FontSize="10" Foreground="#FFD700"
+                                                           Visibility="{x:Bind IsFavouriteVisibility, Mode=OneWay}"/>
+                                                <TextBlock Text="☆" FontSize="12" Foreground="#303848"
+                                                           Visibility="{x:Bind IsNotFavouriteVisibility, Mode=OneWay}"/>
+                                            </Grid>
                                         </Button>
                                         <!-- 💬 discussion / wiki link — shown before the game name so it stands out -->
                                         <Button Grid.Column="1"
@@ -1015,10 +1019,26 @@
         <!-- ══ STATUS BAR ═══════════════════════════════════════════════════════════ -->
         <Border Grid.Row="3" Padding="20,6" Background="#0A0E1A"
                 BorderBrush="#141C30" BorderThickness="0,1,0,0">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="12">
-                <TextBlock x:Name="StatusBarText" Text=""
-                           FontSize="11" Foreground="#2A3450"/>
-            </StackPanel>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Spacing="12">
+                    <TextBlock x:Name="StatusBarText" Text=""
+                               FontSize="11" Foreground="#2A3450"/>
+                </StackPanel>
+                <TextBlock Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center"
+                           FontSize="10" Foreground="#5A3030"
+                           Text="⚠ Single-player only — ReShade with addon support may trigger anti-cheat in online/multiplayer games"/>
+                <Button Grid.Column="2" Content="Patch Notes"
+                        Click="PatchNotesLink_Click"
+                        Background="Transparent" BorderThickness="0"
+                        Foreground="#4A5878" FontSize="11"
+                        Padding="8,2" VerticalAlignment="Center" HorizontalAlignment="Right"
+                        ToolTipService.ToolTip="View recent patch notes"/>
+            </Grid>
         </Border>
 
     </Grid>

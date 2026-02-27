@@ -43,6 +43,8 @@ public sealed partial class MainWindow : Window
         _ = ViewModel.InitializeAsync();
         // Silent update check — runs in background, shows dialog only if update found
         _ = CheckForAppUpdateAsync();
+        // Show patch notes on first launch after update
+        _ = ShowPatchNotesIfNewVersionAsync();
         this.Closed += MainWindow_Closed;
     }
 
@@ -542,6 +544,74 @@ public sealed partial class MainWindow : Window
         {
             ViewModel.SkipUpdateCheck = toggle.IsOn;
             ViewModel.SaveSettingsPublic();
+        }
+    }
+
+    private async Task ShowPatchNotesIfNewVersionAsync()
+    {
+        try
+        {
+            // Wait until XamlRoot is ready
+            while (Content.XamlRoot == null)
+                await Task.Delay(200);
+
+            // Wait a moment for settings to load via InitializeAsync
+            await Task.Delay(500);
+
+            if (!ViewModel.IsNewVersion()) return;
+
+            DispatcherQueue.TryEnqueue(async () =>
+            {
+                await ShowPatchNotesDialogAsync();
+                ViewModel.MarkVersionSeen();
+            });
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"MainWindow: patch notes check error — {ex.Message}");
+        }
+    }
+
+    private async Task ShowPatchNotesDialogAsync()
+    {
+        var notes = ViewModels.MainViewModel.GetRecentPatchNotes(3);
+
+        var scrollViewer = new ScrollViewer
+        {
+            MaxHeight = 500,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = new TextBlock
+            {
+                Text         = notes,
+                TextWrapping = TextWrapping.Wrap,
+                FontSize     = 12,
+                Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 170, 185, 220)),
+                LineHeight   = 20,
+                IsTextSelectionEnabled = true,
+            },
+        };
+
+        var dlg = new ContentDialog
+        {
+            Title              = "📋 Patch Notes — What's New",
+            Content            = scrollViewer,
+            CloseButtonText    = "Close",
+            XamlRoot           = Content.XamlRoot,
+            Background         = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 14, 18, 32)),
+        };
+
+        await dlg.ShowAsync();
+    }
+
+    private async void PatchNotesLink_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await ShowPatchNotesDialogAsync();
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"MainWindow: patch notes dialog error — {ex.Message}");
         }
     }
 
