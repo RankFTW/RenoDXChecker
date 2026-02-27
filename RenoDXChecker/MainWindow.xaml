@@ -225,7 +225,7 @@
                                     <Run Text="RenoDXCommander" Foreground="#00C8FF"/>
                                 </TextBlock>
                                 <TextBlock FontSize="12" Foreground="#4A5878">
-                                    <Run Text="v1.2.6  ·  HDR mod manager by "/>
+                                    <Run Text="v1.2.7  ·  HDR mod manager by "/>
                                     <Run Text="RankFTW" FontWeight="SemiBold" Foreground="#6070A0"/>
                                     <Run Text="  ·  Unofficial companion tool"/>
                                 </TextBlock>

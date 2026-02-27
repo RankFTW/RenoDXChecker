@@ -1,5 +1,17 @@
 # RenoDXCommander (RDXC) — Patch Notes
 
+## v1.2.7
+
+### Fixes
+
+**Shader pack updates now deploy correctly**
+- Updated shader files that share the same filename as their previous version are now correctly overwritten when deployed. Previously, all deploy methods (`DeployFileListIfAbsent`, `DeployFolderIfAbsent`, `DeployCustomIfAbsent`) skipped any file that already existed at the destination, even if the staging copy was newer. Now, deployed files are compared against their staged counterparts — if the file size differs the staged version is copied immediately; if sizes match but the staged file is newer, a byte-level comparison determines whether to overwrite. This applies to game folders, the DC global folder, and custom shader deployments.
+
+**Patch notes popup no longer shows on every launch**
+- The version check now uses a file-based marker (`PatchNotes-X.Y.Z.txt` in the app data folder) instead of the settings.json approach which was unreliable. If the marker file exists, the popup is skipped. If it doesn't exist, it is written before the dialog is shown, then the dialog appears. Old marker files from previous versions are automatically cleaned up so the folder doesn't accumulate them.
+
+---
+
 ## v1.2.6
 
 ### New Features

@@ -1,4 +1,4 @@
-# RenoDX Commander (RDXC) v1.2.6
+# RenoDX Commander (RDXC) v1.2.7
 
 An unofficial companion app for [RenoDX](https://github.com/clshortfuse/renodx) HDR modding on Windows. RDXC manages **ReShade**, **Display Commander**, and **RenoDX mods** across your entire game library from a single interface — no manual file juggling required.
 

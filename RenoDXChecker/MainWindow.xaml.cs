@@ -547,6 +547,10 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private static readonly string PatchNotesDir = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "RenoDXCommander");
+
     private async Task ShowPatchNotesIfNewVersionAsync()
     {
         try
@@ -555,15 +559,51 @@ public sealed partial class MainWindow : Window
             while (Content.XamlRoot == null)
                 await Task.Delay(200);
 
-            // Wait a moment for settings to load via InitializeAsync
-            await Task.Delay(500);
+            // Wait for UI to settle and any update dialog to finish
+            await Task.Delay(1500);
 
-            if (!ViewModel.IsNewVersion()) return;
+            var current = Services.UpdateService.CurrentVersion;
+            var versionStr = $"{current.Major}.{current.Minor}.{current.Build}";
+            var markerFile = Path.Combine(PatchNotesDir, $"PatchNotes-{versionStr}.txt");
+
+            // Clean up markers from older versions
+            try
+            {
+                Directory.CreateDirectory(PatchNotesDir);
+                foreach (var old in Directory.EnumerateFiles(PatchNotesDir, "PatchNotes-*.txt"))
+                {
+                    if (!old.Equals(markerFile, StringComparison.OrdinalIgnoreCase))
+                    {
+                        try { File.Delete(old); } catch { }
+                    }
+                }
+            }
+            catch { }
+
+            // If marker exists, this version's notes have already been shown
+            if (File.Exists(markerFile)) return;
+
+            // Write the marker file FIRST — ensures we never show again
+            try
+            {
+                Directory.CreateDirectory(PatchNotesDir);
+                File.WriteAllText(markerFile, $"Patch notes shown for v{versionStr}");
+            }
+            catch (Exception ex)
+            {
+                CrashReporter.Log($"MainWindow: failed to write patch notes marker — {ex.Message}");
+            }
 
             DispatcherQueue.TryEnqueue(async () =>
             {
-                await ShowPatchNotesDialogAsync();
-                ViewModel.MarkVersionSeen();
+                try
+                {
+                    await ShowPatchNotesDialogAsync();
+                }
+                catch (Exception ex)
+                {
+                    CrashReporter.Log($"MainWindow: patch notes dialog failed — {ex.Message}");
+                }
             });
         }
         catch (Exception ex)

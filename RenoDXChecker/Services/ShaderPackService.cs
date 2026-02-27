@@ -524,6 +524,8 @@ public static class ShaderPackService
 
                     if (!File.Exists(dest))
                         File.Copy(src, dest, overwrite: false);
+                    else if (IsFileStale(src, dest))
+                        try { File.Copy(src, dest, overwrite: true); } catch { }
                 }
             }
 
@@ -538,6 +540,8 @@ public static class ShaderPackService
 
                     if (!File.Exists(dest))
                         File.Copy(src, dest, overwrite: false);
+                    else if (IsFileStale(src, dest))
+                        try { File.Copy(src, dest, overwrite: true); } catch { }
                 }
             }
         }
@@ -945,6 +949,47 @@ public static class ShaderPackService
     /// Copies a specific list of relative paths from sourceDir → destDir.
     /// Skips any file that already exists at the destination.
     /// </summary>
+    /// <summary>
+    /// Returns true if the staged source file differs from the deployed destination file.
+    /// Compares file size first (fast), then falls back to byte-level comparison if sizes match
+    /// but the staging file is newer — covers edge cases where content changes without size change.
+    /// </summary>
+    private static bool IsFileStale(string srcPath, string destPath)
+    {
+        try
+        {
+            var srcInfo  = new FileInfo(srcPath);
+            var destInfo = new FileInfo(destPath);
+
+            // Different size → definitely stale
+            if (srcInfo.Length != destInfo.Length) return true;
+
+            // Same size but source is newer → compare bytes
+            if (srcInfo.LastWriteTimeUtc > destInfo.LastWriteTimeUtc)
+            {
+                // Quick byte comparison (read in 8 KB chunks)
+                using var fs1 = File.OpenRead(srcPath);
+                using var fs2 = File.OpenRead(destPath);
+                var buf1 = new byte[8192];
+                var buf2 = new byte[8192];
+                int read1;
+                while ((read1 = fs1.Read(buf1, 0, buf1.Length)) > 0)
+                {
+                    var read2 = fs2.Read(buf2, 0, buf2.Length);
+                    if (read1 != read2) return true;
+                    if (!buf1.AsSpan(0, read1).SequenceEqual(buf2.AsSpan(0, read2))) return true;
+                }
+                return false; // Identical bytes
+            }
+
+            return false; // Same size and destination is same age or newer
+        }
+        catch
+        {
+            return false; // On error, don't overwrite
+        }
+    }
+
     private static void DeployFileListIfAbsent(string sourceDir, string destDir, List<string> relPaths)
     {
         if (!Directory.Exists(sourceDir)) return;
@@ -954,9 +999,19 @@ public static class ShaderPackService
             var src = Path.Combine(sourceDir, rel);
             if (!File.Exists(src)) continue;
             var dest = Path.Combine(destDir, rel);
-            if (File.Exists(dest)) continue;
             Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
-            File.Copy(src, dest, overwrite: false);
+
+            if (File.Exists(dest))
+            {
+                // Overwrite if the staged file differs from the deployed file
+                if (!IsFileStale(src, dest)) continue;
+                try { File.Copy(src, dest, overwrite: true); }
+                catch (Exception ex) { CrashReporter.Log($"ShaderPacks: update '{rel}' failed — {ex.Message}"); }
+            }
+            else
+            {
+                File.Copy(src, dest, overwrite: false);
+            }
         }
     }
 
@@ -972,9 +1027,18 @@ public static class ShaderPackService
         {
             var rel = Path.GetRelativePath(sourceDir, file);
             var destFile = Path.Combine(destDir, rel);
-            if (File.Exists(destFile)) continue;
             Directory.CreateDirectory(Path.GetDirectoryName(destFile)!);
-            File.Copy(file, destFile, overwrite: false);
+
+            if (File.Exists(destFile))
+            {
+                if (!IsFileStale(file, destFile)) continue;
+                try { File.Copy(file, destFile, overwrite: true); }
+                catch (Exception ex) { CrashReporter.Log($"ShaderPacks: update '{rel}' failed — {ex.Message}"); }
+            }
+            else
+            {
+                File.Copy(file, destFile, overwrite: false);
+            }
         }
     }
 
