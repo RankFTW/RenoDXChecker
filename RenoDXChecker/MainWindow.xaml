@@ -159,6 +159,10 @@
                             Click="Filter_Click"
                             Background="#161E38" Foreground="#8896C0"
                             BorderThickness="0" CornerRadius="7" Padding="12,6" FontSize="12"/>
+                    <Button x:Name="FilterLuma" Content="Luma" Tag="Luma"
+                            Click="Filter_Click"
+                            Background="#161E38" Foreground="#8896C0"
+                            BorderThickness="0" CornerRadius="7" Padding="12,6" FontSize="12"/>
                 </StackPanel>
                 <!-- Spacer -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
@@ -225,7 +229,7 @@
                                     <Run Text="RenoDXCommander" Foreground="#00C8FF"/>
                                 </TextBlock>
                                 <TextBlock FontSize="12" Foreground="#4A5878">
-                                    <Run Text="v1.2.7  ·  HDR mod manager by "/>
+                                    <Run Text="v1.2.8  ·  HDR mod manager by "/>
                                     <Run Text="RankFTW" FontWeight="SemiBold" Foreground="#6070A0"/>
                                     <Run Text="  ·  Unofficial companion tool"/>
                                 </TextBlock>
@@ -240,7 +244,7 @@
                                            Foreground="#A07050"/>
                                 <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#9080A0" LineHeight="20">
                                     <Run Text="RenoDXCommander is an unofficial third-party tool "/>
-                                    <Run Text="not affiliated with or endorsed by the RenoDX project, Crosire, or pmnoxx."
+                                    <Run Text="not affiliated with or endorsed by the RenoDX project, Crosire, pmnoxx, or the Luma Framework."
                                          FontWeight="SemiBold" Foreground="#C0A0B0"/>
                                     <Run Text=" RenoDX mod files are fetched from official RenoDX GitHub snapshots. Display Commander is downloaded from pmnoxx's GitHub. ReShade (bundled) is redistributed under its BSD 3-Clause licence. No mod files are modified — everything is used directly from its official source."/>
                                 </TextBlock>
@@ -341,7 +345,7 @@
                                             <Run Text=" by clshortfuse &amp; contributors" Foreground="#8090B8"/>
                                             <Run Text="  ·  MIT Licence" Foreground="#405068" FontSize="11"/>
                                         </TextBlock>
-                                        <TextBlock FontSize="11" Foreground="#3A4860" Margin="18,0,0,0"
+                                        <TextBlock FontSize="11" Foreground="#3A4860" Margin="18,0,0,0" TextWrapping="Wrap"
                                                    Text="HDR mod framework powering 150+ games. The entire reason this app exists."/>
                                         <HyperlinkButton NavigateUri="https://github.com/clshortfuse/renodx" Padding="18,2,0,0" FontSize="11">
                                             <TextBlock Foreground="#2A5888" Text="github.com/clshortfuse/renodx"/>
@@ -358,7 +362,7 @@
                                             <Run Text=" by Crosire" Foreground="#8090B8"/>
                                             <Run Text="  ·  BSD 3-Clause Licence" Foreground="#405068" FontSize="11"/>
                                         </TextBlock>
-                                        <TextBlock FontSize="11" Foreground="#3A4860" Margin="18,0,0,0"
+                                        <TextBlock FontSize="11" Foreground="#3A4860" Margin="18,0,0,0" TextWrapping="Wrap"
                                                    Text="Post-processing injection framework. Bundled DLLs (ReShade64.dll / ReShade32.dll) redistributed under the BSD 3-Clause licence. Copyright © Crosire."/>
                                         <HyperlinkButton NavigateUri="https://reshade.me" Padding="18,2,0,0" FontSize="11">
                                             <TextBlock Foreground="#2A5888" Text="reshade.me  ·  github.com/crosire/reshade"/>
@@ -375,10 +379,27 @@
                                             <Run Text=" by pmnoxx" Foreground="#8090B8"/>
                                             <Run Text="  ·  Source-available" Foreground="#405068" FontSize="11"/>
                                         </TextBlock>
-                                        <TextBlock FontSize="11" Foreground="#3A4860" Margin="18,0,0,0"
+                                        <TextBlock FontSize="11" Foreground="#3A4860" Margin="18,0,0,0" TextWrapping="Wrap"
                                                    Text="ReShade addon for display, window, and audio management. Downloaded from official GitHub releases."/>
                                         <HyperlinkButton NavigateUri="https://github.com/pmnoxx/display-commander" Padding="18,2,0,0" FontSize="11">
                                             <TextBlock Foreground="#2A5888" Text="github.com/pmnoxx/display-commander"/>
+                                        </HyperlinkButton>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Luma Framework -->
+                                <Border Background="#0D1520" CornerRadius="8" Padding="12,10" BorderBrush="#182030" BorderThickness="1">
+                                    <StackPanel Spacing="3">
+                                        <TextBlock FontSize="12">
+                                            <Run Text="🌟 " Foreground="#40A060"/>
+                                            <Run Text="Luma Framework" FontWeight="SemiBold" Foreground="#66BB6A"/>
+                                            <Run Text=" by Pumbo (Filoppi)" Foreground="#8090B8"/>
+                                            <Run Text="  ·  Source-available" Foreground="#405068" FontSize="11"/>
+                                        </TextBlock>
+                                        <TextBlock FontSize="11" Foreground="#3A4860" Margin="18,0,0,0" TextWrapping="Wrap"
+                                                   Text="DX11 modding framework adding HDR support and graphics improvements via the ReShade addon system. Mods are downloaded from official GitHub releases. Experimental integration — not fully supported."/>
+                                        <HyperlinkButton NavigateUri="https://github.com/Filoppi/Luma-Framework" Padding="18,2,0,0" FontSize="11">
+                                            <TextBlock Foreground="#2A5888" Text="github.com/Filoppi/Luma-Framework"/>
                                         </HyperlinkButton>
                                     </StackPanel>
                                 </Border>
@@ -392,7 +413,7 @@
                                             <Run Text=" by ZZZ Projects" Foreground="#8090B8"/>
                                             <Run Text="  ·  MIT Licence" Foreground="#405068" FontSize="11"/>
                                         </TextBlock>
-                                        <TextBlock FontSize="11" Foreground="#3A4860" Margin="18,0,0,0"
+                                        <TextBlock FontSize="11" Foreground="#3A4860" Margin="18,0,0,0" TextWrapping="Wrap"
                                                    Text="HTML parser used to scrape game data from the RenoDX wiki. Copyright © ZZZ Projects Inc."/>
                                         <HyperlinkButton NavigateUri="https://github.com/zzzprojects/html-agility-pack" Padding="18,2,0,0" FontSize="11">
                                             <TextBlock Foreground="#2A5888" Text="github.com/zzzprojects/html-agility-pack"/>
@@ -409,7 +430,7 @@
                                             <Run Text=" by Microsoft" Foreground="#8090B8"/>
                                             <Run Text="  ·  MIT Licence" Foreground="#405068" FontSize="11"/>
                                         </TextBlock>
-                                        <TextBlock FontSize="11" Foreground="#3A4860" Margin="18,0,0,0"
+                                        <TextBlock FontSize="11" Foreground="#3A4860" Margin="18,0,0,0" TextWrapping="Wrap"
                                                    Text="MVVM helpers (ObservableObject, RelayCommand, etc.) used throughout the app. Copyright © .NET Foundation."/>
                                         <HyperlinkButton NavigateUri="https://github.com/CommunityToolkit/dotnet" Padding="18,2,0,0" FontSize="11">
                                             <TextBlock Foreground="#2A5888" Text="github.com/CommunityToolkit/dotnet"/>
@@ -425,7 +446,7 @@
                                             <Run Text="RenoDXCommander" FontWeight="SemiBold" Foreground="#39FF14"/>
                                             <Run Text=" by RankFTW" Foreground="#8090B8"/>
                                         </TextBlock>
-                                        <TextBlock FontSize="11" Foreground="#3A4860" Margin="18,0,0,0"
+                                        <TextBlock FontSize="11" Foreground="#3A4860" Margin="18,0,0,0" TextWrapping="Wrap"
                                                    Text="Unofficial companion app. Not affiliated with RenoDX, Crosire, or pmnoxx."/>
                                         <HyperlinkButton NavigateUri="https://github.com/RankFTW" Padding="18,2,0,0" FontSize="11">
                                             <TextBlock Foreground="#2A5888" Text="github.com/RankFTW"/>
@@ -433,6 +454,26 @@
                                     </StackPanel>
                                 </Border>
 
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Settings -->
+                        <Border Background="#111A28" CornerRadius="10" Padding="16,12"
+                                BorderBrush="#1C2440" BorderThickness="1">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Settings" FontSize="12" FontWeight="SemiBold" Foreground="#A0B0D8"/>
+                                <ToggleSwitch x:Name="SkipUpdateToggle"
+                                              Header="Skip update check on launch"
+                                              Toggled="SkipUpdateToggle_Toggled"
+                                              OnContent="Disabled — RDXC will not check for updates"
+                                              OffContent="Enabled — RDXC checks for updates on launch"
+                                              Foreground="#7A8EAE" FontSize="12"/>
+                                <ToggleSwitch x:Name="LumaFeatureToggle"
+                                              Header="Luma (Experimental)"
+                                              Toggled="LumaFeatureToggle_Toggled"
+                                              OnContent="Enabled — Luma options visible on cards and filters"
+                                              OffContent="Disabled — all Luma UI hidden"
+                                              Foreground="#7A8EAE" FontSize="12"/>
                             </StackPanel>
                         </Border>
 
@@ -450,11 +491,20 @@
                                 <HyperlinkButton NavigateUri="https://discord.gg/gF4GRJWZ2A" Padding="0">
                                     <TextBlock Foreground="#6A8ABE" FontSize="12">💬  RenoDX Discord</TextBlock>
                                 </HyperlinkButton>
+                                <HyperlinkButton NavigateUri="https://discord.gg/k3cDruEQ" Padding="0">
+                                    <TextBlock Foreground="#6A8ABE" FontSize="12">💬  HDR Den Discord</TextBlock>
+                                </HyperlinkButton>
+                                <HyperlinkButton NavigateUri="https://github.com/Filoppi/Luma-Framework/wiki/Mods-List" Padding="0">
+                                    <TextBlock Foreground="#6A8ABE" FontSize="12">📋  HDR Den / Luma Wiki</TextBlock>
+                                </HyperlinkButton>
                                 <HyperlinkButton NavigateUri="https://reshade.me" Padding="0">
                                     <TextBlock Foreground="#6A8ABE" FontSize="12">🎮  ReShade — reshade.me</TextBlock>
                                 </HyperlinkButton>
                                 <HyperlinkButton NavigateUri="https://github.com/pmnoxx/display-commander" Padding="0">
                                     <TextBlock Foreground="#6A8ABE" FontSize="12">🖥  Display Commander — github.com/pmnoxx/display-commander</TextBlock>
+                                </HyperlinkButton>
+                                <HyperlinkButton NavigateUri="https://github.com/Filoppi/Luma-Framework" Padding="0">
+                                    <TextBlock Foreground="#6A8ABE" FontSize="12">🌟  Luma Framework — github.com/Filoppi/Luma-Framework</TextBlock>
                                 </HyperlinkButton>
                                 <HyperlinkButton NavigateUri="https://www.hdrmods.com/" Padding="0">
                                     <TextBlock Foreground="#6A8ABE" FontSize="12">🎨  Creepy's HDR Guides — hdrmods.com</TextBlock>
@@ -465,20 +515,6 @@
                                 <HyperlinkButton NavigateUri="https://github.com/RankFTW" Padding="0">
                                     <TextBlock Foreground="#6A8ABE" FontSize="12">🔧  RankFTW GitHub</TextBlock>
                                 </HyperlinkButton>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Settings -->
-                        <Border Background="#111A28" CornerRadius="10" Padding="16,12"
-                                BorderBrush="#1C2440" BorderThickness="1">
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="Settings" FontSize="12" FontWeight="SemiBold" Foreground="#A0B0D8"/>
-                                <ToggleSwitch x:Name="SkipUpdateToggle"
-                                              Header="Skip update check on launch"
-                                              Toggled="SkipUpdateToggle_Toggled"
-                                              OnContent="Disabled — RDXC will not check for updates"
-                                              OffContent="Enabled — RDXC checks for updates on launch"
-                                              Foreground="#7A8EAE" FontSize="12"/>
                             </StackPanel>
                         </Border>
 
@@ -634,6 +670,23 @@
                                     <!-- Row 1: Source/Engine/Generic badges -->
                                     <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4"
                                                 VerticalAlignment="Center">
+                                        <!-- Luma toggle badge -->
+                                        <Border Background="{x:Bind LumaBadgeBackground, Mode=OneWay}"
+                                                CornerRadius="5" Padding="0"
+                                                BorderBrush="{x:Bind LumaBadgeBorderBrush, Mode=OneWay}"
+                                                BorderThickness="1"
+                                                Visibility="{x:Bind LumaBadgeVisibility, Mode=OneWay}">
+                                            <ToggleButton
+                                                IsChecked="{x:Bind IsLumaMode, Mode=OneWay}"
+                                                Click="LumaToggle_Click" Tag="{x:Bind}"
+                                                Background="Transparent" BorderThickness="0"
+                                                Padding="6,2" MinHeight="0" MinWidth="0"
+                                                CornerRadius="5">
+                                                <TextBlock Text="{x:Bind LumaBadgeLabel, Mode=OneWay}"
+                                                           FontSize="10"
+                                                           Foreground="{x:Bind LumaBadgeForeground, Mode=OneWay}"/>
+                                            </ToggleButton>
+                                        </Border>
                                         <Border Background="#1E2848" CornerRadius="5" Padding="6,2"
                                                 Visibility="{x:Bind SourceBadgeVisibility}">
                                             <TextBlock FontSize="10" Foreground="#8090B8">
@@ -716,7 +769,8 @@
                                     <Grid Grid.Row="4"/>
 
                                     <!-- Row 5: ReShade install row [install*][📋 INI][🗑 delete] -->
-                                    <Grid Grid.Row="5" VerticalAlignment="Stretch" Margin="0,0,0,2">
+                                    <Grid Grid.Row="5" VerticalAlignment="Stretch" Margin="0,0,0,2"
+                                          Visibility="{x:Bind ReShadeRowVisibility, Mode=OneWay}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
@@ -763,7 +817,8 @@
                                     </Grid>
 
                                     <!-- Row 6: Display Commander install row [install*][📋 INI][🗑 delete] -->
-                                    <Grid Grid.Row="6" VerticalAlignment="Stretch" Margin="0,0,0,2">
+                                    <Grid Grid.Row="6" VerticalAlignment="Stretch" Margin="0,0,0,2"
+                                          Visibility="{x:Bind DcRowVisibility, Mode=OneWay}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
@@ -976,8 +1031,59 @@
                                         </Button>
                                     </Grid>
 
-                                    <!-- Row 8: Progress + message (ReShade / DC / RenoDX) -->
+                                    <!-- Row 7e: Luma install (visible only in Luma mode) -->
+                                    <Button Grid.Row="7"
+                                            Visibility="{x:Bind LumaInstallVisibility, Mode=OneWay}"
+                                            IsEnabled="{x:Bind IsLumaNotInstalling, Mode=OneWay}"
+                                            Click="InstallLumaButton_Click" Tag="{x:Bind}"
+                                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                            CornerRadius="10" FontSize="13" FontWeight="SemiBold"
+                                            Background="#1A3828" Foreground="#80D090"
+                                            BorderBrush="#286040" BorderThickness="1">
+                                        <TextBlock Text="⬇  Install Luma" FontSize="13"/>
+                                    </Button>
+
+                                    <!-- Row 7f: Luma reinstall/uninstall (visible when Luma installed) -->
+                                    <Grid Grid.Row="7"
+                                          Visibility="{x:Bind LumaReinstallVisibility, Mode=OneWay}"
+                                          VerticalAlignment="Stretch">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0"
+                                                IsEnabled="{x:Bind IsLumaNotInstalling, Mode=OneWay}"
+                                                Click="InstallLumaButton_Click" Tag="{x:Bind}"
+                                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                                CornerRadius="10,0,0,10" FontSize="12" FontWeight="SemiBold"
+                                                Background="#1A3828" Foreground="#80D090"
+                                                BorderBrush="#286040" BorderThickness="1,1,0,1"
+                                                Margin="0,0,1,0">
+                                            <TextBlock Text="{x:Bind LumaActionLabel, Mode=OneWay}" FontSize="12"/>
+                                        </Button>
+                                        <Button Grid.Column="1"
+                                                Click="UninstallLumaButton_Click" Tag="{x:Bind}"
+                                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                                CornerRadius="0,10,10,0"
+                                                Background="#1A1010" Foreground="#A06060"
+                                                BorderBrush="#2A1830" BorderThickness="1"
+                                                Width="44"
+                                                ToolTipService.ToolTip="Remove Luma mod">
+                                            <TextBlock Text="🗑" FontSize="13"/>
+                                        </Button>
+                                    </Grid>
+
+                                    <!-- Row 8: Progress + message (ReShade / DC / RenoDX / Luma) -->
                                     <StackPanel Grid.Row="8" Spacing="2" Margin="0,4,0,0">
+                                        <!-- Luma progress -->
+                                        <ProgressBar Visibility="{x:Bind LumaProgressVisibility, Mode=OneWay}"
+                                                     Value="{x:Bind LumaProgress, Mode=OneWay}"
+                                                     Maximum="100" Height="3" CornerRadius="2"
+                                                     Foreground="#40A060" Background="#141E30"/>
+                                        <TextBlock Text="{x:Bind LumaActionMessage, Mode=OneWay}"
+                                                   Visibility="{x:Bind LumaMessageVisibility, Mode=OneWay}"
+                                                   FontSize="10" Foreground="#60C080"
+                                                   TextWrapping="Wrap" MaxLines="1"/>
                                         <!-- ReShade progress -->
                                         <ProgressBar Visibility="{x:Bind RsProgressVisibility, Mode=OneWay}"
                                                      Value="{x:Bind RsProgress, Mode=OneWay}"

@@ -40,6 +40,8 @@ public sealed partial class MainWindow : Window
         ViewModel.ConfirmForeignDxgiOverwrite = ShowForeignDxgiConfirmDialogAsync;
         ViewModel.PropertyChanged += OnViewModelChanged;
         GameCardsList.ItemsSource  = ViewModel.DisplayedGames;
+        FilterLuma.Visibility = ViewModel.LumaFeatureEnabled
+            ? Visibility.Visible : Visibility.Collapsed;
         _ = ViewModel.InitializeAsync();
         // Silent update check — runs in background, shows dialog only if update found
         _ = CheckForAppUpdateAsync();
@@ -57,6 +59,11 @@ public sealed partial class MainWindow : Window
 
     private void ShowTuneDialog(string? prefilledDetected)
     {
+        // Check if this game is in Luma mode (disables some controls)
+        bool isLumaMode = false;
+        if (!string.IsNullOrEmpty(prefilledDetected))
+            isLumaMode = ViewModel.IsLumaEnabled(prefilledDetected);
+
         var detectedBox = new TextBox
         {
             PlaceholderText = "Detected game name (as shown on the card)",
@@ -83,6 +90,7 @@ public sealed partial class MainWindow : Window
         {
             Content    = "🚫  Exclude from wiki",
             IsChecked  = isExcluded,
+            IsEnabled  = !isLumaMode,
             FontSize   = 12,
             Padding    = new Thickness(10, 6, 10, 6),
             Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 14, 30)),
@@ -91,6 +99,7 @@ public sealed partial class MainWindow : Window
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         ToolTipService.SetToolTip(excludeBtn,
+            isLumaMode ? "Disabled in Luma mode" :
             "Exclude this game from all wiki matching. The card will show a Discord link instead of an install button.");
 
         var panel = new StackPanel { Spacing = 8 };
@@ -99,9 +108,9 @@ public sealed partial class MainWindow : Window
             TextWrapping = TextWrapping.Wrap,
             Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 120, 140, 180)),
             FontSize     = 12,
-            Text         = "Map a detected game name to a wiki mod name for correct matching.",
+            Text         = "Edit the game name to correct it, or map it to a wiki mod name for correct matching.",
         });
-        panel.Children.Add(new TextBlock { Text = "Detected game name:", FontSize = 12 });
+        panel.Children.Add(new TextBlock { Text = "Game name (editable):", FontSize = 12 });
         panel.Children.Add(detectedBox);
         panel.Children.Add(new TextBlock { Text = "Wiki mod name:", FontSize = 12 });
         panel.Children.Add(wikiBox);
@@ -152,6 +161,30 @@ public sealed partial class MainWindow : Window
 
         panel.Children.Add(MakeSeparator());
 
+        // 32-bit mode (moved above shader mode)
+        bool is32Bit = !string.IsNullOrEmpty(prefilledDetected) &&
+                       ViewModel.Is32BitGame(prefilledDetected);
+
+        var bit32Btn = new ToggleButton
+        {
+            Content    = "⚠  32-bit mode",
+            IsChecked  = is32Bit,
+            IsEnabled  = !isLumaMode,
+            FontSize   = 12,
+            Padding    = new Thickness(10, 6, 10, 6),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 28, 14, 8)),
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 200, 120, 60)),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 120, 50, 20)),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        ToolTipService.SetToolTip(bit32Btn,
+            "Installs 32-bit versions of ReShade, Unity addon, and Display Commander. Only enable if you know this game is 32-bit.");
+
+        panel.Children.Add(bit32Btn);
+
+        panel.Children.Add(MakeSeparator());
+
+        // Shader mode (moved to bottom)
         string currentShaderMode = !string.IsNullOrEmpty(prefilledDetected)
             ? ViewModel.GetPerGameShaderMode(prefilledDetected)
             : "Global";
@@ -171,27 +204,6 @@ public sealed partial class MainWindow : Window
             "When DC Mode is ON, all DC-mode games share the DC global shader folder.");
 
         panel.Children.Add(shaderModeCombo);
-
-        panel.Children.Add(MakeSeparator());
-
-        bool is32Bit = !string.IsNullOrEmpty(prefilledDetected) &&
-                       ViewModel.Is32BitGame(prefilledDetected);
-
-        var bit32Btn = new ToggleButton
-        {
-            Content    = "⚠  32-bit mode",
-            IsChecked  = is32Bit,
-            FontSize   = 12,
-            Padding    = new Thickness(10, 6, 10, 6),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 28, 14, 8)),
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 200, 120, 60)),
-            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 120, 50, 20)),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        ToolTipService.SetToolTip(bit32Btn,
-            "Installs 32-bit versions of ReShade, Unity addon, and Display Commander. Only enable if you know this game is 32-bit.");
-
-        panel.Children.Add(bit32Btn);
 
         var dlg = new ContentDialog
         {
@@ -217,6 +229,14 @@ public sealed partial class MainWindow : Window
             if (t.Result == ContentDialogResult.Primary)
             {
                 var det = detectedBox.Text?.Trim();
+
+                // Handle game rename — if the user edited the name, rename everywhere first
+                // so all subsequent toggles operate on the new name.
+                if (!string.IsNullOrEmpty(prefilledDetected) && !string.IsNullOrEmpty(det)
+                    && !det.Equals(prefilledDetected, StringComparison.OrdinalIgnoreCase))
+                {
+                    ViewModel.RenameGame(prefilledDetected, det);
+                }
 
                 // Handle wiki exclusion toggle
                 bool nowExcluded = excludeBtn.IsChecked == true;
@@ -244,6 +264,7 @@ public sealed partial class MainWindow : Window
                     ViewModel.Toggle32Bit(det);
 
                 // Save name mapping if provided and not excluded
+                // (skip if rename already triggered a rescan to avoid double-rebuild)
                 var key = wikiBox.Text?.Trim();
                 if (!nowExcluded && !string.IsNullOrEmpty(det) && !string.IsNullOrEmpty(key))
                     ViewModel.AddNameMapping(det, key);
@@ -536,6 +557,7 @@ public sealed partial class MainWindow : Window
         LoadingPanel.Visibility = Visibility.Collapsed;
         // Sync toggle state with ViewModel
         SkipUpdateToggle.IsOn = ViewModel.SkipUpdateCheck;
+        LumaFeatureToggle.IsOn = ViewModel.LumaFeatureEnabled;
     }
 
     private void SkipUpdateToggle_Toggled(object sender, RoutedEventArgs e)
@@ -544,6 +566,21 @@ public sealed partial class MainWindow : Window
         {
             ViewModel.SkipUpdateCheck = toggle.IsOn;
             ViewModel.SaveSettingsPublic();
+        }
+    }
+
+    private void LumaFeatureToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleSwitch toggle)
+        {
+            ViewModel.LumaFeatureEnabled = toggle.IsOn;
+            FilterLuma.Visibility = toggle.IsOn
+                ? Microsoft.UI.Xaml.Visibility.Visible
+                : Microsoft.UI.Xaml.Visibility.Collapsed;
+
+            // If Luma filter was active and the feature was just disabled, reset to Detected
+            if (!toggle.IsOn && ViewModel.FilterMode == "Luma")
+                ViewModel.SetFilterCommand.Execute("Detected");
         }
     }
 
@@ -736,7 +773,7 @@ public sealed partial class MainWindow : Window
         if (e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems))
         {
             e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
-            e.DragUIOverride.Caption = "Drop to add game";
+            e.DragUIOverride.Caption = "Drop to add game or install addon";
             e.DragUIOverride.IsCaptionVisible = true;
             e.DragUIOverride.IsGlyphVisible = true;
         }
@@ -751,7 +788,25 @@ public sealed partial class MainWindow : Window
         foreach (var item in items)
         {
             if (item is not Windows.Storage.StorageFile file) continue;
-            if (!file.FileType.Equals(".exe", StringComparison.OrdinalIgnoreCase)) continue;
+
+            var ext = file.FileType?.ToLowerInvariant() ?? "";
+
+            // Handle .addon64 / .addon32 files — install RenoDX addon to a game
+            if (ext is ".addon64" or ".addon32")
+            {
+                try
+                {
+                    await ProcessDroppedAddon(file.Path);
+                }
+                catch (Exception ex)
+                {
+                    CrashReporter.Log($"DragDrop addon: error processing '{file.Path}': {ex.Message}");
+                }
+                continue;
+            }
+
+            // Handle .exe files — add game
+            if (!ext.Equals(".exe", StringComparison.OrdinalIgnoreCase)) continue;
 
             var exePath = file.Path;
             CrashReporter.Log($"DragDrop: received exe '{exePath}'");
@@ -856,6 +911,198 @@ public sealed partial class MainWindow : Window
             Name = finalName, InstallPath = gameRoot, Source = "Manual", IsManuallyAdded = true
         };
         ViewModel.AddManualGameCommand.Execute(game);
+    }
+
+    /// <summary>
+    /// Handles a dropped .addon64/.addon32 file — prompts the user to pick a game
+    /// and installs the addon to that game's folder after confirmation.
+    /// </summary>
+    private async Task ProcessDroppedAddon(string addonPath)
+    {
+        var addonFileName = Path.GetFileName(addonPath);
+        CrashReporter.Log($"DragDrop addon: received '{addonFileName}'");
+
+        // Build a list of all detected games to choose from
+        var cards = ViewModel.AllCards?.ToList() ?? new();
+        if (cards.Count == 0)
+        {
+            var noGamesDialog = new ContentDialog
+            {
+                Title = "No Games Available",
+                Content = "No games are currently detected. Add a game first.",
+                CloseButtonText = "OK",
+                XamlRoot = this.Content.XamlRoot,
+            };
+            await noGamesDialog.ShowAsync();
+            return;
+        }
+
+        // Build a ComboBox for game selection
+        var combo = new ComboBox
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            PlaceholderText = "Select a game...",
+        };
+
+        // Sort alphabetically and populate
+        var sortedCards = cards.OrderBy(c => c.GameName, StringComparer.OrdinalIgnoreCase).ToList();
+        foreach (var card in sortedCards)
+            combo.Items.Add(new ComboBoxItem { Content = card.GameName, Tag = card });
+
+        // Try to auto-select a game by matching addon filename to game names
+        // e.g. "renodx-re9requiem.addon64" might fuzzy-match a game with "requiem" in the name
+        var addonNameLower = Path.GetFileNameWithoutExtension(addonFileName).ToLowerInvariant();
+        for (int i = 0; i < sortedCards.Count; i++)
+        {
+            // Check if the addon name contains a significant part of the game name
+            string[] gameWords = sortedCards[i].GameName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (gameWords.Length >= 2)
+            {
+                bool matched = false;
+                foreach (var w in gameWords)
+                {
+                    if (w.Length > 3 && addonNameLower.Contains(w.ToLowerInvariant()))
+                    {
+                        matched = true;
+                        break;
+                    }
+                }
+                if (matched)
+                {
+                    combo.SelectedIndex = i;
+                    break;
+                }
+            }
+        }
+
+        var panel = new StackPanel { Spacing = 12 };
+        panel.Children.Add(new TextBlock
+        {
+            Text = $"Install {addonFileName} to a game folder.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 13,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 160, 176, 216)),
+        });
+        panel.Children.Add(combo);
+
+        var pickDialog = new ContentDialog
+        {
+            Title = "📦 Install RenoDX Addon",
+            Content = panel,
+            PrimaryButtonText = "Next",
+            CloseButtonText = "Cancel",
+            XamlRoot = this.Content.XamlRoot,
+            RequestedTheme = ElementTheme.Dark,
+        };
+
+        var pickResult = await pickDialog.ShowAsync();
+        if (pickResult != ContentDialogResult.Primary) return;
+
+        if (combo.SelectedItem is not ComboBoxItem selected || selected.Tag is not GameCardViewModel targetCard)
+        {
+            var noSelection = new ContentDialog
+            {
+                Title = "No Game Selected",
+                Content = "Please select a game to install the addon to.",
+                CloseButtonText = "OK",
+                XamlRoot = this.Content.XamlRoot,
+            };
+            await noSelection.ShowAsync();
+            return;
+        }
+
+        var gameName = targetCard.GameName;
+        var installPath = targetCard.InstallPath;
+
+        // Check for existing RenoDX addon files in the game folder
+        string? existingAddon = null;
+        try
+        {
+            var existing = Directory.GetFiles(installPath, "*.addon64")
+                .Concat(Directory.GetFiles(installPath, "*.addon32"))
+                .Where(f => !Path.GetFileName(f).StartsWith("zzz_display_commander", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (existing.Count > 0)
+                existingAddon = string.Join(", ", existing.Select(Path.GetFileName));
+        }
+        catch { }
+
+        // Confirmation dialog
+        var warningText = $"Are you sure you want to install {addonFileName} for {gameName}?";
+        if (!string.IsNullOrEmpty(existingAddon))
+            warningText += $"\n\nThis will replace the existing addon: {existingAddon}";
+        warningText += $"\n\nInstall path: {installPath}";
+
+        var confirmDialog = new ContentDialog
+        {
+            Title = "⚠ Confirm Addon Install",
+            Content = new TextBlock
+            {
+                Text = warningText,
+                TextWrapping = TextWrapping.Wrap,
+                FontSize = 13,
+            },
+            PrimaryButtonText = "Install",
+            CloseButtonText = "Cancel",
+            XamlRoot = this.Content.XamlRoot,
+            RequestedTheme = ElementTheme.Dark,
+        };
+
+        var confirmResult = await confirmDialog.ShowAsync();
+        if (confirmResult != ContentDialogResult.Primary) return;
+
+        // Remove existing RenoDX addon files (not DC addons)
+        try
+        {
+            var toRemove = Directory.GetFiles(installPath, "*.addon64")
+                .Concat(Directory.GetFiles(installPath, "*.addon32"))
+                .Where(f => !Path.GetFileName(f).StartsWith("zzz_display_commander", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            foreach (var f in toRemove)
+            {
+                CrashReporter.Log($"DragDrop addon: removing existing '{Path.GetFileName(f)}'");
+                File.Delete(f);
+            }
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"DragDrop addon: failed to remove existing addons: {ex.Message}");
+        }
+
+        // Copy the addon file to the game folder
+        var destPath = Path.Combine(installPath, addonFileName);
+        try
+        {
+            File.Copy(addonPath, destPath, overwrite: true);
+            CrashReporter.Log($"DragDrop addon: installed '{addonFileName}' to '{installPath}'");
+
+            // Update card status
+            targetCard.Status = GameStatus.Installed;
+            targetCard.InstalledAddonFileName = addonFileName;
+            targetCard.NotifyAll();
+
+            var successDialog = new ContentDialog
+            {
+                Title = "✅ Addon Installed",
+                Content = $"{addonFileName} has been installed for {gameName}.",
+                CloseButtonText = "OK",
+                XamlRoot = this.Content.XamlRoot,
+                RequestedTheme = ElementTheme.Dark,
+            };
+            await successDialog.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"DragDrop addon: install failed: {ex.Message}");
+            var errDialog = new ContentDialog
+            {
+                Title = "❌ Install Failed",
+                Content = $"Failed to install addon: {ex.Message}",
+                CloseButtonText = "OK",
+                XamlRoot = this.Content.XamlRoot,
+            };
+            await errDialog.ShowAsync();
+        }
     }
 
     /// <summary>
@@ -1055,7 +1302,7 @@ public sealed partial class MainWindow : Window
         var inactive = Windows.UI.Color.FromArgb(255, 22, 27, 44);
         var activeFg   = Colors.White;
         var inactiveFg = Windows.UI.Color.FromArgb(255, 160, 170, 200);
-        foreach (var b in new[] { FilterFavourites, FilterDetected, FilterInstalled, FilterNotInstalled, FilterHidden, FilterUnity, FilterUnreal, FilterOther })
+        foreach (var b in new[] { FilterFavourites, FilterDetected, FilterInstalled, FilterNotInstalled, FilterHidden, FilterUnity, FilterUnreal, FilterOther, FilterLuma })
         {
             bool isActive = b == btn;
             b.Background  = new SolidColorBrush(isActive ? active   : inactive);
@@ -1170,6 +1417,24 @@ public sealed partial class MainWindow : Window
             ViewModel.UninstallDcCommand.Execute(card);
     }
 
+    private void LumaToggle_Click(object sender, RoutedEventArgs e)
+    {
+        var card = (sender as FrameworkElement)?.Tag as GameCardViewModel;
+        if (card != null) ViewModel.ToggleLumaMode(card);
+    }
+
+    private async void InstallLumaButton_Click(object sender, RoutedEventArgs e)
+    {
+        var card = (sender as FrameworkElement)?.Tag as GameCardViewModel;
+        if (card != null) await ViewModel.InstallLumaAsync(card);
+    }
+
+    private void UninstallLumaButton_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is GameCardViewModel card)
+            ViewModel.UninstallLumaCommand.Execute(card);
+    }
+
     private void UeExtendedToggle_Click(object sender, RoutedEventArgs e)
     {
         var card = (sender as FrameworkElement)?.Tag as GameCardViewModel;
@@ -1282,8 +1547,58 @@ public sealed partial class MainWindow : Window
         };
         outerPanel.Children.Add(statusBadge);
 
-        // ── Notes content (if any) ────────────────────────────────────────────────
-        if (!string.IsNullOrWhiteSpace(card.Notes))
+        // ── Luma info (when in Luma mode) ───────────────────────────────────────────
+        if (card.IsLumaMode && card.LumaMod != null)
+        {
+            var lumaBadge = new Border
+            {
+                CornerRadius    = new CornerRadius(6),
+                Padding         = new Thickness(10, 4, 10, 4),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Background      = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 26, 48, 32)),
+                BorderBrush     = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 48, 80, 48)),
+                BorderThickness = new Thickness(1),
+                Child = new TextBlock
+                {
+                    Text       = $"Luma — {card.LumaMod.Status} {card.LumaMod.Author}",
+                    FontSize   = 12,
+                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 96, 192, 112)),
+                }
+            };
+            outerPanel.Children.Add(lumaBadge);
+
+            var lumaNotesText = "";
+            if (!string.IsNullOrWhiteSpace(card.LumaMod.SpecialNotes))
+                lumaNotesText += card.LumaMod.SpecialNotes;
+            if (!string.IsNullOrWhiteSpace(card.LumaMod.FeatureNotes))
+            {
+                if (lumaNotesText.Length > 0) lumaNotesText += "\n\n";
+                lumaNotesText += card.LumaMod.FeatureNotes;
+            }
+
+            if (!string.IsNullOrWhiteSpace(lumaNotesText))
+            {
+                outerPanel.Children.Add(new TextBlock
+                {
+                    Text         = lumaNotesText,
+                    TextWrapping = TextWrapping.Wrap,
+                    Foreground   = textColour,
+                    FontSize     = 13,
+                    LineHeight   = 22,
+                });
+            }
+            else
+            {
+                outerPanel.Children.Add(new TextBlock
+                {
+                    Text       = "No additional Luma notes for this game.",
+                    Foreground = dimColour,
+                    FontSize   = 13,
+                });
+            }
+        }
+        // ── Standard RenoDX notes ───────────────────────────────────────────────────
+        else if (!string.IsNullOrWhiteSpace(card.Notes))
         {
             if (!string.IsNullOrEmpty(card.NotesUrl))
             {

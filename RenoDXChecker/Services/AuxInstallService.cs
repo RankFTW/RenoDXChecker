@@ -292,6 +292,22 @@ public class AuxInstallService
         }
         catch { }
 
+        // Fallback: GitHub releases redirect may not return Content-Length on HEAD.
+        // Use Range GET to discover total size from Content-Range header.
+        if (!remoteSize.HasValue)
+        {
+            try
+            {
+                var rangeReq = new HttpRequestMessage(HttpMethod.Get, activeUrl);
+                rangeReq.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, 0);
+                var rangeResp = await _http.SendAsync(rangeReq, HttpCompletionOption.ResponseHeadersRead);
+                if (rangeResp.Content.Headers.ContentRange?.Length is long totalLen)
+                    remoteSize = totalLen;
+                rangeResp.Dispose();
+            }
+            catch { }
+        }
+
         // ── Cache check ───────────────────────────────────────────────────────────
         bool usedCache = false;
         if (File.Exists(cachePath))
@@ -472,25 +488,118 @@ public class AuxInstallService
 
     public async Task<bool> CheckForUpdateAsync(AuxInstalledRecord record)
     {
-        if (record.SourceUrl == null) return false;
+        if (record.SourceUrl == null)
+        {
+            CrashReporter.Log($"AuxUpdate [{record.AddonType}] {record.GameName}: no SourceUrl — skipping");
+            return false;
+        }
 
         var localFile = Path.Combine(record.InstallPath, record.InstalledAs);
-        if (!File.Exists(localFile)) return true;
+        if (!File.Exists(localFile))
+        {
+            CrashReporter.Log($"AuxUpdate [{record.AddonType}] {record.GameName}: local file missing — update needed");
+            return true;
+        }
+
+        var localSize = new FileInfo(localFile).Length;
+        CrashReporter.Log($"AuxUpdate [{record.AddonType}] {record.GameName}: local={localSize}, stored={record.RemoteFileSize}");
 
         try
         {
-            var resp = await _http.SendAsync(new HttpRequestMessage(HttpMethod.Head, record.SourceUrl));
-            if (!resp.IsSuccessStatusCode) return false;
+            // ── Strategy 1: HEAD for Content-Length ─────────────────────────────
+            long? remoteSize = null;
+            try
+            {
+                var headResp = await _http.SendAsync(new HttpRequestMessage(HttpMethod.Head, record.SourceUrl));
+                if (headResp.IsSuccessStatusCode)
+                    remoteSize = headResp.Content.Headers.ContentLength;
+                CrashReporter.Log($"AuxUpdate [{record.AddonType}] {record.GameName}: HEAD status={headResp.StatusCode}, CL={remoteSize}");
+            }
+            catch (Exception ex) { CrashReporter.Log($"AuxUpdate [{record.AddonType}] HEAD failed: {ex.Message}"); }
 
-            var remote = resp.Content.Headers.ContentLength;
-            if (!remote.HasValue) return false;
+            // ── Strategy 2: Range GET for Content-Range total ──────────────────
+            if (!remoteSize.HasValue)
+            {
+                try
+                {
+                    var rangeReq = new HttpRequestMessage(HttpMethod.Get, record.SourceUrl);
+                    rangeReq.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, 0);
+                    var rangeResp = await _http.SendAsync(rangeReq, HttpCompletionOption.ResponseHeadersRead);
+                    if (rangeResp.Content.Headers.ContentRange?.Length is long totalLen)
+                        remoteSize = totalLen;
+                    else if (rangeResp.IsSuccessStatusCode)
+                        remoteSize = rangeResp.Content.Headers.ContentLength;
+                    CrashReporter.Log($"AuxUpdate [{record.AddonType}] {record.GameName}: Range GET size={remoteSize}");
+                    rangeResp.Dispose();
+                }
+                catch (Exception ex) { CrashReporter.Log($"AuxUpdate [{record.AddonType}] Range failed: {ex.Message}"); }
+            }
 
-            if (record.RemoteFileSize.HasValue)
-                return remote.Value != record.RemoteFileSize.Value;
+            // ── Strategy 3: Full download comparison ───────────────────────────
+            // If we still have no remote size, or if sizes match (could be a same-size
+            // different-content update), download the file and compare bytes.
+            if (!remoteSize.HasValue || remoteSize.Value == localSize)
+            {
+                CrashReporter.Log($"AuxUpdate [{record.AddonType}] {record.GameName}: falling back to download comparison (remoteSize={remoteSize}, localSize={localSize})");
+                try
+                {
+                    var cacheName = record.InstalledAs.Contains("32", StringComparison.Ordinal)
+                        ? DcCacheFile32 : DcCacheFile;
+                    var tempPath = Path.Combine(DownloadCacheDir, cacheName + ".update-check");
+                    Directory.CreateDirectory(DownloadCacheDir);
 
-            return remote.Value != new FileInfo(localFile).Length;
+                    var response = await _http.GetAsync(record.SourceUrl);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var bytes = await response.Content.ReadAsByteArrayAsync();
+                        await File.WriteAllBytesAsync(tempPath, bytes);
+                        var downloadedSize = bytes.Length;
+
+                        CrashReporter.Log($"AuxUpdate [{record.AddonType}] {record.GameName}: downloaded {downloadedSize} bytes, local {localSize} bytes");
+
+                        if (downloadedSize != localSize)
+                        {
+                            // Size differs — definite update. Move downloaded file to cache
+                            // so the next install picks it up without re-downloading.
+                            var cachePath = Path.Combine(DownloadCacheDir, cacheName);
+                            if (File.Exists(cachePath)) File.Delete(cachePath);
+                            File.Move(tempPath, cachePath);
+                            return true;
+                        }
+
+                        // Same size — compare bytes directly
+                        var localBytes = await File.ReadAllBytesAsync(localFile);
+                        bool contentDiffers = !bytes.AsSpan().SequenceEqual(localBytes.AsSpan());
+                        CrashReporter.Log($"AuxUpdate [{record.AddonType}] {record.GameName}: same size, content differs={contentDiffers}");
+
+                        if (contentDiffers)
+                        {
+                            var cachePath = Path.Combine(DownloadCacheDir, cacheName);
+                            if (File.Exists(cachePath)) File.Delete(cachePath);
+                            File.Move(tempPath, cachePath);
+                            return true;
+                        }
+
+                        // Identical — clean up temp
+                        try { File.Delete(tempPath); } catch { }
+                        return false;
+                    }
+                }
+                catch (Exception ex) { CrashReporter.Log($"AuxUpdate [{record.AddonType}] download compare failed: {ex.Message}"); }
+
+                return false;
+            }
+
+            // Size-based comparison
+            bool update = remoteSize.Value != localSize;
+            CrashReporter.Log($"AuxUpdate [{record.AddonType}] {record.GameName}: remote={remoteSize}, local={localSize} → update={update}");
+            return update;
         }
-        catch { return false; }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"AuxUpdate [{record.AddonType}] {record.GameName} exception: {ex.Message}");
+            return false;
+        }
     }
 
     // ── Uninstall ─────────────────────────────────────────────────────────────────
@@ -529,6 +638,8 @@ public class AuxInstallService
         if (i >= 0) db[i] = record; else db.Add(record);
         SaveDb(db);
     }
+
+    public void SaveAuxRecord(AuxInstalledRecord record) => SaveRecord(record);
 
     public void RemoveRecord(AuxInstalledRecord record)
     {

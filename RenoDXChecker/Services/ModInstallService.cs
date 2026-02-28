@@ -259,19 +259,11 @@ public class ModInstallService
                     if (currentRemoteSize.Value == record.RemoteFileSize.Value)
                         return false; // sizes match — no update
 
-                    // Sizes differ — but github.io CDN can return inconsistent Content-Length
-                    // values across HEAD requests (edge server variation). As a second gate,
-                    // check whether the local file on disk still matches the stored install-time
-                    // size. If it does, the CDN is just being inconsistent and there is no real
-                    // update — suppress the false positive.
-                    if (File.Exists(localFile))
-                    {
-                        var localSize = new FileInfo(localFile).Length;
-                        if (localSize == record.RemoteFileSize.Value)
-                            return false; // local file matches stored size — CDN inconsistency, not a real update
-                    }
-
-                    return true; // both remote AND local differ from stored — real update
+                    // Sizes differ — real update detected.
+                    // The local file should still match the stored install-time size
+                    // (nobody modifies addon files manually), confirming the remote
+                    // file genuinely changed.
+                    return true;
                 }
                 else
                 {

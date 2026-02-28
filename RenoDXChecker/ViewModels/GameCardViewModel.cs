@@ -61,6 +61,19 @@ public partial class GameCardViewModel : ObservableObject
     // ── 32-bit mode ───────────────────────────────────────────────────────────────
     [ObservableProperty] private bool _is32Bit = false;
 
+    // ── Luma Framework state ──────────────────────────────────────────────────────
+    [ObservableProperty] private bool _isLumaMode = false;
+    [ObservableProperty] private bool _isLumaInstalling = false;
+    [ObservableProperty] private double _lumaProgress = 0;
+    [ObservableProperty] private string _lumaActionMessage = "";
+    [ObservableProperty] private GameStatus _lumaStatus = GameStatus.NotInstalled;
+    public LumaMod? LumaMod { get; set; }
+    public LumaInstalledRecord? LumaRecord { get; set; }
+    /// <summary>Global toggle — Luma UI only shows when enabled in settings.</summary>
+    [ObservableProperty] private bool _lumaFeatureEnabled;
+    /// <summary>True when a matching Luma mod exists in the wiki.</summary>
+    public bool IsLumaAvailable => LumaMod != null;
+
     // ── INI preset existence (re-checked on every NotifyAll call) ─────────────────
     /// <summary>True when reshade.ini is present in the inis folder — enables the 📋 button.</summary>
     public bool RsIniExists => File.Exists(AuxInstallService.RsIniPath);
@@ -204,6 +217,31 @@ public partial class GameCardViewModel : ObservableObject
         (Is32Bit && IsGenericMod && EngineHint.Contains("Unreal") && !EngineHint.Contains("Legacy"))
             ? Visibility.Visible : Visibility.Collapsed;
 
+    // ── Luma badge + button visibility ─────────────────────────────────────────────
+    public Visibility LumaBadgeVisibility => (LumaFeatureEnabled && IsLumaAvailable) ? Visibility.Visible : Visibility.Collapsed;
+    public string LumaBadgeLabel => IsLumaMode ? "Luma ON" : "Luma";
+    public string LumaBadgeBackground => IsLumaMode ? "#1A3020" : "#1E2040";
+    public string LumaBadgeForeground => IsLumaMode ? "#60C070" : "#606880";
+    public string LumaBadgeBorderBrush => IsLumaMode ? "#305030" : "#303460";
+
+    // In Luma mode: hide RenoDX install, hide ReShade row, show Luma install
+    private bool EffectiveLumaMode => LumaFeatureEnabled && IsLumaMode;
+    public Visibility LumaInstallVisibility => (EffectiveLumaMode && LumaMod?.DownloadUrl != null
+        && LumaStatus == GameStatus.NotInstalled) ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility LumaReinstallVisibility => (EffectiveLumaMode
+        && (LumaStatus == GameStatus.Installed || LumaStatus == GameStatus.UpdateAvailable))
+        ? Visibility.Visible : Visibility.Collapsed;
+    public bool IsLumaNotInstalling => !IsLumaInstalling;
+    public Visibility LumaProgressVisibility => IsLumaInstalling ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility LumaMessageVisibility => string.IsNullOrEmpty(LumaActionMessage) ? Visibility.Collapsed : Visibility.Visible;
+    public string LumaActionLabel => IsLumaInstalling ? "Installing..."
+        : LumaStatus == GameStatus.Installed ? "↺  Reinstall Luma"
+        : "⬇  Install Luma";
+    // In Luma mode: hide RenoDX, ReShade, and DC rows
+    public Visibility RenoDxRowVisibility => EffectiveLumaMode ? Visibility.Collapsed : Visibility.Visible;
+    public Visibility ReShadeRowVisibility => EffectiveLumaMode ? Visibility.Collapsed : Visibility.Visible;
+    public Visibility DcRowVisibility => EffectiveLumaMode ? Visibility.Collapsed : Visibility.Visible;
+
     public string InstallPathDisplay
     {
         get
@@ -245,19 +283,22 @@ public partial class GameCardViewModel : ObservableObject
     public Visibility NotesButtonVisibility      => HasNotes ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ProgressVisibility         => IsInstalling ? Visibility.Visible : Visibility.Collapsed;
     public Visibility MessageVisibility          => string.IsNullOrEmpty(ActionMessage) ? Visibility.Collapsed : Visibility.Visible;
-    public Visibility ExternalBtnVisibility      => IsExternalOnly ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility ExternalBtnVisibility      => IsExternalOnly && !EffectiveLumaMode ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ExtraLinkVisibility        => HasExtraLinks && !IsExternalOnly ? Visibility.Visible : Visibility.Collapsed;
-    public Visibility InstalledFileLabelVisible  => !string.IsNullOrEmpty(InstalledAddonFileName) ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility InstalledFileLabelVisible  => !string.IsNullOrEmpty(InstalledAddonFileName) && !EffectiveLumaMode ? Visibility.Visible : Visibility.Collapsed;
     // Install single button — visible for all installable cards (64-bit default; 32-bit via Overrides toggle)
     // WIP UE 32-bit cards show the WIP button instead of the install button
+    // Hidden in Luma mode — Luma has its own install button
     public Visibility InstallOnlyBtnVisibility   => (!IsExternalOnly && Mod?.SnapshotUrl != null
-                                                     && Status == GameStatus.Available
-                                                     && Is32BitUeWipVisibility == Visibility.Collapsed)
-                                                     ? Visibility.Visible : Visibility.Collapsed;
+                                                      && Status == GameStatus.Available
+                                                      && Is32BitUeWipVisibility == Visibility.Collapsed
+                                                      && !EffectiveLumaMode)
+                                                      ? Visibility.Visible : Visibility.Collapsed;
     // Reinstall/Update row (installed)
     public Visibility ReinstallRowVisibility     => (!IsExternalOnly && Mod?.SnapshotUrl != null
-                                                     && (Status == GameStatus.Installed || Status == GameStatus.UpdateAvailable))
-                                                     ? Visibility.Visible : Visibility.Collapsed;
+                                                      && (Status == GameStatus.Installed || Status == GameStatus.UpdateAvailable)
+                                                      && !EffectiveLumaMode)
+                                                      ? Visibility.Visible : Visibility.Collapsed;
     // Unity dual-bit install row
     // Unity dual-bit row is no longer used — Unity defaults to 64-bit on the main card.
     // 32-bit install is triggered via the per-game 32-bit toggle in Overrides.
@@ -266,9 +307,10 @@ public partial class GameCardViewModel : ObservableObject
     public Visibility IsHiddenVisibility         => IsHidden ? Visibility.Visible : Visibility.Collapsed;
     public Visibility IsNotHiddenVisibility      => IsHidden ? Visibility.Collapsed : Visibility.Visible;
     public Visibility NameLinkVisibility         => HasNameUrl ? Visibility.Visible : Visibility.Collapsed;
-    // Shown when the game has no known RenoDX mod and no install URL
-    public Visibility NoModVisibility            => (Mod == null && string.IsNullOrEmpty(InstalledAddonFileName))
-                                                     ? Visibility.Visible : Visibility.Collapsed;
+    // Shown when the game has no known RenoDX mod and no install URL (and not in Luma mode)
+    public Visibility NoModVisibility            => (Mod == null && string.IsNullOrEmpty(InstalledAddonFileName)
+                                                      && !EffectiveLumaMode)
+                                                      ? Visibility.Visible : Visibility.Collapsed;
 
     public void NotifyAll()
     {
@@ -352,6 +394,22 @@ public partial class GameCardViewModel : ObservableObject
         OnPropertyChanged(nameof(RsMessageVisibility));
         OnPropertyChanged(nameof(RsInstalledVisible));
         OnPropertyChanged(nameof(RsDeleteVisibility));
+        // Luma
+        OnPropertyChanged(nameof(IsLumaAvailable));
+        OnPropertyChanged(nameof(LumaBadgeVisibility));
+        OnPropertyChanged(nameof(LumaBadgeLabel));
+        OnPropertyChanged(nameof(LumaBadgeBackground));
+        OnPropertyChanged(nameof(LumaBadgeForeground));
+        OnPropertyChanged(nameof(LumaBadgeBorderBrush));
+        OnPropertyChanged(nameof(LumaInstallVisibility));
+        OnPropertyChanged(nameof(LumaReinstallVisibility));
+        OnPropertyChanged(nameof(IsLumaNotInstalling));
+        OnPropertyChanged(nameof(LumaProgressVisibility));
+        OnPropertyChanged(nameof(LumaMessageVisibility));
+        OnPropertyChanged(nameof(LumaActionLabel));
+        OnPropertyChanged(nameof(RenoDxRowVisibility));
+        OnPropertyChanged(nameof(ReShadeRowVisibility));
+        OnPropertyChanged(nameof(DcRowVisibility));
     }
 
     partial void OnStatusChanged(GameStatus v)              => NotifyAll();
@@ -373,4 +431,9 @@ public partial class GameCardViewModel : ObservableObject
     }
     partial void OnInstallPathChanged(string v)             => OnPropertyChanged(nameof(InstallPathDisplay));
     partial void OnSourceChanged(string v)                  => OnPropertyChanged(nameof(SourceBadgeVisibility));
+    partial void OnLumaFeatureEnabledChanged(bool v)        => NotifyAll();
+    partial void OnIsLumaModeChanged(bool v)                => NotifyAll();
+    partial void OnLumaStatusChanged(GameStatus v)          => NotifyAll();
+    partial void OnIsLumaInstallingChanged(bool v)          => NotifyAll();
+    partial void OnLumaActionMessageChanged(string v)       => OnPropertyChanged(nameof(LumaMessageVisibility));
 }

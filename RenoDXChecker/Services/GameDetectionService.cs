@@ -94,23 +94,246 @@ public static class GameDetectionService
     public static List<DetectedGame> FindEaGames()
     {
         var games = new List<DetectedGame>();
+        var seen  = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // ── Method 1: ProgramData\EA\content manifests (legacy Origin / some EA App) ──
         var contentDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "EA", "content");
-        if (!Directory.Exists(contentDir)) return games;
-        foreach (var dir in Directory.GetDirectories(contentDir))
+        if (Directory.Exists(contentDir))
         {
-            var manifestFile = Path.Combine(dir, "__Installer", "installerdata.xml");
-            if (!File.Exists(manifestFile)) continue;
+            foreach (var dir in Directory.GetDirectories(contentDir))
+            {
+                var manifestFile = Path.Combine(dir, "__Installer", "installerdata.xml");
+                if (!File.Exists(manifestFile)) continue;
+                try
+                {
+                    var xml  = File.ReadAllText(manifestFile);
+                    var name = Regex.Match(xml, @"<gameName>([^<]+)</gameName>").Groups[1].Value;
+                    var path = Regex.Match(xml, @"<defaultInstallPath>([^<]+)</defaultInstallPath>").Groups[1].Value;
+                    if (!string.IsNullOrEmpty(name) && Directory.Exists(path) && seen.Add(path))
+                        games.Add(new DetectedGame { Name = name, InstallPath = path, Source = "EA App" });
+                }
+                catch { }
+            }
+        }
+
+        // ── Method 2: Registry (Origin Games / EA App entries) ─────────────────────
+        // EA App and Origin both write to HKLM\Software\Wow6432Node\Origin Games\{contentID}
+        // with InstallDir and DisplayName values.
+        try
+        {
+            using var baseKey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                @"SOFTWARE\Wow6432Node\Origin Games");
+            if (baseKey != null)
+            {
+                foreach (var subKeyName in baseKey.GetSubKeyNames())
+                {
+                    try
+                    {
+                        using var gameKey = baseKey.OpenSubKey(subKeyName);
+                        if (gameKey == null) continue;
+                        var installDir = gameKey.GetValue("InstallDir") as string;
+                        if (string.IsNullOrEmpty(installDir) || !Directory.Exists(installDir)) continue;
+                        if (!seen.Add(installDir)) continue; // already found via manifest
+
+                        var displayName = gameKey.GetValue("DisplayName") as string;
+                        if (string.IsNullOrEmpty(displayName))
+                        {
+                            // Use folder name as fallback
+                            displayName = Path.GetFileName(installDir.TrimEnd('\\', '/'));
+                        }
+                        games.Add(new DetectedGame { Name = displayName, InstallPath = installDir, Source = "EA App" });
+                    }
+                    catch { }
+                }
+            }
+        }
+        catch { }
+
+        // ── Method 3: Broader registry scan ────────────────────────────────────────
+        // Many EA games write their own registry keys with an "Install Dir" value
+        // under various publisher paths. Scan common known parent keys.
+        var registryPaths = new[]
+        {
+            @"SOFTWARE\EA Games",
+            @"SOFTWARE\Wow6432Node\EA Games",
+            @"SOFTWARE\Electronic Arts",
+            @"SOFTWARE\Wow6432Node\Electronic Arts",
+            @"SOFTWARE\Criterion Games",
+            @"SOFTWARE\Wow6432Node\Criterion Games",
+            @"SOFTWARE\Respawn",
+            @"SOFTWARE\Wow6432Node\Respawn",
+            @"SOFTWARE\BioWare",
+            @"SOFTWARE\Wow6432Node\BioWare",
+            @"SOFTWARE\DICE",
+            @"SOFTWARE\Wow6432Node\DICE",
+            @"SOFTWARE\PopCap",
+            @"SOFTWARE\Wow6432Node\PopCap",
+            @"SOFTWARE\Ghost Games",
+            @"SOFTWARE\Wow6432Node\Ghost Games",
+        };
+        foreach (var regPath in registryPaths)
+        {
             try
             {
-                var xml  = File.ReadAllText(manifestFile);
-                var name = Regex.Match(xml, @"<gameName>([^<]+)</gameName>").Groups[1].Value;
-                var path = Regex.Match(xml, @"<defaultInstallPath>([^<]+)</defaultInstallPath>").Groups[1].Value;
-                if (!string.IsNullOrEmpty(name) && Directory.Exists(path))
-                    games.Add(new DetectedGame { Name = name, InstallPath = path, Source = "EA App" });
+                using var parentKey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(regPath);
+                if (parentKey == null) continue;
+                foreach (var subName in parentKey.GetSubKeyNames())
+                {
+                    try
+                    {
+                        using var gameKey = parentKey.OpenSubKey(subName);
+                        if (gameKey == null) continue;
+                        var installDir = gameKey.GetValue("Install Dir") as string
+                                      ?? gameKey.GetValue("InstallDir") as string
+                                      ?? gameKey.GetValue("Install Directory") as string;
+                        if (string.IsNullOrEmpty(installDir) || !Directory.Exists(installDir)) continue;
+                        if (!seen.Add(installDir)) continue;
+
+                        // Use the subkey name as the game name (usually the game title)
+                        games.Add(new DetectedGame { Name = subName, InstallPath = installDir, Source = "EA App" });
+                    }
+                    catch { }
+                }
             }
             catch { }
         }
+
+        // ── Method 4: Scan default EA Games folder ─────────────────────────────────
+        // Games installed to the default location may not be in the registry if the
+        // EA App is not running or was reinstalled. Scan common default paths.
+        var defaultDirs = new[]
+        {
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "EA Games"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "EA Games"),
+        };
+        foreach (var eaDir in defaultDirs)
+        {
+            if (!Directory.Exists(eaDir)) continue;
+            foreach (var gameDir in Directory.GetDirectories(eaDir))
+            {
+                if (!seen.Add(gameDir)) continue;
+                // Only add if it contains an exe (to avoid empty/DLC folders)
+                try
+                {
+                    if (!Directory.EnumerateFiles(gameDir, "*.exe", SearchOption.TopDirectoryOnly).Any()) continue;
+                }
+                catch { continue; }
+                var name = Path.GetFileName(gameDir);
+                games.Add(new DetectedGame { Name = name, InstallPath = gameDir, Source = "EA App" });
+            }
+        }
+
+        // ── Method 5: Scan __Installer\installerdata.xml on all drives ─────────────
+        // EA games installed to custom locations (e.g. E:\BurnoutPR) contain an
+        // __Installer\installerdata.xml manifest inside the game folder.
+        // We scan the EA Desktop encrypted IS file to discover install paths,
+        // but since we can't decrypt it, we look at the EA App's local config
+        // to find configured install directories.
+        try
+        {
+            var eaDesktopLocal = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Electronic Arts", "EA Desktop");
+            if (Directory.Exists(eaDesktopLocal))
+            {
+                // EA Desktop stores download paths in various ini/json config files
+                foreach (var file in Directory.GetFiles(eaDesktopLocal, "*.ini", SearchOption.AllDirectories)
+                    .Concat(Directory.GetFiles(eaDesktopLocal, "*.json", SearchOption.AllDirectories)))
+                {
+                    try
+                    {
+                        var content = File.ReadAllText(file);
+                        // Look for paths like E:\Games or D:\EA Games
+                        var pathMatches = Regex.Matches(content, @"[A-Z]:\\[^""'\r\n,}{]+");
+                        foreach (Match m in pathMatches)
+                        {
+                            var candidate = m.Value.TrimEnd('\\', '/');
+                            if (!Directory.Exists(candidate)) continue;
+                            // Scan subdirectories for __Installer\installerdata.xml
+                            foreach (var subDir in Directory.GetDirectories(candidate))
+                            {
+                                var manifest = Path.Combine(subDir, "__Installer", "installerdata.xml");
+                                if (!File.Exists(manifest)) continue;
+                                if (!seen.Add(subDir)) continue;
+                                try
+                                {
+                                    var xml = File.ReadAllText(manifest);
+                                    var gameName = Regex.Match(xml, @"<gameName>([^<]+)</gameName>").Groups[1].Value;
+                                    if (string.IsNullOrEmpty(gameName))
+                                        gameName = Path.GetFileName(subDir);
+                                    games.Add(new DetectedGame { Name = gameName, InstallPath = subDir, Source = "EA App" });
+                                }
+                                catch { }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+        }
+        catch { }
+
+        // ── Method 6: Scan ProgramData\EA Desktop for __Installer in installed paths ─
+        // The EA Desktop encrypted IS file is at ProgramData\EA Desktop\<hash>\IS
+        // but each installed game also has an __Installer dir. Additionally, some
+        // EA games place an installerdata.xml directly in the game folder.
+        // Scan all drives for game folders that contain __Installer\installerdata.xml.
+        try
+        {
+            var eaProgramData = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                "EA Desktop");
+            if (Directory.Exists(eaProgramData))
+            {
+                // Look for install paths in any decryptable/readable files
+                foreach (var subDir in Directory.GetDirectories(eaProgramData))
+                {
+                    // Each subfolder may contain install info
+                    foreach (var file in Directory.GetFiles(subDir))
+                    {
+                        try
+                        {
+                            // Try reading as text — some files are plain text with paths
+                            var content = File.ReadAllText(file);
+                            var pathMatches = Regex.Matches(content, @"[A-Z]:\\[^\x00-\x1F""']+?\\");
+                            foreach (Match m in pathMatches)
+                            {
+                                var candidate = m.Value.TrimEnd('\\');
+                                if (!Directory.Exists(candidate)) continue;
+                                if (!seen.Add(candidate)) continue;
+                                var manifest = Path.Combine(candidate, "__Installer", "installerdata.xml");
+                                if (File.Exists(manifest))
+                                {
+                                    try
+                                    {
+                                        var xml = File.ReadAllText(manifest);
+                                        var gameName = Regex.Match(xml, @"<gameName>([^<]+)</gameName>").Groups[1].Value;
+                                        if (string.IsNullOrEmpty(gameName))
+                                            gameName = Path.GetFileName(candidate);
+                                        games.Add(new DetectedGame { Name = gameName, InstallPath = candidate, Source = "EA App" });
+                                    }
+                                    catch { }
+                                }
+                                else
+                                {
+                                    // No manifest — check for exe
+                                    try
+                                    {
+                                        if (Directory.EnumerateFiles(candidate, "*.exe", SearchOption.TopDirectoryOnly).Any())
+                                            games.Add(new DetectedGame { Name = Path.GetFileName(candidate), InstallPath = candidate, Source = "EA App" });
+                                    }
+                                    catch { }
+                                }
+                            }
+                        }
+                        catch { /* binary/encrypted file — skip */ }
+                    }
+                }
+            }
+        }
+        catch { }
+
         return games;
     }
 

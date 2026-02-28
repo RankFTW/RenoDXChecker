@@ -20,6 +20,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _dcModeEnabled;
     [ObservableProperty] private ShaderDeployMode _shaderDeployMode = ShaderDeployMode.Minimum;
     [ObservableProperty] private bool _skipUpdateCheck;
+    [ObservableProperty] private bool _lumaFeatureEnabled;
     [ObservableProperty] private string _lastSeenVersion = "";
 
     /// <summary>
@@ -155,6 +156,7 @@ public partial class MainViewModel : ObservableObject
         _http.Timeout = TimeSpan.FromSeconds(30);
         _installer    = new ModInstallService(_http);
         _auxInstaller = new AuxInstallService(_http);
+        _lumaService  = new LumaService(_http);
         // Subscribe to installer events — on install we'll perform a full refresh
         LoadNameMappings();
         LoadThemeAndDensity();
@@ -162,12 +164,62 @@ public partial class MainViewModel : ObservableObject
 
     // --- persisted settings: name mappings, wiki exclusions, theme, density ---
     private Dictionary<string, string> _nameMappings = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Persisted install-path → user-chosen name.  Applied after every detection scan so renames survive Refresh.</summary>
+    private Dictionary<string, string> _gameRenames  = new(StringComparer.OrdinalIgnoreCase);
+
+    // ── Luma Framework ────────────────────────────────────────────────────────────
+    private readonly LumaService _lumaService;
+    private List<LumaMod> _lumaMods = new();
+    private HashSet<string> _lumaEnabledGames = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>
     /// Games in this set are excluded from all wiki matching.
     /// Their cards show a Discord link instead of an install button.
     /// </summary>
     private HashSet<string> _wikiExclusions   = new(StringComparer.OrdinalIgnoreCase);
     partial void OnDcModeEnabledChanged(bool v) => SaveNameMappings();
+    partial void OnLumaFeatureEnabledChanged(bool v)
+    {
+        foreach (var c in _allCards) c.LumaFeatureEnabled = v;
+
+        // When disabling the Luma feature, uninstall all Luma files and exit Luma mode on every game
+        if (!v)
+        {
+            foreach (var card in _allCards.Where(c => c.IsLumaMode).ToList())
+            {
+                // Uninstall Luma files if a record exists
+                if (card.LumaRecord != null)
+                {
+                    try
+                    {
+                        _lumaService.Uninstall(card.LumaRecord);
+                    }
+                    catch (Exception ex) { CrashReporter.Log($"Luma feature off: uninstall failed for '{card.GameName}' — {ex.Message}"); }
+                    card.LumaRecord = null;
+                }
+                else
+                {
+                    // Fallback cleanup
+                    try
+                    {
+                        ShaderPackService.RemoveFromGameFolder(card.InstallPath);
+                        var rsDir = Path.Combine(card.InstallPath, "reshade-shaders");
+                        if (Directory.Exists(rsDir)) Directory.Delete(rsDir, true);
+                        var rsIni = Path.Combine(card.InstallPath, "reshade.ini");
+                        if (File.Exists(rsIni)) File.Delete(rsIni);
+                    }
+                    catch (Exception ex) { CrashReporter.Log($"Luma feature off: fallback cleanup failed for '{card.GameName}' — {ex.Message}"); }
+                }
+
+                LumaService.RemoveRecordByPath(card.InstallPath);
+                card.IsLumaMode = false;
+                card.LumaStatus = GameStatus.NotInstalled;
+                card.NotifyAll();
+            }
+            _lumaEnabledGames.Clear();
+        }
+
+        SaveNameMappings();
+    }
 
     public bool IsDcModeExcluded(string gameName)  => _dcModeExcludedGames.Contains(gameName);
     public void ToggleDcModeExclusion(string gameName)
@@ -384,8 +436,26 @@ public partial class MainViewModel : ObservableObject
             if (s.TryGetValue("SkipUpdateCheck", out var sucVal))
                 SkipUpdateCheck = sucVal == "true";
 
+            if (s.TryGetValue("LumaFeatureEnabled", out var lfeVal))
+                LumaFeatureEnabled = lfeVal == "true";
+
             if (s.TryGetValue("LastSeenVersion", out var lsvVal))
                 LastSeenVersion = lsvVal ?? "";
+
+            if (s.TryGetValue("LumaEnabledGames", out var lumaJson) && !string.IsNullOrEmpty(lumaJson))
+                _lumaEnabledGames = new HashSet<string>(
+                    JsonSerializer.Deserialize<List<string>>(lumaJson) ?? new(),
+                    StringComparer.OrdinalIgnoreCase);
+            else
+                _lumaEnabledGames = new(StringComparer.OrdinalIgnoreCase);
+
+            if (s.TryGetValue("GameRenames", out var renJson) && !string.IsNullOrEmpty(renJson))
+                _gameRenames = JsonSerializer.Deserialize<Dictionary<string,string>>(renJson)
+                               ?? new(StringComparer.OrdinalIgnoreCase);
+            else
+                _gameRenames = new(StringComparer.OrdinalIgnoreCase);
+            // Ensure case-insensitive after deserialisation
+            _gameRenames = new Dictionary<string, string>(_gameRenames, StringComparer.OrdinalIgnoreCase);
         }
         catch
         {
@@ -396,6 +466,121 @@ public partial class MainViewModel : ObservableObject
             _updateAllExcludedGames = new(StringComparer.OrdinalIgnoreCase);
             _perGameShaderMode      = new(StringComparer.OrdinalIgnoreCase);
             _is32BitGames           = new(StringComparer.OrdinalIgnoreCase);
+            _gameRenames            = new(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    /// <summary>
+    /// Renames a game everywhere: card, detected game, all settings HashSets/Dicts,
+    /// persisted install records (RenoDX, DC, ReShade, Luma), and library file.
+    /// Call from the UI thread. Triggers a non-destructive rescan so wiki matching
+    /// picks up the corrected name.
+    /// </summary>
+    public void RenameGame(string oldName, string newName)
+    {
+        if (string.IsNullOrWhiteSpace(oldName) || string.IsNullOrWhiteSpace(newName)) return;
+        if (oldName.Equals(newName, StringComparison.OrdinalIgnoreCase)) return;
+
+        // 1. Update the card and its backing DetectedGame
+        var card = _allCards.FirstOrDefault(c =>
+            c.GameName.Equals(oldName, StringComparison.OrdinalIgnoreCase));
+        if (card != null)
+        {
+            card.GameName = newName;
+            if (card.DetectedGame != null)
+                card.DetectedGame.Name = newName;
+
+            // Persist the rename so it survives Refresh / rescan.
+            // Keyed by install path (stable across rescans).
+            if (!string.IsNullOrEmpty(card.InstallPath))
+            {
+                var key = card.InstallPath.TrimEnd(Path.DirectorySeparatorChar);
+                _gameRenames[key] = newName;
+            }
+        }
+
+        // 2. Migrate all game-name-keyed HashSets
+        MigrateHashSet(_hiddenGames, oldName, newName);
+        MigrateHashSet(_favouriteGames, oldName, newName);
+        MigrateHashSet(_wikiExclusions, oldName, newName);
+        MigrateHashSet(_ueExtendedGames, oldName, newName);
+        MigrateHashSet(_dcModeExcludedGames, oldName, newName);
+        MigrateHashSet(_updateAllExcludedGames, oldName, newName);
+        MigrateHashSet(_is32BitGames, oldName, newName);
+        MigrateHashSet(_lumaEnabledGames, oldName, newName);
+
+        // 3. Migrate game-name-keyed Dictionaries
+        MigrateDict(_perGameShaderMode, oldName, newName);
+        MigrateDict(_nameMappings, oldName, newName);
+
+        // 4. Migrate manual games list
+        var manualGame = _manualGames.FirstOrDefault(g =>
+            g.Name.Equals(oldName, StringComparison.OrdinalIgnoreCase));
+        if (manualGame != null)
+            manualGame.Name = newName;
+
+        // 5. Update persisted install records (RenoDX mod)
+        // Remove old-name record from DB first, then save with new name to avoid orphans.
+        if (card?.InstalledRecord != null)
+        {
+            _installer.RemoveRecord(card.InstalledRecord);
+            card.InstalledRecord.GameName = newName;
+            _installer.SaveRecordPublic(card.InstalledRecord);
+        }
+
+        // 6. Update persisted aux records (DC / ReShade)
+        if (card?.DcRecord != null)
+        {
+            _auxInstaller.RemoveRecord(card.DcRecord);
+            card.DcRecord.GameName = newName;
+            _auxInstaller.SaveAuxRecord(card.DcRecord);
+        }
+        if (card?.RsRecord != null)
+        {
+            _auxInstaller.RemoveRecord(card.RsRecord);
+            card.RsRecord.GameName = newName;
+            _auxInstaller.SaveAuxRecord(card.RsRecord);
+        }
+
+        // 7. Update persisted Luma record
+        if (card?.LumaRecord != null)
+        {
+            _lumaService.RemoveLumaRecord(card.LumaRecord.GameName, card.LumaRecord.InstallPath);
+            card.LumaRecord.GameName = newName;
+            _lumaService.SaveLumaRecord(card.LumaRecord);
+        }
+
+        // 8. Persist everything and rebuild
+        SaveNameMappings();
+        SaveLibrary();
+        card?.NotifyAll();
+        DispatcherQueue?.TryEnqueue(() => { _ = InitializeAsync(forceRescan: false); });
+    }
+
+    private static void MigrateHashSet(HashSet<string> set, string oldName, string newName)
+    {
+        if (set.Remove(oldName))
+            set.Add(newName);
+    }
+
+    private static void MigrateDict(Dictionary<string, string> dict, string oldName, string newName)
+    {
+        if (dict.Remove(oldName, out var value))
+            dict[newName] = value;
+    }
+
+    /// <summary>
+    /// Applies persisted renames to a list of freshly-detected games so that
+    /// user-chosen names survive a Refresh / rescan.
+    /// </summary>
+    private void ApplyGameRenames(List<DetectedGame> games)
+    {
+        if (_gameRenames.Count == 0) return;
+        foreach (var g in games)
+        {
+            var key = g.InstallPath.TrimEnd(Path.DirectorySeparatorChar);
+            if (_gameRenames.TryGetValue(key, out var newName))
+                g.Name = newName;
         }
     }
 
@@ -737,7 +922,10 @@ public partial class MainViewModel : ObservableObject
             s["Is32BitGames"]         = JsonSerializer.Serialize(_is32BitGames.ToList());
             s["ShaderDeployMode"]    = ShaderDeployMode.ToString();
             s["SkipUpdateCheck"]     = SkipUpdateCheck ? "true" : "false";
+            s["LumaFeatureEnabled"] = LumaFeatureEnabled ? "true" : "false";
             s["LastSeenVersion"]     = LastSeenVersion;
+            s["LumaEnabledGames"]   = JsonSerializer.Serialize(_lumaEnabledGames.ToList());
+            s["GameRenames"]         = JsonSerializer.Serialize(_gameRenames);
             SaveSettingsFile(s);
         }
         catch { }
@@ -1053,6 +1241,7 @@ public partial class MainViewModel : ObservableObject
             ExcludeFromShaders     = IsShaderExcluded(game.Name),
             ShaderModeOverride     = _perGameShaderMode.TryGetValue(game.Name, out var smO) ? smO : null,
             Is32Bit                = _is32BitGames.Contains(game.Name),
+            LumaFeatureEnabled     = LumaFeatureEnabled,
             DcRecord        = dcRecManual,
             DcStatus        = dcRecManual != null ? GameStatus.Installed : GameStatus.NotInstalled,
             DcInstalledFile = dcRecManual?.InstalledAs,
@@ -1167,6 +1356,8 @@ public partial class MainViewModel : ObservableObject
 
         // Check for foreign dxgi.dll before overwriting
         var effectiveDcMode = DcModeEnabled && !card.DcModeExcluded;
+        // Luma mode: DC must always install as addon (never dxgi.dll) because Luma uses dxgi.dll
+        if (card.IsLumaMode) effectiveDcMode = false;
         if (effectiveDcMode)
         {
             var dxgiPath = Path.Combine(card.InstallPath, "dxgi.dll");
@@ -1345,6 +1536,199 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    // ── Luma Framework commands ───────────────────────────────────────────────────
+
+    /// <summary>Fuzzy-matches a game name against the Luma completed mods list.</summary>
+    private LumaMod? MatchLumaGame(string gameName)
+    {
+        var norm = GameDetectionService.NormalizeName(gameName);
+        foreach (var lm in _lumaMods)
+        {
+            if (GameDetectionService.NormalizeName(lm.Name) == norm)
+                return lm;
+        }
+        // Also try the tolerant NormalizeForLookup which strips edition suffixes,
+        // parenthetical text, etc. — but still requires a full match, not a
+        // substring check, to avoid false positives like "Nioh 3" matching "Nioh".
+        var normLookup = NormalizeForLookup(gameName);
+        foreach (var lm in _lumaMods)
+        {
+            if (NormalizeForLookup(lm.Name) == normLookup)
+                return lm;
+        }
+        return null;
+    }
+
+    public bool IsLumaEnabled(string gameName) => _lumaEnabledGames.Contains(gameName);
+
+    /// <summary>
+    /// Toggles Luma mode for a game. When enabling: uninstalls RenoDX, ReShade, and
+    /// DC (if installed as dxgi.dll). When disabling: uninstalls Luma files.
+    /// </summary>
+    public void ToggleLumaMode(GameCardViewModel card)
+    {
+        if (card.LumaMod == null) return;
+
+        card.IsLumaMode = !card.IsLumaMode;
+
+        if (card.IsLumaMode)
+        {
+            _lumaEnabledGames.Add(card.GameName);
+
+            // Remove RenoDX mod if installed
+            if (card.InstalledRecord != null)
+            {
+                try
+                {
+                    _installer.Uninstall(card.InstalledRecord);
+                    card.InstalledRecord = null;
+                    card.InstalledAddonFileName = null;
+                    card.Status = GameStatus.Available;
+                }
+                catch (Exception ex) { CrashReporter.Log($"Luma toggle: RenoDX uninstall failed — {ex.Message}"); }
+            }
+
+            // Remove ReShade if installed
+            if (card.RsRecord != null)
+            {
+                try
+                {
+                    _auxInstaller.Uninstall(card.RsRecord);
+                    card.RsRecord = null;
+                    card.RsInstalledFile = null;
+                    card.RsStatus = GameStatus.NotInstalled;
+                }
+                catch (Exception ex) { CrashReporter.Log($"Luma toggle: ReShade uninstall failed — {ex.Message}"); }
+            }
+
+            // Remove DC if installed (Luma mode hides DC entirely)
+            if (card.DcRecord != null)
+            {
+                try
+                {
+                    _auxInstaller.Uninstall(card.DcRecord);
+                    card.DcRecord = null;
+                    card.DcInstalledFile = null;
+                    card.DcStatus = GameStatus.NotInstalled;
+                }
+                catch (Exception ex) { CrashReporter.Log($"Luma toggle: DC uninstall failed — {ex.Message}"); }
+            }
+        }
+        else
+        {
+            _lumaEnabledGames.Remove(card.GameName);
+
+            // Uninstall Luma files if installed
+            if (card.LumaRecord != null)
+            {
+                try
+                {
+                    _lumaService.Uninstall(card.LumaRecord);
+                    card.LumaRecord = null;
+                    card.LumaStatus = GameStatus.NotInstalled;
+                }
+                catch (Exception ex) { CrashReporter.Log($"Luma toggle: Luma uninstall failed — {ex.Message}"); }
+            }
+            else
+            {
+                // Fallback: even without a record, try to clean up known Luma artifacts
+                // (handles cases where record was lost or never saved)
+                try
+                {
+                    var rsDir = Path.Combine(card.InstallPath, "reshade-shaders");
+                    if (Directory.Exists(rsDir))
+                    {
+                        ShaderPackService.RemoveFromGameFolder(card.InstallPath);
+                        if (Directory.Exists(rsDir))
+                            Directory.Delete(rsDir, true);
+                    }
+                    var rsIni = Path.Combine(card.InstallPath, "reshade.ini");
+                    if (File.Exists(rsIni)) File.Delete(rsIni);
+
+                    // Try to find and remove Luma dll files (common names)
+                    foreach (var pattern in new[] { "dxgi.dll", "d3d11.dll", "Luma*.dll", "Luma*.addon*" })
+                    {
+                        foreach (var f in Directory.GetFiles(card.InstallPath, pattern))
+                        {
+                            // Only remove if it looks like a Luma file (not ReShade/DC)
+                            var fn = Path.GetFileName(f);
+                            if (fn.StartsWith("Luma", StringComparison.OrdinalIgnoreCase)
+                                || fn.EndsWith(".addon64", StringComparison.OrdinalIgnoreCase)
+                                || fn.EndsWith(".addon32", StringComparison.OrdinalIgnoreCase))
+                            {
+                                try { File.Delete(f); } catch { }
+                            }
+                        }
+                    }
+                    card.LumaStatus = GameStatus.NotInstalled;
+                }
+                catch (Exception ex) { CrashReporter.Log($"Luma toggle: fallback cleanup failed — {ex.Message}"); }
+            }
+
+            // Always clear the persisted record if it exists on disk
+            LumaService.RemoveRecordByPath(card.InstallPath);
+        }
+
+        SaveNameMappings();
+        card.NotifyAll();
+    }
+
+    [RelayCommand]
+    public async Task InstallLumaAsync(GameCardViewModel? card)
+    {
+        if (card?.LumaMod == null || string.IsNullOrEmpty(card.InstallPath)) return;
+
+        card.IsLumaInstalling = true;
+        card.LumaActionMessage = "Installing Luma...";
+        try
+        {
+            var record = await _lumaService.InstallAsync(
+                card.LumaMod,
+                card.InstallPath,
+                new Progress<(string msg, double pct)>(p =>
+                {
+                    DispatcherQueue?.TryEnqueue(() =>
+                    {
+                        card.LumaActionMessage = p.msg;
+                        card.LumaProgress = p.pct;
+                    });
+                }));
+
+            card.LumaRecord = record;
+            card.LumaStatus = GameStatus.Installed;
+            card.LumaActionMessage = "Luma installed!";
+        }
+        catch (Exception ex)
+        {
+            card.LumaActionMessage = $"❌ Install failed: {ex.Message}";
+            CrashReporter.WriteCrashReport("InstallLuma", ex, note: $"Game: {card.GameName}");
+        }
+        finally
+        {
+            card.IsLumaInstalling = false;
+            card.NotifyAll();
+        }
+    }
+
+    [RelayCommand]
+    public void UninstallLuma(GameCardViewModel? card)
+    {
+        if (card?.LumaRecord == null) return;
+        try
+        {
+            _lumaService.Uninstall(card.LumaRecord);
+            card.LumaRecord = null;
+            card.LumaStatus = GameStatus.NotInstalled;
+            card.LumaActionMessage = "Luma removed.";
+            card.NotifyAll();
+        }
+        catch (Exception ex)
+        {
+            card.LumaActionMessage = $"❌ Uninstall failed: {ex.Message}";
+            CrashReporter.WriteCrashReport("UninstallLuma", ex, note: $"Game: {card.GameName}");
+        }
+    }
+
     // ── Update All commands ──────────────────────────────────────────────────────
 
     /// <summary>
@@ -1395,6 +1779,9 @@ public partial class MainViewModel : ObservableObject
         {
             UpdateCounts();
             OnPropertyChanged(nameof(AnyUpdateAvailable));
+            OnPropertyChanged(nameof(UpdateAllBtnBackground));
+            OnPropertyChanged(nameof(UpdateAllBtnForeground));
+            OnPropertyChanged(nameof(UpdateAllBtnBorder));
         });
     }
 
@@ -1461,7 +1848,13 @@ public partial class MainViewModel : ObservableObject
             finally { card.RsIsInstalling = false; }
         }
 
-        DispatcherQueue?.TryEnqueue(() => OnPropertyChanged(nameof(AnyUpdateAvailable)));
+        DispatcherQueue?.TryEnqueue(() =>
+        {
+            OnPropertyChanged(nameof(AnyUpdateAvailable));
+            OnPropertyChanged(nameof(UpdateAllBtnBackground));
+            OnPropertyChanged(nameof(UpdateAllBtnForeground));
+            OnPropertyChanged(nameof(UpdateAllBtnBorder));
+        });
     }
 
     public async Task UpdateAllDcAsync()
@@ -1526,10 +1919,16 @@ public partial class MainViewModel : ObservableObject
             finally { card.DcIsInstalling = false; }
         }
 
-        DispatcherQueue?.TryEnqueue(() => OnPropertyChanged(nameof(AnyUpdateAvailable)));
+        DispatcherQueue?.TryEnqueue(() =>
+        {
+            OnPropertyChanged(nameof(AnyUpdateAvailable));
+            OnPropertyChanged(nameof(UpdateAllBtnBackground));
+            OnPropertyChanged(nameof(UpdateAllBtnForeground));
+            OnPropertyChanged(nameof(UpdateAllBtnBorder));
+        });
     }
 
-    // ── Init ──────────────────────────────────────────────────────────────────────
+    // ── Init ──
 
     public async Task InitializeAsync(bool forceRescan = false)
     {
@@ -1557,12 +1956,15 @@ public partial class MainViewModel : ObservableObject
                 // Always re-detect games so newly installed titles (especially Xbox) appear
                 // without requiring the user to delete cache files or manually refresh.
                 var wikiTask   = WikiService.FetchAllAsync(_http);
+                var lumaTask   = _lumaService.FetchCompletedModsAsync();
                 var detectTask = Task.Run(DetectAllGamesDeduped);
-                await Task.WhenAll(wikiTask, detectTask);
+                await Task.WhenAll(wikiTask, lumaTask, detectTask);
                 _allMods      = wikiTask.Result.Mods;
                 _genericNotes = wikiTask.Result.GenericNotes;
+                try { _lumaMods = lumaTask.Result; } catch { _lumaMods = new(); }
 
                 var freshGames = detectTask.Result;
+                ApplyGameRenames(freshGames);
                 var cachedGames = GameLibraryService.ToDetectedGames(savedLib);
 
                 // Merge: start with fresh scan, then add any cached games that weren't re-detected
@@ -1580,14 +1982,19 @@ public partial class MainViewModel : ObservableObject
                 StatusText    = "Scanning game library...";
                 SubStatusText = "Running store scans + wiki fetch simultaneously...";
                 var wikiTask   = WikiService.FetchAllAsync(_http);
+                var lumaTask   = _lumaService.FetchCompletedModsAsync();
                 var detectTask = Task.Run(DetectAllGamesDeduped);
-                await Task.WhenAll(wikiTask, detectTask);
+                await Task.WhenAll(wikiTask, lumaTask, detectTask);
                 _allMods      = wikiTask.Result.Mods;
                 _genericNotes = wikiTask.Result.GenericNotes;
+                try { _lumaMods = lumaTask.Result; } catch { _lumaMods = new(); }
                 detectedGames = detectTask.Result;
                 addonCache    = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
                 CrashReporter.Log($"Wiki fetch complete: {_allMods.Count} mods. Store scan complete: {detectedGames.Count} games.");
             }
+
+            // Apply persisted renames so user-chosen names survive Refresh.
+            ApplyGameRenames(detectedGames);
 
             // Combine auto-detected + manual games.
             // Manual games override auto-detected ones with the same name.
@@ -1705,7 +2112,13 @@ public partial class MainViewModel : ObservableObject
         await Task.WhenAll(auxTasks);
 
         // Notify the UI so the Update All button colour updates after scan
-        DispatcherQueue?.TryEnqueue(() => OnPropertyChanged(nameof(AnyUpdateAvailable)));
+        DispatcherQueue?.TryEnqueue(() =>
+        {
+            OnPropertyChanged(nameof(AnyUpdateAvailable));
+            OnPropertyChanged(nameof(UpdateAllBtnBackground));
+            OnPropertyChanged(nameof(UpdateAllBtnForeground));
+            OnPropertyChanged(nameof(UpdateAllBtnBorder));
+        });
     }
 
     private async Task CheckAuxUpdate(GameCardViewModel card, AuxInstalledRecord record, bool isRs)
@@ -2046,6 +2459,8 @@ public partial class MainViewModel : ObservableObject
                         InstallPath = installPath,
                         AddonType   = AuxInstallService.TypeDc,
                         InstalledAs = AuxInstallService.DcNormalName,
+                        SourceUrl   = AuxInstallService.DcUrl,
+                        RemoteFileSize = new FileInfo(dxgiPath).Length,
                         InstalledAt = File.GetLastWriteTimeUtc(dxgiPath),
                     };
                 }
@@ -2062,6 +2477,8 @@ public partial class MainViewModel : ObservableObject
                             InstallPath = installPath,
                             AddonType   = AuxInstallService.TypeDc,
                             InstalledAs = AuxInstallService.DcDxgiName,
+                            SourceUrl   = AuxInstallService.DcUrl,
+                            RemoteFileSize = new FileInfo(dcDxgiPath).Length,
                             InstalledAt = File.GetLastWriteTimeUtc(dcDxgiPath),
                         };
                     }
@@ -2114,12 +2531,30 @@ public partial class MainViewModel : ObservableObject
                 ShaderModeOverride     = _perGameShaderMode.TryGetValue(game.Name, out var smBc) ? smBc : null,
                 Is32Bit                = _is32BitGames.Contains(game.Name),
                 IsNativeHdrGame        = isNativeHdr,
+                DcRecord               = dcRec,
                 DcStatus               = dcRec != null ? GameStatus.Installed : GameStatus.NotInstalled,
                 DcInstalledFile        = dcRec?.InstalledAs,
                 RsRecord               = rsRec,
                 RsStatus               = rsRec != null ? GameStatus.Installed : GameStatus.NotInstalled,
                 RsInstalledFile        = rsRec?.InstalledAs,
             });
+
+            // ── Luma matching ──────────────────────────────────────────────────────
+            var newCard = cards[^1];
+            newCard.LumaFeatureEnabled = LumaFeatureEnabled;
+            var lumaMatch = MatchLumaGame(game.Name);
+            if (lumaMatch != null)
+            {
+                newCard.LumaMod = lumaMatch;
+                newCard.IsLumaMode = _lumaEnabledGames.Contains(game.Name);
+                // Check if Luma is installed on disk
+                var lumaRec = LumaService.GetRecordByPath(installPath);
+                if (lumaRec != null)
+                {
+                    newCard.LumaRecord = lumaRec;
+                    newCard.LumaStatus = GameStatus.Installed;
+                }
+            }
         }
         ApplyCardOverrides(cards);
         return cards;
@@ -2266,6 +2701,11 @@ public partial class MainViewModel : ObservableObject
                 var isUnreal = (!string.IsNullOrEmpty(c.EngineHint) && c.EngineHint.IndexOf("Unreal", StringComparison.OrdinalIgnoreCase) >= 0)
                               || (c.Mod?.IsGenericUnreal == true);
                 if (isUnity || isUnreal) return false;
+                return !c.IsHidden;
+            }
+            if (FilterMode == "Luma")
+            {
+                if (c.LumaMod == null) return false;
                 return !c.IsHidden;
             }
 
