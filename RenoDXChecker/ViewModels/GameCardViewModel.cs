@@ -61,6 +61,9 @@ public partial class GameCardViewModel : ObservableObject
     // ── 32-bit mode ───────────────────────────────────────────────────────────────
     [ObservableProperty] private bool _is32Bit = false;
 
+    // ── DLL Naming Override ─────────────────────────────────────────────────────
+    [ObservableProperty] private bool _dllOverrideEnabled = false;
+
     // ── Luma Framework state ──────────────────────────────────────────────────────
     [ObservableProperty] private bool _isLumaMode = false;
     [ObservableProperty] private bool _isLumaInstalling = false;

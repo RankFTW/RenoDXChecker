@@ -229,7 +229,7 @@
                                     <Run Text="RenoDXCommander" Foreground="#00C8FF"/>
                                 </TextBlock>
                                 <TextBlock FontSize="12" Foreground="#4A5878">
-                                    <Run Text="v1.2.8  ·  HDR mod manager by "/>
+                                    <Run Text="v1.2.9  ·  HDR mod manager by "/>
                                     <Run Text="RankFTW" FontWeight="SemiBold" Foreground="#6070A0"/>
                                     <Run Text="  ·  Unofficial companion tool"/>
                                 </TextBlock>
@@ -756,7 +756,7 @@
                                                                         Click="OpenFolder_Click" Tag="{x:Bind}"/>
                                                         <MenuFlyoutItem Text="📁  Change install folder"
                                                                         Click="BrowseFolder_Click" Tag="{x:Bind}"/>
-                                                        <MenuFlyoutItem Text="❌  Remove manual game"
+                                                        <MenuFlyoutItem Text="🔄  Reset folder / Remove game"
                                                                         Click="RemoveManualGame_Click" Tag="{x:Bind}"/>
                                                     </MenuFlyout>
                                                 </Button.Flyout>

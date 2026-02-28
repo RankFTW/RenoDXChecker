@@ -1,8 +1,8 @@
-# RenoDX Commander (RDXC) v1.2.8
+# RenoDX Commander (RDXC) v1.2.9
 
 An unofficial companion app for [RenoDX](https://github.com/clshortfuse/renodx) HDR modding on Windows. RDXC manages **ReShade**, **Display Commander**, and **RenoDX mods** across your entire game library from a single interface — no manual file juggling required.
 
-> **Disclaimer:** RDXC is an unofficial third-party tool, not affiliated with or endorsed by the RenoDX project, Crosire, pmnoxx, or the Luma Framework. ReShade 6.7.2 is bundled under its BSD 3-Clause licence. Display Commander, RenoDX mods, and Luma Framework mods are downloaded from their official GitHub sources at runtime.
+> **Disclaimer:** RDXC is an unofficial third-party tool, not affiliated with or endorsed by the RenoDX project, Crosire, pmnoxx, or the Luma Framework. ReShade 6.7.3 is bundled under its BSD 3-Clause licence. Display Commander, RenoDX mods, and Luma Framework mods are downloaded from their official GitHub sources at runtime.
 
 > **⚠ Single-player only:** RDXC installs ReShade with full addon support, which may be flagged by anti-cheat systems in online or multiplayer games. Do not use RDXC-installed ReShade in games with active anti-cheat. Uninstall ReShade from any game before playing online.
 
@@ -209,8 +209,9 @@ Click **🎯** on any game card to access overrides. Hover each control for a de
 | **Exclude from wiki** | Use a Discord link instead of install — ignore wiki matches |
 | **Exclude from DC Mode** | Always use standard file naming for this game |
 | **Exclude from Update All** | Skip this game during bulk update operations |
-| **Shader mode** | Dropdown: **Global** (follow header toggle), **Off** (no shaders), **Minimum** (Lilium only), **All** (all packs), **User** (custom folder only). Overrides the global shader setting for this game only. Note: per-game shader mode only applies when DC Mode is OFF. When DC Mode is ON, all DC-mode games share the DC global shader folder. |
 | **32-bit mode** | Install 32-bit ReShade, DC, and Unity addon for this game |
+| **Shader mode** | Dropdown: **Global** (follow header toggle), **Off** (no shaders), **Minimum** (Lilium only), **All** (all packs), **User** (custom folder only). Overrides the global shader setting for this game only. Note: per-game shader mode only applies when DC Mode is OFF. When DC Mode is ON, all DC-mode games share the DC global shader folder. |
+| **DLL naming override** | Override the filenames ReShade and Display Commander are installed as. When enabled, existing RS/DC installs are removed and the game is automatically excluded from DC Mode, Update All, and global shaders. Two text boxes set the ReShade and DC filenames side by side. Works in both normal and 32-bit mode. When toggled off, the custom-named files are removed. |
 
 The dialog also includes wiki name mapping fields for manually matching a game to a different wiki entry.
 
@@ -315,7 +316,7 @@ RDXC detected a file from another mod (DXVK, Special K, ENB, etc.). Choose **Ove
 | [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) | Microsoft / .NET Foundation | [MIT](https://github.com/CommunityToolkit/dotnet/blob/main/License.md) |
 | [SharpCompress](https://github.com/adamhathcock/sharpcompress) | Adam Hathcock | [MIT](https://github.com/adamhathcock/sharpcompress/blob/master/LICENSE.txt) |
 
-ReShade 6.7.2 (`ReShade64.dll` / `ReShade32.dll`) is bundled and redistributed under the BSD 3-Clause licence. All shader packs, Luma Framework mods, and other components are downloaded from their official GitHub repositories at runtime and are not redistributed by RDXC.
+ReShade 6.7.3 (`ReShade64.dll` / `ReShade32.dll`) is bundled and redistributed under the BSD 3-Clause licence. All shader packs, Luma Framework mods, and other components are downloaded from their official GitHub repositories at runtime and are not redistributed by RDXC.
 
 ---
 

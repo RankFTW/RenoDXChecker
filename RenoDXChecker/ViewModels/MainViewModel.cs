@@ -241,6 +241,167 @@ public partial class MainViewModel : ObservableObject
     private Dictionary<string, string> _perGameShaderMode = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _is32BitGames            = new(StringComparer.OrdinalIgnoreCase);
 
+    // ── DLL Naming Override ───────────────────────────────────────────────────────
+
+    /// <summary>Per-game DLL naming overrides. Key = game name, Value = config with custom file names.</summary>
+    private Dictionary<string, DllOverrideConfig> _dllOverrides = new(StringComparer.OrdinalIgnoreCase);
+
+    // ── Folder Override ──────────────────────────────────────────────────────────
+
+    /// <summary>Per-game install folder overrides. Key = game name, Value = "overridePath|originalPath".</summary>
+    private Dictionary<string, string> _folderOverrides = new(StringComparer.OrdinalIgnoreCase);
+
+    public void SetFolderOverride(string gameName, string folderPath)
+    {
+        // Preserve the original path if this is the first override
+        string original = "";
+        if (_folderOverrides.TryGetValue(gameName, out var existing))
+        {
+            var parts = existing.Split('|');
+            original = parts.Length > 1 ? parts[1] : parts[0];
+        }
+        else
+        {
+            // First time — find the current card's path as original
+            var card = _allCards.FirstOrDefault(c =>
+                c.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase));
+            original = card?.DetectedGame?.InstallPath ?? card?.InstallPath ?? "";
+        }
+        _folderOverrides[gameName] = $"{folderPath}|{original}";
+        SaveNameMappings();
+        SaveLibrary();
+    }
+
+    /// <summary>
+    /// Resets the folder for an auto-detected game back to its original detected path.
+    /// For manual games, removes the game entirely.
+    /// </summary>
+    public void ResetFolderOverride(GameCardViewModel card)
+    {
+        if (card.IsManuallyAdded)
+        {
+            RemoveManualGameCommand.Execute(card);
+            return;
+        }
+
+        // Retrieve original path
+        var originalPath = "";
+        if (_folderOverrides.TryGetValue(card.GameName, out var stored))
+        {
+            var parts = stored.Split('|');
+            originalPath = parts.Length > 1 ? parts[1] : "";
+        }
+
+        _folderOverrides.Remove(card.GameName);
+
+        if (!string.IsNullOrEmpty(originalPath))
+        {
+            card.InstallPath = originalPath;
+            if (card.DetectedGame != null)
+                card.DetectedGame.InstallPath = originalPath;
+        }
+
+        SaveNameMappings();
+        SaveLibrary();
+        card.NotifyAll();
+    }
+
+    public string? GetFolderOverride(string gameName)
+    {
+        if (_folderOverrides.TryGetValue(gameName, out var stored))
+        {
+            var parts = stored.Split('|');
+            return parts[0]; // Return just the override path
+        }
+        return null;
+    }
+
+    public class DllOverrideConfig
+    {
+        public string ReShadeFileName { get; set; } = "";
+        public string DcFileName { get; set; } = "";
+    }
+
+    public bool HasDllOverride(string gameName) => _dllOverrides.ContainsKey(gameName);
+
+    public DllOverrideConfig? GetDllOverride(string gameName)
+        => _dllOverrides.TryGetValue(gameName, out var cfg) ? cfg : null;
+
+    public void SetDllOverride(string gameName, string reshadeFileName, string dcFileName)
+    {
+        _dllOverrides[gameName] = new DllOverrideConfig
+        {
+            ReShadeFileName = reshadeFileName.Trim(),
+            DcFileName = dcFileName.Trim(),
+        };
+        SaveNameMappings();
+    }
+
+    public void RemoveDllOverride(string gameName)
+    {
+        _dllOverrides.Remove(gameName);
+        SaveNameMappings();
+    }
+
+    /// <summary>
+    /// Called when DLL override is toggled ON — uninstalls existing ReShade and DC from the game.
+    /// </summary>
+    public void EnableDllOverride(GameCardViewModel card, string reshadeFileName, string dcFileName)
+    {
+        var name = card.GameName;
+
+        // Uninstall existing ReShade
+        if (card.RsRecord != null)
+        {
+            try { _auxInstaller.Uninstall(card.RsRecord); } catch { }
+            card.RsRecord = null;
+            card.RsInstalledFile = null;
+            card.RsStatus = GameStatus.NotInstalled;
+        }
+
+        // Uninstall existing DC
+        if (card.DcRecord != null)
+        {
+            try { _auxInstaller.Uninstall(card.DcRecord); } catch { }
+            card.DcRecord = null;
+            card.DcInstalledFile = null;
+            card.DcStatus = GameStatus.NotInstalled;
+        }
+
+        SetDllOverride(name, reshadeFileName, dcFileName);
+        card.DllOverrideEnabled = true;
+        card.NotifyAll();
+    }
+
+    /// <summary>
+    /// Called when DLL override is toggled OFF — removes the custom-named DLL files from the game folder.
+    /// </summary>
+    public void DisableDllOverride(GameCardViewModel card)
+    {
+        var name = card.GameName;
+        var cfg = GetDllOverride(name);
+        if (cfg != null && !string.IsNullOrEmpty(card.InstallPath))
+        {
+            // Remove the custom-named files
+            if (!string.IsNullOrWhiteSpace(cfg.ReShadeFileName))
+            {
+                var rsPath = Path.Combine(card.InstallPath, cfg.ReShadeFileName);
+                try { if (File.Exists(rsPath)) File.Delete(rsPath); } catch { }
+            }
+            if (!string.IsNullOrWhiteSpace(cfg.DcFileName))
+            {
+                var dcPath = Path.Combine(card.InstallPath, cfg.DcFileName);
+                try { if (File.Exists(dcPath)) File.Delete(dcPath); } catch { }
+            }
+        }
+
+        RemoveDllOverride(name);
+        card.DllOverrideEnabled = false;
+        card.RsStatus = GameStatus.NotInstalled;
+        card.DcStatus = GameStatus.NotInstalled;
+        card.NotifyAll();
+    }
+
     /// <summary>
     /// Games that default to UE-Extended and show "Extended UE Native HDR" instead of "Generic UE".
     /// These games are auto-set to UE-Extended on first build — no toggle needed.
@@ -456,6 +617,20 @@ public partial class MainViewModel : ObservableObject
                 _gameRenames = new(StringComparer.OrdinalIgnoreCase);
             // Ensure case-insensitive after deserialisation
             _gameRenames = new Dictionary<string, string>(_gameRenames, StringComparer.OrdinalIgnoreCase);
+
+            if (s.TryGetValue("DllOverrides", out var dllOvrJson) && !string.IsNullOrEmpty(dllOvrJson))
+                _dllOverrides = JsonSerializer.Deserialize<Dictionary<string, DllOverrideConfig>>(dllOvrJson)
+                                ?? new(StringComparer.OrdinalIgnoreCase);
+            else
+                _dllOverrides = new(StringComparer.OrdinalIgnoreCase);
+            _dllOverrides = new Dictionary<string, DllOverrideConfig>(_dllOverrides, StringComparer.OrdinalIgnoreCase);
+
+            if (s.TryGetValue("FolderOverrides", out var foJson) && !string.IsNullOrEmpty(foJson))
+                _folderOverrides = JsonSerializer.Deserialize<Dictionary<string, string>>(foJson)
+                                   ?? new(StringComparer.OrdinalIgnoreCase);
+            else
+                _folderOverrides = new(StringComparer.OrdinalIgnoreCase);
+            _folderOverrides = new Dictionary<string, string>(_folderOverrides, StringComparer.OrdinalIgnoreCase);
         }
         catch
         {
@@ -467,6 +642,8 @@ public partial class MainViewModel : ObservableObject
             _perGameShaderMode      = new(StringComparer.OrdinalIgnoreCase);
             _is32BitGames           = new(StringComparer.OrdinalIgnoreCase);
             _gameRenames            = new(StringComparer.OrdinalIgnoreCase);
+            _dllOverrides           = new(StringComparer.OrdinalIgnoreCase);
+            _folderOverrides        = new(StringComparer.OrdinalIgnoreCase);
         }
     }
 
@@ -512,6 +689,16 @@ public partial class MainViewModel : ObservableObject
         // 3. Migrate game-name-keyed Dictionaries
         MigrateDict(_perGameShaderMode, oldName, newName);
         MigrateDict(_nameMappings, oldName, newName);
+
+        // Migrate DLL override config
+        if (_dllOverrides.TryGetValue(oldName, out var dllCfg))
+        {
+            _dllOverrides.Remove(oldName);
+            _dllOverrides[newName] = dllCfg;
+        }
+
+        // Migrate folder override
+        MigrateDict(_folderOverrides, oldName, newName);
 
         // 4. Migrate manual games list
         var manualGame = _manualGames.FirstOrDefault(g =>
@@ -581,6 +768,24 @@ public partial class MainViewModel : ObservableObject
             var key = g.InstallPath.TrimEnd(Path.DirectorySeparatorChar);
             if (_gameRenames.TryGetValue(key, out var newName))
                 g.Name = newName;
+        }
+    }
+
+    /// <summary>
+    /// Applies persisted folder overrides to freshly-detected games so that
+    /// user-chosen install paths survive a Refresh / rescan.
+    /// </summary>
+    private void ApplyFolderOverrides(List<DetectedGame> games)
+    {
+        if (_folderOverrides.Count == 0) return;
+        foreach (var g in games)
+        {
+            if (_folderOverrides.TryGetValue(g.Name, out var stored))
+            {
+                var overridePath = stored.Split('|')[0];
+                if (!string.IsNullOrEmpty(overridePath))
+                    g.InstallPath = overridePath;
+            }
         }
     }
 
@@ -926,6 +1131,8 @@ public partial class MainViewModel : ObservableObject
             s["LastSeenVersion"]     = LastSeenVersion;
             s["LumaEnabledGames"]   = JsonSerializer.Serialize(_lumaEnabledGames.ToList());
             s["GameRenames"]         = JsonSerializer.Serialize(_gameRenames);
+            s["DllOverrides"]        = JsonSerializer.Serialize(_dllOverrides);
+            s["FolderOverrides"]     = JsonSerializer.Serialize(_folderOverrides);
             SaveSettingsFile(s);
         }
         catch { }
@@ -1355,7 +1562,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         // Check for foreign dxgi.dll before overwriting
-        var effectiveDcMode = DcModeEnabled && !card.DcModeExcluded;
+        var effectiveDcMode = DcModeEnabled && !card.DcModeExcluded && !card.DllOverrideEnabled;
         // Luma mode: DC must always install as addon (never dxgi.dll) because Luma uses dxgi.dll
         if (card.IsLumaMode) effectiveDcMode = false;
         if (effectiveDcMode)
@@ -1399,6 +1606,7 @@ public partial class MainViewModel : ObservableObject
                 existingRsRecord: card.RsRecord,
                 shaderModeOverride: card.ShaderModeOverride,
                 use32Bit:         card.Is32Bit,
+                filenameOverride: card.DllOverrideEnabled ? (GetDllOverride(card.GameName)?.DcFileName) : null,
                 progress:         progress);
             DispatcherQueue?.TryEnqueue(() =>
             {
@@ -1450,7 +1658,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         // Check for foreign dxgi.dll before overwriting (when DC mode is OFF, ReShade installs as dxgi.dll)
-        var effectiveDcModeRs = DcModeEnabled && !card.DcModeExcluded;
+        var effectiveDcModeRs = DcModeEnabled && !card.DcModeExcluded && !card.DllOverrideEnabled;
         if (!effectiveDcModeRs)
         {
             var dxgiPath = Path.Combine(card.InstallPath, "dxgi.dll");
@@ -1490,6 +1698,7 @@ public partial class MainViewModel : ObservableObject
                 dcIsInstalled:  card.DcStatus == GameStatus.Installed,
                 shaderModeOverride: card.ShaderModeOverride,
                 use32Bit:       card.Is32Bit,
+                filenameOverride: card.DllOverrideEnabled ? (GetDllOverride(card.GameName)?.ReShadeFileName) : null,
                 progress:       progress);
             DispatcherQueue?.TryEnqueue(() =>
             {
@@ -1735,7 +1944,7 @@ public partial class MainViewModel : ObservableObject
     /// Eligibility: card must not be hidden, not excluded from Update All.
     /// </summary>
     private IEnumerable<GameCardViewModel> UpdateAllEligible() =>
-        _allCards.Where(c => !c.IsHidden && !c.ExcludeFromUpdateAll
+        _allCards.Where(c => !c.IsHidden && !c.ExcludeFromUpdateAll && !c.DllOverrideEnabled
                           && !string.IsNullOrEmpty(c.InstallPath)
                           && Directory.Exists(c.InstallPath));
 
@@ -1794,7 +2003,7 @@ public partial class MainViewModel : ObservableObject
         foreach (var card in targets)
         {
             // Skip games with foreign dxgi.dll during Update All (when DC mode is OFF, RS = dxgi.dll)
-            var effectiveDcMode = DcModeEnabled && !card.DcModeExcluded;
+            var effectiveDcMode = DcModeEnabled && !card.DcModeExcluded && !card.DllOverrideEnabled;
             if (!effectiveDcMode)
             {
                 var dxgiPath = Path.Combine(card.InstallPath, "dxgi.dll");
@@ -1866,7 +2075,7 @@ public partial class MainViewModel : ObservableObject
         foreach (var card in targets)
         {
             // Skip games with foreign dxgi.dll during Update All — keep purple button
-            var effectiveDcMode = DcModeEnabled && !card.DcModeExcluded;
+            var effectiveDcMode = DcModeEnabled && !card.DcModeExcluded && !card.DllOverrideEnabled;
             if (effectiveDcMode)
             {
                 var dxgiPath = Path.Combine(card.InstallPath, "dxgi.dll");
@@ -1969,10 +2178,19 @@ public partial class MainViewModel : ObservableObject
 
                 // Merge: start with fresh scan, then add any cached games that weren't re-detected
                 // (e.g. games on a disconnected drive). Fresh scan wins for duplicates.
+                // Deduplicate by BOTH normalized name AND install path to prevent renamed games
+                // from appearing twice if the rename didn't carry over (e.g. after app update).
                 var freshNorms = freshGames.Select(g => GameDetectionService.NormalizeName(g.Name))
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var freshPaths = freshGames
+                    .Where(g => !string.IsNullOrEmpty(g.InstallPath))
+                    .Select(g => g.InstallPath.TrimEnd(Path.DirectorySeparatorChar))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
                 detectedGames = freshGames
-                    .Concat(cachedGames.Where(g => !freshNorms.Contains(GameDetectionService.NormalizeName(g.Name))))
+                    .Concat(cachedGames.Where(g =>
+                        !freshNorms.Contains(GameDetectionService.NormalizeName(g.Name))
+                        && (string.IsNullOrEmpty(g.InstallPath)
+                            || !freshPaths.Contains(g.InstallPath.TrimEnd(Path.DirectorySeparatorChar)))))
                     .ToList();
 
                 CrashReporter.Log($"Merged library: {freshGames.Count} detected + {cachedGames.Count} cached → {detectedGames.Count} total");
@@ -1995,6 +2213,9 @@ public partial class MainViewModel : ObservableObject
 
             // Apply persisted renames so user-chosen names survive Refresh.
             ApplyGameRenames(detectedGames);
+
+            // Apply persisted folder overrides so user-chosen paths survive Refresh.
+            ApplyFolderOverrides(detectedGames);
 
             // Combine auto-detected + manual games.
             // Manual games override auto-detected ones with the same name.
@@ -2125,7 +2346,16 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            bool upd = await _auxInstaller.CheckForUpdateAsync(record);
+            bool upd;
+            if (isRs && record.SourceUrl == null)
+            {
+                // ReShade is bundled locally — compare against staged DLL by size
+                upd = AuxInstallService.CheckReShadeUpdateLocal(record);
+            }
+            else
+            {
+                upd = await _auxInstaller.CheckForUpdateAsync(record);
+            }
             if (upd)
                 DispatcherQueue?.TryEnqueue(() =>
                 {
@@ -2530,6 +2760,7 @@ public partial class MainViewModel : ObservableObject
                 ExcludeFromShaders     = IsShaderExcluded(game.Name),
                 ShaderModeOverride     = _perGameShaderMode.TryGetValue(game.Name, out var smBc) ? smBc : null,
                 Is32Bit                = _is32BitGames.Contains(game.Name),
+                DllOverrideEnabled     = _dllOverrides.ContainsKey(game.Name),
                 IsNativeHdrGame        = isNativeHdr,
                 DcRecord               = dcRec,
                 DcStatus               = dcRec != null ? GameStatus.Installed : GameStatus.NotInstalled,

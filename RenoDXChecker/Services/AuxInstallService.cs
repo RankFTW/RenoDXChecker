@@ -38,11 +38,12 @@ public class AuxInstallService
     public static string RsStagedPath32 => Path.Combine(RsStagingDir, RsStaged32);
 
     /// <summary>
-    /// Ensures the staged ReShade DLLs exist. Copies them from the app bundle
-    /// (the folder containing the running exe) if they are missing or empty.
+    /// Ensures the staged ReShade DLLs exist and are up-to-date. Copies them from
+    /// the app bundle (the folder containing the running exe) if they are missing,
+    /// empty, or differ in size from the bundled version (i.e. after an app update).
     /// Safe to call every time before an install.
     /// </summary>
-    public static void EnsureReShadeStaging()
+    public static void EnsureReShadeStaging(bool forceRefresh = false)
     {
         Directory.CreateDirectory(RsStagingDir);
 
@@ -52,8 +53,13 @@ public class AuxInstallService
             (Path.Combine(appDir, RsBundle32), RsStagedPath32),
         })
         {
-            if (File.Exists(bundle) &&
-                (!File.Exists(staged) || new FileInfo(staged).Length == 0))
+            if (!File.Exists(bundle)) continue;
+            var bundleSize = new FileInfo(bundle).Length;
+            var needsCopy = forceRefresh
+                || !File.Exists(staged)
+                || new FileInfo(staged).Length == 0
+                || new FileInfo(staged).Length != bundleSize;
+            if (needsCopy)
             {
                 File.Copy(bundle, staged, overwrite: true);
             }
@@ -254,13 +260,16 @@ public class AuxInstallService
         AuxInstalledRecord? existingRsRecord = null,
         string? shaderModeOverride = null,
         bool use32Bit = false,
+        string? filenameOverride = null,
         IProgress<(string message, double percent)>? progress = null)
     {
         Directory.CreateDirectory(DownloadCacheDir);
 
         var activeUrl    = use32Bit ? DcUrl32       : DcUrl;
         var cachePath    = Path.Combine(DownloadCacheDir, use32Bit ? DcCacheFile32 : DcCacheFile);
-        var destName     = dcMode ? DcDxgiName : (use32Bit ? DcNormalName32 : DcNormalName);
+        var destName     = !string.IsNullOrWhiteSpace(filenameOverride)
+            ? filenameOverride
+            : dcMode ? DcDxgiName : (use32Bit ? DcNormalName32 : DcNormalName);
         var opposingName = dcMode ? (use32Bit ? DcNormalName32 : DcNormalName) : DcDxgiName;
         var destPath     = Path.Combine(installPath, destName);
 
@@ -399,6 +408,7 @@ public class AuxInstallService
         bool dcIsInstalled = false,
         string? shaderModeOverride = null,
         bool use32Bit = false,
+        string? filenameOverride = null,
         IProgress<(string message, double percent)>? progress = null)
     {
         Directory.CreateDirectory(DownloadCacheDir);
@@ -406,9 +416,11 @@ public class AuxInstallService
         // 32-bit mode: install as dxgi.dll (same name) but from the 32-bit DLL.
         // DC Mode ON + 32-bit: install as ReShade32.dll.
         // DC Mode ON + 64-bit: install as ReShade64.dll.
-        var destName = dcMode
-            ? (use32Bit ? RsDcModeName32 : RsDcModeName)
-            : RsNormalName;
+        var destName = !string.IsNullOrWhiteSpace(filenameOverride)
+            ? filenameOverride
+            : dcMode
+                ? (use32Bit ? RsDcModeName32 : RsDcModeName)
+                : RsNormalName;
         var destPath = Path.Combine(installPath, destName);
 
         // Remove the opposing-mode ReShade file if DC Mode is OFF
@@ -485,6 +497,30 @@ public class AuxInstallService
     }
 
     // ── Update detection ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Checks if an installed ReShade file is outdated by comparing its size
+    /// against the staged (bundled) DLL. Returns true if an update is available.
+    /// </summary>
+    public static bool CheckReShadeUpdateLocal(AuxInstalledRecord record)
+    {
+        if (record.AddonType != TypeReShade) return false;
+        var localFile = Path.Combine(record.InstallPath, record.InstalledAs);
+        if (!File.Exists(localFile)) return false;
+
+        var localSize = new FileInfo(localFile).Length;
+
+        // Check against the 64-bit staged DLL first, then 32-bit.
+        // The installed file matches the staged DLL it was copied from.
+        // If either staged file has a different size, an update is available.
+        if (File.Exists(RsStagedPath64) && localSize == new FileInfo(RsStagedPath64).Length)
+            return false; // matches current 64-bit — no update
+        if (File.Exists(RsStagedPath32) && localSize == new FileInfo(RsStagedPath32).Length)
+            return false; // matches current 32-bit — no update
+
+        // Size doesn't match either staged DLL — update available
+        return true;
+    }
 
     public async Task<bool> CheckForUpdateAsync(AuxInstalledRecord record)
     {

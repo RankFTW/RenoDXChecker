@@ -103,22 +103,102 @@ public sealed partial class MainWindow : Window
             "Exclude this game from all wiki matching. The card will show a Discord link instead of an install button.");
 
         var panel = new StackPanel { Spacing = 8 };
-        panel.Children.Add(new TextBlock
-        {
-            TextWrapping = TextWrapping.Wrap,
-            Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 120, 140, 180)),
-            FontSize     = 12,
-            Text         = "Edit the game name to correct it, or map it to a wiki mod name for correct matching.",
-        });
-        panel.Children.Add(new TextBlock { Text = "Game name (editable):", FontSize = 12 });
-        panel.Children.Add(detectedBox);
-        panel.Children.Add(new TextBlock { Text = "Wiki mod name:", FontSize = 12 });
-        panel.Children.Add(wikiBox);
+
+        // ── Game name + Wiki name side by side ───────────────────────────────────
+        detectedBox.Header = "Game name (editable)";
+        detectedBox.Width  = double.NaN;
+        detectedBox.HorizontalAlignment = HorizontalAlignment.Stretch;
+        detectedBox.FontSize = 12;
+        wikiBox.Header = "Wiki mod name";
+        wikiBox.Width  = double.NaN;
+        wikiBox.HorizontalAlignment = HorizontalAlignment.Stretch;
+        wikiBox.FontSize = 12;
+
+        var nameGrid = new Grid { ColumnSpacing = 8 };
+        nameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        nameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumn(detectedBox, 0);
+        Grid.SetColumn(wikiBox, 1);
+        nameGrid.Children.Add(detectedBox);
+        nameGrid.Children.Add(wikiBox);
+        panel.Children.Add(nameGrid);
+
         panel.Children.Add(MakeSeparator());
+
+        // ── DLL Naming Override ──────────────────────────────────────────────────
+        bool isDllOverride = !string.IsNullOrEmpty(prefilledDetected) &&
+                             ViewModel.HasDllOverride(prefilledDetected);
+        var existingCfg = !string.IsNullOrEmpty(prefilledDetected)
+            ? ViewModel.GetDllOverride(prefilledDetected) : null;
+
+        var dllOverrideBtn = new ToggleButton
+        {
+            Content    = "📝  DLL naming override",
+            IsChecked  = isDllOverride,
+            IsEnabled  = !isLumaMode,
+            FontSize   = 12,
+            Padding    = new Thickness(10, 6, 10, 6),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 14, 28, 28)),
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 80, 200, 180)),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 90, 80)),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        ToolTipService.SetToolTip(dllOverrideBtn,
+            "Override the filenames ReShade and Display Commander are installed as. " +
+            "When enabled, existing RS/DC installs are removed and the game is automatically excluded from DC Mode, Update All, and global shaders.");
+
+        // Default names based on 32-bit mode
+        bool is32Bit = !string.IsNullOrEmpty(prefilledDetected) &&
+                       ViewModel.Is32BitGame(prefilledDetected);
+        var defaultRsName = is32Bit ? "ReShade32.dll" : "ReShade64.dll";
+        var defaultDcName = is32Bit ? "zzz_display_commander.addon32" : "zzz_display_commander.addon64";
+
+        var rsNameBox = new TextBox
+        {
+            PlaceholderText = defaultRsName,
+            Text = existingCfg?.ReShadeFileName ?? "",
+            Header = "ReShade filename",
+            FontSize = 12,
+            IsEnabled = isDllOverride,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+
+        var dcNameBox = new TextBox
+        {
+            PlaceholderText = defaultDcName,
+            Text = existingCfg?.DcFileName ?? "",
+            Header = "DC filename",
+            FontSize = 12,
+            IsEnabled = isDllOverride,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+
+        dllOverrideBtn.Checked   += (s, ev) => { rsNameBox.IsEnabled = true;  dcNameBox.IsEnabled = true; };
+        dllOverrideBtn.Unchecked += (s, ev) => { rsNameBox.IsEnabled = false; dcNameBox.IsEnabled = false; };
+
+        panel.Children.Add(dllOverrideBtn);
+
+        var dllNameGrid = new Grid
+        {
+            ColumnSpacing = 8,
+            Margin = new Thickness(0, 4, 0, 0),
+        };
+        dllNameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        dllNameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumn(rsNameBox, 0);
+        Grid.SetColumn(dcNameBox, 1);
+        dllNameGrid.Children.Add(rsNameBox);
+        dllNameGrid.Children.Add(dcNameBox);
+        panel.Children.Add(dllNameGrid);
+
+        panel.Children.Add(MakeSeparator());
+
+        // ── Exclude from wiki ────────────────────────────────────────────────────
         panel.Children.Add(excludeBtn);
 
         panel.Children.Add(MakeSeparator());
 
+        // ── Exclude from DC Mode ─────────────────────────────────────────────────
         bool isDcExcluded = !string.IsNullOrEmpty(prefilledDetected) &&
                             ViewModel.IsDcModeExcluded(prefilledDetected);
 
@@ -140,6 +220,7 @@ public sealed partial class MainWindow : Window
 
         panel.Children.Add(MakeSeparator());
 
+        // ── Exclude from Update All ──────────────────────────────────────────────
         bool isUaExcluded = !string.IsNullOrEmpty(prefilledDetected) &&
                             ViewModel.IsUpdateAllExcluded(prefilledDetected);
 
@@ -161,10 +242,7 @@ public sealed partial class MainWindow : Window
 
         panel.Children.Add(MakeSeparator());
 
-        // 32-bit mode (moved above shader mode)
-        bool is32Bit = !string.IsNullOrEmpty(prefilledDetected) &&
-                       ViewModel.Is32BitGame(prefilledDetected);
-
+        // ── 32-bit mode ──────────────────────────────────────────────────────────
         var bit32Btn = new ToggleButton
         {
             Content    = "⚠  32-bit mode",
@@ -184,7 +262,7 @@ public sealed partial class MainWindow : Window
 
         panel.Children.Add(MakeSeparator());
 
-        // Shader mode (moved to bottom)
+        // ── Shader mode ──────────────────────────────────────────────────────────
         string currentShaderMode = !string.IsNullOrEmpty(prefilledDetected)
             ? ViewModel.GetPerGameShaderMode(prefilledDetected)
             : "Global";
@@ -262,6 +340,35 @@ public sealed partial class MainWindow : Window
                 bool now32Bit = bit32Btn.IsChecked == true;
                 if (!string.IsNullOrEmpty(det) && now32Bit != ViewModel.Is32BitGame(det))
                     ViewModel.Toggle32Bit(det);
+
+                // Handle DLL naming override
+                bool nowDllOverride = dllOverrideBtn.IsChecked == true;
+                bool wasDllOverride = !string.IsNullOrEmpty(det) && ViewModel.HasDllOverride(det);
+                if (!string.IsNullOrEmpty(det))
+                {
+                    var targetCard = ViewModel.AllCards.FirstOrDefault(c =>
+                        c.GameName.Equals(det, StringComparison.OrdinalIgnoreCase));
+
+                    if (nowDllOverride && !wasDllOverride && targetCard != null)
+                    {
+                        // Toggled ON — enable override (uninstalls existing RS/DC)
+                        var rsName = !string.IsNullOrWhiteSpace(rsNameBox.Text) ? rsNameBox.Text.Trim() : rsNameBox.PlaceholderText;
+                        var dcName = !string.IsNullOrWhiteSpace(dcNameBox.Text) ? dcNameBox.Text.Trim() : dcNameBox.PlaceholderText;
+                        ViewModel.EnableDllOverride(targetCard, rsName, dcName);
+                    }
+                    else if (nowDllOverride && wasDllOverride)
+                    {
+                        // Still ON — update the file names if changed
+                        var rsName = !string.IsNullOrWhiteSpace(rsNameBox.Text) ? rsNameBox.Text.Trim() : rsNameBox.PlaceholderText;
+                        var dcName = !string.IsNullOrWhiteSpace(dcNameBox.Text) ? dcNameBox.Text.Trim() : dcNameBox.PlaceholderText;
+                        ViewModel.SetDllOverride(det, rsName, dcName);
+                    }
+                    else if (!nowDllOverride && wasDllOverride && targetCard != null)
+                    {
+                        // Toggled OFF — disable override (removes custom-named files)
+                        ViewModel.DisableDllOverride(targetCard);
+                    }
+                }
 
                 // Save name mapping if provided and not excluded
                 // (skip if rename already triggered a rescan to avoid double-rebuild)
@@ -618,7 +725,16 @@ public sealed partial class MainWindow : Window
             catch { }
 
             // If marker exists, this version's notes have already been shown
-            if (File.Exists(markerFile)) return;
+            if (File.Exists(markerFile))
+            {
+                // Still ensure staging is up to date (handles missing files)
+                try { AuxInstallService.EnsureReShadeStaging(); } catch { }
+                return;
+            }
+
+            // First launch after update — force-refresh staged ReShade DLLs from bundle
+            try { AuxInstallService.EnsureReShadeStaging(forceRefresh: true); }
+            catch (Exception ex) { CrashReporter.Log($"ReShade staging refresh failed — {ex.Message}"); }
 
             // Write the marker file FIRST — ensures we never show again
             try
@@ -1476,7 +1592,14 @@ public sealed partial class MainWindow : Window
         var card = GetCardFromSender(sender);
         if (card == null) return;
         var folder = await PickFolderAsync();
-        if (folder != null) card.InstallPath = folder;
+        if (folder != null)
+        {
+            card.InstallPath = folder;
+            if (card.DetectedGame != null)
+                card.DetectedGame.InstallPath = folder;
+            // Persist the override so it survives Refresh / app restart
+            ViewModel.SetFolderOverride(card.GameName, folder);
+        }
     }
 
     private void OpenFolder_Click(object sender, RoutedEventArgs e)
@@ -1491,7 +1614,17 @@ public sealed partial class MainWindow : Window
     {
         var card = GetCardFromSender(sender);
         if (card == null) return;
-        ViewModel.RemoveManualGameCommand.Execute(card);
+
+        if (card.IsManuallyAdded)
+        {
+            // Manual game — remove it entirely
+            ViewModel.RemoveManualGameCommand.Execute(card);
+        }
+        else
+        {
+            // Auto-detected game — reset folder to original detected path
+            ViewModel.ResetFolderOverride(card);
+        }
     }
 
     private async void ExternalLink_Click(object sender, RoutedEventArgs e)
