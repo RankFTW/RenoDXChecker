@@ -25,7 +25,7 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         AuxInstallService.EnsureInisDir();       // create inis folder on first run
-        AuxInstallService.EnsureReShadeStaging(); // copy bundled ReShade DLLs to staging if needed
+        AuxInstallService.EnsureReShadeStaging(); // create staging dir (DLLs downloaded by ReShadeUpdateService)
         Title = "RDXC - RenoDXCommander";
         // Fire-and-forget: check/download Lilium HDR shaders in the background
         _ = ShaderPackService.EnsureLatestAsync(ViewModel.HttpClient);
@@ -38,6 +38,7 @@ public sealed partial class MainWindow : Window
         this.Activated += MainWindow_Activated;
         ViewModel.SetDispatcher(DispatcherQueue);
         ViewModel.ConfirmForeignDxgiOverwrite = ShowForeignDxgiConfirmDialogAsync;
+        ViewModel.ConfirmForeignWinmmOverwrite = ShowForeignWinmmConfirmDialogAsync;
         ViewModel.PropertyChanged += OnViewModelChanged;
         GameCardsList.ItemsSource  = ViewModel.DisplayedGames;
         FilterLuma.Visibility = ViewModel.LumaFeatureEnabled
@@ -198,28 +199,6 @@ public sealed partial class MainWindow : Window
 
         panel.Children.Add(MakeSeparator());
 
-        // ── Exclude from DC Mode ─────────────────────────────────────────────────
-        bool isDcExcluded = !string.IsNullOrEmpty(prefilledDetected) &&
-                            ViewModel.IsDcModeExcluded(prefilledDetected);
-
-        var dcExcludeBtn = new ToggleButton
-        {
-            Content    = "⚙  Exclude from global DC Mode",
-            IsChecked  = isDcExcluded,
-            FontSize   = 12,
-            Padding    = new Thickness(10, 6, 10, 6),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 18, 28, 48)),
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 100, 160, 200)),
-            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 70, 110)),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        ToolTipService.SetToolTip(dcExcludeBtn,
-            "This game will always use normal file naming (ReShade=dxgi.dll, DC=addon) regardless of the global DC Mode toggle.");
-
-        panel.Children.Add(dcExcludeBtn);
-
-        panel.Children.Add(MakeSeparator());
-
         // ── Exclude from Update All ──────────────────────────────────────────────
         bool isUaExcluded = !string.IsNullOrEmpty(prefilledDetected) &&
                             ViewModel.IsUpdateAllExcluded(prefilledDetected);
@@ -262,6 +241,28 @@ public sealed partial class MainWindow : Window
 
         panel.Children.Add(MakeSeparator());
 
+        // ── Per-game DC Mode override ──────────────────────────────────────────
+        int? currentDcMode = !string.IsNullOrEmpty(prefilledDetected)
+            ? ViewModel.GetPerGameDcModeOverride(prefilledDetected)
+            : null;
+
+        var dcModeOptions = new[] { "Follow Global", "Exclude (Off)", "DC Mode 1", "DC Mode 2" };
+        var dcModeCombo = new ComboBox
+        {
+            ItemsSource  = dcModeOptions,
+            SelectedIndex = currentDcMode switch { null => 0, 0 => 1, 1 => 2, 2 => 3, _ => 0 },
+            FontSize     = 12,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Header       = "⚙  DC Mode for this game",
+        };
+        ToolTipService.SetToolTip(dcModeCombo,
+            "Follow Global = use the header DC Mode toggle. Exclude (Off) = always use normal naming. " +
+            "DC Mode 1 = force dxgi.dll proxy. DC Mode 2 = force winmm.dll proxy.");
+
+        panel.Children.Add(dcModeCombo);
+
+        panel.Children.Add(MakeSeparator());
+
         // ── Shader mode ──────────────────────────────────────────────────────────
         string currentShaderMode = !string.IsNullOrEmpty(prefilledDetected)
             ? ViewModel.GetPerGameShaderMode(prefilledDetected)
@@ -289,7 +290,7 @@ public sealed partial class MainWindow : Window
             Content           = new ScrollViewer
             {
                 Content = panel,
-                MaxHeight = 480,
+                MaxHeight = 560,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 Padding = new Thickness(0, 0, 8, 0),
             },
@@ -321,10 +322,13 @@ public sealed partial class MainWindow : Window
                 if (!string.IsNullOrEmpty(det) && nowExcluded != ViewModel.IsWikiExcluded(det))
                     ViewModel.ToggleWikiExclusion(det);
 
-                // Handle DC Mode exclusion toggle
-                bool nowDcExcluded = dcExcludeBtn.IsChecked == true;
-                if (!string.IsNullOrEmpty(det) && nowDcExcluded != ViewModel.IsDcModeExcluded(det))
-                    ViewModel.ToggleDcModeExclusion(det);
+                // Handle per-game DC Mode override
+                int? newDcMode = dcModeCombo.SelectedIndex switch { 1 => 0, 2 => 1, 3 => 2, _ => null };
+                if (!string.IsNullOrEmpty(det) && newDcMode != ViewModel.GetPerGameDcModeOverride(det))
+                {
+                    ViewModel.SetPerGameDcModeOverride(det, newDcMode);
+                    ViewModel.ApplyDcModeSwitchForCard(det);
+                }
 
                 // Handle Update All exclusion toggle
                 bool nowUaExcluded = uaExcludeBtn.IsChecked == true;
@@ -334,7 +338,10 @@ public sealed partial class MainWindow : Window
                 // Handle per-game shader mode
                 var newShaderMode = shaderModeCombo.SelectedItem as string ?? "Global";
                 if (!string.IsNullOrEmpty(det) && newShaderMode != ViewModel.GetPerGameShaderMode(det))
+                {
                     ViewModel.SetPerGameShaderMode(det, newShaderMode);
+                    ViewModel.DeployShadersForCard(det);
+                }
 
                 // Handle 32-bit mode toggle
                 bool now32Bit = bit32Btn.IsChecked == true;
@@ -449,7 +456,7 @@ public sealed partial class MainWindow : Window
     private void RefreshButton_Click(object sender, RoutedEventArgs e)
     {
         CrashReporter.Log("User clicked Refresh");
-        _ = ViewModel.InitializeAsync(forceRescan: true);
+        _ = ViewModel.RefreshAsync();
     }
 
     private bool _aboutVisible = false;
@@ -507,6 +514,35 @@ public sealed partial class MainWindow : Window
                                $"File size: {sizeKB:N0} KB\n\n" +
                                "RDXC cannot identify this file as ReShade or Display Commander. " +
                                "It may belong to another mod (e.g. DXVK, Special K, ENB).\n\n" +
+                               "Overwriting it may break the existing mod. Do you want to proceed?",
+            },
+            PrimaryButtonText   = "Overwrite",
+            CloseButtonText     = "Cancel",
+            XamlRoot            = Content.XamlRoot,
+            Background          = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 20, 10)),
+        };
+
+        var result = await dlg.ShowAsync();
+        return result == ContentDialogResult.Primary;
+    }
+
+    private async Task<bool> ShowForeignWinmmConfirmDialogAsync(GameCardViewModel card, string winmmPath)
+    {
+        var fileSize = new System.IO.FileInfo(winmmPath).Length;
+        var sizeKB   = fileSize / 1024.0;
+
+        var dlg = new ContentDialog
+        {
+            Title               = "⚠ Unknown winmm.dll Detected",
+            Content             = new TextBlock
+            {
+                TextWrapping = TextWrapping.Wrap,
+                Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 220, 180, 120)),
+                FontSize     = 13,
+                Text         = $"A winmm.dll file was found in:\n{card.InstallPath}\n\n" +
+                               $"File size: {sizeKB:N0} KB\n\n" +
+                               "RDXC cannot identify this file as Display Commander. " +
+                               "It may belong to another mod or DLL injector.\n\n" +
                                "Overwriting it may break the existing mod. Do you want to proceed?",
             },
             PrimaryButtonText   = "Overwrite",
@@ -725,16 +761,7 @@ public sealed partial class MainWindow : Window
             catch { }
 
             // If marker exists, this version's notes have already been shown
-            if (File.Exists(markerFile))
-            {
-                // Still ensure staging is up to date (handles missing files)
-                try { AuxInstallService.EnsureReShadeStaging(); } catch { }
-                return;
-            }
-
-            // First launch after update — force-refresh staged ReShade DLLs from bundle
-            try { AuxInstallService.EnsureReShadeStaging(forceRefresh: true); }
-            catch (Exception ex) { CrashReporter.Log($"ReShade staging refresh failed — {ex.Message}"); }
+            if (File.Exists(markerFile)) return;
 
             // Write the marker file FIRST — ensures we never show again
             try
@@ -1496,6 +1523,19 @@ public sealed partial class MainWindow : Window
     private void ShadersModeButton_Click(object sender, RoutedEventArgs e)
         => ViewModel.CycleShaderDeployMode();
 
+    private void DeployShadersButton_Click(object sender, RoutedEventArgs e)
+        => ViewModel.DeployAllShaders();
+
+    private void DcModeButton_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.CycleDcMode();
+    }
+
+    private void DeployDcModeButton_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.ApplyDcModeSwitch();
+    }
+
     // ── Update All handlers ──────────────────────────────────────────────────
 
     private void UpdateAllButton_Click(object sender, RoutedEventArgs e)
@@ -1534,6 +1574,12 @@ public sealed partial class MainWindow : Window
     }
 
     private void LumaToggle_Click(object sender, RoutedEventArgs e)
+    {
+        var card = (sender as FrameworkElement)?.Tag as GameCardViewModel;
+        if (card != null) ViewModel.ToggleLumaMode(card);
+    }
+
+    private void SwitchToLumaButton_Click(object sender, RoutedEventArgs e)
     {
         var card = (sender as FrameworkElement)?.Tag as GameCardViewModel;
         if (card != null) ViewModel.ToggleLumaMode(card);

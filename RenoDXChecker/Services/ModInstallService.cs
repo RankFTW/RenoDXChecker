@@ -297,7 +297,7 @@ public class ModInstallService
         string localFile)
     {
         var cacheFile = Path.Combine(DownloadCacheDir, Path.GetFileName(localFile));
-        var tempFile  = cacheFile + ".update_check.tmp";
+        var tempFile  = cacheFile + $".update_check_{Guid.NewGuid():N}.tmp";
 
         try
         {

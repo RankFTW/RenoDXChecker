@@ -17,7 +17,7 @@ public partial class MainViewModel : ObservableObject
     public HttpClient HttpClient => _http;
     private readonly ModInstallService _installer;
     private readonly AuxInstallService _auxInstaller;
-    [ObservableProperty] private bool _dcModeEnabled;
+    [ObservableProperty] private int _dcModeLevel;
     [ObservableProperty] private ShaderDeployMode _shaderDeployMode = ShaderDeployMode.Minimum;
     [ObservableProperty] private bool _skipUpdateCheck;
     [ObservableProperty] private bool _lumaFeatureEnabled;
@@ -31,6 +31,12 @@ public partial class MainViewModel : ObservableObject
     /// Returns true if the user confirms overwrite, false to cancel.
     /// </summary>
     public Func<GameCardViewModel, string, Task<bool>>? ConfirmForeignDxgiOverwrite { get; set; }
+
+    /// <summary>
+    /// Async callback set by the UI layer. Called when a foreign winmm.dll is detected.
+    /// Returns true if the user confirms overwrite, false to cancel.
+    /// </summary>
+    public Func<GameCardViewModel, string, Task<bool>>? ConfirmForeignWinmmOverwrite { get; set; }
 
     partial void OnShaderDeployModeChanged(ShaderDeployMode v)
     {
@@ -92,6 +98,70 @@ public partial class MainViewModel : ObservableObject
 
     /// <summary>The current ShaderDeployMode as a string for AuxInstallService calls.</summary>
     public ShaderDeployMode CurrentShaderMode => ShaderDeployMode;
+
+    /// <summary>
+    /// Deploys shaders to all installed game locations.
+    /// Mirrors the logic in RefreshAsync but can be triggered on demand via the ⚙ button.
+    /// </summary>
+    public void DeployAllShaders()
+    {
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                var locations = _allCards
+                    .Where(card => !string.IsNullOrEmpty(card.InstallPath))
+                    .Select(card => (
+                        installPath        : card.InstallPath,
+                        dcInstalled        : card.DcStatus  == GameStatus.Installed || card.DcStatus  == GameStatus.UpdateAvailable,
+                        rsInstalled        : card.RsStatus  == GameStatus.Installed || card.RsStatus  == GameStatus.UpdateAvailable,
+                        dcMode             : (card.PerGameDcMode ?? DcModeLevel) > 0,
+                        shaderModeOverride : card.ShaderModeOverride
+                    ));
+                ShaderPackService.SyncShadersToAllLocations(locations);
+            }
+            catch (Exception ex)
+            { CrashReporter.Log($"DeployAllShaders: {ex.Message}"); }
+        });
+    }
+
+    /// <summary>
+    /// Deploys shaders for a single game card (by name).
+    /// Called when saving a per-game shader mode override so changes take effect immediately.
+    /// </summary>
+    public void DeployShadersForCard(string gameName)
+    {
+        var card = _allCards.FirstOrDefault(c =>
+            c.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase));
+        if (card == null || string.IsNullOrEmpty(card.InstallPath)) return;
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                bool dcInstalled = card.DcStatus == GameStatus.Installed || card.DcStatus == GameStatus.UpdateAvailable;
+                bool rsInstalled = card.RsStatus == GameStatus.Installed || card.RsStatus == GameStatus.UpdateAvailable;
+                bool dcMode      = (card.PerGameDcMode ?? DcModeLevel) > 0;
+
+                // Resolve effective mode: per-game override wins, otherwise global
+                var effectiveMode = card.ShaderModeOverride != null
+                    && Enum.TryParse<ShaderPackService.DeployMode>(card.ShaderModeOverride, true, out var overrideMode)
+                    ? overrideMode
+                    : ShaderDeployMode;
+
+                if (dcInstalled && dcMode)
+                {
+                    ShaderPackService.SyncDcFolder(effectiveMode);
+                }
+                else if (rsInstalled || (!dcInstalled && !dcMode))
+                {
+                    ShaderPackService.SyncGameFolder(card.InstallPath, effectiveMode);
+                }
+            }
+            catch (Exception ex)
+            { CrashReporter.Log($"DeployShadersForCard({gameName}): {ex.Message}"); }
+        });
+    }
     private List<GameMod> _allMods = new();
     private Dictionary<string, string> _genericNotes = new(StringComparer.OrdinalIgnoreCase);
     private List<GameCardViewModel> _allCards = new();
@@ -154,9 +224,10 @@ public partial class MainViewModel : ObservableObject
         _http = new HttpClient();
         _http.DefaultRequestHeaders.Add("User-Agent", "RenoDXCommander/2.0");
         _http.Timeout = TimeSpan.FromSeconds(30);
-        _installer    = new ModInstallService(_http);
-        _auxInstaller = new AuxInstallService(_http);
-        _lumaService  = new LumaService(_http);
+        _installer      = new ModInstallService(_http);
+        _auxInstaller   = new AuxInstallService(_http);
+        _lumaService    = new LumaService(_http);
+        _rsUpdateService = new ReShadeUpdateService(_http);
         // Subscribe to installer events — on install we'll perform a full refresh
         LoadNameMappings();
         LoadThemeAndDensity();
@@ -169,6 +240,7 @@ public partial class MainViewModel : ObservableObject
 
     // ── Luma Framework ────────────────────────────────────────────────────────────
     private readonly LumaService _lumaService;
+    private readonly ReShadeUpdateService _rsUpdateService;
     private List<LumaMod> _lumaMods = new();
     private HashSet<string> _lumaEnabledGames = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>
@@ -176,7 +248,210 @@ public partial class MainViewModel : ObservableObject
     /// Their cards show a Discord link instead of an install button.
     /// </summary>
     private HashSet<string> _wikiExclusions   = new(StringComparer.OrdinalIgnoreCase);
-    partial void OnDcModeEnabledChanged(bool v) => SaveNameMappings();
+
+    /// <summary>Backward-compat: true when any DC Mode level is active.</summary>
+    public bool DcModeEnabled => DcModeLevel > 0;
+
+    partial void OnDcModeLevelChanged(int v)
+    {
+        SaveNameMappings();
+        OnPropertyChanged(nameof(DcModeEnabled));
+        OnPropertyChanged(nameof(DcModeBtnLabel));
+        OnPropertyChanged(nameof(DcModeBtnBackground));
+        OnPropertyChanged(nameof(DcModeBtnForeground));
+        OnPropertyChanged(nameof(DcModeBtnBorder));
+    }
+
+    /// <summary>Cycles Off → DC Mode 1 → DC Mode 2 → Off and returns the new level.</summary>
+    public int CycleDcMode()
+    {
+        DcModeLevel = DcModeLevel switch
+        {
+            0 => 1,
+            1 => 2,
+            _ => 0,
+        };
+        return DcModeLevel;
+    }
+
+    /// <summary>
+    /// Renames installed DC and ReShade files across all games to match the current DcModeLevel.
+    /// Called after cycling the DC Mode so that a subsequent Refresh picks up the new naming.
+    /// 
+    /// Both DC (Mode 1) and ReShade (Mode Off) use dxgi.dll, so renames must be ordered
+    /// to avoid one clobbering the other:
+    ///   DC Mode turning ON  → rename ReShade FIRST (vacate dxgi.dll), then rename DC into it.
+    ///   DC Mode turning OFF → rename DC FIRST (vacate dxgi.dll), then rename ReShade into it.
+    ///   Mode 1 ↔ Mode 2    → only DC changes (dxgi.dll ↔ winmm.dll), ReShade stays as ReShade64.dll.
+    /// </summary>
+    public void ApplyDcModeSwitch()
+    {
+        foreach (var card in _allCards)
+        {
+            if (card.DllOverrideEnabled) continue;
+            if (card.IsLumaMode) continue;
+            if (string.IsNullOrEmpty(card.InstallPath) || !Directory.Exists(card.InstallPath)) continue;
+
+            // Per-game override takes precedence over global DC Mode level
+            var effectiveLevel = card.PerGameDcMode ?? DcModeLevel;
+
+            // Update RS blocked flag
+            card.RsBlockedByDcMode = effectiveLevel > 0;
+
+            // ── Uninstall RDXC-installed ReShade when DC mode is active ──
+            // DC Mode reads ReShade from the DC AppData folder instead of game folders.
+            if (effectiveLevel > 0 && card.RsRecord != null)
+            {
+                try
+                {
+                    _auxInstaller.Uninstall(card.RsRecord);
+                    CrashReporter.Log($"DC Mode switch: uninstalled ReShade from {card.GameName}");
+                }
+                catch (Exception ex)
+                {
+                    CrashReporter.Log($"DC Mode switch: RS uninstall failed for {card.GameName} — {ex.Message}");
+                }
+                card.RsRecord = null;
+                card.RsInstalledFile = null;
+                card.RsStatus = GameStatus.NotInstalled;
+            }
+
+            // ── DC file rename ──
+            string? dcOldName = card.DcRecord?.InstalledAs;
+            string? dcNewName = card.DcRecord != null ? effectiveLevel switch
+            {
+                1 => AuxInstallService.DcDxgiName,
+                2 => AuxInstallService.DcWinmmName,
+                _ => card.Is32Bit ? AuxInstallService.DcNormalName32 : AuxInstallService.DcNormalName,
+            } : null;
+
+            bool dcNeedsRename = dcOldName != null && dcNewName != null
+                && !dcOldName.Equals(dcNewName, StringComparison.OrdinalIgnoreCase)
+                && File.Exists(Path.Combine(card.InstallPath, dcOldName));
+
+            if (dcNeedsRename)
+                RenameFile(card, isRs: false, dcOldName!, dcNewName!);
+
+            card.NotifyAll();
+        }
+
+        // Sync ReShade DLLs to DC folder whenever DC mode is deployed
+        AuxInstallService.SyncReShadeToDisplayCommander();
+    }
+
+    /// <summary>
+    /// Applies DC Mode file renames for a single game card (by name).
+    /// Called when the user saves a per-game DC Mode override so changes take
+    /// effect immediately without requiring a full Refresh.
+    /// </summary>
+    public void ApplyDcModeSwitchForCard(string gameName)
+    {
+        var card = _allCards.FirstOrDefault(c =>
+            c.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase));
+        if (card == null) return;
+        if (card.DllOverrideEnabled) return;
+        if (card.IsLumaMode) return;
+        if (string.IsNullOrEmpty(card.InstallPath) || !Directory.Exists(card.InstallPath)) return;
+
+        var effectiveLevel = card.PerGameDcMode ?? DcModeLevel;
+
+        // Update RS blocked flag
+        card.RsBlockedByDcMode = effectiveLevel > 0;
+
+        // Uninstall RDXC-installed ReShade when DC mode is active for this game
+        if (effectiveLevel > 0 && card.RsRecord != null)
+        {
+            try
+            {
+                _auxInstaller.Uninstall(card.RsRecord);
+                CrashReporter.Log($"DC Mode switch (card): uninstalled ReShade from {card.GameName}");
+            }
+            catch (Exception ex)
+            {
+                CrashReporter.Log($"DC Mode switch (card): RS uninstall failed for {card.GameName} — {ex.Message}");
+            }
+            card.RsRecord = null;
+            card.RsInstalledFile = null;
+            card.RsStatus = GameStatus.NotInstalled;
+        }
+
+        // DC file rename
+        string? dcOldName = card.DcRecord?.InstalledAs;
+        string? dcNewName = card.DcRecord != null ? effectiveLevel switch
+        {
+            1 => AuxInstallService.DcDxgiName,
+            2 => AuxInstallService.DcWinmmName,
+            _ => card.Is32Bit ? AuxInstallService.DcNormalName32 : AuxInstallService.DcNormalName,
+        } : null;
+
+        bool dcNeedsRename = dcOldName != null && dcNewName != null
+            && !dcOldName.Equals(dcNewName, StringComparison.OrdinalIgnoreCase)
+            && File.Exists(Path.Combine(card.InstallPath, dcOldName));
+
+        if (dcNeedsRename)
+            RenameFile(card, isRs: false, dcOldName!, dcNewName!);
+
+        card.NotifyAll();
+    }
+
+    /// <summary>Renames a single DC or ReShade file for a game card during a DC Mode switch.</summary>
+    private void RenameFile(GameCardViewModel card, bool isRs, string oldName, string newName)
+    {
+        var oldPath = Path.Combine(card.InstallPath, oldName);
+        var newPath = Path.Combine(card.InstallPath, newName);
+        var label = isRs ? "RS" : "DC";
+
+        try
+        {
+            if (File.Exists(newPath)) File.Delete(newPath);
+            File.Move(oldPath, newPath);
+
+            if (isRs)
+            {
+                card.RsRecord!.InstalledAs = newName;
+                card.RsInstalledFile = newName;
+                _auxInstaller.SaveAuxRecord(card.RsRecord);
+            }
+            else
+            {
+                card.DcRecord!.InstalledAs = newName;
+                card.DcInstalledFile = newName;
+                _auxInstaller.SaveAuxRecord(card.DcRecord);
+            }
+            CrashReporter.Log($"DC Mode switch ({label}): {card.GameName}: {oldName} → {newName}");
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"DC Mode switch ({label}) failed for {card.GameName}: {ex.Message}");
+        }
+    }
+
+    // DC Mode button label / colours — shown in the header bar
+    public string DcModeBtnLabel => DcModeLevel switch
+    {
+        1 => "⚙ DC Mode 1",
+        2 => "⚙ DC Mode 2",
+        _ => "⚙ DC Mode: Off",
+    };
+    public string DcModeBtnBackground => DcModeLevel switch
+    {
+        1 => "#0F2A2A",
+        2 => "#1A1040",
+        _ => "#0F1E2A",
+    };
+    public string DcModeBtnForeground => DcModeLevel switch
+    {
+        1 => "#00C8FF",
+        2 => "#C090FF",
+        _ => "#556688",
+    };
+    public string DcModeBtnBorder => DcModeLevel switch
+    {
+        1 => "#1A5A5A",
+        2 => "#6030B0",
+        _ => "#1A3A4A",
+    };
+
     partial void OnLumaFeatureEnabledChanged(bool v)
     {
         foreach (var c in _allCards) c.LumaFeatureEnabled = v;
@@ -221,22 +496,23 @@ public partial class MainViewModel : ObservableObject
         SaveNameMappings();
     }
 
-    public bool IsDcModeExcluded(string gameName)  => _dcModeExcludedGames.Contains(gameName);
-    public void ToggleDcModeExclusion(string gameName)
+    public int? GetPerGameDcModeOverride(string gameName)
+        => _perGameDcModeOverride.TryGetValue(gameName, out var v) ? v : null;
+
+    public void SetPerGameDcModeOverride(string gameName, int? mode)
     {
-        if (_dcModeExcludedGames.Contains(gameName))
-            _dcModeExcludedGames.Remove(gameName);
+        if (mode.HasValue)
+            _perGameDcModeOverride[gameName] = mode.Value;
         else
-            _dcModeExcludedGames.Add(gameName);
+            _perGameDcModeOverride.Remove(gameName);
         SaveNameMappings();
-        // Update the card immediately
         var card = _allCards.FirstOrDefault(c => c.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase));
-        if (card != null) card.DcModeExcluded = _dcModeExcludedGames.Contains(gameName);
+        if (card != null) { card.PerGameDcMode = mode; card.NotifyAll(); }
     }
     /// <summary>Games for which the user has toggled UE-Extended ON.</summary>
     private HashSet<string> _ueExtendedGames = new(StringComparer.OrdinalIgnoreCase);
-    /// <summary>Games excluded from global DC Mode — always use normal file naming.</summary>
-    private HashSet<string> _dcModeExcludedGames    = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Per-game DC Mode overrides. Key = game name, Value = 0 (off), 1 (DC Mode 1), 2 (DC Mode 2). Absent = follow global.</summary>
+    private Dictionary<string, int> _perGameDcModeOverride = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _updateAllExcludedGames  = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, string> _perGameShaderMode = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _is32BitGames            = new(StringComparer.OrdinalIgnoreCase);
@@ -524,127 +800,125 @@ public partial class MainViewModel : ObservableObject
     }
     private void LoadNameMappings()
     {
-        try
+        // Initialise all fields to safe defaults first
+        _nameMappings           = new(StringComparer.OrdinalIgnoreCase);
+        _wikiExclusions         = new(StringComparer.OrdinalIgnoreCase);
+        _ueExtendedGames        = new(StringComparer.OrdinalIgnoreCase);
+        _perGameDcModeOverride  = new(StringComparer.OrdinalIgnoreCase);
+        _updateAllExcludedGames = new(StringComparer.OrdinalIgnoreCase);
+        _perGameShaderMode      = new(StringComparer.OrdinalIgnoreCase);
+        _is32BitGames           = new(StringComparer.OrdinalIgnoreCase);
+        _gameRenames            = new(StringComparer.OrdinalIgnoreCase);
+        _dllOverrides           = new(StringComparer.OrdinalIgnoreCase);
+        _folderOverrides        = new(StringComparer.OrdinalIgnoreCase);
+        _lumaEnabledGames       = new(StringComparer.OrdinalIgnoreCase);
+        _favouriteGames         ??= new(StringComparer.OrdinalIgnoreCase);
+        _hiddenGames            ??= new(StringComparer.OrdinalIgnoreCase);
+
+        Dictionary<string, string> s;
+        try { s = LoadSettingsFile(); }
+        catch (Exception ex)
         {
-            var s = LoadSettingsFile();
-            if (s.TryGetValue("NameMappings", out var json) && !string.IsNullOrEmpty(json))
-                _nameMappings = JsonSerializer.Deserialize<Dictionary<string,string>>(json)
-                               ?? new(StringComparer.OrdinalIgnoreCase);
-            else
-                _nameMappings = new(StringComparer.OrdinalIgnoreCase);
-
-            if (s.TryGetValue("WikiExclusions", out var excJson) && !string.IsNullOrEmpty(excJson))
-                _wikiExclusions = new HashSet<string>(
-                    JsonSerializer.Deserialize<List<string>>(excJson) ?? new(),
-                    StringComparer.OrdinalIgnoreCase);
-            else
-                _wikiExclusions = new(StringComparer.OrdinalIgnoreCase);
-
-            if (s.TryGetValue("UeExtendedGames", out var ueJson) && !string.IsNullOrEmpty(ueJson))
-                _ueExtendedGames = new HashSet<string>(
-                    JsonSerializer.Deserialize<List<string>>(ueJson) ?? new(),
-                    StringComparer.OrdinalIgnoreCase);
-            else
-                _ueExtendedGames = new(StringComparer.OrdinalIgnoreCase);
-
-            if (s.TryGetValue("DcModeEnabled", out var dcMode))
-                DcModeEnabled = dcMode.Equals("True", StringComparison.OrdinalIgnoreCase);
-
-            if (s.TryGetValue("DcModeExcluded", out var dcExcJson) && !string.IsNullOrEmpty(dcExcJson))
-                _dcModeExcludedGames = new HashSet<string>(
-                    JsonSerializer.Deserialize<List<string>>(dcExcJson) ?? new(),
-                    StringComparer.OrdinalIgnoreCase);
-            else
-                _dcModeExcludedGames = new(StringComparer.OrdinalIgnoreCase);
-
-            if (s.TryGetValue("UpdateAllExcluded", out var uaJson) && !string.IsNullOrEmpty(uaJson))
-                _updateAllExcludedGames = new HashSet<string>(
-                    JsonSerializer.Deserialize<List<string>>(uaJson) ?? new(),
-                    StringComparer.OrdinalIgnoreCase);
-            else
-                _updateAllExcludedGames = new(StringComparer.OrdinalIgnoreCase);
-
-            // Per-game shader mode overrides — new format is a dict, old format was a list of excluded names
-            if (s.TryGetValue("PerGameShaderMode", out var pgsmJson) && !string.IsNullOrEmpty(pgsmJson))
-            {
-                _perGameShaderMode = JsonSerializer.Deserialize<Dictionary<string, string>>(pgsmJson)
-                    ?? new(StringComparer.OrdinalIgnoreCase);
-                // Ensure case-insensitive
-                _perGameShaderMode = new Dictionary<string, string>(_perGameShaderMode, StringComparer.OrdinalIgnoreCase);
-            }
-            else if (s.TryGetValue("ShaderExcluded", out var seJson) && !string.IsNullOrEmpty(seJson))
-            {
-                // Migrate old boolean exclusion list → "Off" per-game mode
-                var oldList = JsonSerializer.Deserialize<List<string>>(seJson) ?? new();
-                _perGameShaderMode = new(StringComparer.OrdinalIgnoreCase);
-                foreach (var name in oldList) _perGameShaderMode[name] = "Off";
-            }
-            else
-                _perGameShaderMode = new(StringComparer.OrdinalIgnoreCase);
-
-            if (s.TryGetValue("Is32BitGames", out var b32Json) && !string.IsNullOrEmpty(b32Json))
-                _is32BitGames = new HashSet<string>(
-                    JsonSerializer.Deserialize<List<string>>(b32Json) ?? new(),
-                    StringComparer.OrdinalIgnoreCase);
-            else
-                _is32BitGames = new(StringComparer.OrdinalIgnoreCase);
-
-            if (s.TryGetValue("ShaderDeployMode", out var sdm) &&
-                Enum.TryParse<ShaderDeployMode>(sdm, out var parsedSdm))
-                ShaderDeployMode = parsedSdm;
-            ShaderPackService.CurrentMode = ShaderDeployMode;
-
-            if (s.TryGetValue("SkipUpdateCheck", out var sucVal))
-                SkipUpdateCheck = sucVal == "true";
-
-            if (s.TryGetValue("LumaFeatureEnabled", out var lfeVal))
-                LumaFeatureEnabled = lfeVal == "true";
-
-            if (s.TryGetValue("LastSeenVersion", out var lsvVal))
-                LastSeenVersion = lsvVal ?? "";
-
-            if (s.TryGetValue("LumaEnabledGames", out var lumaJson) && !string.IsNullOrEmpty(lumaJson))
-                _lumaEnabledGames = new HashSet<string>(
-                    JsonSerializer.Deserialize<List<string>>(lumaJson) ?? new(),
-                    StringComparer.OrdinalIgnoreCase);
-            else
-                _lumaEnabledGames = new(StringComparer.OrdinalIgnoreCase);
-
-            if (s.TryGetValue("GameRenames", out var renJson) && !string.IsNullOrEmpty(renJson))
-                _gameRenames = JsonSerializer.Deserialize<Dictionary<string,string>>(renJson)
-                               ?? new(StringComparer.OrdinalIgnoreCase);
-            else
-                _gameRenames = new(StringComparer.OrdinalIgnoreCase);
-            // Ensure case-insensitive after deserialisation
-            _gameRenames = new Dictionary<string, string>(_gameRenames, StringComparer.OrdinalIgnoreCase);
-
-            if (s.TryGetValue("DllOverrides", out var dllOvrJson) && !string.IsNullOrEmpty(dllOvrJson))
-                _dllOverrides = JsonSerializer.Deserialize<Dictionary<string, DllOverrideConfig>>(dllOvrJson)
-                                ?? new(StringComparer.OrdinalIgnoreCase);
-            else
-                _dllOverrides = new(StringComparer.OrdinalIgnoreCase);
-            _dllOverrides = new Dictionary<string, DllOverrideConfig>(_dllOverrides, StringComparer.OrdinalIgnoreCase);
-
-            if (s.TryGetValue("FolderOverrides", out var foJson) && !string.IsNullOrEmpty(foJson))
-                _folderOverrides = JsonSerializer.Deserialize<Dictionary<string, string>>(foJson)
-                                   ?? new(StringComparer.OrdinalIgnoreCase);
-            else
-                _folderOverrides = new(StringComparer.OrdinalIgnoreCase);
-            _folderOverrides = new Dictionary<string, string>(_folderOverrides, StringComparer.OrdinalIgnoreCase);
+            CrashReporter.Log($"LoadNameMappings: settings file unreadable — {ex.Message}");
+            return;
         }
-        catch
+
+        // Each key loads independently so one corrupt key doesn't wipe everything.
+        T Load<T>(string key, T fallback)
         {
-            _nameMappings           = new(StringComparer.OrdinalIgnoreCase);
-            _wikiExclusions         = new(StringComparer.OrdinalIgnoreCase);
-            _ueExtendedGames        = new(StringComparer.OrdinalIgnoreCase);
-            _dcModeExcludedGames    = new(StringComparer.OrdinalIgnoreCase);
-            _updateAllExcludedGames = new(StringComparer.OrdinalIgnoreCase);
-            _perGameShaderMode      = new(StringComparer.OrdinalIgnoreCase);
-            _is32BitGames           = new(StringComparer.OrdinalIgnoreCase);
-            _gameRenames            = new(StringComparer.OrdinalIgnoreCase);
-            _dllOverrides           = new(StringComparer.OrdinalIgnoreCase);
-            _folderOverrides        = new(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                if (s.TryGetValue(key, out var v) && !string.IsNullOrEmpty(v))
+                    return JsonSerializer.Deserialize<T>(v) ?? fallback;
+            }
+            catch (Exception ex)
+            {
+                CrashReporter.Log($"LoadNameMappings: key '{key}' failed — {ex.Message}");
+            }
+            return fallback;
         }
+
+        _nameMappings = new(Load<Dictionary<string, string>>("NameMappings",
+            new(StringComparer.OrdinalIgnoreCase)), StringComparer.OrdinalIgnoreCase);
+
+        _wikiExclusions = new HashSet<string>(
+            Load<List<string>>("WikiExclusions", new()), StringComparer.OrdinalIgnoreCase);
+
+        _ueExtendedGames = new HashSet<string>(
+            Load<List<string>>("UeExtendedGames", new()), StringComparer.OrdinalIgnoreCase);
+
+        if (s.TryGetValue("DcModeLevel", out var dcLvl) && int.TryParse(dcLvl, out var parsedLvl))
+            DcModeLevel = parsedLvl;
+        else if (s.TryGetValue("DcModeEnabled", out var dcMode))
+            DcModeLevel = dcMode.Equals("True", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+
+        // Per-game DC Mode overrides — new format is a dict, old format was a list of excluded names
+        var pgdmDict = Load<Dictionary<string, int>?>("PerGameDcModeOverride", null);
+        if (pgdmDict != null)
+        {
+            _perGameDcModeOverride = new(pgdmDict, StringComparer.OrdinalIgnoreCase);
+        }
+        else
+        {
+            // Migrate old boolean exclusion list → value 0 (force off) per-game override
+            var oldExcluded = Load<List<string>>("DcModeExcluded", new());
+            _perGameDcModeOverride = new(StringComparer.OrdinalIgnoreCase);
+            foreach (var name in oldExcluded) _perGameDcModeOverride[name] = 0;
+        }
+
+        _updateAllExcludedGames = new HashSet<string>(
+            Load<List<string>>("UpdateAllExcluded", new()), StringComparer.OrdinalIgnoreCase);
+
+        // Per-game shader mode overrides — new format is a dict, old format was a list of excluded names
+        var pgsmDict = Load<Dictionary<string, string>?>("PerGameShaderMode", null);
+        if (pgsmDict != null)
+        {
+            _perGameShaderMode = new(pgsmDict, StringComparer.OrdinalIgnoreCase);
+        }
+        else
+        {
+            // Migrate old boolean exclusion list → "Off" per-game mode
+            var oldList = Load<List<string>>("ShaderExcluded", new());
+            _perGameShaderMode = new(StringComparer.OrdinalIgnoreCase);
+            foreach (var name in oldList) _perGameShaderMode[name] = "Off";
+        }
+
+        _is32BitGames = new HashSet<string>(
+            Load<List<string>>("Is32BitGames", new()), StringComparer.OrdinalIgnoreCase);
+
+        if (s.TryGetValue("ShaderDeployMode", out var sdm) &&
+            Enum.TryParse<ShaderDeployMode>(sdm, out var parsedSdm))
+            ShaderDeployMode = parsedSdm;
+        ShaderPackService.CurrentMode = ShaderDeployMode;
+
+        if (s.TryGetValue("SkipUpdateCheck", out var sucVal))
+            SkipUpdateCheck = sucVal == "true";
+
+        if (s.TryGetValue("LumaFeatureEnabled", out var lfeVal))
+            LumaFeatureEnabled = lfeVal == "true";
+
+        if (s.TryGetValue("LastSeenVersion", out var lsvVal))
+            LastSeenVersion = lsvVal ?? "";
+
+        _lumaEnabledGames = new HashSet<string>(
+            Load<List<string>>("LumaEnabledGames", new()), StringComparer.OrdinalIgnoreCase);
+
+        _gameRenames = new(Load<Dictionary<string, string>>("GameRenames",
+            new(StringComparer.OrdinalIgnoreCase)), StringComparer.OrdinalIgnoreCase);
+
+        _dllOverrides = new(Load<Dictionary<string, DllOverrideConfig>>("DllOverrides",
+            new(StringComparer.OrdinalIgnoreCase)), StringComparer.OrdinalIgnoreCase);
+
+        _folderOverrides = new(Load<Dictionary<string, string>>("FolderOverrides",
+            new(StringComparer.OrdinalIgnoreCase)), StringComparer.OrdinalIgnoreCase);
+
+        _hiddenGames = new HashSet<string>(
+            Load<List<string>>("HiddenGames", _hiddenGames?.ToList() ?? new()), StringComparer.OrdinalIgnoreCase);
+
+        _favouriteGames = new HashSet<string>(
+            Load<List<string>>("FavouriteGames", _favouriteGames?.ToList() ?? new()), StringComparer.OrdinalIgnoreCase);
+
+        CrashReporter.Log($"LoadNameMappings: loaded {_gameRenames.Count} renames, {_dllOverrides.Count} DLL overrides, {_folderOverrides.Count} folder overrides");
     }
 
     /// <summary>
@@ -681,7 +955,7 @@ public partial class MainViewModel : ObservableObject
         MigrateHashSet(_favouriteGames, oldName, newName);
         MigrateHashSet(_wikiExclusions, oldName, newName);
         MigrateHashSet(_ueExtendedGames, oldName, newName);
-        MigrateHashSet(_dcModeExcludedGames, oldName, newName);
+        MigrateDict(_perGameDcModeOverride, oldName, newName);
         MigrateHashSet(_updateAllExcludedGames, oldName, newName);
         MigrateHashSet(_is32BitGames, oldName, newName);
         MigrateHashSet(_lumaEnabledGames, oldName, newName);
@@ -750,7 +1024,7 @@ public partial class MainViewModel : ObservableObject
             set.Add(newName);
     }
 
-    private static void MigrateDict(Dictionary<string, string> dict, string oldName, string newName)
+    private static void MigrateDict<TValue>(Dictionary<string, TValue> dict, string oldName, string newName)
     {
         if (dict.Remove(oldName, out var value))
             dict[newName] = value;
@@ -999,6 +1273,13 @@ public partial class MainViewModel : ObservableObject
                 NameUrl:       "https://www.hdrmods.com/Cyberpunk",
                 NotesUrl:      "https://www.hdrmods.com/Cyberpunk",
                 NotesUrlLabel: "Creepy's Cyberpunk RenoDX Guide"),
+
+            // Dishonored — 64-bit is for MS Store / Epic, 32-bit is for Steam
+            ["Dishonored"] = new CardOverride(
+                Notes: "ℹ️ This game has both 32-bit and 64-bit RenoDX builds.\n\n" +
+                       "• 64-bit (default) — for the Microsoft Store and Epic Games Store versions.\n" +
+                       "• 32-bit — for the Steam version. Enable 32-bit mode in 🎯 Overrides to use this.",
+                DiscordUrl: null, ForceDiscord: false),
         };
 
         foreach (var card in cards)
@@ -1029,6 +1310,17 @@ public partial class MainViewModel : ObservableObject
                 card.NotesUrl      = ov.NotesUrl;
                 card.NotesUrlLabel = ov.NotesUrlLabel;
             }
+        }
+
+        // Auto-append a note for any game with both 32-bit and 64-bit downloads
+        // that doesn't already have a hardcoded override note about it
+        foreach (var card in cards)
+        {
+            if (card.Mod?.HasBothBitVersions != true) continue;
+            if (overrides.ContainsKey(card.GameName)) continue; // already has a custom note
+            var dualNote = "ℹ️ This game has both 32-bit and 64-bit RenoDX builds. " +
+                           "Enable 32-bit mode in 🎯 Overrides if your game version requires the 32-bit addon.";
+            card.Notes = string.IsNullOrWhiteSpace(card.Notes) ? dualNote : card.Notes + "\n\n" + dualNote;
         }
     }
 
@@ -1120,8 +1412,8 @@ public partial class MainViewModel : ObservableObject
             s["NameMappings"]    = JsonSerializer.Serialize(_nameMappings);
             s["WikiExclusions"]  = JsonSerializer.Serialize(_wikiExclusions.ToList());
             s["UeExtendedGames"] = JsonSerializer.Serialize(_ueExtendedGames.ToList());
-            s["DcModeEnabled"]   = DcModeEnabled.ToString();
-            s["DcModeExcluded"]         = JsonSerializer.Serialize(_dcModeExcludedGames.ToList());
+            s["DcModeLevel"]     = DcModeLevel.ToString();
+            s["PerGameDcModeOverride"]  = JsonSerializer.Serialize(_perGameDcModeOverride);
             s["UpdateAllExcluded"]     = JsonSerializer.Serialize(_updateAllExcludedGames.ToList());
             s["PerGameShaderMode"]    = JsonSerializer.Serialize(_perGameShaderMode);
             s["Is32BitGames"]         = JsonSerializer.Serialize(_is32BitGames.ToList());
@@ -1133,6 +1425,8 @@ public partial class MainViewModel : ObservableObject
             s["GameRenames"]         = JsonSerializer.Serialize(_gameRenames);
             s["DllOverrides"]        = JsonSerializer.Serialize(_dllOverrides);
             s["FolderOverrides"]     = JsonSerializer.Serialize(_folderOverrides);
+            s["HiddenGames"]         = JsonSerializer.Serialize(_hiddenGames?.ToList() ?? new List<string>());
+            s["FavouriteGames"]      = JsonSerializer.Serialize(_favouriteGames?.ToList() ?? new List<string>());
             SaveSettingsFile(s);
         }
         catch { }
@@ -1222,7 +1516,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     public async Task RefreshAsync()
     {
-        // "Refresh" now performs a full rescan (previously called Full Rescan)
+        ApplyDcModeSwitch();
         await InitializeAsync(forceRescan: true);
     }
 
@@ -1443,7 +1737,7 @@ public partial class MainViewModel : ObservableObject
             IsFavourite            = _favouriteGames.Contains(game.Name),
             UseUeExtended          = useUeExt,
             IsNativeHdrGame        = isNativeHdr,
-            DcModeExcluded         = _dcModeExcludedGames.Contains(game.Name),
+            PerGameDcMode          = _perGameDcModeOverride.TryGetValue(game.Name, out var pgdmM) ? pgdmM : null,
             ExcludeFromUpdateAll   = _updateAllExcludedGames.Contains(game.Name),
             ExcludeFromShaders     = IsShaderExcluded(game.Name),
             ShaderModeOverride     = _perGameShaderMode.TryGetValue(game.Name, out var smO) ? smO : null,
@@ -1455,6 +1749,8 @@ public partial class MainViewModel : ObservableObject
             RsRecord        = rsRecManual,
             RsStatus        = rsRecManual != null ? GameStatus.Installed : GameStatus.NotInstalled,
             RsInstalledFile = rsRecManual?.InstalledAs,
+            RsBlockedByDcMode = !_dllOverrides.ContainsKey(game.Name)
+                                 && (_perGameDcModeOverride.ContainsKey(game.Name) ? pgdmM : DcModeLevel) > 0,
         };
 
         _allCards.Add(card);
@@ -1562,10 +1858,10 @@ public partial class MainViewModel : ObservableObject
         }
 
         // Check for foreign dxgi.dll before overwriting
-        var effectiveDcMode = DcModeEnabled && !card.DcModeExcluded && !card.DllOverrideEnabled;
+        var effectiveDcModeLevel = card.DllOverrideEnabled ? 0 : (card.PerGameDcMode ?? DcModeLevel);
         // Luma mode: DC must always install as addon (never dxgi.dll) because Luma uses dxgi.dll
-        if (card.IsLumaMode) effectiveDcMode = false;
-        if (effectiveDcMode)
+        if (card.IsLumaMode) effectiveDcModeLevel = 0;
+        if (effectiveDcModeLevel == 1)
         {
             var dxgiPath = Path.Combine(card.InstallPath, "dxgi.dll");
             if (File.Exists(dxgiPath))
@@ -1592,6 +1888,33 @@ public partial class MainViewModel : ObservableObject
             }
         }
 
+        // Check for foreign winmm.dll before overwriting (DC Mode 2)
+        if (effectiveDcModeLevel == 2)
+        {
+            var winmmPath = Path.Combine(card.InstallPath, "winmm.dll");
+            if (File.Exists(winmmPath))
+            {
+                var fileType = AuxInstallService.IdentifyWinmmFile(winmmPath);
+                if (fileType == AuxInstallService.WinmmFileType.Unknown)
+                {
+                    if (ConfirmForeignWinmmOverwrite != null)
+                    {
+                        var confirmed = await ConfirmForeignWinmmOverwrite(card, winmmPath);
+                        if (!confirmed)
+                        {
+                            card.DcActionMessage = "⚠ Skipped — unknown winmm.dll found. Use Overrides to proceed.";
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        card.DcActionMessage = "⚠ Skipped — unknown winmm.dll found.";
+                        return;
+                    }
+                }
+            }
+        }
+
         card.DcIsInstalling  = true;
         card.DcActionMessage = "Starting DC download...";
         try
@@ -1601,7 +1924,7 @@ public partial class MainViewModel : ObservableObject
                 card.DcActionMessage = p.msg;
                 card.DcProgress      = p.pct;
             });
-            var record = await _auxInstaller.InstallDcAsync(card.GameName, card.InstallPath, effectiveDcMode,
+            var record = await _auxInstaller.InstallDcAsync(card.GameName, card.InstallPath, effectiveDcModeLevel,
                 existingDcRecord: card.DcRecord,
                 existingRsRecord: card.RsRecord,
                 shaderModeOverride: card.ShaderModeOverride,
@@ -1651,6 +1974,15 @@ public partial class MainViewModel : ObservableObject
     public async Task InstallReShadeAsync(GameCardViewModel? card)
     {
         if (card == null) return;
+
+        // Block ReShade install when DC mode is active for this game
+        var effectiveDcLevel = card.DllOverrideEnabled ? 0 : (card.PerGameDcMode ?? DcModeLevel);
+        if (effectiveDcLevel > 0)
+        {
+            card.RsActionMessage = "🚫 ReShade cannot be installed while DC Mode is active.";
+            return;
+        }
+
         if (string.IsNullOrEmpty(card.InstallPath) || !Directory.Exists(card.InstallPath))
         {
             card.RsActionMessage = "No install path — use 📁 to pick the game folder.";
@@ -1658,7 +1990,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         // Check for foreign dxgi.dll before overwriting (when DC mode is OFF, ReShade installs as dxgi.dll)
-        var effectiveDcModeRs = DcModeEnabled && !card.DcModeExcluded && !card.DllOverrideEnabled;
+        var effectiveDcModeRs = !card.DllOverrideEnabled && (card.PerGameDcMode ?? DcModeLevel) > 0;
         if (!effectiveDcModeRs)
         {
             var dxgiPath = Path.Combine(card.InstallPath, "dxgi.dll");
@@ -1998,12 +2330,13 @@ public partial class MainViewModel : ObservableObject
     {
         var targets = UpdateAllEligible()
             .Where(c => c.RsStatus == GameStatus.Installed || c.RsStatus == GameStatus.UpdateAvailable)
+            .Where(c => !c.RsBlockedByDcMode)
             .ToList();
 
         foreach (var card in targets)
         {
             // Skip games with foreign dxgi.dll during Update All (when DC mode is OFF, RS = dxgi.dll)
-            var effectiveDcMode = DcModeEnabled && !card.DcModeExcluded && !card.DllOverrideEnabled;
+            var effectiveDcMode = !card.DllOverrideEnabled && (card.PerGameDcMode ?? DcModeLevel) > 0;
             if (!effectiveDcMode)
             {
                 var dxgiPath = Path.Combine(card.InstallPath, "dxgi.dll");
@@ -2075,8 +2408,8 @@ public partial class MainViewModel : ObservableObject
         foreach (var card in targets)
         {
             // Skip games with foreign dxgi.dll during Update All — keep purple button
-            var effectiveDcMode = DcModeEnabled && !card.DcModeExcluded && !card.DllOverrideEnabled;
-            if (effectiveDcMode)
+            var effectiveDcModeLevel = card.DllOverrideEnabled ? 0 : (card.PerGameDcMode ?? DcModeLevel);
+            if (effectiveDcModeLevel == 1)
             {
                 var dxgiPath = Path.Combine(card.InstallPath, "dxgi.dll");
                 if (File.Exists(dxgiPath))
@@ -2094,6 +2427,25 @@ public partial class MainViewModel : ObservableObject
                 }
             }
 
+            // Skip games with foreign winmm.dll during Update All (DC Mode 2)
+            if (effectiveDcModeLevel == 2)
+            {
+                var winmmPath = Path.Combine(card.InstallPath, "winmm.dll");
+                if (File.Exists(winmmPath))
+                {
+                    var fileType = AuxInstallService.IdentifyWinmmFile(winmmPath);
+                    if (fileType == AuxInstallService.WinmmFileType.Unknown)
+                    {
+                        CrashReporter.Log($"UpdateAllDc: skipping {card.GameName} — foreign winmm.dll detected");
+                        DispatcherQueue?.TryEnqueue(() =>
+                        {
+                            card.DcActionMessage = "⚠ Skipped — unknown winmm.dll";
+                        });
+                        continue;
+                    }
+                }
+            }
+
             card.DcIsInstalling  = true;
             card.DcActionMessage = "Updating...";
             try
@@ -2105,7 +2457,7 @@ public partial class MainViewModel : ObservableObject
                 });
                 // Respect DC Mode toggle and per-game exclusion
                 var record = await _auxInstaller.InstallDcAsync(
-                    card.GameName, card.InstallPath, effectiveDcMode,
+                    card.GameName, card.InstallPath, effectiveDcModeLevel,
                     existingDcRecord: card.DcRecord,
                     existingRsRecord: card.RsRecord,
                     shaderModeOverride: card.ShaderModeOverride,
@@ -2151,9 +2503,13 @@ public partial class MainViewModel : ObservableObject
             var savedLib = GameLibraryService.Load();
             List<DetectedGame> detectedGames;
             Dictionary<string, bool> addonCache;
+            bool wikiFetchFailed = false;
 
-            _hiddenGames = savedLib?.HiddenGames ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            _favouriteGames = savedLib?.FavouriteGames ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            // Merge hidden/favourite from library file with any already loaded from settings.json
+            if (savedLib?.HiddenGames != null)
+                foreach (var g in savedLib.HiddenGames) _hiddenGames.Add(g);
+            if (savedLib?.FavouriteGames != null)
+                foreach (var g in savedLib.FavouriteGames) _favouriteGames.Add(g);
             _manualGames = savedLib != null ? GameLibraryService.ToManualGames(savedLib) : new();
 
             if (savedLib != null && !forceRescan)
@@ -2167,10 +2523,23 @@ public partial class MainViewModel : ObservableObject
                 var wikiTask   = WikiService.FetchAllAsync(_http);
                 var lumaTask   = _lumaService.FetchCompletedModsAsync();
                 var detectTask = Task.Run(DetectAllGamesDeduped);
-                await Task.WhenAll(wikiTask, lumaTask, detectTask);
-                _allMods      = wikiTask.Result.Mods;
-                _genericNotes = wikiTask.Result.GenericNotes;
-                try { _lumaMods = lumaTask.Result; } catch { _lumaMods = new(); }
+                var rsTask     = Task.Run(async () => {
+                    try { await _rsUpdateService.EnsureLatestAsync(); }
+                    catch (Exception ex) { CrashReporter.Log($"ReShadeUpdate task failed: {ex.Message}"); }
+                });
+
+                // Await detection first — this never needs network
+                await detectTask;
+
+                // Await network tasks individually so failures don't block game display
+                try { await wikiTask; } catch (Exception ex) { wikiFetchFailed = true; CrashReporter.Log($"Wiki fetch failed (offline?): {ex.Message}"); }
+                try { await lumaTask; } catch (Exception ex) { CrashReporter.Log($"Luma fetch failed (offline?): {ex.Message}"); }
+                await rsTask;
+                AuxInstallService.SyncReShadeToDisplayCommander();
+
+                _allMods      = !wikiFetchFailed ? wikiTask.Result.Mods : new();
+                _genericNotes = !wikiFetchFailed ? wikiTask.Result.GenericNotes : new();
+                try { _lumaMods = lumaTask.IsCompletedSuccessfully ? lumaTask.Result : new(); } catch { _lumaMods = new(); }
 
                 var freshGames = detectTask.Result;
                 ApplyGameRenames(freshGames);
@@ -2202,10 +2571,23 @@ public partial class MainViewModel : ObservableObject
                 var wikiTask   = WikiService.FetchAllAsync(_http);
                 var lumaTask   = _lumaService.FetchCompletedModsAsync();
                 var detectTask = Task.Run(DetectAllGamesDeduped);
-                await Task.WhenAll(wikiTask, lumaTask, detectTask);
-                _allMods      = wikiTask.Result.Mods;
-                _genericNotes = wikiTask.Result.GenericNotes;
-                try { _lumaMods = lumaTask.Result; } catch { _lumaMods = new(); }
+                var rsTask     = Task.Run(async () => {
+                    try { await _rsUpdateService.EnsureLatestAsync(); }
+                    catch (Exception ex) { CrashReporter.Log($"ReShadeUpdate task failed: {ex.Message}"); }
+                });
+
+                // Await detection first — this never needs network
+                await detectTask;
+
+                // Await network tasks individually so failures don't block game display
+                try { await wikiTask; } catch (Exception ex) { wikiFetchFailed = true; CrashReporter.Log($"Wiki fetch failed (offline?): {ex.Message}"); }
+                try { await lumaTask; } catch (Exception ex) { CrashReporter.Log($"Luma fetch failed (offline?): {ex.Message}"); }
+                await rsTask;
+                AuxInstallService.SyncReShadeToDisplayCommander();
+
+                _allMods      = !wikiFetchFailed ? wikiTask.Result.Mods : new();
+                _genericNotes = !wikiFetchFailed ? wikiTask.Result.GenericNotes : new();
+                try { _lumaMods = lumaTask.IsCompletedSuccessfully ? lumaTask.Result : new(); } catch { _lumaMods = new(); }
                 detectedGames = detectTask.Result;
                 addonCache    = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
                 CrashReporter.Log($"Wiki fetch complete: {_allMods.Count} mods. Store scan complete: {detectedGames.Count} games.");
@@ -2255,7 +2637,7 @@ public partial class MainViewModel : ObservableObject
                             installPath  : card.InstallPath,
                             dcInstalled  : card.DcStatus  == GameStatus.Installed || card.DcStatus  == GameStatus.UpdateAvailable,
                             rsInstalled  : card.RsStatus  == GameStatus.Installed || card.RsStatus  == GameStatus.UpdateAvailable,
-                            dcMode       : DcModeEnabled && !card.DcModeExcluded,
+                            dcMode       : (card.PerGameDcMode ?? DcModeLevel) > 0,
                             shaderModeOverride: card.ShaderModeOverride
                         ));
                     ShaderPackService.SyncShadersToAllLocations(locations);
@@ -2271,7 +2653,10 @@ public partial class MainViewModel : ObservableObject
                 }
             });
 
-            StatusText    = $"{detectedGames.Count} games detected · {InstalledCount} mods installed";
+            var offlineMode = wikiFetchFailed;
+            StatusText    = offlineMode
+                ? $"{detectedGames.Count} games detected · offline mode (mod info unavailable)"
+                : $"{detectedGames.Count} games detected · {InstalledCount} mods installed";
             SubStatusText = "";
         }
         catch (Exception ex)
@@ -2327,7 +2712,7 @@ public partial class MainViewModel : ObservableObject
         var auxTasks = auxInstalled.SelectMany(card => new[]
         {
             card.DcRecord != null ? CheckAuxUpdate(card, card.DcRecord, isRs: false) : Task.CompletedTask,
-            card.RsRecord != null ? CheckAuxUpdate(card, card.RsRecord, isRs: true)  : Task.CompletedTask,
+            card.RsRecord != null && !card.RsBlockedByDcMode ? CheckAuxUpdate(card, card.RsRecord, isRs: true) : Task.CompletedTask,
         });
 
         await Task.WhenAll(auxTasks);
@@ -2406,8 +2791,26 @@ public partial class MainViewModel : ObservableObject
         {
             "Lossless Scaling",
             "Steamworks Common Redistributables",
+            "QuickPasta",
+            "Apple Music",
+            "DSX",
+            "PlayStation®VR2 App",
+            "SteamVR",
+            "Telegram Desktop",
+            "Windows",
         };
         byPath = byPath.Where(g => !permanentExclusions.Contains(g.Name)).ToList();
+
+        // Exclude system/OS paths that some stores (EA App) incorrectly register
+        var winDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows)
+                         .TrimEnd('\\', '/').ToLowerInvariant();
+        var sysRoot = (Environment.GetEnvironmentVariable("SystemRoot") ?? @"C:\WINDOWS")
+                         .TrimEnd('\\', '/').ToLowerInvariant();
+        byPath = byPath.Where(g =>
+        {
+            var p = g.InstallPath.TrimEnd('\\', '/').ToLowerInvariant();
+            return p != winDir && p != sysRoot && !p.StartsWith(winDir + "\\");
+        }).ToList();
 
         return byPath;
     }
@@ -2696,7 +3099,7 @@ public partial class MainViewModel : ObservableObject
                 }
                 else
                 {
-                    // dxgi.dll (DC Mode ON) — only attribute to DC if positively identified as DC.
+                    // dxgi.dll (DC Mode 1) — only attribute to DC if positively identified as DC.
                     // A dxgi.dll that is neither ReShade nor DC is foreign (e.g. DXVK, Special K) — leave it alone.
                     var dcDxgiPath = Path.Combine(installPath, AuxInstallService.DcDxgiName);
                     if (File.Exists(dcDxgiPath) && AuxInstallService.IsDcFileStrict(dcDxgiPath))
@@ -2711,6 +3114,24 @@ public partial class MainViewModel : ObservableObject
                             RemoteFileSize = new FileInfo(dcDxgiPath).Length,
                             InstalledAt = File.GetLastWriteTimeUtc(dcDxgiPath),
                         };
+                    }
+                    else
+                    {
+                        // winmm.dll (DC Mode 2) — only attribute to DC if positively identified.
+                        var dcWinmmPath = Path.Combine(installPath, AuxInstallService.DcWinmmName);
+                        if (File.Exists(dcWinmmPath) && AuxInstallService.IsDcFileStrict(dcWinmmPath))
+                        {
+                            dcRec = new AuxInstalledRecord
+                            {
+                                GameName    = game.Name,
+                                InstallPath = installPath,
+                                AddonType   = AuxInstallService.TypeDc,
+                                InstalledAs = AuxInstallService.DcWinmmName,
+                                SourceUrl   = AuxInstallService.DcUrl,
+                                RemoteFileSize = new FileInfo(dcWinmmPath).Length,
+                                InstalledAt = File.GetLastWriteTimeUtc(dcWinmmPath),
+                            };
+                        }
                     }
                 }
             }
@@ -2755,7 +3176,7 @@ public partial class MainViewModel : ObservableObject
                                          ? "https://discord.gg/gF4GRJWZ2A"
                                          : effectiveMod?.DiscordUrl,
                 NameUrl                = effectiveMod?.NameUrl,
-                DcModeExcluded         = _dcModeExcludedGames.Contains(game.Name),
+                PerGameDcMode          = _perGameDcModeOverride.TryGetValue(game.Name, out var pgdmBc) ? pgdmBc : null,
                 ExcludeFromUpdateAll   = _updateAllExcludedGames.Contains(game.Name),
                 ExcludeFromShaders     = IsShaderExcluded(game.Name),
                 ShaderModeOverride     = _perGameShaderMode.TryGetValue(game.Name, out var smBc) ? smBc : null,
@@ -2768,6 +3189,8 @@ public partial class MainViewModel : ObservableObject
                 RsRecord               = rsRec,
                 RsStatus               = rsRec != null ? GameStatus.Installed : GameStatus.NotInstalled,
                 RsInstalledFile        = rsRec?.InstalledAs,
+                RsBlockedByDcMode      = !_dllOverrides.ContainsKey(game.Name)
+                                           && (_perGameDcModeOverride.ContainsKey(game.Name) ? pgdmBc : DcModeLevel) > 0,
             });
 
             // ── Luma matching ──────────────────────────────────────────────────────
@@ -2784,6 +3207,20 @@ public partial class MainViewModel : ObservableObject
                 {
                     newCard.LumaRecord = lumaRec;
                     newCard.LumaStatus = GameStatus.Installed;
+                }
+            }
+
+            // If this game has NO RenoDX wiki mod (only a Luma mod) and Luma is disabled,
+            // don't show the Discord link — the game has no actionable mod right now.
+            if (!LumaFeatureEnabled && mod == null && fallback == null && lumaMatch != null)
+            {
+                if (newCard.IsExternalOnly)
+                {
+                    newCard.IsExternalOnly = false;
+                    newCard.ExternalUrl    = "";
+                    newCard.ExternalLabel  = "";
+                    newCard.DiscordUrl     = null;
+                    newCard.WikiStatus     = "—";
                 }
             }
         }

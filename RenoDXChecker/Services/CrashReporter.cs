@@ -25,7 +25,7 @@ public static class CrashReporter
     private const int MaxLogFiles = 10;
 
     /// <summary>Maximum breadcrumb entries kept in the in-memory ring buffer.</summary>
-    private const int MaxBreadcrumbs = 100;
+    private const int MaxBreadcrumbs = 300;
 
     // ── Breadcrumb ring buffer ────────────────────────────────────────────────────
 

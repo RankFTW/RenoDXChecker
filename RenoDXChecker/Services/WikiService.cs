@@ -109,7 +109,7 @@ public static class WikiService
             var statusCell = cells.Count > 3 ? cells[3] : null;
             if (string.IsNullOrWhiteSpace(name)) continue;
 
-            string? snapshotUrl = null, nexusUrl = null, discordUrl = null;
+            string? snapshotUrl = null, snapshotUrl32 = null, nexusUrl = null, discordUrl = null;
             if (linksCell != null)
             {
                 foreach (var a in linksCell.SelectNodes(".//a") ?? Enumerable.Empty<HtmlNode>())
@@ -118,7 +118,13 @@ public static class WikiService
                     var text = a.InnerText.Trim().ToLowerInvariant();
                     if (href.Contains(".github.io/renodx/") || href.EndsWith(".addon64") || href.EndsWith(".addon32")
                         || href.Contains("/releases/download/"))
-                        snapshotUrl = href;
+                    {
+                        // Separate 32-bit and 64-bit downloads
+                        if (href.EndsWith(".addon32"))
+                            snapshotUrl32 = href;
+                        else
+                            snapshotUrl = href;
+                    }
                     else if (href.Contains("nexusmods.com"))
                         nexusUrl = href;
                     else if (href.Contains("discord.com") || href.Contains("discord.gg"))
@@ -142,7 +148,8 @@ public static class WikiService
             mods.Add(new GameMod
             {
                 Name = name, Maintainer = maintainer,
-                SnapshotUrl = snapshotUrl, NexusUrl = nexusUrl, DiscordUrl = discordUrl,
+                SnapshotUrl = snapshotUrl, SnapshotUrl32 = snapshotUrl32,
+                NexusUrl = nexusUrl, DiscordUrl = discordUrl,
                 Status = status, Notes = notes,
                 NameUrl = nameUrl,
             });

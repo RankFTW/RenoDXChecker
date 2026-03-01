@@ -55,13 +55,40 @@
 
                 <!-- Action buttons: DC Mode | Add Game | Support | Refresh | About -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <ToggleButton x:Name="DcModeToggle"
-                                 IsChecked="{x:Bind ViewModel.DcModeEnabled, Mode=TwoWay}"
-                                 Content="⚙ DC Mode"
-                                 Background="#0F1E2A" Foreground="#00C8FF"
-                                 BorderBrush="#1A3A4A" BorderThickness="1"
+                    <Button x:Name="DcModeBtn"
+                                 Click="DcModeButton_Click"
+                                 Content="{x:Bind ViewModel.DcModeBtnLabel, Mode=OneWay}"
+                                 Background="{x:Bind ViewModel.DcModeBtnBackground, Mode=OneWay}"
+                                 Foreground="{x:Bind ViewModel.DcModeBtnForeground, Mode=OneWay}"
+                                 BorderBrush="{x:Bind ViewModel.DcModeBtnBorder, Mode=OneWay}"
+                                 BorderThickness="1"
                                  CornerRadius="8" Padding="12,7" FontSize="12"
-                                 ToolTipService.ToolTip="DC Mode ON: Display Commander → dxgi.dll, ReShade → ReShade64.dll"/>
+                                 ToolTipService.ToolTip="Cycle DC Mode: Off → Mode 1 (DC → dxgi.dll) → Mode 2 (DC → winmm.dll) → Off"/>
+                    <Button x:Name="DeployDcModeBtn" Content="⚙"
+                            Click="DeployDcModeButton_Click"
+                            Background="{x:Bind ViewModel.DcModeBtnBackground, Mode=OneWay}"
+                            Foreground="{x:Bind ViewModel.DcModeBtnForeground, Mode=OneWay}"
+                            BorderBrush="{x:Bind ViewModel.DcModeBtnBorder, Mode=OneWay}"
+                            BorderThickness="1" CornerRadius="8" Padding="8,7" FontSize="12"
+                            Width="34"
+                            ToolTipService.ToolTip="Deploy current DC Mode"/>
+                    <!-- Shaders cycle button: Off → Minimum → All → Off -->
+                    <Button x:Name="ShadersModeBtn"
+                            Content="{x:Bind ViewModel.ShadersBtnLabel, Mode=OneWay}"
+                            Click="ShadersModeButton_Click"
+                            Background="{x:Bind ViewModel.ShadersBtnBackground, Mode=OneWay}"
+                            Foreground="{x:Bind ViewModel.ShadersBtnForeground, Mode=OneWay}"
+                            BorderBrush="{x:Bind ViewModel.ShadersBtnBorder, Mode=OneWay}"
+                            BorderThickness="1" CornerRadius="8" Padding="12,7" FontSize="12"
+                            ToolTipService.ToolTip="Click to cycle shader deploy mode: Off → Minimum (Lilium only) → All packs → User Defined → Off"/>
+                    <Button x:Name="DeployShadersBtn" Content="🎨"
+                            Click="DeployShadersButton_Click"
+                            Background="{x:Bind ViewModel.ShadersBtnBackground, Mode=OneWay}"
+                            Foreground="{x:Bind ViewModel.ShadersBtnForeground, Mode=OneWay}"
+                            BorderBrush="{x:Bind ViewModel.ShadersBtnBorder, Mode=OneWay}"
+                            BorderThickness="1" CornerRadius="8" Padding="8,7" FontSize="12"
+                            Width="34"
+                            ToolTipService.ToolTip="Deploy current shader mode to all installed games"/>
                     <!-- Update All button — purple when any update available -->
                     <Button x:Name="UpdateAllBtn"
                             Click="UpdateAllButton_Click"
@@ -87,20 +114,12 @@
                             </MenuFlyout>
                         </Button.Flyout>
                     </Button>
-                    <!-- Shaders cycle button: Off → Minimum → All → Off -->
-                    <Button x:Name="ShadersModeBtn"
-                            Content="{x:Bind ViewModel.ShadersBtnLabel, Mode=OneWay}"
-                            Click="ShadersModeButton_Click"
-                            Background="{x:Bind ViewModel.ShadersBtnBackground, Mode=OneWay}"
-                            Foreground="{x:Bind ViewModel.ShadersBtnForeground, Mode=OneWay}"
-                            BorderBrush="{x:Bind ViewModel.ShadersBtnBorder, Mode=OneWay}"
-                            BorderThickness="1" CornerRadius="8" Padding="12,7" FontSize="12"
-                            ToolTipService.ToolTip="Click to cycle shader deploy mode: Off → Minimum (Lilium only) → All packs → User Defined → Off"/>
                     <Button x:Name="AddGameBtn" Content="➕ Add Game"
                             Click="AddGameButton_Click"
                             Background="#0F1E2A" Foreground="#39FF14"
                             BorderBrush="#1A3A20" BorderThickness="1"
-                            CornerRadius="8" Padding="12,7" FontSize="12"/>
+                            CornerRadius="8" Padding="12,7" FontSize="12"
+                            ToolTipService.ToolTip="Manually add a game folder"/>
                     <Button x:Name="SupportBtn" Content="💬 Support"
                             Click="SupportButton_Click"
                             Background="#0F1E2A" Foreground="#00C8FF"
@@ -111,12 +130,15 @@
                             Click="RefreshButton_Click"
                             Background="#0F1820" Foreground="#7A9AAA"
                             BorderBrush="#1A3040" BorderThickness="1"
-                            CornerRadius="8" Padding="12,7" FontSize="12"/>
-                    <Button x:Name="AboutBtn" Content="?"
+                            CornerRadius="8" Padding="12,7" FontSize="12"
+                            ToolTipService.ToolTip="Rescan game library and fetch latest mod info"/>
+                    <Button x:Name="AboutBtn" Content="🧁"
                             Click="AboutButton_Click"
                             Background="#0F1820" Foreground="#7A9AAA"
                             BorderBrush="#1A3040" BorderThickness="1"
-                            CornerRadius="8" Width="34" FontSize="14"/>
+                            CornerRadius="8" Width="44" Height="34" FontSize="16"
+                            Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                            ToolTipService.ToolTip="About RenoDXCommander"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -229,7 +251,7 @@
                                     <Run Text="RenoDXCommander" Foreground="#00C8FF"/>
                                 </TextBlock>
                                 <TextBlock FontSize="12" Foreground="#4A5878">
-                                    <Run Text="v1.2.9  ·  HDR mod manager by "/>
+                                    <Run Text="v1.3.0  ·  HDR mod manager by "/>
                                     <Run Text="RankFTW" FontWeight="SemiBold" Foreground="#6070A0"/>
                                     <Run Text="  ·  Unofficial companion tool"/>
                                 </TextBlock>
@@ -246,7 +268,7 @@
                                     <Run Text="RenoDXCommander is an unofficial third-party tool "/>
                                     <Run Text="not affiliated with or endorsed by the RenoDX project, Crosire, pmnoxx, or the Luma Framework."
                                          FontWeight="SemiBold" Foreground="#C0A0B0"/>
-                                    <Run Text=" RenoDX mod files are fetched from official RenoDX GitHub snapshots. Display Commander is downloaded from pmnoxx's GitHub. ReShade (bundled) is redistributed under its BSD 3-Clause licence. No mod files are modified — everything is used directly from its official source."/>
+                                    <Run Text=" RenoDX mod files are fetched from official RenoDX GitHub snapshots. Display Commander is downloaded from pmnoxx's GitHub. ReShade with full addon support is downloaded from reshade.me. 7-Zip is bundled under the LGPL licence for archive extraction. No mod files are modified — everything is used directly from its official source."/>
                                 </TextBlock>
                             </StackPanel>
                         </Border>
@@ -258,7 +280,7 @@
                                 <TextBlock Text="What this app does" FontSize="12" FontWeight="SemiBold"
                                            Foreground="#A0B0D8"/>
                                 <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#7A8EAE" LineHeight="20">
-                                    RenoDXCommander is a one-stop HDR mod manager. It automatically detects games via Steam, GOG, Epic Games, and EA App, then installs and manages three components per game: ReShade (post-processing), Display Commander (display management), and the RenoDX HDR mod itself. ReShade DLLs are bundled with the app and staged to AppData on first use. Display Commander is downloaded from pmnoxx's GitHub. RenoDX mods are matched against the live wiki and installed with one click. Updates are detected automatically.
+                                    RenoDXCommander is a one-stop HDR mod manager. It automatically detects games via Steam, GOG, Epic Games, EA App, and Xbox / Game Pass, then installs and manages three components per game: ReShade (post-processing), Display Commander (display management), and the RenoDX HDR mod itself. ReShade with full addon support is downloaded from reshade.me and cached locally. Display Commander is downloaded from pmnoxx's GitHub. RenoDX mods are matched against the live wiki and installed with one click. Updates are detected automatically.
                                 </TextBlock>
                             </StackPanel>
                         </Border>
@@ -279,7 +301,7 @@
                                         </Border>
                                         <TextBlock Grid.Column="1" TextWrapping="Wrap" FontSize="12" Foreground="#7A8EAE" LineHeight="19" VerticalAlignment="Center">
                                             <Run FontWeight="SemiBold" Foreground="#A0B8D8">Find your game</Run>
-                                            <Run Text=" — RDXC detects Steam, GOG, Epic, and EA App automatically. Click ➕ Add Game to add manually."/>
+                                            <Run Text=" — RDXC detects Steam, GOG, Epic, EA App, and Xbox / Game Pass automatically. Click ➕ Add Game to add manually."/>
                                         </TextBlock>
                                     </Grid>
                                     <Grid>
@@ -363,7 +385,7 @@
                                             <Run Text="  ·  BSD 3-Clause Licence" Foreground="#405068" FontSize="11"/>
                                         </TextBlock>
                                         <TextBlock FontSize="11" Foreground="#3A4860" Margin="18,0,0,0" TextWrapping="Wrap"
-                                                   Text="Post-processing injection framework. Bundled DLLs (ReShade64.dll / ReShade32.dll) redistributed under the BSD 3-Clause licence. Copyright © Crosire."/>
+                                                   Text="Post-processing injection framework. Downloaded with full addon support from reshade.me and cached locally. Copyright © Crosire."/>
                                         <HyperlinkButton NavigateUri="https://reshade.me" Padding="18,2,0,0" FontSize="11">
                                             <TextBlock Foreground="#2A5888" Text="reshade.me  ·  github.com/crosire/reshade"/>
                                         </HyperlinkButton>
@@ -400,6 +422,23 @@
                                                    Text="DX11 modding framework adding HDR support and graphics improvements via the ReShade addon system. Mods are downloaded from official GitHub releases. Experimental integration — not fully supported."/>
                                         <HyperlinkButton NavigateUri="https://github.com/Filoppi/Luma-Framework" Padding="18,2,0,0" FontSize="11">
                                             <TextBlock Foreground="#2A5888" Text="github.com/Filoppi/Luma-Framework"/>
+                                        </HyperlinkButton>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- 7-Zip -->
+                                <Border Background="#0D1520" CornerRadius="8" Padding="12,10" BorderBrush="#182030" BorderThickness="1">
+                                    <StackPanel Spacing="3">
+                                        <TextBlock FontSize="12">
+                                            <Run Text="📦 " Foreground="#405060"/>
+                                            <Run Text="7-Zip" FontWeight="SemiBold" Foreground="#A0C0E0"/>
+                                            <Run Text=" by Igor Pavlov" Foreground="#8090B8"/>
+                                            <Run Text="  ·  LGPL + BSD 3-Clause" Foreground="#405068" FontSize="11"/>
+                                        </TextBlock>
+                                        <TextBlock FontSize="11" Foreground="#3A4860" Margin="18,0,0,0" TextWrapping="Wrap"
+                                                   Text="Archive utility used to extract ReShade DLLs from the NSIS installer. 7z.exe and 7z.dll are bundled under the LGPL licence. Copyright © Igor Pavlov."/>
+                                        <HyperlinkButton NavigateUri="https://www.7-zip.org/" Padding="18,2,0,0" FontSize="11">
+                                            <TextBlock Foreground="#2A5888" Text="7-zip.org  ·  LGPL-2.1 / BSD-3-Clause"/>
                                         </HyperlinkButton>
                                     </StackPanel>
                                 </Border>
@@ -711,7 +750,7 @@
                                         <Border Background="#1A2010" CornerRadius="5" Padding="6,2"
                                                 BorderBrush="#2E4020" BorderThickness="1"
                                                 Visibility="{x:Bind UpdateBadgeVisibility, Mode=OneWay}">
-                                            <TextBlock Text="⬆ Update Available"
+                                            <TextBlock Text="⬆ Update"
                                                        FontSize="10" Foreground="#80B860"/>
                                         </Border>
                                         <!-- 32-bit mode badge -->
@@ -876,6 +915,17 @@
                                                    TextWrapping="Wrap" TextAlignment="Center"/>
                                     </Border>
 
+                                    <!-- Row 7a-luma: Switch to Luma Mode (no RenoDX mod but Luma available) -->
+                                    <Button Grid.Row="7"
+                                            Visibility="{x:Bind SwitchToLumaVisibility, Mode=OneWay}"
+                                            Click="SwitchToLumaButton_Click" Tag="{x:Bind}"
+                                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                            CornerRadius="10" FontSize="12" FontWeight="SemiBold"
+                                            Background="#1A3020" Foreground="#60C070"
+                                            BorderBrush="#305030" BorderThickness="1">
+                                        <TextBlock Text="🌟 Switch to Luma Mode" FontSize="12"/>
+                                    </Button>
+
                                     <!-- Row 7a: External only (Nexus/Discord with no snapshot) -->
                                     <Button Grid.Row="7"
                                             Visibility="{x:Bind ExternalBtnVisibility, Mode=OneWay}"
@@ -887,7 +937,7 @@
                                         <TextBlock Text="{x:Bind ExternalLabel}" FontSize="12"/>
                                     </Button>
 
-                                    <!-- Row 7b: Single install + Nexus + UE-Extended + Delete -->
+                                    <!-- Row 7b: Single install + Luma switch + UE-Extended -->
                                     <Grid Grid.Row="7"
                                           Visibility="{x:Bind InstallOnlyBtnVisibility, Mode=OneWay}"
                                           VerticalAlignment="Stretch">
@@ -908,8 +958,21 @@
                                                 Margin="{x:Bind R7bInstallMargin, Mode=OneWay}">
                                             <TextBlock Text="⬇  Install RenoDX" FontSize="13"/>
                                         </Button>
+                                        <!-- 🌟 Switch to Luma Mode -->
+                                        <Button Grid.Column="1"
+                                                Visibility="{x:Bind R7bLumaSwitchVisibility, Mode=OneWay}"
+                                                Click="SwitchToLumaButton_Click" Tag="{x:Bind}"
+                                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                                CornerRadius="{x:Bind R7bLumaSwitchCornerRadius, Mode=OneWay}"
+                                                Background="#1A3020" Foreground="#60C070"
+                                                BorderBrush="#305030"
+                                                BorderThickness="{x:Bind R7bLumaSwitchBorderThickness, Mode=OneWay}"
+                                                Width="44" Margin="{x:Bind R7bLumaSwitchMargin, Mode=OneWay}"
+                                                ToolTipService.ToolTip="Switch to Luma Mode">
+                                            <TextBlock Text="🌟" FontSize="13"/>
+                                        </Button>
                                         <!-- ⚡ UE-Extended toggle -->
-                                        <Border Grid.Column="1"
+                                        <Border Grid.Column="2"
                                                 Visibility="{x:Bind UeExtendedToggleVisibility, Mode=OneWay}"
                                                 Margin="0,0,1,0">
                                             <ToggleButton

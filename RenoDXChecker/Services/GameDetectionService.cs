@@ -758,6 +758,7 @@ public static class GameDetectionService
                     {
                         var binName = Path.GetFileName(binSub);
                         bool isTarget = binName.Equals("Win64",  StringComparison.OrdinalIgnoreCase)
+                                     || binName.Equals("Win32",  StringComparison.OrdinalIgnoreCase)
                                      || binName.Equals("WinGDK", StringComparison.OrdinalIgnoreCase);
                         if (isTarget && Directory.GetFiles(binSub, "*.exe").Length > 0)
                             results.Add(binSub);

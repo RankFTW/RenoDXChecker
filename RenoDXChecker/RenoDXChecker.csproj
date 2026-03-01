@@ -18,18 +18,18 @@
     <ApplicationIcon>icon.ico</ApplicationIcon>
     <AssemblyName>RenoDXCommander</AssemblyName>
     <AssemblyTitle>RenoDXCommander</AssemblyTitle>
-    <AssemblyVersion>1.2.9.0</AssemblyVersion>
-    <FileVersion>1.2.9.0</FileVersion>
+    <AssemblyVersion>1.3.0.0</AssemblyVersion>
+    <FileVersion>1.3.0.0</FileVersion>
   </PropertyGroup>
   <ItemGroup>
     <Content Include="icon.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="ReShade32.dll">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    <Content Include="7z.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="ReShade64.dll">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    <Content Include="7z.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="ReShade.ini">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>

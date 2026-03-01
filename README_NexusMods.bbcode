@@ -1,9 +1,9 @@
-[center][size=6][b]RenoDX Commander (RDXC) v1.2.9[/b][/size]
+[center][size=6][b]RenoDX Commander (RDXC) v1.3.0[/b][/size]
 [size=3]An unofficial companion app for [url=https://github.com/clshortfuse/renodx]RenoDX[/url] HDR modding on Windows[/size][/center]
 
 [line]
 
-[color=#FF6644][b]Disclaimer:[/b][/color] RDXC is an unofficial third-party tool, not affiliated with or endorsed by the RenoDX project, Crosire, pmnoxx, or the Luma Framework. ReShade 6.7.3 is bundled under its BSD 3-Clause licence. Display Commander, RenoDX mods, and Luma Framework mods are downloaded from their official GitHub sources at runtime.
+[color=#FF6644][b]Disclaimer:[/b][/color] RDXC is an unofficial third-party tool, not affiliated with or endorsed by the RenoDX project, Crosire, pmnoxx, or the Luma Framework. ReShade with full addon support is downloaded from reshade.me at runtime. 7-Zip is bundled under LGPL for archive extraction. Display Commander, RenoDX mods, and Luma Framework mods are downloaded from their official GitHub sources at runtime.
 
 [color=#FF4444][b]⚠ Single-player only:[/b][/color] RDXC installs ReShade with full addon support, which may be flagged by anti-cheat systems in online or multiplayer games. Do not use RDXC-installed ReShade in games with active anti-cheat. Uninstall ReShade from any game before playing online.
 
@@ -14,7 +14,7 @@
 [list=1]
 [*][b]Run RDXC[/b] — it automatically detects games from Steam, GOG, Epic, EA App, and Xbox / Game Pass on every launch.
 [*][b]Find your game[/b] using the search bar or filter tabs.
-[*][b]Install ReShade[/b] — top row button on any game card. Bundled with the app, no download needed.
+[*][b]Install ReShade[/b] — top row button on any game card. Downloaded from reshade.me on first launch and cached locally.
 [*][b]Install Display Commander[/b] — middle row. Downloaded from GitHub on first install, cached locally after.
 [*][b]Install RenoDX[/b] — bottom row (supported games only). Downloaded from GitHub.
 [*][b]Launch the game[/b], press [b]Home[/b] to open ReShade, go to the [b]Add-ons[/b] tab, and configure RenoDX.
@@ -84,14 +84,19 @@ The engine type badge (Unreal, Unity, or Generic) and store source (Steam, GOG, 
 
 [size=5][b]DC Mode[/b][/size]
 
-The DC Mode toggle in the header controls how ReShade and Display Commander files are named on install:
+The DC Mode button in the header cycles through three levels that control how Display Commander is loaded and where ReShade lives:
 
 [list]
-[*][b]OFF (default):[/b] ReShade = dxgi.dll, DC = zzz_display_commander.addon64
-[*][b]ON:[/b] ReShade = ReShade64.dll, DC = dxgi.dll
+[*][b]OFF (default):[/b] ReShade = dxgi.dll in the game folder, DC = zzz_display_commander.addon64 in the game folder
+[*][b]Mode 1:[/b] ReShade is NOT in the game folder (DC loads it from a shared folder), DC = dxgi.dll in the game folder
+[*][b]Mode 2:[/b] ReShade is NOT in the game folder (DC loads it from a shared folder), DC = winmm.dll in the game folder
 [/list]
 
-Switching modes and reinstalling automatically removes the old file and places the correctly named one. Individual games can be excluded via Overrides.
+When DC Mode is active (Mode 1 or 2), ReShade is [b]not installed into individual game folders[/b]. Instead, RDXC syncs the latest ReShade DLLs (ReShade64.dll / ReShade32.dll) to Display Commander's shared ReShade folder at %LOCALAPPDATA%\Programs\Display_Commander\Reshade\. Display Commander loads ReShade from this shared location at runtime. Any existing per-game ReShade install is automatically removed when DC Mode is activated. The ReShade install button on each game card is hidden while DC Mode is active for that game.
+
+Mode 2 installs Display Commander as winmm.dll instead of dxgi.dll, freeing the dxgi.dll slot for other tools or proxy chains.
+
+The Deploy DC Mode button next to the DC Mode button applies file renames immediately across all installed games without a full rescan. The Deploy Shaders button deploys the current shader mode to all installed games immediately. Individual games can override the global DC Mode level via Overrides (Follow Global / Force Off / Force Mode 1 / Force Mode 2).
 
 [size=4][b]Why DC Mode is Recommended[/b][/size]
 
@@ -108,9 +113,11 @@ DC Mode (loading Display Commander as dxgi.dll) is the preferred method of runni
 
 [line]
 
-[size=5][b]Foreign dxgi.dll Protection[/b][/size]
+[size=5][b]Foreign DLL Protection[/b][/size]
 
 When installing ReShade or DC as dxgi.dll, RDXC checks whether an existing dxgi.dll belongs to another tool (DXVK, Special K, ENB, etc.) using binary signature scanning. If the file cannot be positively identified as ReShade or Display Commander, a confirmation dialog asks whether to overwrite it. During Update All, unidentified foreign files are silently skipped.
+
+The same protection applies to winmm.dll when using DC Mode 2. If an existing winmm.dll cannot be identified as Display Commander, a confirmation dialog asks whether to overwrite it. During Update All, unidentified foreign winmm.dll files are silently skipped.
 
 [line]
 
@@ -156,7 +163,7 @@ Click the target icon on any game card to access overrides. Hover each control f
 [list]
 [*][b]Game name[/b] — Editable. Rename the game and the change persists across Refresh and app restarts.
 [*][b]Exclude from wiki[/b] — Use a Discord link instead of install. Ignore wiki matches.
-[*][b]Exclude from DC Mode[/b] — Always use standard file naming for this game.
+[*][b]DC Mode[/b] — Dropdown: [b]Follow Global[/b], [b]Force Off[/b], [b]Force DC Mode 1[/b], [b]Force DC Mode 2[/b]. Overrides the global DC Mode level for this game.
 [*][b]Exclude from Update All[/b] — Skip this game during bulk update operations.
 [*][b]Shader mode[/b] — Dropdown: [b]Global[/b] (follow header toggle), [b]Off[/b] (no shaders), [b]Minimum[/b] (Lilium only), [b]All[/b] (all packs), [b]User[/b] (custom folder only). Note: per-game shader mode only applies when DC Mode is OFF. When DC Mode is ON, all DC-mode games share the DC global shader folder.
 [*][b]32-bit mode[/b] — Install 32-bit ReShade, DC, and Unity addon for this game.
@@ -171,7 +178,7 @@ The dialog also includes wiki name mapping fields for manually matching a game t
 
 RDXC bundles a default reshade.ini that is seeded into the inis folder on first launch. If you already have a customised file there, it is never overwritten.
 
-When ReShade is installed to a game folder, the bundled reshade.ini is also automatically deployed alongside the DLL — but only if a reshade.ini does not already exist in that game folder. This gives ReShade sensible defaults on first launch without overwriting any user customisations. The deployed ini is left in place if ReShade is later uninstalled.
+When ReShade is installed to a game folder, the bundled reshade.ini is always deployed alongside the DLL, overwriting any existing reshade.ini in that game folder. This ensures ReShade starts with sensible defaults on every install. The deployed ini is left in place if ReShade is later uninstalled.
 
 [line]
 
@@ -204,6 +211,17 @@ The Shaders button in the header cycles through four modes:
 
 Custom shaders go in %LOCALAPPDATA%\RenoDXCommander\reshade\Custom\Shaders\ and \Textures\.
 
+The Deploy Shaders button next to the Shaders cycle button deploys the current shader mode to all installed games immediately — no Refresh required. Saving a per-game shader override in the Overrides dialog also triggers a shader deploy for that game automatically.
+
+Clicking Refresh re-evaluates the current mode against all installed games, adding missing files and removing files from packs no longer selected. The status bar shows shader deployment progress.
+
+[size=4][b]Deploy Destinations[/b][/size]
+
+[list]
+[*][b]DC Mode ON:[/b] %LOCALAPPDATA%\Programs\Display_Commander\Reshade\Shaders\ and \Textures\
+[*][b]DC Mode OFF (no DC installed):[/b] <game folder>\reshade-shaders\Shaders\ and \Textures\
+[/list]
+
 [line]
 
 [size=5][b]Filter Tabs[/b][/size]
@@ -226,7 +244,7 @@ The search bar filters within whichever tab is active.
 
 [size=5][b]Update All[/b][/size]
 
-Three Update All buttons in the header update ReShade, Display Commander, and RenoDX mods across all eligible games in one click. Games excluded via overrides or with unidentified foreign dxgi.dll files are automatically skipped.
+Three Update All buttons in the header update ReShade, Display Commander, and RenoDX mods across all eligible games in one click. Games excluded via overrides or with unidentified foreign dxgi.dll or winmm.dll files are automatically skipped.
 
 [line]
 
@@ -253,7 +271,7 @@ The Settings section also includes:
 [*][b]Black screen in Unreal games?[/b] Open ReShade (Home key) > Add-ons > RenoDX > set R10G10B10A2_UNORM to output size.
 [*][b]UE-Extended not working?[/b] Ensure in-game HDR is turned ON. UE-Extended requires the game's native HDR output.
 [*][b]Downloads failing?[/b] Click Refresh. If the problem persists, clear the cache from About > Open Downloads Cache.
-[*][b]Foreign dxgi.dll blocking install?[/b] RDXC detected a file from another mod (DXVK, Special K, ENB, etc.). Choose Overwrite or cancel to keep the existing file.
+[*][b]Foreign dxgi.dll or winmm.dll blocking install?[/b] RDXC detected a file from another mod (DXVK, Special K, ENB, etc.). Choose Overwrite or cancel to keep the existing file.
 [/list]
 
 [line]
@@ -268,6 +286,7 @@ The Settings section also includes:
 [*][url=https://github.com/zzzprojects/html-agility-pack]HtmlAgilityPack[/url] by ZZZ Projects — MIT Licence
 [*][url=https://github.com/CommunityToolkit/dotnet]CommunityToolkit.Mvvm[/url] by Microsoft — MIT Licence
 [*][url=https://github.com/adamhathcock/sharpcompress]SharpCompress[/url] by Adam Hathcock — MIT Licence
+[*][url=https://www.7-zip.org/]7-Zip[/url] by Igor Pavlov — LGPL-2.1 / BSD-3-Clause
 [/list]
 
 [line]

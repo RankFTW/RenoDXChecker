@@ -51,8 +51,10 @@ public partial class GameCardViewModel : ObservableObject
     // Plain properties — not mutated after card creation, no need to observe
     public string EngineHint    { get; set; } = "";
     public string? NameUrl      { get; set; }   // Discussion/instructions link from wiki game name cell
-    /// <summary>When true this game ignores the global DC Mode toggle and always uses normal naming.</summary>
-    public bool DcModeExcluded       { get; set; }
+    /// <summary>Per-game DC Mode override: null = follow global, 0 = force off, 1 = force DC Mode 1, 2 = force DC Mode 2.</summary>
+    public int? PerGameDcMode        { get; set; }
+    /// <summary>True when any per-game DC Mode override is set (game does not follow global toggle).</summary>
+    public bool DcModeExcluded       => PerGameDcMode.HasValue;
     public bool ExcludeFromUpdateAll { get; set; }
     public bool ExcludeFromShaders   { get; set; }
     /// <summary>Per-game shader mode override: null = follow global, "Off"/"Minimum"/"All"/"User".</summary>
@@ -60,6 +62,10 @@ public partial class GameCardViewModel : ObservableObject
 
     // ── 32-bit mode ───────────────────────────────────────────────────────────────
     [ObservableProperty] private bool _is32Bit = false;
+
+    // ── DC Mode ReShade blocking ──────────────────────────────────────────────────
+    /// <summary>True when DC Mode is active for this game — ReShade install is blocked on the card.</summary>
+    [ObservableProperty] private bool _rsBlockedByDcMode;
 
     // ── DLL Naming Override ─────────────────────────────────────────────────────
     [ObservableProperty] private bool _dllOverrideEnabled = false;
@@ -130,10 +136,16 @@ public partial class GameCardViewModel : ObservableObject
 
     // ── DC / ReShade action labels ───────────────────────────────────────────────
     // ── Dynamic corner radius for install buttons ────────────────────────────────
-    // Row 7b: Install-only variant — round right side if UE-Extended not visible
-    public string R7bInstallCornerRadius     => UeExtendedToggleVisibility == Visibility.Visible ? "10,0,0,10" : "10";
-    public string R7bInstallBorderThickness  => UeExtendedToggleVisibility == Visibility.Visible ? "1,1,0,1"   : "1";
-    public string R7bInstallMargin           => UeExtendedToggleVisibility == Visibility.Visible ? "0,0,1,0"   : "0";
+    // Row 7b: Install-only variant — round right side when no right-hand buttons
+    private bool HasR7bRightButtons => R7bLumaSwitchVisibility == Visibility.Visible || UeExtendedToggleVisibility == Visibility.Visible;
+    public string R7bInstallCornerRadius     => HasR7bRightButtons ? "10,0,0,10" : "10";
+    public string R7bInstallBorderThickness  => HasR7bRightButtons ? "1,1,0,1"   : "1";
+    public string R7bInstallMargin           => HasR7bRightButtons ? "0,0,1,0"   : "0";
+    // Row 7b: Luma switch button — visible when game supports both RenoDX and Luma
+    public Visibility R7bLumaSwitchVisibility     => (LumaFeatureEnabled && IsLumaAvailable) ? Visibility.Visible : Visibility.Collapsed;
+    public string R7bLumaSwitchCornerRadius       => UeExtendedToggleVisibility == Visibility.Visible ? "0" : "0,10,10,0";
+    public string R7bLumaSwitchBorderThickness    => UeExtendedToggleVisibility == Visibility.Visible ? "0,1,0,1" : "0,1,1,1";
+    public string R7bLumaSwitchMargin             => UeExtendedToggleVisibility == Visibility.Visible ? "0,0,1,0" : "0";
 
     // ── Dynamic corner radius for install buttons ────────────────────────────────
     // When the delete button is hidden, the install button rounds its right corners
@@ -155,7 +167,7 @@ public partial class GameCardViewModel : ObservableObject
     // Negated installing flags — used for IsEnabled bindings to avoid converter in DataTemplate
     public bool IsNotInstalling   => !IsInstalling;
     public bool IsDcNotInstalling => !DcIsInstalling;
-    public bool IsRsNotInstalling => !RsIsInstalling;
+    public bool IsRsNotInstalling => !RsIsInstalling && !RsBlockedByDcMode;
 
     public string DcActionLabel
     {
@@ -171,6 +183,7 @@ public partial class GameCardViewModel : ObservableObject
     {
         get
         {
+            if (RsBlockedByDcMode) return "🚫  DC Mode — ReShade managed globally";
             if (RsIsInstalling) return "Installing...";
             return RsStatus == GameStatus.UpdateAvailable ? "⬆  Update ReShade"
                  : RsStatus == GameStatus.Installed       ? "↺  Reinstall ReShade"
@@ -260,7 +273,7 @@ public partial class GameCardViewModel : ObservableObject
     public bool CanInstall            => Mod?.SnapshotUrl != null && !IsInstalling && !IsExternalOnly;
     public bool IsUnityGeneric        => IsGenericMod && EngineHint.Contains("Unity");
     public bool HasDualBitMod         => Mod?.HasBothBitVersions == true;
-    public bool HasExtraLinks         => NexusUrl != null || DiscordUrl != null;
+    public bool HasExtraLinks         => NexusUrl != null || (DiscordUrl != null && EffectiveLumaMode);
     public bool HasNameUrl            => !string.IsNullOrEmpty(NameUrl);
     public string HideButtonLabel     => IsHidden ? "👁 Show" : "🚫 Hide";
     public string StarForeground       => IsFavourite ? "#FFD700" : "#282840";
@@ -306,13 +319,23 @@ public partial class GameCardViewModel : ObservableObject
     // Unity dual-bit row is no longer used — Unity defaults to 64-bit on the main card.
     // 32-bit install is triggered via the per-game 32-bit toggle in Overrides.
     public Visibility DualBitInstallVisibility   => Visibility.Collapsed;
-    public Visibility UpdateBadgeVisibility      => Status == GameStatus.UpdateAvailable ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility UpdateBadgeVisibility      => (Status == GameStatus.UpdateAvailable
+                                                      || RsStatus == GameStatus.UpdateAvailable
+                                                      || DcStatus == GameStatus.UpdateAvailable)
+                                                      ? Visibility.Visible : Visibility.Collapsed;
     public Visibility IsHiddenVisibility         => IsHidden ? Visibility.Visible : Visibility.Collapsed;
     public Visibility IsNotHiddenVisibility      => IsHidden ? Visibility.Collapsed : Visibility.Visible;
     public Visibility NameLinkVisibility         => HasNameUrl ? Visibility.Visible : Visibility.Collapsed;
     // Shown when the game has no known RenoDX mod and no install URL (and not in Luma mode)
+    // Excludes Luma-available games when the Luma feature is enabled (they get a "Switch to Luma" button instead)
     public Visibility NoModVisibility            => (Mod == null && string.IsNullOrEmpty(InstalledAddonFileName)
-                                                      && !EffectiveLumaMode)
+                                                      && !EffectiveLumaMode
+                                                      && !(LumaFeatureEnabled && IsLumaAvailable))
+                                                      ? Visibility.Visible : Visibility.Collapsed;
+    // Shown when Luma is available but there is no RenoDX mod — offers a one-click switch to Luma mode
+    public Visibility SwitchToLumaVisibility     => (Mod == null && string.IsNullOrEmpty(InstalledAddonFileName)
+                                                      && !EffectiveLumaMode
+                                                      && LumaFeatureEnabled && IsLumaAvailable)
                                                       ? Visibility.Visible : Visibility.Collapsed;
 
     public void NotifyAll()
@@ -338,6 +361,7 @@ public partial class GameCardViewModel : ObservableObject
         OnPropertyChanged(nameof(ExternalBtnVisibility));
         OnPropertyChanged(nameof(ExtraLinkVisibility));
         OnPropertyChanged(nameof(NoModVisibility));
+        OnPropertyChanged(nameof(SwitchToLumaVisibility));
         OnPropertyChanged(nameof(GenericBadgeVisibility));
         OnPropertyChanged(nameof(NotesButtonVisibility));
         OnPropertyChanged(nameof(HasNotes));
@@ -372,6 +396,10 @@ public partial class GameCardViewModel : ObservableObject
         OnPropertyChanged(nameof(R7bInstallCornerRadius));
         OnPropertyChanged(nameof(R7bInstallBorderThickness));
         OnPropertyChanged(nameof(R7bInstallMargin));
+        OnPropertyChanged(nameof(R7bLumaSwitchVisibility));
+        OnPropertyChanged(nameof(R7bLumaSwitchCornerRadius));
+        OnPropertyChanged(nameof(R7bLumaSwitchBorderThickness));
+        OnPropertyChanged(nameof(R7bLumaSwitchMargin));
         // DC/RS corner radius
         OnPropertyChanged(nameof(RsInstallCornerRadius));
         OnPropertyChanged(nameof(RsInstallBorderThickness));
@@ -389,6 +417,7 @@ public partial class GameCardViewModel : ObservableObject
         OnPropertyChanged(nameof(DcInstalledVisible));
         OnPropertyChanged(nameof(DcDeleteVisibility));
         // ReShade
+        OnPropertyChanged(nameof(RsBlockedByDcMode));
         OnPropertyChanged(nameof(RsActionLabel));
         OnPropertyChanged(nameof(RsBtnBackground));
         OnPropertyChanged(nameof(RsBtnForeground));
@@ -425,6 +454,11 @@ public partial class GameCardViewModel : ObservableObject
     partial void OnActionMessageChanged(string v)           => OnPropertyChanged(nameof(MessageVisibility));
     partial void OnDcActionMessageChanged(string v)         => OnPropertyChanged(nameof(DcMessageVisibility));
     partial void OnRsActionMessageChanged(string v)         => OnPropertyChanged(nameof(RsMessageVisibility));
+    partial void OnRsBlockedByDcModeChanged(bool v)
+    {
+        OnPropertyChanged(nameof(IsRsNotInstalling));
+        OnPropertyChanged(nameof(RsActionLabel));
+    }
     partial void OnIsHiddenChanged(bool v)                  => OnPropertyChanged(nameof(HideButtonLabel));
     partial void OnIsFavouriteChanged(bool v)
     {
