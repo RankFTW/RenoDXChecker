@@ -1,3 +1,36 @@
+## v1.3.1
+
+### Bug Fixes
+
+**Settings persistence across updates**
+- Fixed custom game folders, game renames, and DLL naming overrides being reset on every app launch. Observable-property change handlers were triggering a settings save before all fields had finished loading, overwriting persisted values with empty defaults.
+
+**Foreign DLL protection during DC Mode switches**
+- Switching DC Mode on no longer deletes foreign `dxgi.dll` or `winmm.dll` files (e.g. DXVK, Special K). Foreign DLLs are renamed to `.original` and automatically restored when DC vacates the slot (mode off or mode change).
+- The same backup/restore logic applies during DC and ReShade installs and uninstalls.
+
+**False Unity engine detection from artbook folders**
+- Games bundling a digital artbook viewer (or similar bonus-content subfolder) with its own exe or `UnityPlayer.dll` are no longer misdetected as Unity. Artbook, soundtrack, manual, and bonus-content folders are now excluded from engine heuristic searches.
+
+**ReShade button disabled during DC Mode**
+- The ReShade install/reinstall button on each game card is now greyed out when DC Mode is active for that game, preventing accidental per-game ReShade installs that would conflict with the shared DC Mode ReShade path.
+
+### Changes
+
+**Faster startup — engine and addon detection caching**
+- Engine detection results (Unreal, Unity, etc.) and resolved install paths are now cached in the game library. On subsequent launches, expensive filesystem traversals are skipped entirely for previously scanned games.
+- Addon file scan results are cached by filename. Games with a known addon on disk skip the recursive directory search on subsequent launches.
+- The Unreal Engine 3 legacy detection heuristic now checks cheap markers first (TAGame folder, Engine\Config\BaseEngine.ini) before any file searches, and uses depth-limited scans (3–4 levels) instead of full-tree traversals.
+- The library save after card building now runs on a background thread instead of blocking the UI.
+
+**↻ Full Refresh button**
+- A new compact ↻ button next to the Refresh button clears all engine, path, and addon caches and re-scans everything from disk. Use this when game files have changed or detection results seem stale.
+
+**Verbose Logging toggle**
+- New toggle in About → Settings: **Verbose Logging**. When enabled, all activity is continuously logged to `rdxc_log.txt` in the logs folder. The log auto-rotates at 5 MB. Useful for diagnosing issues — send the log file to the developer alongside any bug reports.
+
+---
+
 ## v1.3.0
 
 ### New Features

@@ -1,4 +1,4 @@
-# RenoDX Commander (RDXC) v1.3.0
+# RenoDX Commander (RDXC) v1.3.1
 
 An unofficial companion app for [RenoDX](https://github.com/clshortfuse/renodx) HDR modding on Windows. RDXC manages **ReShade**, **Display Commander**, and **RenoDX mods** across your entire game library from a single interface — no manual file juggling required.
 
@@ -245,6 +245,11 @@ The Settings section also includes:
 | Setting | Effect |
 |---------|--------|
 | **Luma (Experimental)** | When enabled, shows Luma toggle badges on game cards, adds a Luma filter tab, and allows installing Luma Framework mods. Disabled by default. |
+| **Verbose Logging** | When enabled, all activity is continuously logged to `rdxc_log.txt` in the logs folder. The log auto-rotates at 5 MB. Useful for diagnosing issues — send the log file to the developer alongside any bug reports. |
+
+### Full Refresh
+
+The compact **↻** button next to the Refresh button clears all engine, path, and addon detection caches and re-scans everything from disk. Use this when game files have changed or detection results seem stale. The regular Refresh keeps caches intact and only re-evaluates the library against the latest store data.
 
 ---
 

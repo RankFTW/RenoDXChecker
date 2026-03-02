@@ -459,6 +459,12 @@ public sealed partial class MainWindow : Window
         _ = ViewModel.RefreshAsync();
     }
 
+    private void FullRefreshButton_Click(object sender, RoutedEventArgs e)
+    {
+        CrashReporter.Log("User clicked Full Refresh");
+        _ = ViewModel.FullRefreshAsync();
+    }
+
     private bool _aboutVisible = false;
 
     private void RsIniButton_Click(object sender, RoutedEventArgs e)
@@ -701,6 +707,7 @@ public sealed partial class MainWindow : Window
         // Sync toggle state with ViewModel
         SkipUpdateToggle.IsOn = ViewModel.SkipUpdateCheck;
         LumaFeatureToggle.IsOn = ViewModel.LumaFeatureEnabled;
+        VerboseLoggingToggle.IsOn = ViewModel.VerboseLogging;
     }
 
     private void SkipUpdateToggle_Toggled(object sender, RoutedEventArgs e)
@@ -724,6 +731,15 @@ public sealed partial class MainWindow : Window
             // If Luma filter was active and the feature was just disabled, reset to Detected
             if (!toggle.IsOn && ViewModel.FilterMode == "Luma")
                 ViewModel.SetFilterCommand.Execute("Detected");
+        }
+    }
+
+    private void VerboseLoggingToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleSwitch toggle)
+        {
+            ViewModel.VerboseLogging = toggle.IsOn;
+            ViewModel.SaveSettingsPublic();
         }
     }
 

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Concurrent;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RenoDXCommander.Models;
@@ -21,6 +22,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private ShaderDeployMode _shaderDeployMode = ShaderDeployMode.Minimum;
     [ObservableProperty] private bool _skipUpdateCheck;
     [ObservableProperty] private bool _lumaFeatureEnabled;
+    [ObservableProperty] private bool _verboseLogging;
     [ObservableProperty] private string _lastSeenVersion = "";
 
     /// <summary>
@@ -37,6 +39,11 @@ public partial class MainViewModel : ObservableObject
     /// Returns true if the user confirms overwrite, false to cancel.
     /// </summary>
     public Func<GameCardViewModel, string, Task<bool>>? ConfirmForeignWinmmOverwrite { get; set; }
+
+    /// <summary>Guard flag — true while LoadNameMappings is running so that
+    /// property-change handlers (DcModeLevel, ShaderDeployMode, etc.) don't
+    /// call SaveNameMappings before all fields have been loaded.</summary>
+    private bool _isLoadingSettings;
 
     partial void OnShaderDeployModeChanged(ShaderDeployMode v)
     {
@@ -169,6 +176,9 @@ public partial class MainViewModel : ObservableObject
     private List<DetectedGame> _manualGames = new();
     private HashSet<string> _hiddenGames = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _favouriteGames = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, string> _engineTypeCache = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, string> _resolvedPathCache = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, string> _addonFileCache = new(StringComparer.OrdinalIgnoreCase);
 
     // Settings stored as JSON — ApplicationData.Current throws in unpackaged WinUI 3
     private static readonly string _settingsFilePath = System.IO.Path.Combine(
@@ -394,7 +404,9 @@ public partial class MainViewModel : ObservableObject
         card.NotifyAll();
     }
 
-    /// <summary>Renames a single DC or ReShade file for a game card during a DC Mode switch.</summary>
+    /// <summary>Renames a single DC or ReShade file for a game card during a DC Mode switch.
+    /// Foreign DLLs at the destination are backed up to <c>.original</c>; foreign
+    /// DLLs that were previously displaced are restored when the slot is vacated.</summary>
     private void RenameFile(GameCardViewModel card, bool isRs, string oldName, string newName)
     {
         var oldPath = Path.Combine(card.InstallPath, oldName);
@@ -403,8 +415,20 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            if (File.Exists(newPath)) File.Delete(newPath);
+            // Back up any foreign DLL sitting in the destination slot
+            // (e.g. a third-party dxgi.dll or winmm.dll) instead of deleting it.
+            if (File.Exists(newPath))
+            {
+                if (!AuxInstallService.BackupForeignDll(newPath))
+                    File.Delete(newPath);   // known RDXC file — safe to remove
+            }
+
             File.Move(oldPath, newPath);
+
+            // Restore any previously-backed-up foreign DLL now that we've
+            // vacated the old slot (e.g. switching DC from dxgi.dll → winmm.dll
+            // frees dxgi.dll for the original owner).
+            AuxInstallService.RestoreForeignDll(oldPath);
 
             if (isRs)
             {
@@ -451,6 +475,11 @@ public partial class MainViewModel : ObservableObject
         2 => "#6030B0",
         _ => "#1A3A4A",
     };
+
+    partial void OnVerboseLoggingChanged(bool v)
+    {
+        CrashReporter.VerboseLogging = v;
+    }
 
     partial void OnLumaFeatureEnabledChanged(bool v)
     {
@@ -800,6 +829,9 @@ public partial class MainViewModel : ObservableObject
     }
     private void LoadNameMappings()
     {
+        _isLoadingSettings = true;
+        try
+        {
         // Initialise all fields to safe defaults first
         _nameMappings           = new(StringComparer.OrdinalIgnoreCase);
         _wikiExclusions         = new(StringComparer.OrdinalIgnoreCase);
@@ -897,6 +929,9 @@ public partial class MainViewModel : ObservableObject
         if (s.TryGetValue("LumaFeatureEnabled", out var lfeVal))
             LumaFeatureEnabled = lfeVal == "true";
 
+        if (s.TryGetValue("VerboseLogging", out var vlVal))
+            VerboseLogging = vlVal == "true";
+
         if (s.TryGetValue("LastSeenVersion", out var lsvVal))
             LastSeenVersion = lsvVal ?? "";
 
@@ -919,6 +954,11 @@ public partial class MainViewModel : ObservableObject
             Load<List<string>>("FavouriteGames", _favouriteGames?.ToList() ?? new()), StringComparer.OrdinalIgnoreCase);
 
         CrashReporter.Log($"LoadNameMappings: loaded {_gameRenames.Count} renames, {_dllOverrides.Count} DLL overrides, {_folderOverrides.Count} folder overrides");
+        }
+        finally
+        {
+            _isLoadingSettings = false;
+        }
     }
 
     /// <summary>
@@ -1405,6 +1445,11 @@ public partial class MainViewModel : ObservableObject
 
     private void SaveNameMappings()
     {
+        // Don't save while LoadNameMappings is still populating fields —
+        // observable-property change handlers fire mid-load and would
+        // overwrite persisted values with empty defaults.
+        if (_isLoadingSettings) return;
+
         // Called SaveNameMappings for historical reasons — actually saves all settings
         try
         {
@@ -1420,6 +1465,7 @@ public partial class MainViewModel : ObservableObject
             s["ShaderDeployMode"]    = ShaderDeployMode.ToString();
             s["SkipUpdateCheck"]     = SkipUpdateCheck ? "true" : "false";
             s["LumaFeatureEnabled"] = LumaFeatureEnabled ? "true" : "false";
+            s["VerboseLogging"]     = VerboseLogging ? "true" : "false";
             s["LastSeenVersion"]     = LastSeenVersion;
             s["LumaEnabledGames"]   = JsonSerializer.Serialize(_lumaEnabledGames.ToList());
             s["GameRenames"]         = JsonSerializer.Serialize(_gameRenames);
@@ -1516,6 +1562,17 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     public async Task RefreshAsync()
     {
+        ApplyDcModeSwitch();
+        await InitializeAsync(forceRescan: true);
+    }
+
+    [RelayCommand]
+    public async Task FullRefreshAsync()
+    {
+        // Clear all caches so every game is re-scanned from disk.
+        _engineTypeCache.Clear();
+        _resolvedPathCache.Clear();
+        _addonFileCache.Clear();
         ApplyDcModeSwitch();
         await InitializeAsync(forceRescan: true);
     }
@@ -2512,6 +2569,15 @@ public partial class MainViewModel : ObservableObject
                 foreach (var g in savedLib.FavouriteGames) _favouriteGames.Add(g);
             _manualGames = savedLib != null ? GameLibraryService.ToManualGames(savedLib) : new();
 
+            // Load engine + addon caches from the saved library so BuildCards can
+            // skip expensive filesystem traversals for games seen on a previous run.
+            if (savedLib != null)
+            {
+                _engineTypeCache   = savedLib.EngineTypeCache   ?? new(StringComparer.OrdinalIgnoreCase);
+                _resolvedPathCache = savedLib.ResolvedPathCache ?? new(StringComparer.OrdinalIgnoreCase);
+                _addonFileCache    = savedLib.AddonFileCache    ?? new(StringComparer.OrdinalIgnoreCase);
+            }
+
             if (savedLib != null && !forceRescan)
             {
                 StatusText    = $"Library loaded ({savedLib.Games.Count} games, scanned {FormatAge(savedLib.LastScanned)})";
@@ -2620,7 +2686,7 @@ public partial class MainViewModel : ObservableObject
             _ = Task.Run(() => CheckForUpdatesAsync(_allCards, records, auxRecords));
 
             _allCards = _allCards.OrderBy(c => c.GameName, StringComparer.OrdinalIgnoreCase).ToList();
-            SaveLibrary();
+            _ = Task.Run(() => { try { SaveLibrary(); } catch { } }); // fire-and-forget — don't block UI
             UpdateCounts();
             ApplyFilter();
 
@@ -2875,9 +2941,33 @@ public partial class MainViewModel : ObservableObject
         var genericUnreal = MakeGenericUnreal();
         var genericUnity  = MakeGenericUnity();
 
+        // Thread-safe caches populated during parallel detection, saved to library afterwards.
+        var newEngineTypeCache   = new ConcurrentDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var newResolvedPathCache = new ConcurrentDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
         var gameInfos = detectedGames.AsParallel().Select(game =>
         {
-            var (installPath, engine) = GameDetectionService.DetectEngineAndPath(game.InstallPath);
+            string installPath;
+            EngineType engine;
+
+            var rootKey = game.InstallPath.TrimEnd('\\', '/').ToLowerInvariant();
+
+            // Use cached engine detection when available — avoids expensive filesystem traversals.
+            if (_engineTypeCache.TryGetValue(rootKey, out var cachedEngine)
+                && _resolvedPathCache.TryGetValue(rootKey, out var cachedPath)
+                && Directory.Exists(cachedPath))
+            {
+                installPath = cachedPath;
+                engine = Enum.TryParse<EngineType>(cachedEngine, out var e) ? e : EngineType.Unknown;
+            }
+            else
+            {
+                (installPath, engine) = GameDetectionService.DetectEngineAndPath(game.InstallPath);
+            }
+
+            // Record for saving
+            newEngineTypeCache[rootKey]   = engine.ToString();
+            newResolvedPathCache[rootKey] = installPath;
 
             // Apply per-game install path overrides (e.g. Cyberpunk 2077 → bin\x64)
             if (_installPathOverrides.TryGetValue(game.Name, out var subPath))
@@ -2894,6 +2984,11 @@ public partial class MainViewModel : ObservableObject
             return (game, installPath, engine, mod, fallback);
         }).ToList();
 
+        // Snapshot the new caches for SaveLibrary.
+        _engineTypeCache   = new Dictionary<string, string>(newEngineTypeCache, StringComparer.OrdinalIgnoreCase);
+        _resolvedPathCache = new Dictionary<string, string>(newResolvedPathCache, StringComparer.OrdinalIgnoreCase);
+        var newAddonFileCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var (game, installPath, engine, mod, origFallback) in gameInfos)
         {
             // Always show every detected game — even if no wiki mod exists.
@@ -2908,9 +3003,27 @@ public partial class MainViewModel : ObservableObject
 
             // Always scan disk for renodx-* addon files — catches manual installs and
             // games not yet on the wiki that already have a mod installed.
+            // Use the addon file cache to skip expensive recursive scans on subsequent launches.
             string? addonOnDisk = null;
             var cacheKey = installPath.ToLowerInvariant();
-            if (addonCache.TryGetValue(cacheKey, out var cached))
+            if (_addonFileCache.TryGetValue(cacheKey, out var cachedAddonFile))
+            {
+                if (!string.IsNullOrEmpty(cachedAddonFile)
+                    && File.Exists(Path.Combine(installPath, cachedAddonFile)))
+                {
+                    addonOnDisk = cachedAddonFile;
+                }
+                else if (string.IsNullOrEmpty(cachedAddonFile))
+                {
+                    addonOnDisk = null; // cached as "no addon"
+                }
+                else
+                {
+                    // Cached file no longer on disk — rescan
+                    addonOnDisk = ScanForInstalledAddon(installPath, effectiveMod);
+                }
+            }
+            else if (addonCache.TryGetValue(cacheKey, out var cached))
             {
                 if (cached) addonOnDisk = ScanForInstalledAddon(installPath, effectiveMod);
             }
@@ -2919,6 +3032,7 @@ public partial class MainViewModel : ObservableObject
                 addonOnDisk = ScanForInstalledAddon(installPath, effectiveMod);
                 addonCache[cacheKey] = addonOnDisk != null;
             }
+            newAddonFileCache[cacheKey] = addonOnDisk ?? "";
 
             if (addonOnDisk != null && record == null)
             {
@@ -3225,6 +3339,10 @@ public partial class MainViewModel : ObservableObject
             }
         }
         ApplyCardOverrides(cards);
+
+        // Persist the addon file cache for next launch.
+        _addonFileCache = newAddonFileCache;
+
         return cards;
     }
 
@@ -3312,17 +3430,36 @@ public partial class MainViewModel : ObservableObject
                 catch { }
             }
 
-            // Last resort: limited recursive search (catch and ignore access issues)
+            // Last resort: depth-limited recursive search (catch and ignore access issues).
+            // Addon files are always near the game exe, so 4 levels is sufficient.
             try
             {
                 foreach (var ext in new[] { "*.addon64", "*.addon32" })
                 {
-                    var found = Directory.EnumerateFiles(installPath, ext, SearchOption.AllDirectories)
-                        .FirstOrDefault(f => Path.GetFileName(f).StartsWith("renodx", StringComparison.OrdinalIgnoreCase));
-                    if (found != null) return Path.GetFileName(found);
+                    var found = ScanAddonShallow(installPath, ext, 4);
+                    if (found != null) return found;
                 }
             }
             catch { /* ignore permission errors */ }
+        }
+        catch { }
+        return null;
+    }
+
+    private static string? ScanAddonShallow(string dir, string pattern, int depth)
+    {
+        if (depth < 0 || !Directory.Exists(dir)) return null;
+        try
+        {
+            var found = Directory.GetFiles(dir, pattern)
+                .FirstOrDefault(f => Path.GetFileName(f).StartsWith("renodx", StringComparison.OrdinalIgnoreCase));
+            if (found != null) return Path.GetFileName(found);
+            if (depth > 0)
+                foreach (var sub in Directory.GetDirectories(dir))
+                {
+                    var r = ScanAddonShallow(sub, pattern, depth - 1);
+                    if (r != null) return r;
+                }
         }
         catch { }
         return null;
@@ -3428,7 +3565,8 @@ public partial class MainViewModel : ObservableObject
         foreach (var c in _allCards.Where(c => !string.IsNullOrEmpty(c.InstallPath)))
             addonCache[c.InstallPath.ToLowerInvariant()] = !string.IsNullOrEmpty(c.InstalledAddonFileName);
 
-        GameLibraryService.Save(detectedGames, addonCache, _hiddenGames, _favouriteGames, _manualGames);
+        GameLibraryService.Save(detectedGames, addonCache, _hiddenGames, _favouriteGames, _manualGames,
+            _engineTypeCache, _resolvedPathCache, _addonFileCache);
     }
 
     private static string FormatAge(DateTime utc)

@@ -121,6 +121,66 @@ public class AuxInstallService
         return WinmmFileType.Unknown;
     }
 
+    // ── Foreign DLL backup / restore ──────────────────────────────────────────
+
+    /// <summary>
+    /// If <paramref name="dllPath"/> exists and is a foreign (unrecognised) DLL,
+    /// renames it to <c>dllPath + ".original"</c> so it is preserved.
+    /// Only applies to <c>dxgi.dll</c> and <c>winmm.dll</c>.
+    /// Returns true if a backup was made.
+    /// </summary>
+    public static bool BackupForeignDll(string dllPath)
+    {
+        if (!File.Exists(dllPath)) return false;
+
+        var name = Path.GetFileName(dllPath);
+        bool isForeign;
+        if (name.Equals("dxgi.dll", StringComparison.OrdinalIgnoreCase))
+            isForeign = IdentifyDxgiFile(dllPath) == DxgiFileType.Unknown;
+        else if (name.Equals("winmm.dll", StringComparison.OrdinalIgnoreCase))
+            isForeign = IdentifyWinmmFile(dllPath) == WinmmFileType.Unknown;
+        else
+            return false;
+
+        if (!isForeign) return false;
+
+        var backupPath = dllPath + ".original";
+        try
+        {
+            if (File.Exists(backupPath)) File.Delete(backupPath);
+            File.Move(dllPath, backupPath);
+            CrashReporter.Log($"BackupForeignDll: {name} → {name}.original in {Path.GetDirectoryName(dllPath)}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"BackupForeignDll failed for {dllPath}: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// If a <c>.original</c> backup exists for <paramref name="dllPath"/> and the
+    /// slot is now vacant, restores the backup to its original name.
+    /// </summary>
+    public static void RestoreForeignDll(string dllPath)
+    {
+        var backupPath = dllPath + ".original";
+        if (!File.Exists(backupPath)) return;
+        if (File.Exists(dllPath)) return;   // slot still occupied — don't overwrite
+
+        try
+        {
+            File.Move(backupPath, dllPath);
+            var name = Path.GetFileName(dllPath);
+            CrashReporter.Log($"RestoreForeignDll: {name}.original → {name} in {Path.GetDirectoryName(dllPath)}");
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"RestoreForeignDll failed for {dllPath}: {ex.Message}");
+        }
+    }
+
     /// <summary>
     /// Strict ReShade check: exact size match against staged ReShade DLLs,
     /// OR binary scan for ReShade-specific strings. Never falls back to a size threshold.
@@ -360,6 +420,9 @@ public class AuxInstallService
             catch { }
         }
 
+        // ── Back up foreign DLL at destination ──────────────────────────────────
+        BackupForeignDll(destPath);
+
         // ── Cache check ───────────────────────────────────────────────────────────
         bool usedCache = false;
         if (File.Exists(cachePath))
@@ -487,6 +550,9 @@ public class AuxInstallService
                 $"ReShade DLLs not found in staging directory.\n" +
                 $"Expected: {rsStagedPath}\n" +
                 $"Please restart RDXC to download ReShade from reshade.me.");
+
+        // ── Back up foreign DLL at destination ──────────────────────────────────
+        BackupForeignDll(destPath);
 
         // ── Copy staged DLL to game folder ────────────────────────────────────────
         progress?.Report(("Installing ReShade...", 80));
@@ -676,6 +742,9 @@ public class AuxInstallService
         var path = Path.Combine(record.InstallPath, record.InstalledAs);
         if (File.Exists(path)) File.Delete(path);
         RemoveRecord(record);
+
+        // Restore any foreign DLL that was backed up when RDXC took over this slot.
+        RestoreForeignDll(path);
 
         // If a user-owned reshade-shaders folder was renamed to reshade-shaders-original
         // when we deployed ours, restore it now that RS/DC has been uninstalled.

@@ -132,6 +132,13 @@
                             BorderBrush="#1A3040" BorderThickness="1"
                             CornerRadius="8" Padding="12,7" FontSize="12"
                             ToolTipService.ToolTip="Rescan game library and fetch latest mod info"/>
+                    <Button x:Name="FullRefreshBtn" Content="↻"
+                            Click="FullRefreshButton_Click"
+                            Background="#0F1820" Foreground="#7A9AAA"
+                            BorderBrush="#1A3040" BorderThickness="1"
+                            CornerRadius="8" Width="34" Height="34" FontSize="14"
+                            Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                            ToolTipService.ToolTip="Full refresh — clears all caches and re-scans everything from disk"/>
                     <Button x:Name="AboutBtn" Content="🧁"
                             Click="AboutButton_Click"
                             Background="#0F1820" Foreground="#7A9AAA"
@@ -251,7 +258,7 @@
                                     <Run Text="RenoDXCommander" Foreground="#00C8FF"/>
                                 </TextBlock>
                                 <TextBlock FontSize="12" Foreground="#4A5878">
-                                    <Run Text="v1.3.0  ·  HDR mod manager by "/>
+                                    <Run Text="v1.3.1  ·  HDR mod manager by "/>
                                     <Run Text="RankFTW" FontWeight="SemiBold" Foreground="#6070A0"/>
                                     <Run Text="  ·  Unofficial companion tool"/>
                                 </TextBlock>
@@ -512,6 +519,12 @@
                                               Toggled="LumaFeatureToggle_Toggled"
                                               OnContent="Enabled — Luma options visible on cards and filters"
                                               OffContent="Disabled — all Luma UI hidden"
+                                              Foreground="#7A8EAE" FontSize="12"/>
+                                <ToggleSwitch x:Name="VerboseLoggingToggle"
+                                              Header="Verbose Logging"
+                                              Toggled="VerboseLoggingToggle_Toggled"
+                                              OnContent="Enabled — all activity logged to rdxc_log.txt"
+                                              OffContent="Disabled — only crash/error reports saved"
                                               Foreground="#7A8EAE" FontSize="12"/>
                             </StackPanel>
                         </Border>

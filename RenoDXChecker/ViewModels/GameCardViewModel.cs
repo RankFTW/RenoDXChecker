@@ -195,9 +195,9 @@ public partial class GameCardViewModel : ObservableObject
     public string DcBtnBackground  => DcStatus == GameStatus.UpdateAvailable ? "#2A1A40" : "#22386A";
     public string DcBtnForeground  => DcStatus == GameStatus.UpdateAvailable ? "#C0A0E8" : "#AACCFF";
     public string DcBtnBorderBrush => DcStatus == GameStatus.UpdateAvailable ? "#6040A0" : "#3050A0";
-    public string RsBtnBackground  => RsStatus == GameStatus.UpdateAvailable ? "#2A1A40" : "#22386A";
-    public string RsBtnForeground  => RsStatus == GameStatus.UpdateAvailable ? "#C0A0E8" : "#AACCFF";
-    public string RsBtnBorderBrush => RsStatus == GameStatus.UpdateAvailable ? "#6040A0" : "#3050A0";
+    public string RsBtnBackground  => RsBlockedByDcMode ? "#1A1A1E" : RsStatus == GameStatus.UpdateAvailable ? "#2A1A40" : "#22386A";
+    public string RsBtnForeground  => RsBlockedByDcMode ? "#555566" : RsStatus == GameStatus.UpdateAvailable ? "#C0A0E8" : "#AACCFF";
+    public string RsBtnBorderBrush => RsBlockedByDcMode ? "#2A2A30" : RsStatus == GameStatus.UpdateAvailable ? "#6040A0" : "#3050A0";
 
     public Visibility DcProgressVisibility => DcIsInstalling ? Visibility.Visible : Visibility.Collapsed;
     public Visibility DcMessageVisibility  => string.IsNullOrEmpty(DcActionMessage) ? Visibility.Collapsed : Visibility.Visible;
@@ -458,6 +458,9 @@ public partial class GameCardViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(IsRsNotInstalling));
         OnPropertyChanged(nameof(RsActionLabel));
+        OnPropertyChanged(nameof(RsBtnBackground));
+        OnPropertyChanged(nameof(RsBtnForeground));
+        OnPropertyChanged(nameof(RsBtnBorderBrush));
     }
     partial void OnIsHiddenChanged(bool v)                  => OnPropertyChanged(nameof(HideButtonLabel));
     partial void OnIsFavouriteChanged(bool v)

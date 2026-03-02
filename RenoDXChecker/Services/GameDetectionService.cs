@@ -564,7 +564,7 @@ public static class GameDetectionService
                     var installPath = ResolveXboxGameRoot(gameDir);
 
                     bool hasExe = false;
-                    try { hasExe = Directory.EnumerateFiles(installPath, "*.exe", SearchOption.AllDirectories).Any(); }
+                    try { hasExe = HasFileShallow(installPath, "*.exe", 3); }
                     catch { }
                     if (!hasExe) continue;
 
@@ -685,31 +685,56 @@ public static class GameDetectionService
     {
         try
         {
-            // Strong signal: .u or .upk package files (UE3 cooked content format)
-            foreach (var ext in new[] { "*.u", "*.upk" })
-            {
-                if (Directory.EnumerateFiles(root, ext, SearchOption.AllDirectories)
-                    .Any()) return true;
-            }
-
-            // Strong signal: no Shipping exe anywhere, but has UE-style Binaries layout
-            bool hasShipping = false;
-            bool hasBinaries = false;
-            try
-            {
-                hasShipping = Directory.EnumerateFiles(root, "*Shipping*.exe", SearchOption.AllDirectories).Any();
-                hasBinaries = Directory.EnumerateDirectories(root, "Binaries", SearchOption.AllDirectories).Any();
-            }
-            catch { }
+            // ── Cheap checks first ────────────────────────────────────────────────
+            // Rocket League specific: has TAGame folder (UE3 codename)
+            if (Directory.Exists(Path.Combine(root, "TAGame"))) return true;
 
             // Classic UE3 marker: Engine\Config\BaseEngine.ini
             var baseEnginePath = Path.Combine(root, "Engine", "Config", "BaseEngine.ini");
             bool hasBaseEngine = File.Exists(baseEnginePath);
 
-            if (hasBinaries && !hasShipping && hasBaseEngine) return true;
+            if (hasBaseEngine)
+            {
+                // Confirm Binaries exists (cheap check) and no Shipping exe
+                bool hasBinaries = Directory.Exists(Path.Combine(root, "Binaries"));
+                bool hasShipping = false;
+                if (hasBinaries)
+                {
+                    try { hasShipping = HasFileShallow(root, "*Shipping*.exe", 4); }
+                    catch { }
+                }
+                if (hasBinaries && !hasShipping) return true;
+            }
 
-            // Rocket League specific: has TAGame folder (UE3 codename)
-            if (Directory.Exists(Path.Combine(root, "TAGame"))) return true;
+            // ── Depth-limited .u / .upk search ───────────────────────────────────
+            // UE3 cooked content files are always near the root (typically 1-3 levels).
+            // Using a depth-limited search instead of AllDirectories avoids traversing
+            // the entire game folder tree for non-UE games.
+            foreach (var ext in new[] { "*.u", "*.upk" })
+            {
+                if (HasFileShallow(root, ext, 3)) return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    /// <summary>
+    /// Depth-limited file existence check. Returns true if any file matching
+    /// <paramref name="pattern"/> exists within <paramref name="maxDepth"/> levels.
+    /// </summary>
+    private static bool HasFileShallow(string dir, string pattern, int maxDepth)
+    {
+        if (maxDepth < 0 || !Directory.Exists(dir)) return false;
+        try
+        {
+            if (Directory.GetFiles(dir, pattern).Length > 0) return true;
+            if (maxDepth > 0)
+                foreach (var sub in Directory.GetDirectories(dir))
+                {
+                    if (IsSkippedFolder(sub)) continue;
+                    if (HasFileShallow(sub, pattern, maxDepth - 1)) return true;
+                }
         }
         catch { }
         return false;
@@ -751,6 +776,9 @@ public static class GameDetectionService
                 // Skip Engine folder — its Binaries are for the engine, not the game
                 if (name.Equals("Engine", StringComparison.OrdinalIgnoreCase)) continue;
 
+                // Skip bonus-content folders (artbook viewers, soundtrack players, etc.)
+                if (IsSkippedFolder(sub)) continue;
+
                 // Found a Binaries folder — look inside for Win64/WinGDK
                 if (name.Equals("Binaries", StringComparison.OrdinalIgnoreCase))
                 {
@@ -774,6 +802,24 @@ public static class GameDetectionService
         catch { }
     }
 
+    /// <summary>Folder names to skip during engine/exe heuristic searches.
+    /// These contain bonus content (artbook viewers, soundtrack players, etc.)
+    /// that can carry their own engine DLLs and exes.</summary>
+    private static readonly HashSet<string> _skipFolders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "artbook", "art book", "artbooks", "digitalartbook",
+        "soundtrack", "ost", "music",
+        "manual", "manuals", "docs", "documentation",
+        "bonus", "bonuscontent", "bonus content", "extras",
+        "wallpapers", "wallpaper",
+    };
+
+    private static bool IsSkippedFolder(string path)
+    {
+        var name = Path.GetFileName(path);
+        return _skipFolders.Contains(name);
+    }
+
     private static string? FindFileShallow(string dir, string pattern, int maxDepth)
     {
         if (maxDepth < 0 || !Directory.Exists(dir)) return null;
@@ -784,6 +830,7 @@ public static class GameDetectionService
             if (maxDepth > 0)
                 foreach (var sub in Directory.GetDirectories(dir))
                 {
+                    if (IsSkippedFolder(sub)) continue;
                     var r = FindFileShallow(sub, pattern, maxDepth - 1);
                     if (r != null) return r;
                 }
@@ -804,7 +851,10 @@ public static class GameDetectionService
             {
                 if (Directory.GetFiles(dir, "*.exe").Length > 0) return dir;
                 foreach (var sub in Directory.GetDirectories(dir))
+                {
+                    if (IsSkippedFolder(sub)) continue;
                     queue.Enqueue((sub, depth + 1));
+                }
             }
             catch { }
         }

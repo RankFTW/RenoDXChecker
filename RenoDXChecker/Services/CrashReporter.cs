@@ -27,6 +27,34 @@ public static class CrashReporter
     /// <summary>Maximum breadcrumb entries kept in the in-memory ring buffer.</summary>
     private const int MaxBreadcrumbs = 300;
 
+    /// <summary>Maximum size of the verbose log file before it is rotated (5 MB).</summary>
+    private const long MaxVerboseLogBytes = 5 * 1024 * 1024;
+
+    // ── Verbose (continuous) logging ──────────────────────────────────────────────
+
+    private static volatile bool _verboseLogging;
+    private static readonly object _verboseLogLock = new();
+    private static readonly string VerboseLogPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "RenoDXCommander", "logs", "rdxc_log.txt");
+    private static readonly string VerboseLogPrevPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "RenoDXCommander", "logs", "rdxc_log_prev.txt");
+
+    /// <summary>
+    /// When true, every <see cref="Log"/> call is also written to rdxc_log.txt on disk.
+    /// </summary>
+    public static bool VerboseLogging
+    {
+        get => _verboseLogging;
+        set
+        {
+            _verboseLogging = value;
+            if (value)
+                Log("Verbose logging enabled");
+        }
+    }
+
     // ── Breadcrumb ring buffer ────────────────────────────────────────────────────
 
     private static readonly ConcurrentQueue<string> _breadcrumbs = new();
@@ -34,7 +62,8 @@ public static class CrashReporter
     /// <summary>
     /// Log a short message describing what the app is currently doing.
     /// These entries are included in crash reports to show the sequence of events
-    /// leading up to the crash.
+    /// leading up to the crash. When verbose logging is enabled, the entry is also
+    /// appended to rdxc_log.txt on disk.
     /// </summary>
     public static void Log(string message)
     {
@@ -44,6 +73,35 @@ public static class CrashReporter
         // Keep the buffer bounded
         while (_breadcrumbs.Count > MaxBreadcrumbs)
             _breadcrumbs.TryDequeue(out _);
+
+        if (_verboseLogging)
+            AppendVerboseLog(entry);
+    }
+
+    private static void AppendVerboseLog(string entry)
+    {
+        try
+        {
+            lock (_verboseLogLock)
+            {
+                Directory.CreateDirectory(LogDir);
+
+                // Rotate if the file is too large
+                if (File.Exists(VerboseLogPath))
+                {
+                    var info = new FileInfo(VerboseLogPath);
+                    if (info.Length >= MaxVerboseLogBytes)
+                    {
+                        if (File.Exists(VerboseLogPrevPath))
+                            File.Delete(VerboseLogPrevPath);
+                        File.Move(VerboseLogPath, VerboseLogPrevPath);
+                    }
+                }
+
+                File.AppendAllText(VerboseLogPath, entry + Environment.NewLine, Encoding.UTF8);
+            }
+        }
+        catch { /* Never let logging crash the app */ }
     }
 
     // ── Hook registration ─────────────────────────────────────────────────────────

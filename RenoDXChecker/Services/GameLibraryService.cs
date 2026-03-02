@@ -21,7 +21,10 @@ public static class GameLibraryService
     }
 
     public static void Save(List<DetectedGame> games, Dictionary<string, bool> addonCache,
-        HashSet<string> hiddenGames, HashSet<string> favouriteGames, List<DetectedGame> manualGames)
+        HashSet<string> hiddenGames, HashSet<string> favouriteGames, List<DetectedGame> manualGames,
+        Dictionary<string, string>? engineTypeCache = null,
+        Dictionary<string, string>? resolvedPathCache = null,
+        Dictionary<string, string>? addonFileCache = null)
     {
         var lib = new SavedGameLibrary
         {
@@ -37,6 +40,9 @@ public static class GameLibraryService
             {
                 Name = g.Name, InstallPath = g.InstallPath, Source = "Manual", IsManuallyAdded = true
             }).ToList(),
+            EngineTypeCache   = engineTypeCache   ?? new(StringComparer.OrdinalIgnoreCase),
+            ResolvedPathCache = resolvedPathCache ?? new(StringComparer.OrdinalIgnoreCase),
+            AddonFileCache    = addonFileCache    ?? new(StringComparer.OrdinalIgnoreCase),
         };
         Directory.CreateDirectory(Path.GetDirectoryName(LibraryPath)!);
         File.WriteAllText(LibraryPath, JsonSerializer.Serialize(lib, JsonOpts));
