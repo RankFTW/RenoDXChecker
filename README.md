@@ -1,4 +1,4 @@
-# RenoDX Commander (RDXC) v1.3.1
+# RenoDX Commander (RDXC) v1.3.2
 
 An unofficial companion app for [RenoDX](https://github.com/clshortfuse/renodx) HDR modding on Windows. RDXC manages **ReShade**, **Display Commander**, and **RenoDX mods** across your entire game library from a single interface — no manual file juggling required.
 
@@ -220,9 +220,9 @@ Click **🎯** on any game card to access overrides. Hover each control for a de
 | **Exclude from Update All** | Skip this game during bulk update operations |
 | **32-bit mode** | Install 32-bit ReShade, DC, and Unity addon for this game |
 | **Shader mode** | Dropdown: **Global** (follow header toggle), **Off** (no shaders), **Minimum** (Lilium only), **All** (all packs), **User** (custom folder only). Overrides the global shader setting for this game only. Note: per-game shader mode only applies when DC Mode is OFF. When DC Mode is ON, all DC-mode games share the DC global shader folder. |
+| **Wiki name mapping** | Match the game to a different wiki entry by specifying the exact wiki mod name. Also applies to Luma mod matching. |
+| **↩ Reset** | Restores the game name to the original store-detected name and clears the wiki name mapping |
 | **DLL naming override** | Override the filenames ReShade and Display Commander are installed as. When enabled, existing RS/DC installs are removed and the game is automatically excluded from DC Mode, Update All, and global shaders. Two text boxes set the ReShade and DC filenames side by side. Works in both normal and 32-bit mode. When toggled off, the custom-named files are removed. |
-
-The dialog also includes wiki name mapping fields for manually matching a game to a different wiki entry.
 
 ---
 

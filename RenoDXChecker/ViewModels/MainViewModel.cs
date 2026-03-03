@@ -179,6 +179,9 @@ public partial class MainViewModel : ObservableObject
     private Dictionary<string, string> _engineTypeCache = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, string> _resolvedPathCache = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, string> _addonFileCache = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Maps current (renamed) game name → original store-detected name.
+    /// Populated during ApplyGameRenames so the Overrides dialog can reset to the original.</summary>
+    private Dictionary<string, string> _originalDetectedNames = new(StringComparer.OrdinalIgnoreCase);
 
     // Settings stored as JSON — ApplicationData.Current throws in unpackaged WinUI 3
     private static readonly string _settingsFilePath = System.IO.Path.Combine(
@@ -988,6 +991,21 @@ public partial class MainViewModel : ObservableObject
                 var key = card.InstallPath.TrimEnd(Path.DirectorySeparatorChar);
                 _gameRenames[key] = newName;
             }
+
+            // If the game has a folder override, the card's InstallPath is the
+            // overridden path which differs from the store-detected path.
+            // ApplyGameRenames runs before ApplyFolderOverrides during Init, so
+            // we must also key the rename under the original store-detected path.
+            if (_folderOverrides.TryGetValue(oldName, out var ovStored))
+            {
+                var parts = ovStored.Split('|');
+                var origPath = parts.Length > 1 ? parts[1] : "";
+                if (!string.IsNullOrEmpty(origPath))
+                {
+                    var origKey = origPath.TrimEnd(Path.DirectorySeparatorChar);
+                    _gameRenames[origKey] = newName;
+                }
+            }
         }
 
         // 2. Migrate all game-name-keyed HashSets
@@ -1058,6 +1076,37 @@ public partial class MainViewModel : ObservableObject
         DispatcherQueue?.TryEnqueue(() => { _ = InitializeAsync(forceRescan: false); });
     }
 
+    /// <summary>
+    /// Returns the original store-detected name for a game, before any user rename.
+    /// If the game was never renamed, returns null.
+    /// </summary>
+    public string? GetOriginalStoreName(string currentName)
+    {
+        if (_originalDetectedNames.TryGetValue(currentName, out var orig))
+            return orig;
+        return null;
+    }
+
+    /// <summary>
+    /// Removes any persisted rename for the given game, restoring it to its
+    /// store-detected name on the next refresh.
+    /// </summary>
+    public void RemoveGameRename(string gameName)
+    {
+        var card = _allCards.FirstOrDefault(c =>
+            c.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase));
+        if (card == null) return;
+
+        // Remove all _gameRenames entries that point to this name
+        var keysToRemove = _gameRenames
+            .Where(kv => kv.Value.Equals(gameName, StringComparison.OrdinalIgnoreCase))
+            .Select(kv => kv.Key).ToList();
+        foreach (var k in keysToRemove)
+            _gameRenames.Remove(k);
+
+        SaveNameMappings();
+    }
+
     private static void MigrateHashSet(HashSet<string> set, string oldName, string newName)
     {
         if (set.Remove(oldName))
@@ -1081,7 +1130,14 @@ public partial class MainViewModel : ObservableObject
         {
             var key = g.InstallPath.TrimEnd(Path.DirectorySeparatorChar);
             if (_gameRenames.TryGetValue(key, out var newName))
+            {
+                // Only capture the original name if the game hasn't already been
+                // renamed by a prior call (ApplyGameRenames runs twice during Init —
+                // once for freshGames before the merge, once for the final list).
+                if (!g.Name.Equals(newName, StringComparison.OrdinalIgnoreCase))
+                    _originalDetectedNames[newName] = g.Name;
                 g.Name = newName;
+            }
         }
     }
 
@@ -2136,9 +2192,36 @@ public partial class MainViewModel : ObservableObject
 
     // ── Luma Framework commands ───────────────────────────────────────────────────
 
-    /// <summary>Fuzzy-matches a game name against the Luma completed mods list.</summary>
+    /// <summary>Fuzzy-matches a game name against the Luma completed mods list.
+    /// Also honours _nameMappings so the wiki name override box works for Luma games.</summary>
     private LumaMod? MatchLumaGame(string gameName)
     {
+        // 0. User-defined name mappings take priority (same logic as RenoDX wiki matching).
+        if (_nameMappings.Count > 0)
+        {
+            string? mapped = null;
+            if (_nameMappings.TryGetValue(gameName, out var m))
+                mapped = m;
+            else
+            {
+                var gameNorm = GameDetectionService.NormalizeName(gameName);
+                foreach (var kv in _nameMappings)
+                {
+                    if (GameDetectionService.NormalizeName(kv.Key) == gameNorm && !string.IsNullOrEmpty(kv.Value))
+                    { mapped = kv.Value; break; }
+                }
+            }
+            if (!string.IsNullOrEmpty(mapped))
+            {
+                var mappedNorm = GameDetectionService.NormalizeName(mapped);
+                foreach (var lm in _lumaMods)
+                    if (GameDetectionService.NormalizeName(lm.Name) == mappedNorm) return lm;
+                var mappedLookup = NormalizeForLookup(mapped);
+                foreach (var lm in _lumaMods)
+                    if (NormalizeForLookup(lm.Name) == mappedLookup) return lm;
+            }
+        }
+
         var norm = GameDetectionService.NormalizeName(gameName);
         foreach (var lm in _lumaMods)
         {
@@ -2553,6 +2636,7 @@ public partial class MainViewModel : ObservableObject
         IsLoading = true;
         DisplayedGames.Clear();
         _allCards.Clear();
+        _originalDetectedNames.Clear();
 
         CrashReporter.Log($"InitializeAsync started (forceRescan={forceRescan})");
         try

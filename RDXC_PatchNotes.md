@@ -1,3 +1,20 @@
+## v1.3.2
+
+### Bug Fixes
+
+**Game rename persistence for games with folder overrides**
+- Fixed games with custom folder overrides losing their rename after a Refresh. The rename is now stored under both the overridden and original install paths, so it survives the Init ordering where renames are applied before folder overrides.
+
+### Changes
+
+**Reset button in Overrides dialog**
+- A new ↩ Reset button next to the Game Name and Wiki Name fields restores the game name to the original store-detected name and clears the wiki name mapping. Saving with an empty wiki field now also removes any existing mapping.
+
+**Luma wiki name matching respects name mappings**
+- The wiki name mapping (set in the Overrides dialog) now also applies to Luma mod matching. Previously, only RenoDX wiki matching consulted name mappings — Luma games with non-standard store names had to match exactly.
+
+---
+
 ## v1.3.1
 
 ### Bug Fixes

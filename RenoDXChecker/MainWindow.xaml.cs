@@ -115,13 +115,36 @@ public sealed partial class MainWindow : Window
         wikiBox.HorizontalAlignment = HorizontalAlignment.Stretch;
         wikiBox.FontSize = 12;
 
+        var resetBtn = new Button
+        {
+            Content = "↩ Reset",
+            FontSize = 12,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Padding = new Thickness(10, 6, 10, 6),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 26, 24, 32)),
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 140, 130, 160)),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 50, 45, 60)),
+        };
+        ToolTipService.SetToolTip(resetBtn,
+            "Reset game name back to auto-detected and clear wiki name mapping.");
+        var originalStoreName = !string.IsNullOrEmpty(prefilledDetected)
+            ? ViewModel.GetOriginalStoreName(prefilledDetected) : null;
+        resetBtn.Click += (s, e) =>
+        {
+            detectedBox.Text = originalStoreName ?? prefilledDetected ?? "";
+            wikiBox.Text = "";
+        };
+
         var nameGrid = new Grid { ColumnSpacing = 8 };
         nameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         nameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        nameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         Grid.SetColumn(detectedBox, 0);
         Grid.SetColumn(wikiBox, 1);
+        Grid.SetColumn(resetBtn, 2);
         nameGrid.Children.Add(detectedBox);
         nameGrid.Children.Add(wikiBox);
+        nameGrid.Children.Add(resetBtn);
         panel.Children.Add(nameGrid);
 
         panel.Children.Add(MakeSeparator());
@@ -382,6 +405,8 @@ public sealed partial class MainWindow : Window
                 var key = wikiBox.Text?.Trim();
                 if (!nowExcluded && !string.IsNullOrEmpty(det) && !string.IsNullOrEmpty(key))
                     ViewModel.AddNameMapping(det, key);
+                else if (!nowExcluded && !string.IsNullOrEmpty(det) && string.IsNullOrEmpty(key))
+                    ViewModel.RemoveNameMapping(det);
             }
             else if (t.Result == ContentDialogResult.Secondary)
             {
