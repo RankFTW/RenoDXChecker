@@ -21,8 +21,9 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private int _dcModeLevel;
     [ObservableProperty] private ShaderDeployMode _shaderDeployMode = ShaderDeployMode.Minimum;
     [ObservableProperty] private bool _skipUpdateCheck;
-    [ObservableProperty] private bool _lumaFeatureEnabled;
+    [ObservableProperty] private bool _lumaFeatureEnabled = true;
     [ObservableProperty] private bool _verboseLogging;
+    [ObservableProperty] private bool _compactMode;
     [ObservableProperty] private string _lastSeenVersion = "";
 
     /// <summary>
@@ -174,6 +175,9 @@ public partial class MainViewModel : ObservableObject
     private List<GameCardViewModel> _allCards = new();
     public IReadOnlyList<GameCardViewModel> AllCards => _allCards;
     private List<DetectedGame> _manualGames = new();
+    private RemoteManifest? _manifest;
+    private HashSet<string> _manifestNativeHdrGames = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> _manifestBlacklist = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _hiddenGames = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _favouriteGames = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, string> _engineTypeCache = new(StringComparer.OrdinalIgnoreCase);
@@ -257,10 +261,20 @@ public partial class MainViewModel : ObservableObject
     private List<LumaMod> _lumaMods = new();
     private HashSet<string> _lumaEnabledGames = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>
+    /// Games the user has explicitly disabled Luma for — prevents manifest lumaDefaultGames
+    /// from re-enabling Luma on every refresh.
+    /// </summary>
+    private HashSet<string> _lumaDisabledGames = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>
     /// Games in this set are excluded from all wiki matching.
     /// Their cards show a Discord link instead of an install button.
     /// </summary>
     private HashSet<string> _wikiExclusions   = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>
+    /// Manifest-driven unlinks: games in this set ignore their fuzzy wiki match
+    /// and fall through to the generic engine addon instead.
+    /// </summary>
+    private HashSet<string> _manifestWikiUnlinks = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Backward-compat: true when any DC Mode level is active.</summary>
     public bool DcModeEnabled => DcModeLevel > 0;
@@ -484,48 +498,14 @@ public partial class MainViewModel : ObservableObject
         CrashReporter.VerboseLogging = v;
     }
 
+    partial void OnCompactModeChanged(bool v)
+    {
+        foreach (var c in _allCards) c.CompactMode = v;
+    }
+
     partial void OnLumaFeatureEnabledChanged(bool v)
     {
         foreach (var c in _allCards) c.LumaFeatureEnabled = v;
-
-        // When disabling the Luma feature, uninstall all Luma files and exit Luma mode on every game
-        if (!v)
-        {
-            foreach (var card in _allCards.Where(c => c.IsLumaMode).ToList())
-            {
-                // Uninstall Luma files if a record exists
-                if (card.LumaRecord != null)
-                {
-                    try
-                    {
-                        _lumaService.Uninstall(card.LumaRecord);
-                    }
-                    catch (Exception ex) { CrashReporter.Log($"Luma feature off: uninstall failed for '{card.GameName}' — {ex.Message}"); }
-                    card.LumaRecord = null;
-                }
-                else
-                {
-                    // Fallback cleanup
-                    try
-                    {
-                        ShaderPackService.RemoveFromGameFolder(card.InstallPath);
-                        var rsDir = Path.Combine(card.InstallPath, "reshade-shaders");
-                        if (Directory.Exists(rsDir)) Directory.Delete(rsDir, true);
-                        var rsIni = Path.Combine(card.InstallPath, "reshade.ini");
-                        if (File.Exists(rsIni)) File.Delete(rsIni);
-                    }
-                    catch (Exception ex) { CrashReporter.Log($"Luma feature off: fallback cleanup failed for '{card.GameName}' — {ex.Message}"); }
-                }
-
-                LumaService.RemoveRecordByPath(card.InstallPath);
-                card.IsLumaMode = false;
-                card.LumaStatus = GameStatus.NotInstalled;
-                card.NotifyAll();
-            }
-            _lumaEnabledGames.Clear();
-        }
-
-        SaveNameMappings();
     }
 
     public int? GetPerGameDcModeOverride(string gameName)
@@ -729,11 +709,13 @@ public partial class MainViewModel : ObservableObject
     };
 
     /// <summary>
-    /// Checks if a game name matches any entry in the NativeHdrGames whitelist.
+    /// Checks if a game name matches any entry in the NativeHdrGames whitelist
+    /// or the remote manifest's native HDR list.
     /// Strips ™, ®, © symbols before comparison to handle store names like "Lost Soul Aside™".
     /// </summary>
-    private static bool IsNativeHdrGameMatch(string gameName)
-        => MatchesGameSet(gameName, NativeHdrGames);
+    private bool IsNativeHdrGameMatch(string gameName)
+        => MatchesGameSet(gameName, NativeHdrGames)
+           || (_manifestNativeHdrGames.Count > 0 && MatchesGameSet(gameName, _manifestNativeHdrGames));
 
     /// <summary>
     /// Checks if a game name matches any entry in the user's _ueExtendedGames set.
@@ -847,6 +829,7 @@ public partial class MainViewModel : ObservableObject
         _dllOverrides           = new(StringComparer.OrdinalIgnoreCase);
         _folderOverrides        = new(StringComparer.OrdinalIgnoreCase);
         _lumaEnabledGames       = new(StringComparer.OrdinalIgnoreCase);
+        _lumaDisabledGames      = new(StringComparer.OrdinalIgnoreCase);
         _favouriteGames         ??= new(StringComparer.OrdinalIgnoreCase);
         _hiddenGames            ??= new(StringComparer.OrdinalIgnoreCase);
 
@@ -929,17 +912,20 @@ public partial class MainViewModel : ObservableObject
         if (s.TryGetValue("SkipUpdateCheck", out var sucVal))
             SkipUpdateCheck = sucVal == "true";
 
-        if (s.TryGetValue("LumaFeatureEnabled", out var lfeVal))
-            LumaFeatureEnabled = lfeVal == "true";
-
         if (s.TryGetValue("VerboseLogging", out var vlVal))
             VerboseLogging = vlVal == "true";
+
+        if (s.TryGetValue("CompactMode", out var cmVal))
+            CompactMode = cmVal == "true";
 
         if (s.TryGetValue("LastSeenVersion", out var lsvVal))
             LastSeenVersion = lsvVal ?? "";
 
         _lumaEnabledGames = new HashSet<string>(
             Load<List<string>>("LumaEnabledGames", new()), StringComparer.OrdinalIgnoreCase);
+
+        _lumaDisabledGames = new HashSet<string>(
+            Load<List<string>>("LumaDisabledGames", new()), StringComparer.OrdinalIgnoreCase);
 
         _gameRenames = new(Load<Dictionary<string, string>>("GameRenames",
             new(StringComparer.OrdinalIgnoreCase)), StringComparer.OrdinalIgnoreCase);
@@ -1017,6 +1003,7 @@ public partial class MainViewModel : ObservableObject
         MigrateHashSet(_updateAllExcludedGames, oldName, newName);
         MigrateHashSet(_is32BitGames, oldName, newName);
         MigrateHashSet(_lumaEnabledGames, oldName, newName);
+        MigrateHashSet(_lumaDisabledGames, oldName, newName);
 
         // 3. Migrate game-name-keyed Dictionaries
         MigrateDict(_perGameShaderMode, oldName, newName);
@@ -1255,10 +1242,23 @@ public partial class MainViewModel : ObservableObject
             }
             var (_, engine) = GameDetectionService.DetectEngineAndPath(game.InstallPath);
             var mod         = GameDetectionService.MatchGame(game, _allMods, _nameMappings);
+            // Wiki unlink: discard false fuzzy match so the game uses its generic engine addon
+            if (mod != null && _manifestWikiUnlinks.Contains(game.Name)) mod = null;
             var fallback    = mod == null ? (engine == EngineType.Unreal ? MakeGenericUnreal()
-                                           : engine == EngineType.Unity  ? MakeGenericUnity()
-                                           : null) : null;
+                                            : engine == EngineType.Unity  ? MakeGenericUnity()
+                                            : null) : null;
             var effectiveMod = mod ?? fallback;
+
+            // Apply manifest snapshot override
+            if (_manifest?.SnapshotOverrides != null
+                && _manifest.SnapshotOverrides.TryGetValue(game.Name, out var snapshotOvUrl)
+                && !string.IsNullOrEmpty(snapshotOvUrl))
+            {
+                if (effectiveMod != null)
+                    effectiveMod.SnapshotUrl = snapshotOvUrl;
+                else
+                    effectiveMod = new GameMod { Name = game.Name, SnapshotUrl = snapshotOvUrl, Status = "✅" };
+            }
 
             card.Mod            = effectiveMod;
             card.IsExternalOnly = effectiveMod?.SnapshotUrl == null &&
@@ -1267,7 +1267,9 @@ public partial class MainViewModel : ObservableObject
             card.ExternalLabel  = effectiveMod?.NexusUrl != null ? "Get on Nexus Mods" : "Get on Discord";
             card.NexusUrl       = effectiveMod?.NexusUrl;
             card.DiscordUrl     = effectiveMod?.DiscordUrl;
-            card.WikiStatus     = effectiveMod?.Status ?? "—";
+            card.WikiStatus     = (mod == null && fallback != null && !card.UseUeExtended && !card.IsNativeHdrGame)
+                                  ? "?"
+                                  : effectiveMod?.Status ?? "—";
             card.Notes          = effectiveMod != null
                                   ? BuildNotes(game.Name, effectiveMod, fallback, _genericNotes, card.IsNativeHdrGame)
                                   : "";
@@ -1420,6 +1422,180 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    // ── Remote Manifest ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Seeds the working sets (_nameMappings, _ueExtendedGames, _is32BitGames, etc.)
+    /// with values from the remote manifest. Local user overrides always take priority:
+    /// manifest values are only applied where no local setting already exists.
+    /// Must be called BEFORE BuildCards.
+    /// </summary>
+    private void ApplyManifest(RemoteManifest? manifest)
+    {
+        _manifestNativeHdrGames.Clear();
+        _manifestWikiUnlinks.Clear();
+        if (manifest == null) return;
+
+        // Wiki name overrides — local user name mappings take priority
+        if (manifest.WikiNameOverrides != null)
+        {
+            foreach (var (key, value) in manifest.WikiNameOverrides)
+            {
+                if (!_nameMappings.ContainsKey(key))
+                    _nameMappings[key] = value;
+            }
+        }
+
+        // UE-Extended games — additive merge, user can toggle off via UI
+        if (manifest.UeExtendedGames != null)
+        {
+            foreach (var game in manifest.UeExtendedGames)
+                _ueExtendedGames.Add(game);
+        }
+
+        // Native HDR games — populate the instance set (used alongside the static list)
+        if (manifest.NativeHdrGames != null)
+        {
+            foreach (var game in manifest.NativeHdrGames)
+                _manifestNativeHdrGames.Add(game);
+        }
+
+        // 32-bit games — additive merge
+        if (manifest.ThirtyTwoBitGames != null)
+        {
+            foreach (var game in manifest.ThirtyTwoBitGames)
+                _is32BitGames.Add(game);
+        }
+
+        // DC mode overrides — local per-game overrides take priority
+        if (manifest.DcModeOverrides != null)
+        {
+            foreach (var (key, value) in manifest.DcModeOverrides)
+            {
+                if (!_perGameDcModeOverride.ContainsKey(key))
+                    _perGameDcModeOverride[key] = value;
+            }
+        }
+
+        // Blacklist — completely exclude from detection (never shown, not even as hidden)
+        _manifestBlacklist.Clear();
+        if (manifest.Blacklist != null)
+        {
+            foreach (var game in manifest.Blacklist)
+                _manifestBlacklist.Add(game);
+        }
+
+        // Install path overrides — local _installPathOverrides take priority
+        if (manifest.InstallPathOverrides != null)
+        {
+            foreach (var (key, value) in manifest.InstallPathOverrides)
+            {
+                _installPathOverrides.TryAdd(key, value);
+            }
+        }
+
+        // Wiki unlinks — force games to use their generic engine addon instead of a
+        // false fuzzy wiki match. Applied after MatchGame at each call site.
+        if (manifest.WikiUnlinks != null)
+        {
+            foreach (var game in manifest.WikiUnlinks)
+                _manifestWikiUnlinks.Add(game);
+        }
+
+        CrashReporter.Log($"ApplyManifest: v{manifest.Version}, " +
+            $"+{manifest.WikiNameOverrides?.Count ?? 0} name overrides, " +
+            $"+{manifest.UeExtendedGames?.Count ?? 0} UE-Ext, " +
+            $"+{manifest.NativeHdrGames?.Count ?? 0} NativeHDR, " +
+            $"+{manifest.ThirtyTwoBitGames?.Count ?? 0} 32-bit, " +
+            $"+{manifest.DcModeOverrides?.Count ?? 0} DC overrides, " +
+            $"+{manifest.Blacklist?.Count ?? 0} blacklisted, " +
+            $"+{manifest.InstallPathOverrides?.Count ?? 0} path overrides, " +
+            $"+{manifest.WikiStatusOverrides?.Count ?? 0} status overrides, " +
+            $"+{manifest.SnapshotOverrides?.Count ?? 0} snapshot overrides, " +
+            $"+{manifest.WikiUnlinks?.Count ?? 0} wiki unlinks");
+    }
+
+    /// <summary>
+    /// Applies wiki status overrides from the remote manifest to the fetched mod list.
+    /// Called after _allMods is populated so that manifest-driven statuses win over
+    /// the hardcoded WikiService.ApplyStatusOverrides pass.
+    /// </summary>
+    private void ApplyManifestStatusOverrides()
+    {
+        var overrides = _manifest?.WikiStatusOverrides;
+        if (overrides == null || overrides.Count == 0) return;
+
+        foreach (var mod in _allMods)
+        {
+            if (overrides.TryGetValue(mod.Name, out var status))
+                mod.Status = status;
+        }
+    }
+
+    /// <summary>
+    /// Applies manifest-driven card overrides AFTER the hardcoded ApplyCardOverrides pass.
+    /// Handles GameNotes (appended/set if no hardcoded notes exist) and ForceExternalOnly.
+    /// </summary>
+    private static void ApplyManifestCardOverrides(RemoteManifest? manifest, List<GameCardViewModel> cards)
+    {
+        if (manifest == null) return;
+
+        // Game notes — replace existing notes entirely when manifest provides custom notes
+        if (manifest.GameNotes != null)
+        {
+            foreach (var card in cards)
+            {
+                if (!manifest.GameNotes.TryGetValue(card.GameName, out var noteEntry)) continue;
+
+                if (!string.IsNullOrWhiteSpace(noteEntry.Notes))
+                {
+                    card.Notes = noteEntry.Notes;
+                }
+
+                if (!string.IsNullOrEmpty(noteEntry.NotesUrl) && string.IsNullOrEmpty(card.NotesUrl))
+                {
+                    card.NotesUrl      = noteEntry.NotesUrl;
+                    card.NotesUrlLabel = noteEntry.NotesUrlLabel;
+                }
+            }
+        }
+
+        // Force external only — redirect install button to an external URL
+        if (manifest.ForceExternalOnly != null)
+        {
+            foreach (var card in cards)
+            {
+                if (!manifest.ForceExternalOnly.TryGetValue(card.GameName, out var ext)) continue;
+                if (card.IsExternalOnly) continue; // already set by hardcoded overrides
+
+                if (card.Mod != null)
+                    card.Mod.SnapshotUrl = null;
+
+                card.IsExternalOnly = true;
+                card.ExternalUrl    = ext.Url ?? "https://discord.gg/gF4GRJWZ2A";
+                card.ExternalLabel  = ext.Label ?? "Get on Discord";
+                card.WikiStatus     = "💬";
+            }
+        }
+
+        // Luma game notes — custom notes shown in the info dialog when in Luma mode
+        if (manifest.LumaGameNotes != null)
+        {
+            foreach (var card in cards)
+            {
+                if (!manifest.LumaGameNotes.TryGetValue(card.GameName, out var lumaNote)) continue;
+
+                if (!string.IsNullOrWhiteSpace(lumaNote.Notes))
+                    card.LumaNotes = lumaNote.Notes;
+                if (!string.IsNullOrEmpty(lumaNote.NotesUrl))
+                {
+                    card.LumaNotesUrl      = lumaNote.NotesUrl;
+                    card.LumaNotesUrlLabel = lumaNote.NotesUrlLabel;
+                }
+            }
+        }
+    }
+
     /// <summary>Public entry point to persist all settings to disk.</summary>
     public void SaveSettingsPublic() => SaveNameMappings();
 
@@ -1520,10 +1696,11 @@ public partial class MainViewModel : ObservableObject
             s["Is32BitGames"]         = JsonSerializer.Serialize(_is32BitGames.ToList());
             s["ShaderDeployMode"]    = ShaderDeployMode.ToString();
             s["SkipUpdateCheck"]     = SkipUpdateCheck ? "true" : "false";
-            s["LumaFeatureEnabled"] = LumaFeatureEnabled ? "true" : "false";
             s["VerboseLogging"]     = VerboseLogging ? "true" : "false";
+            s["CompactMode"]        = CompactMode ? "true" : "false";
             s["LastSeenVersion"]     = LastSeenVersion;
             s["LumaEnabledGames"]   = JsonSerializer.Serialize(_lumaEnabledGames.ToList());
+            s["LumaDisabledGames"]  = JsonSerializer.Serialize(_lumaDisabledGames.ToList());
             s["GameRenames"]         = JsonSerializer.Serialize(_gameRenames);
             s["DllOverrides"]        = JsonSerializer.Serialize(_dllOverrides);
             s["FolderOverrides"]     = JsonSerializer.Serialize(_folderOverrides);
@@ -1706,6 +1883,8 @@ public partial class MainViewModel : ObservableObject
         }
 
         var mod = GameDetectionService.MatchGame(game, _allMods, _nameMappings);
+        // Wiki unlink: discard false fuzzy match so the game uses its generic engine addon
+        if (mod != null && _manifestWikiUnlinks.Contains(game.Name)) mod = null;
         var genericUnreal = MakeGenericUnreal();
         var genericUnity  = MakeGenericUnity();
         var fallback = mod == null ? (engine == EngineType.Unreal      ? genericUnreal
@@ -1761,12 +1940,32 @@ public partial class MainViewModel : ObservableObject
             };
         }
 
+        // ── Manifest snapshot override (same logic as BuildCards) ─────────────
+        if (_manifest?.SnapshotOverrides != null
+            && _manifest.SnapshotOverrides.TryGetValue(game.Name, out var snapshotOverrideUrlM)
+            && !string.IsNullOrEmpty(snapshotOverrideUrlM))
+        {
+            if (effectiveMod != null)
+            {
+                effectiveMod.SnapshotUrl = snapshotOverrideUrlM;
+            }
+            else
+            {
+                effectiveMod = new GameMod
+                {
+                    Name        = game.Name,
+                    SnapshotUrl = snapshotOverrideUrlM,
+                    Status      = "✅",
+                };
+            }
+        }
+
         // ── Apply NativeHdr / UE-Extended whitelist (same logic as BuildCards) ────
         bool isNativeHdr = IsNativeHdrGameMatch(game.Name);
         bool useUeExt = (addonOnDisk == UeExtendedFile)
-                        || (IsUeExtendedGameMatch(game.Name) && (effectiveMod?.IsGenericUnreal == true || engine == EngineType.Unreal))
+                        || IsUeExtendedGameMatch(game.Name)
                         || (isNativeHdr && (effectiveMod?.IsGenericUnreal == true || engine == EngineType.Unreal));
-        if (useUeExt && (effectiveMod?.IsGenericUnreal == true || engine == EngineType.Unreal))
+        if (useUeExt && effectiveMod != null)
         {
             effectiveMod = new GameMod
             {
@@ -1822,7 +2021,9 @@ public partial class MainViewModel : ObservableObject
             WikiStatus     = (_wikiExclusions.Contains(game.Name)
                                || (effectiveMod?.SnapshotUrl == null && effectiveMod?.DiscordUrl != null && effectiveMod?.NexusUrl == null))
                               ? "💬"
-                              : effectiveMod?.Status ?? "—",
+                              : (mod == null && fallback != null && !useUeExt && !isNativeHdr)
+                                ? "?"
+                                : effectiveMod?.Status ?? "—",
             Maintainer     = effectiveMod?.Maintainer ?? "",
             IsGenericMod   = useUeExt || (fallback != null && mod == null),
             EngineHint     = (useUeExt && engine == EngineType.Unknown) ? "Unreal Engine"
@@ -1850,6 +2051,7 @@ public partial class MainViewModel : ObservableObject
             IsFavourite            = _favouriteGames.Contains(game.Name),
             UseUeExtended          = useUeExt,
             IsNativeHdrGame        = isNativeHdr,
+            IsManifestUeExtended   = useUeExt && !isNativeHdr,
             PerGameDcMode          = _perGameDcModeOverride.TryGetValue(game.Name, out var pgdmM) ? pgdmM : null,
             ExcludeFromUpdateAll   = _updateAllExcludedGames.Contains(game.Name),
             ExcludeFromShaders     = IsShaderExcluded(game.Name),
@@ -2255,6 +2457,7 @@ public partial class MainViewModel : ObservableObject
         if (card.IsLumaMode)
         {
             _lumaEnabledGames.Add(card.GameName);
+            _lumaDisabledGames.Remove(card.GameName);
 
             // Remove RenoDX mod if installed
             if (card.InstalledRecord != null)
@@ -2298,6 +2501,7 @@ public partial class MainViewModel : ObservableObject
         else
         {
             _lumaEnabledGames.Remove(card.GameName);
+            _lumaDisabledGames.Add(card.GameName);
 
             // Uninstall Luma files if installed
             if (card.LumaRecord != null)
@@ -2670,10 +2874,11 @@ public partial class MainViewModel : ObservableObject
 
                 // Always re-detect games so newly installed titles (especially Xbox) appear
                 // without requiring the user to delete cache files or manually refresh.
-                var wikiTask   = WikiService.FetchAllAsync(_http);
-                var lumaTask   = _lumaService.FetchCompletedModsAsync();
-                var detectTask = Task.Run(DetectAllGamesDeduped);
-                var rsTask     = Task.Run(async () => {
+                var wikiTask     = WikiService.FetchAllAsync(_http);
+                var lumaTask     = _lumaService.FetchCompletedModsAsync();
+                var manifestTask = ManifestService.FetchAsync(_http);
+                var detectTask   = Task.Run(DetectAllGamesDeduped);
+                var rsTask       = Task.Run(async () => {
                     try { await _rsUpdateService.EnsureLatestAsync(); }
                     catch (Exception ex) { CrashReporter.Log($"ReShadeUpdate task failed: {ex.Message}"); }
                 });
@@ -2684,6 +2889,7 @@ public partial class MainViewModel : ObservableObject
                 // Await network tasks individually so failures don't block game display
                 try { await wikiTask; } catch (Exception ex) { wikiFetchFailed = true; CrashReporter.Log($"Wiki fetch failed (offline?): {ex.Message}"); }
                 try { await lumaTask; } catch (Exception ex) { CrashReporter.Log($"Luma fetch failed (offline?): {ex.Message}"); }
+                try { _manifest = await manifestTask; } catch (Exception ex) { CrashReporter.Log($"Manifest fetch failed: {ex.Message}"); }
                 await rsTask;
                 AuxInstallService.SyncReShadeToDisplayCommander();
 
@@ -2718,10 +2924,11 @@ public partial class MainViewModel : ObservableObject
             {
                 StatusText    = "Scanning game library...";
                 SubStatusText = "Running store scans + wiki fetch simultaneously...";
-                var wikiTask   = WikiService.FetchAllAsync(_http);
-                var lumaTask   = _lumaService.FetchCompletedModsAsync();
-                var detectTask = Task.Run(DetectAllGamesDeduped);
-                var rsTask     = Task.Run(async () => {
+                var wikiTask     = WikiService.FetchAllAsync(_http);
+                var lumaTask     = _lumaService.FetchCompletedModsAsync();
+                var manifestTask = ManifestService.FetchAsync(_http);
+                var detectTask   = Task.Run(DetectAllGamesDeduped);
+                var rsTask       = Task.Run(async () => {
                     try { await _rsUpdateService.EnsureLatestAsync(); }
                     catch (Exception ex) { CrashReporter.Log($"ReShadeUpdate task failed: {ex.Message}"); }
                 });
@@ -2732,6 +2939,7 @@ public partial class MainViewModel : ObservableObject
                 // Await network tasks individually so failures don't block game display
                 try { await wikiTask; } catch (Exception ex) { wikiFetchFailed = true; CrashReporter.Log($"Wiki fetch failed (offline?): {ex.Message}"); }
                 try { await lumaTask; } catch (Exception ex) { CrashReporter.Log($"Luma fetch failed (offline?): {ex.Message}"); }
+                try { _manifest = await manifestTask; } catch (Exception ex) { CrashReporter.Log($"Manifest fetch failed: {ex.Message}"); }
                 await rsTask;
                 AuxInstallService.SyncReShadeToDisplayCommander();
 
@@ -2757,6 +2965,16 @@ public partial class MainViewModel : ObservableObject
                 .Where(g => !manualNames.Contains(GameDetectionService.NormalizeName(g.Name)))
                 .Concat(_manualGames)
                 .ToList();
+
+            // Apply remote manifest data before building cards (local user overrides take priority)
+            ApplyManifest(_manifest);
+
+            // Apply manifest-driven wiki status overrides to mod list
+            ApplyManifestStatusOverrides();
+
+            // Remove manifest-blacklisted entries entirely (non-game apps, etc.)
+            if (_manifestBlacklist.Count > 0)
+                allGames = allGames.Where(g => !_manifestBlacklist.Contains(g.Name)).ToList();
 
             var records    = _installer.LoadAll();
             var auxRecords = _auxInstaller.LoadAll();
@@ -2982,8 +3200,9 @@ public partial class MainViewModel : ObservableObject
     /// Per-game install path overrides: maps game name to a sub-path relative to the
     /// detected root. Used when the game exe lives in a non-standard location that the
     /// engine-detection heuristics do not resolve automatically.
+    /// Seeded with hardcoded defaults; the remote manifest can add more via ApplyManifest.
     /// </summary>
-    private static readonly Dictionary<string, string> _installPathOverrides =
+    private readonly Dictionary<string, string> _installPathOverrides =
         new(StringComparer.OrdinalIgnoreCase)
     {
         ["Cyberpunk 2077"] = @"bin\x64",
@@ -3062,6 +3281,8 @@ public partial class MainViewModel : ObservableObject
             }
 
             var mod      = GameDetectionService.MatchGame(game, _allMods, _nameMappings);
+            // Wiki unlink: discard false fuzzy match so the game uses its generic engine addon
+            if (mod != null && _manifestWikiUnlinks.Contains(game.Name)) mod = null;
             // UnrealLegacy (UE3 and below) cannot use the RenoDX addon system — no fallback mod offered.
             var fallback = mod == null ? (engine == EngineType.Unreal      ? genericUnreal
                                         : engine == EngineType.Unity       ? genericUnity : null) : null;
@@ -3166,15 +3387,38 @@ public partial class MainViewModel : ObservableObject
                 };
             }
 
+            // ── Manifest snapshot override ────────────────────────────────────────
+            // If the manifest provides a direct snapshot URL for this game, inject it
+            // into the effectiveMod. This handles cases where the wiki parser fails to
+            // capture the snapshot link or the name mapping doesn't resolve correctly.
+            if (_manifest?.SnapshotOverrides != null
+                && _manifest.SnapshotOverrides.TryGetValue(game.Name, out var snapshotOverrideUrl)
+                && !string.IsNullOrEmpty(snapshotOverrideUrl))
+            {
+                if (effectiveMod != null)
+                {
+                    effectiveMod.SnapshotUrl = snapshotOverrideUrl;
+                }
+                else
+                {
+                    effectiveMod = new GameMod
+                    {
+                        Name        = game.Name,
+                        SnapshotUrl = snapshotOverrideUrl,
+                        Status      = "✅",
+                    };
+                }
+            }
+
             // Apply UE-Extended preference: if the game has it saved OR the file is on disk,
             // force the Mod URL to the marat569 source so the install button targets it.
             // Native HDR games always use UE-Extended, regardless of user toggle.
             // UE-Extended whitelist supersedes everything — hide Nexus link and force install/update/reinstall.
             bool isNativeHdr = IsNativeHdrGameMatch(game.Name);
             bool useUeExt = (addonOnDisk == UeExtendedFile)
-                            || (IsUeExtendedGameMatch(game.Name) && (effectiveMod?.IsGenericUnreal == true || engine == EngineType.Unreal))
+                            || IsUeExtendedGameMatch(game.Name)
                             || (isNativeHdr && (effectiveMod?.IsGenericUnreal == true || engine == EngineType.Unreal));
-            if (useUeExt && (effectiveMod?.IsGenericUnreal == true || engine == EngineType.Unreal))
+            if (useUeExt && effectiveMod != null)
             {
                 // Create or override the mod to use UE-Extended URL
                 effectiveMod = new GameMod
@@ -3346,7 +3590,9 @@ public partial class MainViewModel : ObservableObject
                 WikiStatus             = (_wikiExclusions.Contains(game.Name)
                                            || (effectiveMod?.SnapshotUrl == null && effectiveMod?.DiscordUrl != null && effectiveMod?.NexusUrl == null))
                                           ? "💬"
-                                          : effectiveMod?.Status ?? "—",
+                                          : (mod == null && fallback != null && !useUeExt && !isNativeHdr)
+                                            ? "?"
+                                            : effectiveMod?.Status ?? "—",
                 Maintainer             = effectiveMod?.Maintainer ?? "",
                 IsGenericMod           = useUeExt || (fallback != null && mod == null),
                 EngineHint             = (useUeExt && engine == EngineType.Unknown) ? "Unreal Engine"
@@ -3381,6 +3627,7 @@ public partial class MainViewModel : ObservableObject
                 Is32Bit                = _is32BitGames.Contains(game.Name),
                 DllOverrideEnabled     = _dllOverrides.ContainsKey(game.Name),
                 IsNativeHdrGame        = isNativeHdr,
+                IsManifestUeExtended   = useUeExt && !isNativeHdr,
                 DcRecord               = dcRec,
                 DcStatus               = dcRec != null ? GameStatus.Installed : GameStatus.NotInstalled,
                 DcInstalledFile        = dcRec?.InstalledAs,
@@ -3394,10 +3641,21 @@ public partial class MainViewModel : ObservableObject
             // ── Luma matching ──────────────────────────────────────────────────────
             var newCard = cards[^1];
             newCard.LumaFeatureEnabled = LumaFeatureEnabled;
+            newCard.CompactMode = CompactMode;
             var lumaMatch = MatchLumaGame(game.Name);
             if (lumaMatch != null)
             {
                 newCard.LumaMod = lumaMatch;
+
+                // Auto-enable Luma for manifest-listed games (unless user explicitly disabled)
+                if (_manifest?.LumaDefaultGames != null
+                    && !_lumaEnabledGames.Contains(game.Name)
+                    && !_lumaDisabledGames.Contains(game.Name)
+                    && _manifest.LumaDefaultGames.Any(g => g.Equals(game.Name, StringComparison.OrdinalIgnoreCase)))
+                {
+                    _lumaEnabledGames.Add(game.Name);
+                }
+
                 newCard.IsLumaMode = _lumaEnabledGames.Contains(game.Name);
                 // Check if Luma is installed on disk
                 var lumaRec = LumaService.GetRecordByPath(installPath);
@@ -3408,21 +3666,9 @@ public partial class MainViewModel : ObservableObject
                 }
             }
 
-            // If this game has NO RenoDX wiki mod (only a Luma mod) and Luma is disabled,
-            // don't show the Discord link — the game has no actionable mod right now.
-            if (!LumaFeatureEnabled && mod == null && fallback == null && lumaMatch != null)
-            {
-                if (newCard.IsExternalOnly)
-                {
-                    newCard.IsExternalOnly = false;
-                    newCard.ExternalUrl    = "";
-                    newCard.ExternalLabel  = "";
-                    newCard.DiscordUrl     = null;
-                    newCard.WikiStatus     = "—";
-                }
             }
-        }
         ApplyCardOverrides(cards);
+        ApplyManifestCardOverrides(_manifest, cards);
 
         // Persist the addon file cache for next launch.
         _addonFileCache = newAddonFileCache;
@@ -3597,20 +3843,18 @@ public partial class MainViewModel : ObservableObject
                 if (c.LumaMod == null) return false;
                 return !c.IsHidden;
             }
-
-            // For Installed tab, the ShowHidden toggle controls whether hidden installed games are included
-            if (FilterMode == "Installed")
-            {
-                var isInstalled = c.Status == GameStatus.Installed || c.Status == GameStatus.UpdateAvailable;
-                if (!isInstalled) return false;
-                return ShowHidden || !c.IsHidden;
-            }
-
-            // Not Installed: non-hidden games without RenoDX mod installed
-            if (FilterMode == "NotInstalled")
+            if (FilterMode == "RenoDX")
             {
                 if (c.IsHidden) return false;
-                return c.Status != GameStatus.Installed && c.Status != GameStatus.UpdateAvailable;
+                // Has a RenoDX mod on the wiki
+                if (c.Mod != null) return true;
+                // Is Unreal or Unity engine (eligible for generic mod)
+                var isUnreal = !string.IsNullOrEmpty(c.EngineHint) && c.EngineHint.IndexOf("Unreal", StringComparison.OrdinalIgnoreCase) >= 0;
+                var isUnity  = !string.IsNullOrEmpty(c.EngineHint) && c.EngineHint.IndexOf("Unity", StringComparison.OrdinalIgnoreCase) >= 0;
+                if (isUnreal || isUnity) return true;
+                // Has a RenoDX mod installed in the folder
+                if (c.Status == GameStatus.Installed || c.Status == GameStatus.UpdateAvailable) return true;
+                return false;
             }
 
             // Default: hide hidden games (they belong in Hidden tab)

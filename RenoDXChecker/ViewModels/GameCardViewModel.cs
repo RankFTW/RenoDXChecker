@@ -78,10 +78,13 @@ public partial class GameCardViewModel : ObservableObject
     [ObservableProperty] private GameStatus _lumaStatus = GameStatus.NotInstalled;
     public LumaMod? LumaMod { get; set; }
     public LumaInstalledRecord? LumaRecord { get; set; }
-    /// <summary>Global toggle — Luma UI only shows when enabled in settings.</summary>
-    [ObservableProperty] private bool _lumaFeatureEnabled;
+    /// <summary>Global toggle — Luma UI is always enabled.</summary>
+    [ObservableProperty] private bool _lumaFeatureEnabled = true;
     /// <summary>True when a matching Luma mod exists in the wiki.</summary>
     public bool IsLumaAvailable => LumaMod != null;
+
+    // ── Compact mode — hides the tune button on cards when the inline overrides panel is visible ──
+    [ObservableProperty] private bool _compactMode;
 
     // ── INI preset existence (re-checked on every NotifyAll call) ─────────────────
     /// <summary>True when reshade.ini is present in the inis folder — enables the 📋 button.</summary>
@@ -102,6 +105,9 @@ public partial class GameCardViewModel : ObservableObject
     public string DcIniMargin          => DcDeleteVisible ? "0,0,1,0"  : "0";
     public string? NotesUrl     { get; set; }   // Clickable link embedded in the notes dialog
     public string? NotesUrlLabel { get; set; }  // Display label for the notes link
+    public string? LumaNotes     { get; set; }  // Custom Luma notes from manifest
+    public string? LumaNotesUrl  { get; set; }  // Clickable link for Luma notes
+    public string? LumaNotesUrlLabel { get; set; }  // Display label for the Luma notes link
     public bool IsManuallyAdded { get; set; }
     public DetectedGame? DetectedGame         { get; set; }
     public InstalledModRecord? InstalledRecord { get; set; }
@@ -110,13 +116,20 @@ public partial class GameCardViewModel : ObservableObject
 
     public string WikiStatusLabel => WikiStatus == "✅" ? "✅ Working"
                                    : WikiStatus == "🚧" ? "🚧 In Progress"
+                                   : WikiStatus == "?"  ? "🚧 Unknown"
                                    : WikiStatus == "💬" ? "💬 Discord"
                                    : "❓ Unknown";
 
-    // Badge colours change for the Discord status to make it visually distinct
-    public string WikiStatusBadgeBackground => WikiStatus == "💬" ? "#1A1830" : "#1C2848";
-    public string WikiStatusBadgeBorderBrush => WikiStatus == "💬" ? "#3A2860" : "#283C60";
-    public string WikiStatusBadgeForeground  => WikiStatus == "💬" ? "#8878C8" : "#7A9AB8";
+    // Badge colours change per status to make them visually distinct
+    public string WikiStatusBadgeBackground  => WikiStatus == "💬" ? "#1A1830"
+                                              : WikiStatus == "?"  ? "#2A2410"
+                                              : "#1C2848";
+    public string WikiStatusBadgeBorderBrush => WikiStatus == "💬" ? "#3A2860"
+                                              : WikiStatus == "?"  ? "#504020"
+                                              : "#283C60";
+    public string WikiStatusBadgeForeground  => WikiStatus == "💬" ? "#8878C8"
+                                              : WikiStatus == "?"  ? "#C8A868"
+                                              : "#7A9AB8";
 
     // Update button colours — purple when an update is available, normal blue otherwise
     public string InstallBtnBackground  => Status == GameStatus.UpdateAvailable ? "#2A1A40" : "#22386A";
@@ -216,14 +229,35 @@ public partial class GameCardViewModel : ObservableObject
         "Manual" => "🔧", _ => "🎮"
     };
 
+    public string? SourceIconPath => Source switch
+    {
+        "Steam"  => "Assets/icons/steam.ico",
+        "GOG"    => "Assets/icons/gog.ico",
+        "Epic"   => "Assets/icons/epic.ico",
+        "EA App" => "Assets/icons/ea.ico",
+        "Xbox"   => "Assets/icons/xbox.ico",
+        _        => null
+    };
+
+    public Visibility SourceIconImageVisibility =>
+        SourceIconPath != null ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility SourceIconTextVisibility =>
+        SourceIconPath == null ? Visibility.Visible : Visibility.Collapsed;
+
     public string GenericModLabel => IsGenericMod
         ? (EngineHint.Contains("Unity")
            ? "Generic Unity"
-           : (IsNativeHdrGame ? "Extended UE Native HDR" : "Generic UE"))
+           : (IsNativeHdrGame ? "Extended UE Native HDR"
+              : IsManifestUeExtended ? "Extended UE"
+              : "Generic UE"))
         : "";
 
     /// <summary>Set by MainViewModel for games that default to UE-Extended + Native HDR label.</summary>
     public bool IsNativeHdrGame { get; set; }
+
+    /// <summary>Set by MainViewModel for games in the manifest ueExtendedGames list (but NOT native HDR).</summary>
+    public bool IsManifestUeExtended { get; set; }
 
     /// <summary>Visible when the game is flagged as 32-bit (shows badge next to source/engine).</summary>
     public Visibility Is32BitBadgeVisibility => Is32Bit ? Visibility.Visible : Visibility.Collapsed;
@@ -237,7 +271,7 @@ public partial class GameCardViewModel : ObservableObject
     public Visibility LumaBadgeVisibility => (LumaFeatureEnabled && IsLumaAvailable) ? Visibility.Visible : Visibility.Collapsed;
     public string LumaBadgeLabel => IsLumaMode ? "Luma ON" : "Luma";
     public string LumaBadgeBackground => IsLumaMode ? "#1A3020" : "#1E2040";
-    public string LumaBadgeForeground => IsLumaMode ? "#60C070" : "#606880";
+    public string LumaBadgeForeground => IsLumaMode ? "#408858" : "#606880";
     public string LumaBadgeBorderBrush => IsLumaMode ? "#305030" : "#303460";
 
     // In Luma mode: hide RenoDX install, hide ReShade row, show Luma install
@@ -292,6 +326,16 @@ public partial class GameCardViewModel : ObservableObject
     }
 
     // ── Visibility ────────────────────────────────────────────────────────────────
+
+    public Visibility TuneButtonVisibility       => CompactMode ? Visibility.Collapsed : Visibility.Visible;
+
+    // Compact list item highlight — purple when any component has an update available
+    private bool AnyUpdateAvailable => Status == GameStatus.UpdateAvailable
+                                    || RsStatus == GameStatus.UpdateAvailable
+                                    || DcStatus == GameStatus.UpdateAvailable;
+    public string CompactItemBackground  => AnyUpdateAvailable ? "#2A1A40" : "Transparent";
+    public string CompactItemBorderBrush => AnyUpdateAvailable ? "#6040A0" : "Transparent";
+    public string CompactItemForeground  => AnyUpdateAvailable ? "#C0A0E8" : "#C0D0E8";
 
     public Visibility SourceBadgeVisibility      => string.IsNullOrEmpty(Source) ? Visibility.Collapsed : Visibility.Visible;
     public Visibility GenericBadgeVisibility     => IsGenericMod ? Visibility.Visible : Visibility.Collapsed;
@@ -351,6 +395,9 @@ public partial class GameCardViewModel : ObservableObject
         OnPropertyChanged(nameof(InstalledFileLabelVisible));
         OnPropertyChanged(nameof(InstallPathDisplay));
         OnPropertyChanged(nameof(UpdateBadgeVisibility));
+        OnPropertyChanged(nameof(CompactItemBackground));
+        OnPropertyChanged(nameof(CompactItemBorderBrush));
+        OnPropertyChanged(nameof(CompactItemForeground));
         OnPropertyChanged(nameof(HideButtonLabel));
         OnPropertyChanged(nameof(StarForeground));
         OnPropertyChanged(nameof(IsFavouriteVisibility));
@@ -471,6 +518,7 @@ public partial class GameCardViewModel : ObservableObject
     }
     partial void OnInstallPathChanged(string v)             => OnPropertyChanged(nameof(InstallPathDisplay));
     partial void OnSourceChanged(string v)                  => OnPropertyChanged(nameof(SourceBadgeVisibility));
+    partial void OnCompactModeChanged(bool v)               => OnPropertyChanged(nameof(TuneButtonVisibility));
     partial void OnLumaFeatureEnabledChanged(bool v)        => NotifyAll();
     partial void OnIsLumaModeChanged(bool v)                => NotifyAll();
     partial void OnLumaStatusChanged(GameStatus v)          => NotifyAll();

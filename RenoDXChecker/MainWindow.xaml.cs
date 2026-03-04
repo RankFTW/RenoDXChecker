@@ -41,8 +41,8 @@ public sealed partial class MainWindow : Window
         ViewModel.ConfirmForeignWinmmOverwrite = ShowForeignWinmmConfirmDialogAsync;
         ViewModel.PropertyChanged += OnViewModelChanged;
         GameCardsList.ItemsSource  = ViewModel.DisplayedGames;
-        FilterLuma.Visibility = ViewModel.LumaFeatureEnabled
-            ? Visibility.Visible : Visibility.Collapsed;
+        CompactGameList.ItemsSource = ViewModel.DisplayedGames;
+        CompactCardDisplay.ContentTemplate = GameCardsList.ItemTemplate;
         _ = ViewModel.InitializeAsync();
         // Silent update check — runs in background, shows dialog only if update found
         _ = CheckForAppUpdateAsync();
@@ -447,10 +447,22 @@ public sealed partial class MainWindow : Window
                     if (!_aboutVisible)
                     {
                         LoadingPanel.Visibility = loading ? Visibility.Visible  : Visibility.Collapsed;
-                        CardsScroll.Visibility  = loading ? Visibility.Collapsed : Visibility.Visible;
+                        if (ViewModel.CompactMode)
+                        {
+                            CardsScroll.Visibility = Visibility.Collapsed;
+                            CompactModeArea.Visibility = loading ? Visibility.Collapsed : Visibility.Visible;
+                        }
+                        else
+                        {
+                            CardsScroll.Visibility  = loading ? Visibility.Collapsed : Visibility.Visible;
+                            CompactModeArea.Visibility = Visibility.Collapsed;
+                        }
                     }
+                    // Keep header action buttons hidden in compact mode
+                    HeaderActionButtons.Visibility = ViewModel.CompactMode ? Visibility.Collapsed : Visibility.Visible;
                     LoadingRing.IsActive = loading;
                     RefreshBtn.IsEnabled = !loading;
+                    CmpRefreshBtn.IsEnabled = !loading;
                     StatusDot.Fill = new SolidColorBrush(loading
                         ? Windows.UI.Color.FromArgb(255, 180, 160, 100)
                         : Windows.UI.Color.FromArgb(255, 130, 200, 140));
@@ -471,6 +483,9 @@ public sealed partial class MainWindow : Window
                 case nameof(ViewModel.HiddenCount):
                     HiddenCountText.Text = ViewModel.HiddenCount > 0
                         ? $"· {ViewModel.HiddenCount} hidden" : "";
+                    break;
+                case nameof(ViewModel.CompactMode):
+                    UpdateCompactModeVisibility();
                     break;
             }
         });
@@ -728,10 +743,10 @@ public sealed partial class MainWindow : Window
         _aboutVisible = true;
         AboutPanel.Visibility  = Visibility.Visible;
         CardsScroll.Visibility = Visibility.Collapsed;
+        CompactModeArea.Visibility = Visibility.Collapsed;
         LoadingPanel.Visibility = Visibility.Collapsed;
         // Sync toggle state with ViewModel
         SkipUpdateToggle.IsOn = ViewModel.SkipUpdateCheck;
-        LumaFeatureToggle.IsOn = ViewModel.LumaFeatureEnabled;
         VerboseLoggingToggle.IsOn = ViewModel.VerboseLogging;
     }
 
@@ -741,21 +756,6 @@ public sealed partial class MainWindow : Window
         {
             ViewModel.SkipUpdateCheck = toggle.IsOn;
             ViewModel.SaveSettingsPublic();
-        }
-    }
-
-    private void LumaFeatureToggle_Toggled(object sender, RoutedEventArgs e)
-    {
-        if (sender is ToggleSwitch toggle)
-        {
-            ViewModel.LumaFeatureEnabled = toggle.IsOn;
-            FilterLuma.Visibility = toggle.IsOn
-                ? Microsoft.UI.Xaml.Visibility.Visible
-                : Microsoft.UI.Xaml.Visibility.Collapsed;
-
-            // If Luma filter was active and the feature was just disabled, reset to Detected
-            if (!toggle.IsOn && ViewModel.FilterMode == "Luma")
-                ViewModel.SetFilterCommand.Execute("Detected");
         }
     }
 
@@ -900,8 +900,12 @@ public sealed partial class MainWindow : Window
         // Restore whichever panel was showing before About was opened
         if (ViewModel.IsLoading)
             LoadingPanel.Visibility = Visibility.Visible;
+        else if (ViewModel.CompactMode)
+            CompactModeArea.Visibility = Visibility.Visible;
         else
             CardsScroll.Visibility = Visibility.Visible;
+        // Restore header buttons (hidden in compact mode)
+        HeaderActionButtons.Visibility = ViewModel.CompactMode ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e) =>
@@ -1486,7 +1490,7 @@ public sealed partial class MainWindow : Window
         var inactive = Windows.UI.Color.FromArgb(255, 22, 27, 44);
         var activeFg   = Colors.White;
         var inactiveFg = Windows.UI.Color.FromArgb(255, 160, 170, 200);
-        foreach (var b in new[] { FilterFavourites, FilterDetected, FilterInstalled, FilterNotInstalled, FilterHidden, FilterUnity, FilterUnreal, FilterOther, FilterLuma })
+        foreach (var b in new[] { FilterFavourites, FilterDetected, FilterUnreal, FilterUnity, FilterOther, FilterRenoDX, FilterLuma, FilterHidden })
         {
             bool isActive = b == btn;
             b.Background  = new SolidColorBrush(isActive ? active   : inactive);
@@ -1768,8 +1772,11 @@ public sealed partial class MainWindow : Window
         outerPanel.Children.Add(statusBadge);
 
         // ── Luma info (when in Luma mode) ───────────────────────────────────────────
-        if (card.IsLumaMode && card.LumaMod != null)
+        if (card.IsLumaMode && (card.LumaMod != null || !string.IsNullOrWhiteSpace(card.LumaNotes)))
         {
+            var lumaLabel = card.LumaMod != null
+                ? $"Luma — {card.LumaMod.Status} {card.LumaMod.Author}"
+                : "Luma mode";
             var lumaBadge = new Border
             {
                 CornerRadius    = new CornerRadius(6),
@@ -1780,7 +1787,7 @@ public sealed partial class MainWindow : Window
                 BorderThickness = new Thickness(1),
                 Child = new TextBlock
                 {
-                    Text       = $"Luma — {card.LumaMod.Status} {card.LumaMod.Author}",
+                    Text       = lumaLabel,
                     FontSize   = 12,
                     Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 96, 192, 112)),
                 }
@@ -1788,12 +1795,15 @@ public sealed partial class MainWindow : Window
             outerPanel.Children.Add(lumaBadge);
 
             var lumaNotesText = "";
-            if (!string.IsNullOrWhiteSpace(card.LumaMod.SpecialNotes))
-                lumaNotesText += card.LumaMod.SpecialNotes;
-            if (!string.IsNullOrWhiteSpace(card.LumaMod.FeatureNotes))
+            if (card.LumaMod != null)
             {
-                if (lumaNotesText.Length > 0) lumaNotesText += "\n\n";
-                lumaNotesText += card.LumaMod.FeatureNotes;
+                if (!string.IsNullOrWhiteSpace(card.LumaMod.SpecialNotes))
+                    lumaNotesText += card.LumaMod.SpecialNotes;
+                if (!string.IsNullOrWhiteSpace(card.LumaMod.FeatureNotes))
+                {
+                    if (lumaNotesText.Length > 0) lumaNotesText += "\n\n";
+                    lumaNotesText += card.LumaMod.FeatureNotes;
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(lumaNotesText))
@@ -1807,7 +1817,50 @@ public sealed partial class MainWindow : Window
                     LineHeight   = 22,
                 });
             }
-            else
+
+            // ── Manifest Luma notes (supplement wiki notes) ──────────────────────
+            if (!string.IsNullOrWhiteSpace(card.LumaNotes))
+            {
+                if (!string.IsNullOrEmpty(card.LumaNotesUrl))
+                {
+                    var para = new Microsoft.UI.Xaml.Documents.Paragraph();
+                    para.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run
+                    {
+                        Text       = card.LumaNotes,
+                        Foreground = textColour,
+                        FontSize   = 13,
+                    });
+                    para.Inlines.Add(new Microsoft.UI.Xaml.Documents.LineBreak());
+                    var link = new Microsoft.UI.Xaml.Documents.Hyperlink
+                    {
+                        NavigateUri = new Uri(card.LumaNotesUrl),
+                        Foreground  = linkColour,
+                    };
+                    link.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run
+                    {
+                        Text     = card.LumaNotesUrlLabel ?? card.LumaNotesUrl,
+                        FontSize = 13,
+                    });
+                    para.Inlines.Add(link);
+                    var rtb = new RichTextBlock { IsTextSelectionEnabled = true };
+                    rtb.Blocks.Add(para);
+                    outerPanel.Children.Add(rtb);
+                }
+                else
+                {
+                    outerPanel.Children.Add(new TextBlock
+                    {
+                        Text         = card.LumaNotes,
+                        TextWrapping = TextWrapping.Wrap,
+                        Foreground   = textColour,
+                        FontSize     = 13,
+                        LineHeight   = 22,
+                    });
+                }
+            }
+
+            // Fallback if neither wiki nor manifest provided notes
+            if (string.IsNullOrWhiteSpace(lumaNotesText) && string.IsNullOrWhiteSpace(card.LumaNotes))
             {
                 outerPanel.Children.Add(new TextBlock
                 {
@@ -1871,7 +1924,7 @@ public sealed partial class MainWindow : Window
         var scrollContent = new ScrollViewer
         {
             Content   = outerPanel,
-            MaxHeight = 400,
+            MaxHeight = 440,
             Padding   = new Thickness(0, 4, 12, 0),
         };
 
@@ -1939,10 +1992,15 @@ public sealed partial class MainWindow : Window
     // ── Window persistence (JSON-based, works for unpackaged WinUI 3 apps) ────────
     // ApplicationData.Current.LocalSettings requires package identity and throws in
     // unpackaged apps — so we use a plain JSON file in %LocalAppData% instead.
+    // Stores separate bounds for Full and Compact modes so each remembers its last size.
 
     private static readonly string _windowSettingsPath = System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "RenoDXCommander", "window_main.json");
+
+    // In-memory cache of per-mode bounds (populated from file on first restore)
+    private (int X, int Y, int W, int H)? _fullBounds;
+    private (int X, int Y, int W, int H)? _compactBounds;
 
     private void TryRestoreWindowBounds()
     {
@@ -1951,17 +2009,60 @@ public sealed partial class MainWindow : Window
             if (!System.IO.File.Exists(_windowSettingsPath)) return;
             var json = System.IO.File.ReadAllText(_windowSettingsPath);
             var doc  = System.Text.Json.JsonDocument.Parse(json).RootElement;
-            if (doc.TryGetProperty("X", out var jx) && doc.TryGetProperty("Y", out var jy) &&
-                doc.TryGetProperty("W", out var jw) && doc.TryGetProperty("H", out var jh))
+
+            // Load Full bounds
+            if (doc.TryGetProperty("FullX", out var fx) && doc.TryGetProperty("FullY", out var fy) &&
+                doc.TryGetProperty("FullW", out var fw) && doc.TryGetProperty("FullH", out var fh))
+                _fullBounds = (fx.GetInt32(), fy.GetInt32(), fw.GetInt32(), fh.GetInt32());
+
+            // Load Compact bounds
+            if (doc.TryGetProperty("CompactX", out var cx) && doc.TryGetProperty("CompactY", out var cy) &&
+                doc.TryGetProperty("CompactW", out var cw) && doc.TryGetProperty("CompactH", out var ch))
+                _compactBounds = (cx.GetInt32(), cy.GetInt32(), cw.GetInt32(), ch.GetInt32());
+
+            // Legacy migration: old format stored X/Y/W/H without mode prefix — treat as Full
+            if (_fullBounds == null &&
+                doc.TryGetProperty("X", out var lx) && doc.TryGetProperty("Y", out var ly) &&
+                doc.TryGetProperty("W", out var lw) && doc.TryGetProperty("H", out var lh))
+                _fullBounds = (lx.GetInt32(), ly.GetInt32(), lw.GetInt32(), lh.GetInt32());
+
+            // Apply the bounds for the current mode
+            var bounds = ViewModel.CompactMode ? _compactBounds : _fullBounds;
+            if (bounds is var (x, y, w, h) && w >= 400 && h >= 300 && w <= 7680 && h <= 4320)
             {
-                var x = jx.GetInt32(); var y = jy.GetInt32();
-                var w = jw.GetInt32(); var h = jh.GetInt32();
-                // Sanity-check: reject obviously bad values
-                if (w >= 400 && h >= 300 && w <= 7680 && h <= 4320)
-                {
-                    var hwnd = WindowNative.GetWindowHandle(this);
-                    SetWindowPos(hwnd, IntPtr.Zero, x, y, w, h, 0x0040 /* SWP_NOZORDER */);
-                }
+                var hwnd = WindowNative.GetWindowHandle(this);
+                SetWindowPos(hwnd, IntPtr.Zero, x, y, w, h, 0x0040 /* SWP_NOZORDER */);
+            }
+        }
+        catch { }
+    }
+
+    /// <summary>Captures the current window rect into the in-memory cache for the given mode.</summary>
+    private void CaptureCurrentBounds(bool compact)
+    {
+        try
+        {
+            var hwnd = WindowNative.GetWindowHandle(this);
+            if (!GetWindowRect(hwnd, out var r)) return;
+            var w = r.Right - r.Left;
+            var h = r.Bottom - r.Top;
+            if (w < 100 || h < 100) return;
+            var tuple = (r.Left, r.Top, w, h);
+            if (compact) _compactBounds = tuple; else _fullBounds = tuple;
+        }
+        catch { }
+    }
+
+    /// <summary>Restores the cached bounds for the given mode, if available.</summary>
+    private void RestoreBoundsForMode(bool compact)
+    {
+        try
+        {
+            var bounds = compact ? _compactBounds : _fullBounds;
+            if (bounds is var (x, y, w, h) && w >= 400 && h >= 300 && w <= 7680 && h <= 4320)
+            {
+                var hwnd = WindowNative.GetWindowHandle(this);
+                SetWindowPos(hwnd, IntPtr.Zero, x, y, w, h, 0x0040 /* SWP_NOZORDER */);
             }
         }
         catch { }
@@ -1971,17 +2072,383 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            var hwnd = WindowNative.GetWindowHandle(this);
-            if (!GetWindowRect(hwnd, out var r)) return;
-            var w = r.Right - r.Left;
-            var h = r.Bottom - r.Top;
-            // Don't save minimised/invalid state
-            if (w < 100 || h < 100) return;
+            // Capture final bounds for the current mode
+            CaptureCurrentBounds(ViewModel.CompactMode);
+
             System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(_windowSettingsPath)!);
-            var json = System.Text.Json.JsonSerializer.Serialize(
-                new { X = r.Left, Y = r.Top, W = w, H = h });
+            var data = new Dictionary<string, int>();
+            if (_fullBounds is var (fx, fy, fw, fh))
+            {
+                data["FullX"] = fx; data["FullY"] = fy; data["FullW"] = fw; data["FullH"] = fh;
+            }
+            if (_compactBounds is var (cx, cy, cw, ch))
+            {
+                data["CompactX"] = cx; data["CompactY"] = cy; data["CompactW"] = cw; data["CompactH"] = ch;
+            }
+            var json = System.Text.Json.JsonSerializer.Serialize(data);
             System.IO.File.WriteAllText(_windowSettingsPath, json);
         }
         catch { }
+    }
+
+    // ── Compact / Full UI toggle ──────────────────────────────────────────────────
+
+    private void CompactToggle_Click(object sender, RoutedEventArgs e)
+    {
+        // Save the current mode's window bounds before switching
+        CaptureCurrentBounds(ViewModel.CompactMode);
+
+        ViewModel.CompactMode = !ViewModel.CompactMode;
+        ViewModel.SaveSettingsPublic();
+        UpdateCompactModeVisibility();
+
+        // Restore the target mode's last-known window bounds
+        RestoreBoundsForMode(ViewModel.CompactMode);
+
+        CrashReporter.Log($"UI mode toggled: {(ViewModel.CompactMode ? "Compact" : "Full")}");
+    }
+
+    private void UpdateCompactModeVisibility()
+    {
+        bool compact = ViewModel.CompactMode;
+
+        // Header action buttons (DC Mode, Shaders, Update All, Add Game, etc.): visible in full only
+        HeaderActionButtons.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+
+        // Filter bar stays visible in both modes
+        FilterBarPanel.Visibility = Visibility.Visible;
+
+        if (_aboutVisible)
+        {
+            CardsScroll.Visibility = Visibility.Collapsed;
+            CompactModeArea.Visibility = Visibility.Collapsed;
+        }
+        else if (ViewModel.IsLoading)
+        {
+            CardsScroll.Visibility = Visibility.Collapsed;
+            CompactModeArea.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            CardsScroll.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+            CompactModeArea.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    private void CompactGameList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (CompactGameList.SelectedItem is GameCardViewModel card)
+        {
+            CompactCardDisplay.Content = card;
+            BuildCompactOverridesPanel(card);
+            CompactOverridesContainer.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            CompactCardDisplay.Content = null;
+            CompactOverridesPanel.Children.Clear();
+            CompactOverridesContainer.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void BuildCompactOverridesPanel(GameCardViewModel card)
+    {
+        CompactOverridesPanel.Children.Clear();
+
+        var gameName = card.GameName;
+        bool isLumaMode = ViewModel.IsLumaEnabled(gameName);
+
+        // ── Title ────────────────────────────────────────────────────────────────
+        CompactOverridesPanel.Children.Add(new TextBlock
+        {
+            Text = "⚙ Overrides",
+            FontSize = 13,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 160, 176, 216)),
+        });
+
+        // ── Game name + Wiki name ────────────────────────────────────────────────
+        var detectedBox = new TextBox
+        {
+            Header = "Game name (editable)",
+            Text = gameName,
+            FontSize = 12,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        var wikiBox = new TextBox
+        {
+            Header = "Wiki mod name",
+            PlaceholderText = "Exact wiki name",
+            Text = ViewModel.GetNameMapping(gameName) ?? "",
+            FontSize = 12,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        var originalStoreName = ViewModel.GetOriginalStoreName(gameName);
+        var resetBtn = new Button
+        {
+            Content = "↩ Reset",
+            FontSize = 12,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Padding = new Thickness(10, 6, 10, 6),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 26, 24, 32)),
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 140, 130, 160)),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 50, 45, 60)),
+        };
+        ToolTipService.SetToolTip(resetBtn,
+            "Reset game name back to auto-detected and clear wiki name mapping.");
+        resetBtn.Click += (s, ev) =>
+        {
+            detectedBox.Text = originalStoreName ?? gameName;
+            wikiBox.Text = "";
+        };
+
+        var nameGrid = new Grid { ColumnSpacing = 8 };
+        nameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        nameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        nameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(detectedBox, 0);
+        Grid.SetColumn(wikiBox, 1);
+        Grid.SetColumn(resetBtn, 2);
+        nameGrid.Children.Add(detectedBox);
+        nameGrid.Children.Add(wikiBox);
+        nameGrid.Children.Add(resetBtn);
+        CompactOverridesPanel.Children.Add(nameGrid);
+        CompactOverridesPanel.Children.Add(MakeSeparator());
+
+        // ── DLL naming override ──────────────────────────────────────────────────
+        bool isDllOverride = ViewModel.HasDllOverride(gameName);
+        var existingCfg = ViewModel.GetDllOverride(gameName);
+        bool is32Bit = ViewModel.Is32BitGame(gameName);
+        var defaultRsName = is32Bit ? "ReShade32.dll" : "ReShade64.dll";
+        var defaultDcName = is32Bit ? "zzz_display_commander.addon32" : "zzz_display_commander.addon64";
+
+        var dllOverrideBtn = new ToggleButton
+        {
+            Content = "📝  DLL naming override",
+            IsChecked = isDllOverride,
+            IsEnabled = !isLumaMode,
+            FontSize = 12,
+            Padding = new Thickness(10, 6, 10, 6),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 14, 28, 28)),
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 80, 200, 180)),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 90, 80)),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        ToolTipService.SetToolTip(dllOverrideBtn,
+            "Override the filenames ReShade and Display Commander are installed as. " +
+            "When enabled, existing RS/DC installs are removed and the game is automatically excluded from DC Mode, Update All, and global shaders.");
+        var rsNameBox = new TextBox
+        {
+            PlaceholderText = defaultRsName,
+            Text = existingCfg?.ReShadeFileName ?? "",
+            Header = "ReShade filename",
+            FontSize = 12,
+            IsEnabled = isDllOverride,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        var dcNameBox = new TextBox
+        {
+            PlaceholderText = defaultDcName,
+            Text = existingCfg?.DcFileName ?? "",
+            Header = "DC filename",
+            FontSize = 12,
+            IsEnabled = isDllOverride,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        dllOverrideBtn.Checked   += (s, ev) => { rsNameBox.IsEnabled = true;  dcNameBox.IsEnabled = true; };
+        dllOverrideBtn.Unchecked += (s, ev) => { rsNameBox.IsEnabled = false; dcNameBox.IsEnabled = false; };
+
+        CompactOverridesPanel.Children.Add(dllOverrideBtn);
+        var dllNameGrid = new Grid { ColumnSpacing = 8, Margin = new Thickness(0, 4, 0, 0) };
+        dllNameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        dllNameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumn(rsNameBox, 0);
+        Grid.SetColumn(dcNameBox, 1);
+        dllNameGrid.Children.Add(rsNameBox);
+        dllNameGrid.Children.Add(dcNameBox);
+        CompactOverridesPanel.Children.Add(dllNameGrid);
+        CompactOverridesPanel.Children.Add(MakeSeparator());
+
+        // ── Exclude from wiki ────────────────────────────────────────────────────
+        var excludeBtn = new ToggleButton
+        {
+            Content = "🚫  Exclude from wiki",
+            IsChecked = ViewModel.IsWikiExcluded(gameName),
+            IsEnabled = !isLumaMode,
+            FontSize = 12,
+            Padding = new Thickness(10, 6, 10, 6),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 14, 30)),
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 180, 100, 180)),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 80, 30, 80)),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        ToolTipService.SetToolTip(excludeBtn,
+            isLumaMode ? "Disabled in Luma mode" :
+            "Exclude this game from all wiki matching. The card will show a Discord link instead of an install button.");
+        CompactOverridesPanel.Children.Add(excludeBtn);
+        CompactOverridesPanel.Children.Add(MakeSeparator());
+
+        // ── Exclude from Update All ──────────────────────────────────────────────
+        var uaExcludeBtn = new ToggleButton
+        {
+            Content = "⬆  Exclude from Update All",
+            IsChecked = ViewModel.IsUpdateAllExcluded(gameName),
+            FontSize = 12,
+            Padding = new Thickness(10, 6, 10, 6),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 22, 10, 42)),
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 160, 100, 220)),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 80, 30, 140)),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        ToolTipService.SetToolTip(uaExcludeBtn,
+            "Skip this game when using Update All RenoDX, Update All ReShade, or Update All DC.");
+        CompactOverridesPanel.Children.Add(uaExcludeBtn);
+        CompactOverridesPanel.Children.Add(MakeSeparator());
+
+        // ── 32-bit mode ──────────────────────────────────────────────────────────
+        var bit32Btn = new ToggleButton
+        {
+            Content = "⚠  32-bit mode",
+            IsChecked = is32Bit,
+            IsEnabled = !isLumaMode,
+            FontSize = 12,
+            Padding = new Thickness(10, 6, 10, 6),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 28, 14, 8)),
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 200, 120, 60)),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 120, 50, 20)),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        ToolTipService.SetToolTip(bit32Btn,
+            "Installs 32-bit versions of ReShade, Unity addon, and Display Commander. Only enable if you know this game is 32-bit.");
+        CompactOverridesPanel.Children.Add(bit32Btn);
+        CompactOverridesPanel.Children.Add(MakeSeparator());
+
+        // ── Per-game DC Mode override ────────────────────────────────────────────
+        int? currentDcMode = ViewModel.GetPerGameDcModeOverride(gameName);
+        var dcModeOptions = new[] { "Follow Global", "Exclude (Off)", "DC Mode 1", "DC Mode 2" };
+        var dcModeCombo = new ComboBox
+        {
+            ItemsSource = dcModeOptions,
+            SelectedIndex = currentDcMode switch { null => 0, 0 => 1, 1 => 2, 2 => 3, _ => 0 },
+            FontSize = 12,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Header = "⚙  DC Mode for this game",
+        };
+        ToolTipService.SetToolTip(dcModeCombo,
+            "Follow Global = use the header DC Mode toggle. Exclude (Off) = always use normal naming. " +
+            "DC Mode 1 = force dxgi.dll proxy. DC Mode 2 = force winmm.dll proxy.");
+        CompactOverridesPanel.Children.Add(dcModeCombo);
+        CompactOverridesPanel.Children.Add(MakeSeparator());
+
+        // ── Shader mode ──────────────────────────────────────────────────────────
+        string currentShaderMode = ViewModel.GetPerGameShaderMode(gameName);
+        var shaderModeOptions = new[] { "Global", "Off", "Minimum", "All", "User" };
+        var shaderModeCombo = new ComboBox
+        {
+            ItemsSource = shaderModeOptions,
+            SelectedItem = currentShaderMode,
+            FontSize = 12,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Header = "🎨  Shader mode for this game",
+        };
+        ToolTipService.SetToolTip(shaderModeCombo,
+            "Global = follow the header toggle. Off = no shaders. Minimum = Lilium only. All = all packs. User = custom folder only.\n" +
+            "Note: Per-game shader mode only applies when ReShade is used standalone (DC Mode OFF). " +
+            "When DC Mode is ON, all DC-mode games share the DC global shader folder.");
+        CompactOverridesPanel.Children.Add(shaderModeCombo);
+        CompactOverridesPanel.Children.Add(MakeSeparator());
+
+        // ── Save button ──────────────────────────────────────────────────────────
+        var saveBtn = new Button
+        {
+            Content = "💾  Save Overrides",
+            FontSize = 12,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Padding = new Thickness(14, 8, 14, 8),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 20, 40, 60)),
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 100, 200, 255)),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 40, 80, 120)),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            CornerRadius = new CornerRadius(8),
+        };
+        var capturedName = gameName;
+        saveBtn.Click += (s, ev) =>
+        {
+            var det = detectedBox.Text?.Trim();
+
+            // Handle game rename
+            if (!string.IsNullOrEmpty(capturedName) && !string.IsNullOrEmpty(det)
+                && !det.Equals(capturedName, StringComparison.OrdinalIgnoreCase))
+            {
+                ViewModel.RenameGame(capturedName, det);
+            }
+
+            // Wiki exclusion
+            bool nowExcluded = excludeBtn.IsChecked == true;
+            if (!string.IsNullOrEmpty(det) && nowExcluded != ViewModel.IsWikiExcluded(det))
+                ViewModel.ToggleWikiExclusion(det);
+
+            // DC Mode override
+            int? newDcMode = dcModeCombo.SelectedIndex switch { 1 => 0, 2 => 1, 3 => 2, _ => null };
+            if (!string.IsNullOrEmpty(det) && newDcMode != ViewModel.GetPerGameDcModeOverride(det))
+            {
+                ViewModel.SetPerGameDcModeOverride(det, newDcMode);
+                ViewModel.ApplyDcModeSwitchForCard(det);
+            }
+
+            // Update All exclusion
+            bool nowUaExcluded = uaExcludeBtn.IsChecked == true;
+            if (!string.IsNullOrEmpty(det) && nowUaExcluded != ViewModel.IsUpdateAllExcluded(det))
+                ViewModel.ToggleUpdateAllExclusion(det);
+
+            // Shader mode
+            var newShaderMode = shaderModeCombo.SelectedItem as string ?? "Global";
+            if (!string.IsNullOrEmpty(det) && newShaderMode != ViewModel.GetPerGameShaderMode(det))
+            {
+                ViewModel.SetPerGameShaderMode(det, newShaderMode);
+                ViewModel.DeployShadersForCard(det);
+            }
+
+            // 32-bit mode
+            bool now32Bit = bit32Btn.IsChecked == true;
+            if (!string.IsNullOrEmpty(det) && now32Bit != ViewModel.Is32BitGame(det))
+                ViewModel.Toggle32Bit(det);
+
+            // DLL naming override
+            bool nowDllOverride = dllOverrideBtn.IsChecked == true;
+            bool wasDllOverride = !string.IsNullOrEmpty(det) && ViewModel.HasDllOverride(det);
+            if (!string.IsNullOrEmpty(det))
+            {
+                var targetCard = ViewModel.AllCards.FirstOrDefault(c =>
+                    c.GameName.Equals(det, StringComparison.OrdinalIgnoreCase));
+
+                if (nowDllOverride && !wasDllOverride && targetCard != null)
+                {
+                    var rsName = !string.IsNullOrWhiteSpace(rsNameBox.Text) ? rsNameBox.Text.Trim() : rsNameBox.PlaceholderText;
+                    var dcName = !string.IsNullOrWhiteSpace(dcNameBox.Text) ? dcNameBox.Text.Trim() : dcNameBox.PlaceholderText;
+                    ViewModel.EnableDllOverride(targetCard, rsName, dcName);
+                }
+                else if (nowDllOverride && wasDllOverride)
+                {
+                    var rsName = !string.IsNullOrWhiteSpace(rsNameBox.Text) ? rsNameBox.Text.Trim() : rsNameBox.PlaceholderText;
+                    var dcName = !string.IsNullOrWhiteSpace(dcNameBox.Text) ? dcNameBox.Text.Trim() : dcNameBox.PlaceholderText;
+                    ViewModel.SetDllOverride(det, rsName, dcName);
+                }
+                else if (!nowDllOverride && wasDllOverride && targetCard != null)
+                {
+                    ViewModel.DisableDllOverride(targetCard);
+                }
+            }
+
+            // Name mapping
+            var key = wikiBox.Text?.Trim();
+            if (!nowExcluded && !string.IsNullOrEmpty(det) && !string.IsNullOrEmpty(key))
+                ViewModel.AddNameMapping(det, key);
+            else if (!nowExcluded && !string.IsNullOrEmpty(det) && string.IsNullOrEmpty(key))
+                ViewModel.RemoveNameMapping(det);
+
+            CrashReporter.Log($"Compact overrides saved for: {det}");
+        };
+        CompactOverridesPanel.Children.Add(saveBtn);
     }
 }

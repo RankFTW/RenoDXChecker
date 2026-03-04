@@ -1,4 +1,4 @@
-[center][size=6][b]RenoDX Commander (RDXC) v1.3.2[/b][/size]
+[center][size=6][b]RenoDX Commander (RDXC) v1.3.3[/b][/size]
 [size=3]An unofficial companion app for [url=https://github.com/clshortfuse/renodx]RenoDX[/url] HDR modding on Windows[/size][/center]
 
 [line]
@@ -19,6 +19,41 @@
 [*][b]Install RenoDX[/b] — bottom row (supported games only). Downloaded from GitHub.
 [*][b]Launch the game[/b], press [b]Home[/b] to open ReShade, go to the [b]Add-ons[/b] tab, and configure RenoDX.
 [/list]
+
+[line]
+
+[size=5][b]Compact UI[/b][/size]
+
+RDXC offers two layout modes. Toggle between them with the [b]📐[/b] button.
+
+[list]
+[*][b]Full UI (default)[/b] — Card grid showing all games at once. The 📐 button is in the header bar.
+[*][b]Compact UI[/b] — Alphabetical game list on the left, selected game's card and overrides in the center, vertical toolbar on the right. The 📐 button is at the top of the right toolbar.
+[/list]
+
+Each mode remembers its own window size independently. The active mode preference is saved and persists across app restarts.
+
+In Compact mode the game list displays platform icons (Steam, GOG, Epic, EA App, Xbox) next to each game name. Games with an available update show a highlighted border.
+
+[line]
+
+[size=5][b]Remote Manifest[/b][/size]
+
+RDXC fetches a remote manifest from GitHub on every launch. The manifest provides game-specific overrides that can be updated without releasing a new version of the app:
+
+[list]
+[*][b]Blacklist[/b] — permanently excluded non-game apps
+[*][b]Install path overrides[/b] — corrected install folders for games with non-standard layouts
+[*][b]Wiki status overrides[/b] — force a specific wiki status label for games the scraper misidentifies
+[*][b]Game notes[/b] — custom notes shown in the info popup (can append to or replace wiki notes)
+[*][b]Native HDR list[/b] — Unreal Engine games automatically assigned UE-Extended
+[*][b]Shader pack URLs[/b] — downloadable shader packs
+[*][b]Luma default games[/b] — games that automatically start in Luma mode on first detection
+[*][b]Luma game notes[/b] — custom notes shown in the info popup when a game is in Luma mode
+[*][b]Wiki unlinks[/b] — force specific games to ignore false fuzzy wiki matches and use their generic engine addon instead
+[/list]
+
+The manifest is fetched from the GitHub API with a raw.githubusercontent.com fallback, and cached locally so RDXC works offline after the first successful fetch.
 
 [line]
 
@@ -123,23 +158,17 @@ The same protection applies to winmm.dll when using DC Mode 2. If an existing wi
 
 [size=5][b]UE-Extended and Native HDR[/b][/size]
 
-Unreal Engine games with native HDR support benefit from the UE-Extended addon instead of the generic UE plugin. The following games are automatically assigned UE-Extended:
+Unreal Engine games with native HDR support benefit from the UE-Extended addon instead of the generic UE plugin. Games tagged as native HDR in the remote manifest are automatically assigned UE-Extended and cannot be switched to the generic addon.
 
-[i]Avowed, Lies of P, Lost Soul Aside, Hell is Us, Mafia: The Old Country, Returnal, Marvel's Midnight Suns, Mortal Kombat 1, Alone in the Dark, Still Wakes the Deep[/i]
-
-These cards display "Extended UE Native HDR" as their engine label. The info popup for these games includes a note that [b]in-game HDR must be turned on[/b] for UE-Extended to work correctly.
+These cards display "Extended UE Native HDR" as their engine label. The info popup for these games includes a note that [b]in-game HDR must be turned on[/b] for UE-Extended to work correctly. Other Generic UE cards can be manually toggled to UE-Extended via the lightning bolt button.
 
 [line]
 
-[size=5][b]Luma Framework (Experimental)[/b][/size]
+[size=5][b]Luma Framework[/b][/size]
 
 [color=#FF6644][b]⚠ Experimental feature — not fully supported.[/b][/color] Luma integration is provided as-is. RDXC is not affiliated with or endorsed by the Luma Framework project. Report Luma mod issues to the [url=https://github.com/Filoppi/Luma-Framework]Luma Framework GitHub[/url], not to RDXC.
 
-[url=https://github.com/Filoppi/Luma-Framework]Luma Framework[/url] by Pumbo (Filoppi) is a DX11 modding framework built on the ReShade addon system. It adds HDR support, improved rendering, and other graphics enhancements to supported games.
-
-[size=4][b]Enabling Luma[/b][/size]
-
-Luma UI is [b]hidden by default[/b]. To enable it: [b]About → Settings → Luma (Experimental)[/b]. This reveals Luma toggle badges on compatible game cards and adds a [b]Luma[/b] filter tab to the header bar.
+[url=https://github.com/Filoppi/Luma-Framework]Luma Framework[/url] by Pumbo (Filoppi) is a DX11 modding framework built on the ReShade addon system. It adds HDR support, improved rendering, and other graphics enhancements to supported games. RDXC detects Luma-compatible games and shows a Luma toggle badge on each eligible card. Certain games are automatically defaulted to Luma mode via the remote manifest.
 
 [size=4][b]How Luma Mode Works[/b][/size]
 
@@ -148,11 +177,11 @@ Luma UI is [b]hidden by default[/b]. To enable it: [b]About → Settings → Lum
 [*]RenoDX, ReShade, and Display Commander are [b]automatically uninstalled[/b] and their install rows are hidden.
 [*]Installing Luma downloads and extracts the mod to the game folder, and deploys the bundled reshade.ini and the Lilium HDR shader pack.
 [*]Uninstalling Luma or toggling Luma mode off removes all installed files.
-[*]The info popup shows Luma-specific notes (mod status, author, and feature notes from the wiki).
+[*]The info popup shows Luma-specific notes — both from the wiki and from the remote manifest's custom Luma game notes.
 [*]Luma mode state is saved per-game and persists across app restarts.
 [/list]
 
-Luma mod data is fetched at runtime from the [url=https://github.com/Filoppi/Luma-Framework/wiki/Mods-List]Luma wiki[/url] — nothing is hardcoded.
+Luma mod data is fetched at runtime from the [url=https://github.com/Filoppi/Luma-Framework/wiki/Mods-List]Luma wiki[/url]. Additional game-specific notes and defaults are provided by the remote manifest.
 
 [line]
 
@@ -229,12 +258,11 @@ Clicking Refresh re-evaluates the current mode against all installed games, addi
 [list]
 [*][b]Favourites[/b] — Games you've starred as favourites (includes hidden favourites)
 [*][b]All Games[/b] — All auto-detected and manually added games
-[*][b]Installed[/b] — Games with at least one component installed
-[*][b]Not Installed[/b] — Games with no components installed
-[*][b]Unity[/b] — Unity engine games only
 [*][b]Unreal[/b] — Unreal Engine games only
+[*][b]Unity[/b] — Unity engine games only
 [*][b]Other[/b] — Games with unknown engine type
-[*][b]Luma[/b] — Games with Luma Framework mods available (visible only when Luma is enabled in Settings)
+[*][b]RenoDX[/b] — Games with RenoDX wiki mods available
+[*][b]Luma[/b] — Games with Luma Framework mods available
 [*][b]Hidden[/b] — Games you've hidden
 [/list]
 
@@ -257,7 +285,6 @@ To disable this check entirely, go to [b]About > Settings[/b] and toggle [b]Skip
 The Settings section also includes:
 
 [list]
-[*][b]Luma (Experimental)[/b] — When enabled, shows Luma toggle badges on game cards, adds a Luma filter tab, and allows installing Luma Framework mods. Disabled by default.
 [*][b]Verbose Logging[/b] — When enabled, all activity is continuously logged to rdxc_log.txt in the logs folder. The log auto-rotates at 5 MB. Useful for diagnosing issues — send the log file to the developer alongside any bug reports.
 [/list]
 

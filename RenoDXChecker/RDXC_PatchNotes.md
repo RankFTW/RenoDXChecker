@@ -1,3 +1,67 @@
+## v1.3.3
+
+### New Features
+
+**Compact UI Mode**
+- Added an alternative "Compact" layout alongside the existing "Full" UI.
+- Compact mode shows an alphabetical game list on the left, the selected game's card and overrides in the center, and all toolbar buttons vertically on the right.
+- Toggle between modes with the 📐 button — in the header when in Full mode, or at the top of the right toolbar when in Compact mode.
+- The UI mode preference is saved and persists across app restarts.
+
+**Platform source icons**
+- Game cards and the compact mode game list now display platform-specific icons (Steam, GOG, Epic, EA App, Xbox) instead of plain text badges.
+
+**Remote manifest system**
+- Game-specific overrides (blacklist, install path corrections, wiki status, game notes, shader packs, Luma defaults, native HDR list) are now driven by a remote manifest hosted on GitHub. This allows quick fixes and new game support without requiring an app update.
+- The manifest is fetched from the GitHub API on launch with a raw.githubusercontent.com fallback, and cached locally for offline use.
+
+**Wiki unlinks (manifest)**
+- The remote manifest can now unlink games from false fuzzy wiki matches. Unlinked games fall through to their generic engine addon (Unreal or Unity) instead of being incorrectly associated with a named wiki mod.
+
+**Luma always enabled**
+- Luma Framework support is no longer hidden behind a settings toggle. Luma badges appear on all eligible game cards by default. The "Luma (Experimental)" setting has been removed from About → Settings.
+
+**Luma auto-default for specific games**
+- Games listed in the remote manifest automatically start in Luma mode on first detection, without requiring manual toggling.
+
+**Luma-specific game notes**
+- The ℹ info popup now shows custom Luma-specific notes (from the remote manifest) when a game is in Luma mode, providing tailored guidance beyond the standard wiki notes.
+
+### Changes
+
+**Filter bar rework**
+- Removed the "Installed" and "Not Installed" filter tabs.
+- Added a "RenoDX" tab that shows only games with RenoDX wiki mods available.
+- The "Luma" tab is now always visible (previously required enabling Luma in Settings).
+
+**Wiki status for unmatched Unity/Unreal games**
+- Unity and Unreal Engine games that don't match any wiki entry now display a "🚧 Unknown" status badge with amber colouring instead of being left blank, indicating they may become supported in future.
+
+**Compact list update highlight**
+- Games in the compact mode list now show a highlighted border when an update is available.
+
+**Per-mode window size persistence**
+- Full UI and Compact UI each remember their own window size independently. Switching modes restores the last-used size for that mode.
+
+**"Extended UE" tag support**
+- The remote manifest can now tag Unreal Engine games as "Extended UE", which automatically assigns the UE-Extended addon and marks the game as native HDR.
+
+**Game Info dialog enlarged**
+- The ℹ info popup's maximum height increased from 400 to 440 pixels to reduce clipping of longer notes.
+
+### Bug Fixes
+
+**Nexus link icon not appearing**
+- Fixed the 🌐 Nexus/external link button not appearing on game cards where a Nexus URL was available but no snapshot was present.
+
+**Luma badge dimming**
+- The Luma toggle badge now uses a dimmer green when active, making it easier to distinguish from the bright "available" state.
+
+**UE-Extended button sizing**
+- Fixed the ⚡ UE-Extended toggle button being taller and wider than adjacent buttons on game cards.
+
+---
+
 ## v1.3.2
 
 ### Bug Fixes
