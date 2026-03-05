@@ -256,6 +256,11 @@ public class LumaService
         if (mod.DownloadUrl == null)
             throw new InvalidOperationException($"{mod.Name} has no download URL.");
 
+        // Only allow downloads from Filoppi's GitHub to prevent untrusted sources.
+        if (!mod.DownloadUrl.StartsWith("https://github.com/Filoppi/", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                $"Blocked Luma download for {mod.Name}: URL does not originate from https://github.com/Filoppi/");
+
         Directory.CreateDirectory(DownloadCacheDir);
 
         var fileName = Path.GetFileName(new Uri(mod.DownloadUrl).LocalPath);

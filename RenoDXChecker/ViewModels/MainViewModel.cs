@@ -632,32 +632,116 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Called when DLL override is toggled ON — uninstalls existing ReShade and DC from the game.
+    /// Called when DLL override is toggled ON — renames existing ReShade and DC
+    /// files in the game folder to the custom filenames so they stay installed.
     /// </summary>
     public void EnableDllOverride(GameCardViewModel card, string reshadeFileName, string dcFileName)
     {
         var name = card.GameName;
 
-        // Uninstall existing ReShade
-        if (card.RsRecord != null)
+        // Rename existing ReShade to the custom filename
+        if (card.RsRecord != null && !string.IsNullOrEmpty(card.InstallPath))
         {
-            try { _auxInstaller.Uninstall(card.RsRecord); } catch { }
-            card.RsRecord = null;
-            card.RsInstalledFile = null;
-            card.RsStatus = GameStatus.NotInstalled;
+            var oldPath = Path.Combine(card.InstallPath, card.RsRecord.InstalledAs);
+            var newPath = Path.Combine(card.InstallPath, reshadeFileName);
+            try
+            {
+                if (File.Exists(oldPath) && !oldPath.Equals(newPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (File.Exists(newPath)) File.Delete(newPath);
+                    File.Move(oldPath, newPath);
+                    card.RsRecord.InstalledAs = reshadeFileName;
+                    _auxInstaller.SaveAuxRecord(card.RsRecord);
+                    card.RsInstalledFile = reshadeFileName;
+                }
+            }
+            catch { }
         }
 
-        // Uninstall existing DC
-        if (card.DcRecord != null)
+        // Rename existing DC to the custom filename
+        if (card.DcRecord != null && !string.IsNullOrEmpty(card.InstallPath))
         {
-            try { _auxInstaller.Uninstall(card.DcRecord); } catch { }
-            card.DcRecord = null;
-            card.DcInstalledFile = null;
-            card.DcStatus = GameStatus.NotInstalled;
+            var oldPath = Path.Combine(card.InstallPath, card.DcRecord.InstalledAs);
+            var newPath = Path.Combine(card.InstallPath, dcFileName);
+            try
+            {
+                if (File.Exists(oldPath) && !oldPath.Equals(newPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (File.Exists(newPath)) File.Delete(newPath);
+                    File.Move(oldPath, newPath);
+                    card.DcRecord.InstalledAs = dcFileName;
+                    _auxInstaller.SaveAuxRecord(card.DcRecord);
+                    card.DcInstalledFile = dcFileName;
+                }
+            }
+            catch { }
         }
 
         SetDllOverride(name, reshadeFileName, dcFileName);
         card.DllOverrideEnabled = true;
+        card.NotifyAll();
+    }
+
+    /// <summary>
+    /// Called when DLL override is already ON and the filenames are updated —
+    /// renames existing files on disk to the new custom names.
+    /// </summary>
+    public void UpdateDllOverrideNames(GameCardViewModel card, string newRsName, string newDcName)
+    {
+        var name = card.GameName;
+        var installPath = card.InstallPath;
+        var oldCfg = GetDllOverride(name);
+        if (oldCfg == null || string.IsNullOrEmpty(installPath))
+        {
+            SetDllOverride(name, newRsName, newDcName);
+            return;
+        }
+
+        // Rename ReShade if filename changed
+        if (!string.IsNullOrEmpty(oldCfg.ReShadeFileName)
+            && !oldCfg.ReShadeFileName.Equals(newRsName, StringComparison.OrdinalIgnoreCase))
+        {
+            var oldPath = Path.Combine(installPath, oldCfg.ReShadeFileName);
+            var newPath = Path.Combine(installPath, newRsName);
+            try
+            {
+                if (File.Exists(oldPath) && !File.Exists(newPath))
+                {
+                    File.Move(oldPath, newPath);
+                    if (card.RsRecord != null)
+                    {
+                        card.RsRecord.InstalledAs = newRsName;
+                        _auxInstaller.SaveAuxRecord(card.RsRecord);
+                        card.RsInstalledFile = newRsName;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // Rename DC if filename changed
+        if (!string.IsNullOrEmpty(oldCfg.DcFileName)
+            && !oldCfg.DcFileName.Equals(newDcName, StringComparison.OrdinalIgnoreCase))
+        {
+            var oldPath = Path.Combine(installPath, oldCfg.DcFileName);
+            var newPath = Path.Combine(installPath, newDcName);
+            try
+            {
+                if (File.Exists(oldPath) && !File.Exists(newPath))
+                {
+                    File.Move(oldPath, newPath);
+                    if (card.DcRecord != null)
+                    {
+                        card.DcRecord.InstalledAs = newDcName;
+                        _auxInstaller.SaveAuxRecord(card.DcRecord);
+                        card.DcInstalledFile = newDcName;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        SetDllOverride(name, newRsName, newDcName);
         card.NotifyAll();
     }
 
@@ -3134,6 +3218,7 @@ public partial class MainViewModel : ObservableObject
             Task.Run(GameDetectionService.FindEpicGames),
             Task.Run(GameDetectionService.FindEaGames),
             Task.Run(GameDetectionService.FindXboxGames),
+            Task.Run(GameDetectionService.FindUbisoftGames),
         };
         Task.WhenAll(tasks).Wait();
 

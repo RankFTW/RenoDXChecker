@@ -88,6 +88,17 @@ public class ModInstallService
         Directory.CreateDirectory(DownloadCacheDir);
 
         var fileName  = Path.GetFileName(resolvedUrl);
+
+        // Only allow .addon64 / .addon32 files from the RenoDX wiki.
+        // Reject any other extension to avoid installing unexpected file types.
+        var ext = Path.GetExtension(fileName);
+        if (!ext.Equals(".addon64", StringComparison.OrdinalIgnoreCase)
+         && !ext.Equals(".addon32", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Unsupported file type '{ext}' for {mod.Name}. Only .addon64 and .addon32 files are supported.");
+        }
+
         var destPath  = Path.Combine(gameInstallPath, fileName);
         var cachePath = Path.Combine(DownloadCacheDir, fileName);
 

@@ -1,3 +1,39 @@
+## v1.3.4
+
+### New Features
+
+**Ubisoft Connect game detection**
+- RDXC now automatically detects games installed via Ubisoft Connect (formerly Uplay).
+- Detection uses registry keys, the launcher's `settings.yml` configuration, and default install folder scanning.
+- Ubisoft games appear with a dedicated platform icon on game cards and in the compact mode game list.
+- Drag-and-drop exe detection now recognises Ubisoft store markers (`uplay_install.state`, `uplay_*.dll`).
+
+### Changes
+
+**DLL naming override — rename instead of delete**
+- Enabling DLL naming override now renames existing ReShade/DC DLLs to the custom filenames instead of uninstalling them, keeping installs tracked without requiring a reinstall.
+- When override filenames are changed while already enabled, existing custom-named files are renamed in place to the new names.
+- Both Full UI and Compact UI now use the new rename path when DLL overrides are already active and only the filenames change.
+
+**Compact view — selection preserved after save**
+- After saving overrides in Compact mode, the previously selected game card is automatically re-selected once filtering finishes, preventing the selection from jumping unexpectedly.
+
+**Deploy buttons — confirmation dialogs**
+- The **🎨 Deploy Shaders** and **⚙ Deploy DC Mode** buttons now show a confirmation dialog asking to Continue or Cancel before executing bulk operations.
+
+### Bug Fixes
+
+**Search box clear button visibility**
+- The search box now consistently shows the ✕ clear button as soon as you type the first character, instead of appearing only after further edits.
+
+**Addon download and drag-and-drop — extension validation**
+- Downloads and drag-and-drop addon installs now validate the resolved filename extension before any network or file activity, rejecting non-`.addon64` / `.addon32` files with a clear error message and skipping the download.
+
+**Luma snapshot security — trusted source guard**
+- Luma snapshot downloads are now restricted to GitHub URLs under `https://github.com/Filoppi/`. Any other URL is rejected with an error before any network request is made.
+
+---
+
 ## v1.3.3
 
 ### New Features

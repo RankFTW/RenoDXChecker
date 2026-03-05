@@ -169,7 +169,8 @@ public sealed partial class MainWindow : Window
         };
         ToolTipService.SetToolTip(dllOverrideBtn,
             "Override the filenames ReShade and Display Commander are installed as. " +
-            "When enabled, existing RS/DC installs are removed and the game is automatically excluded from DC Mode, Update All, and global shaders.");
+            "When enabled, existing RS/DC files are renamed to the custom filenames. " +
+            "The game is automatically excluded from DC Mode, Update All, and global shaders.");
 
         // Default names based on 32-bit mode
         bool is32Bit = !string.IsNullOrEmpty(prefilledDetected) &&
@@ -386,12 +387,12 @@ public sealed partial class MainWindow : Window
                         var dcName = !string.IsNullOrWhiteSpace(dcNameBox.Text) ? dcNameBox.Text.Trim() : dcNameBox.PlaceholderText;
                         ViewModel.EnableDllOverride(targetCard, rsName, dcName);
                     }
-                    else if (nowDllOverride && wasDllOverride)
+                    else if (nowDllOverride && wasDllOverride && targetCard != null)
                     {
-                        // Still ON — update the file names if changed
+                        // Still ON — rename files on disk if the names changed
                         var rsName = !string.IsNullOrWhiteSpace(rsNameBox.Text) ? rsNameBox.Text.Trim() : rsNameBox.PlaceholderText;
                         var dcName = !string.IsNullOrWhiteSpace(dcNameBox.Text) ? dcNameBox.Text.Trim() : dcNameBox.PlaceholderText;
-                        ViewModel.SetDllOverride(det, rsName, dcName);
+                        ViewModel.UpdateDllOverrideNames(targetCard, rsName, dcName);
                     }
                     else if (!nowDllOverride && wasDllOverride && targetCard != null)
                     {
@@ -466,6 +467,7 @@ public sealed partial class MainWindow : Window
                     StatusDot.Fill = new SolidColorBrush(loading
                         ? Windows.UI.Color.FromArgb(255, 180, 160, 100)
                         : Windows.UI.Color.FromArgb(255, 130, 200, 140));
+                    if (!loading) TryCompactReselect();
                     break;
                 case nameof(ViewModel.StatusText):
                 case nameof(ViewModel.SubStatusText):
@@ -506,6 +508,7 @@ public sealed partial class MainWindow : Window
     }
 
     private bool _aboutVisible = false;
+    private string? _pendingCompactReselect;
 
     private void RsIniButton_Click(object sender, RoutedEventArgs e)
     {
@@ -883,14 +886,14 @@ public sealed partial class MainWindow : Window
             "RenoDXCommander", "logs");
         System.IO.Directory.CreateDirectory(logsDir);
         CrashReporter.Log("User opened logs folder from About panel");
-        System.Diagnostics.Process.Start("explorer.exe", logsDir);
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(logsDir) { UseShellExecute = true });
     }
 
     private void OpenDownloadsFolder_Click(object sender, RoutedEventArgs e)
     {
         System.IO.Directory.CreateDirectory(ModInstallService.DownloadCacheDir);
         CrashReporter.Log("User opened downloads cache folder from About panel");
-        System.Diagnostics.Process.Start("explorer.exe", ModInstallService.DownloadCacheDir);
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(ModInstallService.DownloadCacheDir) { UseShellExecute = true });
     }
 
     private void AboutBack_Click(object sender, RoutedEventArgs e)
@@ -908,8 +911,13 @@ public sealed partial class MainWindow : Window
         HeaderActionButtons.Visibility = ViewModel.CompactMode ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e) =>
+    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
         ViewModel.SearchQuery = SearchBox.Text;
+        // Force the built-in clear button visible as soon as text is entered
+        VisualStateManager.GoToState(SearchBox,
+            string.IsNullOrEmpty(SearchBox.Text) ? "ButtonCollapsed" : "ButtonVisible", true);
+    }
 
     // ShowHidden toggle removed; Hidden tab shows hidden games by default.
 
@@ -1338,7 +1346,7 @@ public sealed partial class MainWindow : Window
     /// <summary>
     /// Returns true if a directory looks like a game root based on store markers
     /// or engine files. This is intentionally broad to catch Steam, GOG, Epic,
-    /// EA, Xbox, Unity, and Unreal games.
+    /// EA, Xbox, Ubisoft, Unity, and Unreal games.
     /// </summary>
     private static bool LooksLikeGameRoot(string dirPath)
     {
@@ -1371,6 +1379,12 @@ public sealed partial class MainWindow : Window
             // Xbox / Game Pass markers
             if (File.Exists(Path.Combine(dirPath, "MicrosoftGame.config"))
              || File.Exists(Path.Combine(dirPath, "appxmanifest.xml")))
+                return true;
+
+            // Ubisoft Connect markers
+            if (File.Exists(Path.Combine(dirPath, "uplay_install.state"))
+             || File.Exists(Path.Combine(dirPath, "upc.exe"))
+             || Directory.GetFiles(dirPath, "uplay_*.dll").Length > 0)
                 return true;
 
             // Unity marker
@@ -1568,17 +1582,37 @@ public sealed partial class MainWindow : Window
     private void ShadersModeButton_Click(object sender, RoutedEventArgs e)
         => ViewModel.CycleShaderDeployMode();
 
-    private void DeployShadersButton_Click(object sender, RoutedEventArgs e)
-        => ViewModel.DeployAllShaders();
+    private async void DeployShadersButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new ContentDialog
+        {
+            Title             = "Deploy Shaders",
+            Content           = "Deploy the current shader mode to all installed games?",
+            PrimaryButtonText = "Continue",
+            CloseButtonText   = "Cancel",
+            XamlRoot          = Content.XamlRoot,
+        };
+        if (await dlg.ShowAsync() == ContentDialogResult.Primary)
+            ViewModel.DeployAllShaders();
+    }
 
     private void DcModeButton_Click(object sender, RoutedEventArgs e)
     {
         ViewModel.CycleDcMode();
     }
 
-    private void DeployDcModeButton_Click(object sender, RoutedEventArgs e)
+    private async void DeployDcModeButton_Click(object sender, RoutedEventArgs e)
     {
-        ViewModel.ApplyDcModeSwitch();
+        var dlg = new ContentDialog
+        {
+            Title             = "Deploy DC Mode",
+            Content           = "Apply DC Mode file changes across all installed games?",
+            PrimaryButtonText = "Continue",
+            CloseButtonText   = "Cancel",
+            XamlRoot          = Content.XamlRoot,
+        };
+        if (await dlg.ShowAsync() == ContentDialogResult.Primary)
+            ViewModel.ApplyDcModeSwitch();
     }
 
     // ── Update All handlers ──────────────────────────────────────────────────
@@ -1698,7 +1732,7 @@ public sealed partial class MainWindow : Window
         var card = GetCardFromSender(sender);
         if (card == null || string.IsNullOrEmpty(card.InstallPath)) return;
         if (System.IO.Directory.Exists(card.InstallPath))
-            System.Diagnostics.Process.Start("explorer.exe", card.InstallPath);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(card.InstallPath) { UseShellExecute = true });
     }
 
     private void RemoveManualGame_Click(object sender, RoutedEventArgs e)
@@ -2236,7 +2270,8 @@ public sealed partial class MainWindow : Window
         };
         ToolTipService.SetToolTip(dllOverrideBtn,
             "Override the filenames ReShade and Display Commander are installed as. " +
-            "When enabled, existing RS/DC installs are removed and the game is automatically excluded from DC Mode, Update All, and global shaders.");
+            "When enabled, existing RS/DC files are renamed to the custom filenames. " +
+            "The game is automatically excluded from DC Mode, Update All, and global shaders.");
         var rsNameBox = new TextBox
         {
             PlaceholderText = defaultRsName,
@@ -2428,11 +2463,11 @@ public sealed partial class MainWindow : Window
                     var dcName = !string.IsNullOrWhiteSpace(dcNameBox.Text) ? dcNameBox.Text.Trim() : dcNameBox.PlaceholderText;
                     ViewModel.EnableDllOverride(targetCard, rsName, dcName);
                 }
-                else if (nowDllOverride && wasDllOverride)
+                else if (nowDllOverride && wasDllOverride && targetCard != null)
                 {
                     var rsName = !string.IsNullOrWhiteSpace(rsNameBox.Text) ? rsNameBox.Text.Trim() : rsNameBox.PlaceholderText;
                     var dcName = !string.IsNullOrWhiteSpace(dcNameBox.Text) ? dcNameBox.Text.Trim() : dcNameBox.PlaceholderText;
-                    ViewModel.SetDllOverride(det, rsName, dcName);
+                    ViewModel.UpdateDllOverrideNames(targetCard, rsName, dcName);
                 }
                 else if (!nowDllOverride && wasDllOverride && targetCard != null)
                 {
@@ -2448,7 +2483,29 @@ public sealed partial class MainWindow : Window
                 ViewModel.RemoveNameMapping(det);
 
             CrashReporter.Log($"Compact overrides saved for: {det}");
+
+            // Re-select the game card after the filter refresh so the user
+            // doesn't lose their selection when saving overrides.
+            // Store a pending name — the immediate attempt handles the case where
+            // no async rebuild is triggered; the IsLoading→false callback in
+            // OnViewModelChanged handles the case where InitializeAsync rebuilds
+            // DisplayedGames asynchronously.
+            _pendingCompactReselect = det;
+            DispatcherQueue.TryEnqueue(TryCompactReselect);
         };
         CompactOverridesPanel.Children.Add(saveBtn);
+    }
+
+    private void TryCompactReselect()
+    {
+        if (_pendingCompactReselect == null || !ViewModel.CompactMode) return;
+        var name = _pendingCompactReselect;
+        var match = ViewModel.DisplayedGames.FirstOrDefault(c =>
+            c.GameName.Equals(name, StringComparison.OrdinalIgnoreCase));
+        if (match != null)
+        {
+            CompactGameList.SelectedItem = match;
+            _pendingCompactReselect = null;
+        }
     }
 }

@@ -638,6 +638,130 @@ public static class GameDetectionService
         return innerDirs.Length > 0 ? innerDirs[0] : contentDir;
     }
 
+    // ── Ubisoft Connect ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Detects games installed via Ubisoft Connect (formerly Uplay).
+    /// Uses three approaches:
+    ///   1. Registry — each installed game has an InstallDir value under
+    ///      HKLM\SOFTWARE\Ubisoft\Launcher\Installs\{id}.
+    ///   2. Configuration file — the launcher's settings.yml stores the
+    ///      game_installation_path which may differ from the default.
+    ///   3. Default install folders — scan Program Files\Ubisoft\Ubisoft Game Launcher\games.
+    /// </summary>
+    public static List<DetectedGame> FindUbisoftGames()
+    {
+        var games = new List<DetectedGame>();
+        var seen  = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // ── Method 1: Registry — HKLM\SOFTWARE\Ubisoft\Launcher\Installs\{id} ────
+        // Each game has an InstallDir value pointing to the game folder.
+        var registryPaths = new[]
+        {
+            @"SOFTWARE\Ubisoft\Launcher\Installs",
+            @"SOFTWARE\WOW6432Node\Ubisoft\Launcher\Installs",
+        };
+        foreach (var regPath in registryPaths)
+        {
+            try
+            {
+                using var baseKey = Registry.LocalMachine.OpenSubKey(regPath);
+                if (baseKey == null) continue;
+                foreach (var subName in baseKey.GetSubKeyNames())
+                {
+                    try
+                    {
+                        using var gameKey = baseKey.OpenSubKey(subName);
+                        if (gameKey == null) continue;
+                        var installDir = (gameKey.GetValue("InstallDir") as string)?.Trim().TrimEnd('\\', '/');
+                        if (string.IsNullOrEmpty(installDir)) continue;
+                        if (!Directory.Exists(installDir)) continue;
+                        if (!seen.Add(installDir)) continue;
+
+                        // Use the folder name as the game name — Ubisoft registry keys are
+                        // numeric IDs with no display name. The folder name is typically the
+                        // game title (e.g. "Assassin's Creed Valhalla", "Far Cry 6").
+                        var name = Path.GetFileName(installDir);
+                        if (string.IsNullOrEmpty(name)) continue;
+
+                        games.Add(new DetectedGame { Name = name, InstallPath = installDir, Source = "Ubisoft" });
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+        }
+
+        // ── Method 2: Launcher config — settings.yml ──────────────────────────────
+        // Ubisoft Connect stores its config at:
+        //   %LOCALAPPDATA%\Ubisoft Game Launcher\settings.yml
+        // The game_installation_path key tells us where games are installed.
+        try
+        {
+            var launcherLocal = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Ubisoft Game Launcher");
+            var settingsFile = Path.Combine(launcherLocal, "settings.yml");
+            if (File.Exists(settingsFile))
+            {
+                var content = File.ReadAllText(settingsFile);
+                // Simple YAML parse — look for game_installation_path: "C:\..."
+                var pathMatch = Regex.Match(content,
+                    @"game_installation_path\s*:\s*""?([A-Z]:\\[^""\r\n]+?)""?\s*$",
+                    RegexOptions.Multiline | RegexOptions.IgnoreCase);
+                if (pathMatch.Success)
+                {
+                    var gamesRoot = pathMatch.Groups[1].Value.TrimEnd('\\', '/');
+                    if (Directory.Exists(gamesRoot))
+                    {
+                        foreach (var gameDir in Directory.GetDirectories(gamesRoot))
+                        {
+                            if (!seen.Add(gameDir)) continue;
+                            // Only include if it has an exe (skip DLC/empty folders)
+                            try
+                            {
+                                if (!HasFileShallow(gameDir, "*.exe", 2)) continue;
+                            }
+                            catch { continue; }
+                            var name = Path.GetFileName(gameDir);
+                            if (!string.IsNullOrEmpty(name))
+                                games.Add(new DetectedGame { Name = name, InstallPath = gameDir, Source = "Ubisoft" });
+                        }
+                    }
+                }
+            }
+        }
+        catch { }
+
+        // ── Method 3: Default install folders ─────────────────────────────────────
+        var defaultDirs = new[]
+        {
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+                "Ubisoft", "Ubisoft Game Launcher", "games"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                "Ubisoft", "Ubisoft Game Launcher", "games"),
+        };
+        foreach (var ubiDir in defaultDirs)
+        {
+            if (!Directory.Exists(ubiDir)) continue;
+            foreach (var gameDir in Directory.GetDirectories(ubiDir))
+            {
+                if (!seen.Add(gameDir)) continue;
+                try
+                {
+                    if (!HasFileShallow(gameDir, "*.exe", 2)) continue;
+                }
+                catch { continue; }
+                var name = Path.GetFileName(gameDir);
+                if (!string.IsNullOrEmpty(name))
+                    games.Add(new DetectedGame { Name = name, InstallPath = gameDir, Source = "Ubisoft" });
+            }
+        }
+
+        CrashReporter.Log($"FindUbisoftGames: found {games.Count} game(s)");
+        return games;
+    }
+
     // ── Engine + path detection ───────────────────────────────────────────────────
 
     public static (string installPath, EngineType engine) DetectEngineAndPath(string rootPath)
