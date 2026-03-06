@@ -1,6 +1,6 @@
-# RenoDX Commander (RDXC) v1.3.5
+# RenoDX Commander (RDXC) v1.3.6
 
-RenoDX Commander (RDXC) is a desktop manager for HDR mods that auto-detects your Steam, GOG, Epic, EA, Ubisoft, and Xbox/Game Pass library and installs or updates ReShade, Display Commander, RenoDX, and Luma in a few clicks. It centralises shader packs, per-game overrides, DC Mode, and DLL naming overrides so you can standardise HDR setups across your entire library without manual file juggling.
+RenoDX Commander (RDXC) is a desktop manager for HDR mods that auto-detects your Steam, GOG, Epic, EA, Ubisoft, Xbox/Game Pass, Battle.net, and Rockstar Games library and installs or updates ReShade, Display Commander, RenoDX, and Luma in a few clicks. It centralises shader packs, per-game overrides, DC Mode, and DLL naming overrides so you can standardise HDR setups across your entire library without manual file juggling.
 
 > **Disclaimer:** RDXC is an unofficial third-party tool, not affiliated with or endorsed by the RenoDX project, Crosire, pmnoxx, or the Luma Framework. ReShade with full addon support is downloaded from reshade.me at runtime. 7-Zip is bundled under LGPL for archive extraction. Display Commander, RenoDX mods, and Luma Framework mods are downloaded from their official GitHub sources at runtime.
 
@@ -10,7 +10,7 @@ RenoDX Commander (RDXC) is a desktop manager for HDR mods that auto-detects your
 
 ## Quick Start
 
-1. **Run RDXC** — it automatically detects games from Steam, GOG, Epic, EA App, Ubisoft Connect, and Xbox / Game Pass on every launch.
+1. **Run RDXC** — it automatically detects games from Steam, GOG, Epic, EA App, Ubisoft Connect, Xbox / Game Pass, Battle.net, and Rockstar Games Launcher on every launch.
 2. **Find your game** using the search bar or filter tabs.
 3. **Install ReShade** — top row button on any game card. Downloaded automatically from reshade.me and cached locally.
 4. **Install Display Commander** — middle row. Downloaded from GitHub on first install, cached locally after.
@@ -30,7 +30,7 @@ RDXC offers two layout modes. Toggle between them with the **📐** button.
 
 Each mode remembers its own window size independently. The active mode preference is saved and persists across app restarts.
 
-In Compact mode the game list displays platform icons (Steam, GOG, Epic, EA App, Ubisoft, Xbox) next to each game name. Games with an available update show a highlighted border.
+In Compact mode the game list displays platform icons (Steam, GOG, Epic, EA App, Ubisoft, Xbox, Battle.net, Rockstar) next to each game name. Games with an available update show a highlighted border.
 
 ---
 
@@ -71,6 +71,8 @@ RDXC re-scans all stores on every launch and merges newly installed games into i
 | **EA App** | `installerdata.xml` manifests, registry keys (`Origin Games`, `EA Games`, `Criterion Games`, `Respawn`, `BioWare`, `DICE`, `PopCap`, `Ghost Games`), default EA Games folders, and EA Desktop local config path discovery |
 | **Ubisoft Connect** | Registry keys under `HKLM\SOFTWARE\Ubisoft\Launcher\Installs`, `settings.yml` game installation path, and default Ubisoft Game Launcher games folder |
 | **Xbox / Game Pass** | Windows `PackageManager` API — identifies games by `MicrosoftGame.config` presence. Falls back to `.GamingRoot` file parsing, registry, and folder scanning |
+| **Battle.net** | Windows Uninstall registry entries (filtered by Blizzard/Activision publisher), `Battle.net.config` default install path, and default folder scanning under `Program Files\Battle.net` and `Blizzard Entertainment` |
+| **Rockstar Games** | Windows Uninstall registry entries (filtered by Rockstar publisher), launcher `titles.dat` install paths via registry `InstallFolder` key, and default folder scanning under `Program Files\Rockstar Games` |
 
 Games on a disconnected drive are preserved in the cache until the drive is reconnected.
 
@@ -79,7 +81,7 @@ Games on a disconnected drive are preserved in the cache until the drive is reco
 Games not automatically detected can be added two ways:
 
 - **➕ Add Game** button — enter the game name and pick the install folder.
-- **Drag and drop** — drag a game's `.exe` file directly onto the RDXC window. RDXC automatically detects the engine type (Unreal, Unity, or Unknown), infers the game root folder by recognising store markers (Steam, GOG, Epic, EA, Xbox) and engine layouts (`Binaries\Win64`, `UnityPlayer.dll`, etc.), and guesses the game name from folder structure and exe name. A confirmation dialog shows all detected info and lets you edit the name before adding. Duplicate detection prevents adding a game that already exists.
+- **Drag and drop** — drag a game's `.exe` file directly onto the RDXC window. RDXC automatically detects the engine type (Unreal, Unity, or Unknown), infers the game root folder by recognising store markers (Steam, GOG, Epic, EA, Xbox, Ubisoft, Battle.net, Rockstar) and engine layouts (`Binaries\Win64`, `UnityPlayer.dll`, etc.), and guesses the game name from folder structure and exe name. A confirmation dialog shows all detected info and lets you edit the name before adding. Duplicate detection prevents adding a game that already exists.
 
 ### Drag-and-Drop Addon Install
 
@@ -373,3 +375,4 @@ ReShade with full addon support is downloaded from [reshade.me](https://reshade.
 - [RDXC Support Channel](https://discordapp.com/channels/1296187754979528747/1475173660686815374)
 - [The Ultra Place / Ultra+ Discord](https://discord.gg/pQtPYcdE)
 - [RDXC GitHub](https://github.com/RankFTW/RenoDXChecker)
+- [Support RDXC on Ko-Fi](https://ko-fi.com/rankftw)

@@ -762,6 +762,240 @@ public static class GameDetectionService
         return games;
     }
 
+    // ── Battle.net ────────────────────────────────────────────────────────────────
+
+    public static List<DetectedGame> FindBattleNetGames()
+    {
+        var games = new List<DetectedGame>();
+        var seen  = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // ── Method 1: Registry — Uninstall entries ────────────────────────────────
+        // Battle.net games register under HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall
+        // or the Wow6432Node equivalent. Keys often have product codes like "Diablo IV" or
+        // publisher-specific IDs. Look for InstallLocation values.
+        var uninstallPaths = new[]
+        {
+            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+            @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+        };
+        var blizzardPublishers = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Blizzard Entertainment",
+            "Blizzard Entertainment, Inc.",
+            "Activision",
+            "Activision Blizzard",
+        };
+        foreach (var regPath in uninstallPaths)
+        {
+            try
+            {
+                using var baseKey = Registry.LocalMachine.OpenSubKey(regPath);
+                if (baseKey == null) continue;
+                foreach (var subName in baseKey.GetSubKeyNames())
+                {
+                    try
+                    {
+                        using var gameKey = baseKey.OpenSubKey(subName);
+                        if (gameKey == null) continue;
+
+                        var publisher = gameKey.GetValue("Publisher") as string ?? "";
+                        if (!blizzardPublishers.Contains(publisher.Trim())) continue;
+
+                        var installDir = (gameKey.GetValue("InstallLocation") as string)?.Trim().TrimEnd('\\', '/');
+                        if (string.IsNullOrEmpty(installDir) || !Directory.Exists(installDir)) continue;
+                        if (!seen.Add(installDir)) continue;
+
+                        var displayName = gameKey.GetValue("DisplayName") as string;
+                        if (string.IsNullOrEmpty(displayName)) continue;
+
+                        // Skip the launcher itself
+                        if (displayName.Contains("Battle.net", StringComparison.OrdinalIgnoreCase)
+                            && !displayName.Contains("game", StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        games.Add(new DetectedGame { Name = displayName.Trim(), InstallPath = installDir, Source = "Battle.net" });
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+        }
+
+        // ── Method 2: Battle.net config — %APPDATA%\Battle.net\Battle.net.config ──
+        // This JSON file has "Client.Install.DefaultInstallPath" which is where
+        // games are typically installed. Scan subdirectories for game folders.
+        try
+        {
+            var configPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "Battle.net", "Battle.net.config");
+            if (File.Exists(configPath))
+            {
+                var json = File.ReadAllText(configPath);
+                // Simple extraction — look for DefaultInstallPath
+                var match = Regex.Match(json,
+                    @"""Client\.Install\.DefaultInstallPath""\s*:\s*""([^""]+)""",
+                    RegexOptions.IgnoreCase);
+                if (match.Success)
+                {
+                    var gamesRoot = match.Groups[1].Value
+                        .Replace("\\\\", "\\").Replace("\\/", "\\").TrimEnd('\\', '/');
+                    if (Directory.Exists(gamesRoot))
+                    {
+                        foreach (var gameDir in Directory.GetDirectories(gamesRoot))
+                        {
+                            if (!seen.Add(gameDir)) continue;
+                            try { if (!HasFileShallow(gameDir, "*.exe", 2)) continue; } catch { continue; }
+                            var name = Path.GetFileName(gameDir);
+                            if (!string.IsNullOrEmpty(name))
+                                games.Add(new DetectedGame { Name = name, InstallPath = gameDir, Source = "Battle.net" });
+                        }
+                    }
+                }
+            }
+        }
+        catch { }
+
+        // ── Method 3: Default install folders ─────────────────────────────────────
+        var defaultDirs = new[]
+        {
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Battle.net"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Battle.net"),
+            // Some games install under Program Files directly
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Blizzard Entertainment"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Blizzard Entertainment"),
+        };
+        foreach (var dir in defaultDirs)
+        {
+            if (!Directory.Exists(dir)) continue;
+            foreach (var gameDir in Directory.GetDirectories(dir))
+            {
+                if (!seen.Add(gameDir)) continue;
+                var dirName = Path.GetFileName(gameDir);
+                // Skip the launcher folder itself
+                if (string.IsNullOrEmpty(dirName)
+                    || dirName.Equals("Battle.net", StringComparison.OrdinalIgnoreCase)
+                    || dirName.Equals("Agent", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                try { if (!HasFileShallow(gameDir, "*.exe", 2)) continue; } catch { continue; }
+                games.Add(new DetectedGame { Name = dirName, InstallPath = gameDir, Source = "Battle.net" });
+            }
+        }
+
+        CrashReporter.Log($"FindBattleNetGames: found {games.Count} game(s)");
+        return games;
+    }
+
+    // ── Rockstar Games Launcher ───────────────────────────────────────────────────
+
+    public static List<DetectedGame> FindRockstarGames()
+    {
+        var games = new List<DetectedGame>();
+        var seen  = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // ── Method 1: Registry — Uninstall entries ────────────────────────────────
+        // Rockstar games register under the standard Uninstall key with
+        // "Rockstar Games" as publisher. Look for InstallLocation.
+        var uninstallPaths = new[]
+        {
+            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+            @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+        };
+        foreach (var regPath in uninstallPaths)
+        {
+            try
+            {
+                using var baseKey = Registry.LocalMachine.OpenSubKey(regPath);
+                if (baseKey == null) continue;
+                foreach (var subName in baseKey.GetSubKeyNames())
+                {
+                    try
+                    {
+                        using var gameKey = baseKey.OpenSubKey(subName);
+                        if (gameKey == null) continue;
+
+                        var publisher = gameKey.GetValue("Publisher") as string ?? "";
+                        if (!publisher.Contains("Rockstar", StringComparison.OrdinalIgnoreCase)) continue;
+
+                        var installDir = (gameKey.GetValue("InstallLocation") as string)?.Trim().TrimEnd('\\', '/');
+                        if (string.IsNullOrEmpty(installDir) || !Directory.Exists(installDir)) continue;
+                        if (!seen.Add(installDir)) continue;
+
+                        var displayName = gameKey.GetValue("DisplayName") as string;
+                        if (string.IsNullOrEmpty(displayName)) continue;
+
+                        // Skip the launcher itself
+                        if (displayName.Contains("Launcher", StringComparison.OrdinalIgnoreCase)
+                            && displayName.Contains("Rockstar", StringComparison.OrdinalIgnoreCase)
+                            && !displayName.Contains("Grand", StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        games.Add(new DetectedGame { Name = displayName.Trim(), InstallPath = installDir, Source = "Rockstar" });
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+        }
+
+        // ── Method 2: Rockstar Launcher titles.dat ────────────────────────────────
+        // The launcher stores a titles.dat file in its install directory containing
+        // JSON-like data about installed games with InstallFolder paths.
+        try
+        {
+            var launcherPath = ReadRegistry(@"SOFTWARE\WOW6432Node\Rockstar Games\Launcher", "InstallFolder")
+                            ?? ReadRegistry(@"SOFTWARE\Rockstar Games\Launcher", "InstallFolder");
+            if (!string.IsNullOrEmpty(launcherPath))
+            {
+                var titlesFile = Path.Combine(launcherPath, "titles.dat");
+                if (File.Exists(titlesFile))
+                {
+                    var content = File.ReadAllText(titlesFile);
+                    // Extract InstallFolder values — titles.dat has lines like:
+                    // "InstallFolder":"C:\\Program Files\\Rockstar Games\\Grand Theft Auto V"
+                    foreach (Match m in Regex.Matches(content,
+                        @"""InstallFolder""\s*:\s*""([^""]+)""", RegexOptions.IgnoreCase))
+                    {
+                        var installDir = m.Groups[1].Value
+                            .Replace("\\\\", "\\").TrimEnd('\\', '/');
+                        if (!Directory.Exists(installDir)) continue;
+                        if (!seen.Add(installDir)) continue;
+                        var name = Path.GetFileName(installDir);
+                        if (!string.IsNullOrEmpty(name))
+                            games.Add(new DetectedGame { Name = name, InstallPath = installDir, Source = "Rockstar" });
+                    }
+                }
+            }
+        }
+        catch { }
+
+        // ── Method 3: Default install folders ─────────────────────────────────────
+        var defaultDirs = new[]
+        {
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Rockstar Games"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Rockstar Games"),
+        };
+        foreach (var dir in defaultDirs)
+        {
+            if (!Directory.Exists(dir)) continue;
+            foreach (var gameDir in Directory.GetDirectories(dir))
+            {
+                if (!seen.Add(gameDir)) continue;
+                var dirName = Path.GetFileName(gameDir);
+                // Skip the launcher folder
+                if (string.IsNullOrEmpty(dirName)
+                    || dirName.Equals("Launcher", StringComparison.OrdinalIgnoreCase)
+                    || dirName.Equals("Social Club", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                try { if (!HasFileShallow(gameDir, "*.exe", 2)) continue; } catch { continue; }
+                games.Add(new DetectedGame { Name = dirName, InstallPath = gameDir, Source = "Rockstar" });
+            }
+        }
+
+        CrashReporter.Log($"FindRockstarGames: found {games.Count} game(s)");
+        return games;
+    }
+
     // ── Engine + path detection ───────────────────────────────────────────────────
 
     public static (string installPath, EngineType engine) DetectEngineAndPath(string rootPath)

@@ -322,12 +322,128 @@ public class AuxInstallService
         }
     }
 
-    /// <summary>Copies reshade.ini from the inis folder to the given game directory.</summary>
+    /// <summary>
+    /// Merges the template reshade.ini into the game directory's existing reshade.ini.
+    /// Template keys always overwrite existing values (template wins). Sections and keys
+    /// already in the game's INI that are not in the template are preserved untouched.
+    /// If no reshade.ini exists in the game folder, the template is copied as-is.
+    /// </summary>
+    public static void MergeRsIni(string gameDir)
+    {
+        if (!File.Exists(RsIniPath))
+            throw new FileNotFoundException("reshade.ini not found in inis folder.", RsIniPath);
+
+        var gamePath = Path.Combine(gameDir, "reshade.ini");
+
+        if (!File.Exists(gamePath))
+        {
+            // No existing INI — just copy the template
+            File.Copy(RsIniPath, gamePath, overwrite: true);
+            return;
+        }
+
+        // Parse both files
+        var gameIni     = ParseIni(File.ReadAllLines(gamePath));
+        var templateIni = ParseIni(File.ReadAllLines(RsIniPath));
+
+        // Merge: template keys overwrite, game-only keys preserved
+        foreach (var (section, templateKeys) in templateIni)
+        {
+            if (!gameIni.TryGetValue(section, out var gameKeys))
+            {
+                // Entire section is new — add it
+                gameIni[section] = new OrderedDict(templateKeys);
+            }
+            else
+            {
+                // Section exists — overwrite matching keys, add new ones
+                foreach (var (key, value) in templateKeys)
+                    gameKeys[key] = value;
+            }
+        }
+
+        // Write merged INI back
+        WriteIni(gamePath, gameIni);
+    }
+
+    /// <summary>Copies reshade.ini from the inis folder to the given game directory (full overwrite, no merge).</summary>
     public static void CopyRsIni(string gameDir)
     {
         if (!File.Exists(RsIniPath))
             throw new FileNotFoundException("reshade.ini not found in inis folder.", RsIniPath);
         File.Copy(RsIniPath, Path.Combine(gameDir, "reshade.ini"), overwrite: true);
+    }
+
+    // ── INI parsing / writing helpers ─────────────────────────────────────────────
+
+    /// <summary>Simple alias for an ordered key-value dictionary (preserves insertion order).</summary>
+    private class OrderedDict : Dictionary<string, string>
+    {
+        public OrderedDict() : base(StringComparer.OrdinalIgnoreCase) { }
+        public OrderedDict(IDictionary<string, string> d) : base(d, StringComparer.OrdinalIgnoreCase) { }
+    }
+
+    /// <summary>
+    /// Parses an INI file into sections → key-value pairs.
+    /// Preserves all keys within each section in order. Lines that aren't
+    /// key=value pairs (comments, blank lines) are stored under a special "" key
+    /// with a numeric suffix to preserve them on write-back.
+    /// </summary>
+    private static Dictionary<string, OrderedDict> ParseIni(string[] lines)
+    {
+        var result = new Dictionary<string, OrderedDict>(StringComparer.OrdinalIgnoreCase);
+        var currentSection = ""; // keys before any section header go under ""
+        result[currentSection] = new OrderedDict();
+
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.TrimEnd();
+
+            // Section header
+            if (line.StartsWith('[') && line.Contains(']'))
+            {
+                currentSection = line.Trim('[', ']', ' ');
+                if (!result.ContainsKey(currentSection))
+                    result[currentSection] = new OrderedDict();
+                continue;
+            }
+
+            // Key=Value
+            var eqIdx = line.IndexOf('=');
+            if (eqIdx > 0)
+            {
+                var key   = line[..eqIdx].Trim();
+                var value = line[(eqIdx + 1)..];
+                result[currentSection][key] = value;
+            }
+            // else: blank line or comment — skip (not preserved in merge output)
+        }
+
+        return result;
+    }
+
+    /// <summary>Writes a parsed INI structure back to a file.</summary>
+    private static void WriteIni(string path, Dictionary<string, OrderedDict> ini)
+    {
+        using var writer = new StreamWriter(path, append: false, encoding: new System.Text.UTF8Encoding(true));
+
+        // Write the anonymous section first (keys before any [section])
+        if (ini.TryGetValue("", out var anon) && anon.Count > 0)
+        {
+            foreach (var (key, value) in anon)
+                writer.WriteLine($"{key}={value}");
+            writer.WriteLine();
+        }
+
+        // Write named sections
+        foreach (var (section, keys) in ini)
+        {
+            if (section == "") continue; // already written
+            writer.WriteLine($"[{section}]");
+            foreach (var (key, value) in keys)
+                writer.WriteLine($"{key}={value}");
+            writer.WriteLine();
+        }
     }
 
     /// <summary>Copies DisplayCommander.toml from the inis folder to the given game directory.</summary>
@@ -563,7 +679,7 @@ public class AuxInstallService
         // when DC mode is active (unless overridden), so the ini always goes
         // to the game folder here. Manual 📋 button can overwrite it later.
         if (File.Exists(RsIniPath))
-            File.Copy(RsIniPath, Path.Combine(installPath, "reshade.ini"), overwrite: true);
+            MergeRsIni(installPath);
 
         progress?.Report(("ReShade installed!", 100));
 

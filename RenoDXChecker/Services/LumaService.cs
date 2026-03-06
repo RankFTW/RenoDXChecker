@@ -333,11 +333,9 @@ public class LumaService
         try
         {
             AuxInstallService.EnsureInisDir();
-            var rsIniSrc = AuxInstallService.RsIniPath;
-            if (File.Exists(rsIniSrc))
+            if (File.Exists(AuxInstallService.RsIniPath))
             {
-                var rsIniDest = Path.Combine(gameInstallPath, "reshade.ini");
-                File.Copy(rsIniSrc, rsIniDest, overwrite: true);
+                AuxInstallService.MergeRsIni(gameInstallPath);
                 installedFiles.Add("reshade.ini");
             }
         }

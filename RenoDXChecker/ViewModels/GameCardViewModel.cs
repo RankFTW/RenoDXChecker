@@ -231,13 +231,15 @@ public partial class GameCardViewModel : ObservableObject
 
     public string? SourceIconPath => Source switch
     {
-        "Steam"   => "Assets/icons/steam.ico",
-        "GOG"     => "Assets/icons/gog.ico",
-        "Epic"    => "Assets/icons/epic.ico",
-        "EA App"  => "Assets/icons/ea.ico",
-        "Xbox"    => "Assets/icons/xbox.ico",
-        "Ubisoft" => "Assets/icons/ubisoft.ico",
-        _         => null
+        "Steam"      => "Assets/icons/steam.ico",
+        "GOG"        => "Assets/icons/gog.ico",
+        "Epic"       => "Assets/icons/epic.ico",
+        "EA App"     => "Assets/icons/ea.ico",
+        "Xbox"       => "Assets/icons/xbox.ico",
+        "Ubisoft"    => "Assets/icons/ubisoft.ico",
+        "Battle.net" => "Assets/icons/battlenet.ico",
+        "Rockstar"   => "Assets/icons/rockstar.ico",
+        _            => null
     };
 
     /// <summary>

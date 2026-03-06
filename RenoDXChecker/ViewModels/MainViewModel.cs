@@ -1930,7 +1930,9 @@ public partial class MainViewModel : ObservableObject
 
         card.IsFavourite = _favouriteGames.Contains(key);
         SaveLibrary();
-        ApplyFilter();
+        // Only re-filter if on the Favourites tab (unfavouriting removes the card from view)
+        if (FilterMode == "Favourites")
+            ApplyFilter();
         UpdateCounts();
     }
 
@@ -3220,6 +3222,8 @@ public partial class MainViewModel : ObservableObject
             Task.Run(GameDetectionService.FindEaGames),
             Task.Run(GameDetectionService.FindXboxGames),
             Task.Run(GameDetectionService.FindUbisoftGames),
+            Task.Run(GameDetectionService.FindBattleNetGames),
+            Task.Run(GameDetectionService.FindRockstarGames),
         };
         Task.WhenAll(tasks).Wait();
 

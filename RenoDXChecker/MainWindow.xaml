@@ -21,7 +21,7 @@
         </Grid.RowDefinitions>
 
         <!-- ══ HEADER ══════════════════════════════════════════════════════════════ -->
-        <Border Grid.Row="0" Padding="20,14" Background="#090E16"
+        <Border x:Name="HeaderBar" Grid.Row="0" Padding="20,14" Background="#090E16"
                 BorderBrush="#1A2535" BorderThickness="0,0,0,1">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -262,7 +262,7 @@
                                     <Run Text="RenoDXCommander" Foreground="#00C8FF"/>
                                 </TextBlock>
                                 <TextBlock FontSize="12" Foreground="#4A5878">
-                                    <Run Text="v1.3.4  ·  HDR mod manager by "/>
+                                    <Run Text="v1.3.6  ·  HDR mod manager by "/>
                                     <Run Text="RankFTW" FontWeight="SemiBold" Foreground="#6070A0"/>
                                     <Run Text="  ·  Unofficial companion tool"/>
                                 </TextBlock>
@@ -291,7 +291,7 @@
                                 <TextBlock Text="What this app does" FontSize="12" FontWeight="SemiBold"
                                            Foreground="#A0B0D8"/>
                                 <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#7A8EAE" LineHeight="20">
-                                    RenoDXCommander is a one-stop HDR mod manager. It automatically detects games via Steam, GOG, Epic Games, EA App, and Xbox / Game Pass, then installs and manages three components per game: ReShade (post-processing), Display Commander (display management), and the RenoDX HDR mod itself. ReShade with full addon support is downloaded from reshade.me and cached locally. Display Commander is downloaded from pmnoxx's GitHub. RenoDX mods are matched against the live wiki and installed with one click. Updates are detected automatically.
+                                    RenoDXCommander is a one-stop HDR mod manager. It automatically detects games via Steam, GOG, Epic Games, EA App, Ubisoft Connect, Xbox / Game Pass, Battle.net, and Rockstar Games Launcher, then installs and manages three components per game: ReShade (post-processing), Display Commander (display management), and the RenoDX HDR mod itself. ReShade with full addon support is downloaded from reshade.me and cached locally. Display Commander is downloaded from pmnoxx's GitHub. RenoDX mods are matched against the live wiki and installed with one click. Updates are detected automatically.
                                 </TextBlock>
                             </StackPanel>
                         </Border>
@@ -312,7 +312,7 @@
                                         </Border>
                                         <TextBlock Grid.Column="1" TextWrapping="Wrap" FontSize="12" Foreground="#7A8EAE" LineHeight="19" VerticalAlignment="Center">
                                             <Run FontWeight="SemiBold" Foreground="#A0B8D8">Find your game</Run>
-                                            <Run Text=" — RDXC detects Steam, GOG, Epic, EA App, and Xbox / Game Pass automatically. Click ➕ Add Game to add manually."/>
+                                            <Run Text=" — RDXC detects Steam, GOG, Epic, EA App, Ubisoft Connect, Xbox / Game Pass, Battle.net, and Rockstar Games Launcher automatically. Click ➕ Add Game to add manually."/>
                                         </TextBlock>
                                     </Grid>
                                     <Grid>
@@ -564,6 +564,9 @@
                                 </HyperlinkButton>
                                 <HyperlinkButton NavigateUri="https://github.com/RankFTW" Padding="0">
                                     <TextBlock Foreground="#6A8ABE" FontSize="12">🔧  RankFTW GitHub</TextBlock>
+                                </HyperlinkButton>
+                                <HyperlinkButton NavigateUri="https://ko-fi.com/rankftw" Padding="0">
+                                    <TextBlock Foreground="#FF6A8A" FontSize="12">☕  Support RDXC on Ko-Fi</TextBlock>
                                 </HyperlinkButton>
                             </StackPanel>
                         </Border>
@@ -1373,6 +1376,26 @@
                                     CornerRadius="8" Padding="10,7" FontSize="12"
                                     HorizontalAlignment="Stretch"
                                     ToolTipService.ToolTip="About RenoDXCommander"/>
+                            <Border Height="1" Background="#1A2535" Margin="0,2"/>
+                            <!-- Compact search box -->
+                            <TextBox x:Name="CompactSearchBox"
+                                     PlaceholderText="🔍 Search..."
+                                     TextChanged="CompactSearchBox_TextChanged"
+                                     Background="#0F1820" Foreground="#A0B8C8"
+                                     BorderBrush="#1A3040" BorderThickness="1"
+                                     CornerRadius="8" Padding="10,7"
+                                     FontSize="12"
+                                     HorizontalAlignment="Stretch"/>
+                            <!-- RDXC logo -->
+                            <Border Margin="0,8,0,0" HorizontalAlignment="Center">
+                                <StackPanel HorizontalAlignment="Center" Spacing="4">
+                                    <Border Width="48" Height="48" CornerRadius="12" HorizontalAlignment="Center">
+                                        <Image Source="icon.ico" Width="48" Height="48" Stretch="Uniform"/>
+                                    </Border>
+                                    <TextBlock FontSize="11" Foreground="#2A3A50" HorizontalAlignment="Center"
+                                               Text="RDXC"/>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </ScrollViewer>
                 </Border>

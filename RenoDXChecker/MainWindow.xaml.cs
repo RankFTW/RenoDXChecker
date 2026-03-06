@@ -43,6 +43,11 @@ public sealed partial class MainWindow : Window
         GameCardsList.ItemsSource  = ViewModel.DisplayedGames;
         CompactGameList.ItemsSource = ViewModel.DisplayedGames;
         CompactCardDisplay.ContentTemplate = GameCardsList.ItemTemplate;
+        // Apply compact mode visibility immediately so header is hidden on startup
+        UpdateCompactModeVisibility();
+        // Always show the ✕ clear button on search boxes
+        SearchBox.Loaded += (_, _) => VisualStateManager.GoToState(SearchBox, "ButtonVisible", false);
+        CompactSearchBox.Loaded += (_, _) => VisualStateManager.GoToState(CompactSearchBox, "ButtonVisible", false);
         _ = ViewModel.InitializeAsync();
         // Silent update check — runs in background, shows dialog only if update found
         _ = CheckForAppUpdateAsync();
@@ -459,8 +464,9 @@ public sealed partial class MainWindow : Window
                             CompactModeArea.Visibility = Visibility.Collapsed;
                         }
                     }
-                    // Keep header action buttons hidden in compact mode
+                    // Keep header action buttons and header bar hidden in compact mode
                     HeaderActionButtons.Visibility = ViewModel.CompactMode ? Visibility.Collapsed : Visibility.Visible;
+                    HeaderBar.Visibility = ViewModel.CompactMode ? Visibility.Collapsed : Visibility.Visible;
                     LoadingRing.IsActive = loading;
                     RefreshBtn.IsEnabled = !loading;
                     CmpRefreshBtn.IsEnabled = !loading;
@@ -498,13 +504,51 @@ public sealed partial class MainWindow : Window
     private void RefreshButton_Click(object sender, RoutedEventArgs e)
     {
         CrashReporter.Log("User clicked Refresh");
-        _ = ViewModel.RefreshAsync();
+        _ = RefreshWithScrollRestore();
     }
 
     private void FullRefreshButton_Click(object sender, RoutedEventArgs e)
     {
         CrashReporter.Log("User clicked Full Refresh");
-        _ = ViewModel.FullRefreshAsync();
+        _ = FullRefreshWithScrollRestore();
+    }
+
+    private async Task RefreshWithScrollRestore()
+    {
+        // Save scroll/selection state
+        var scrollOffset = CardsScroll.VerticalOffset;
+        var selectedName = (CompactGameList.SelectedItem as GameCardViewModel)?.GameName;
+
+        await ViewModel.RefreshAsync();
+
+        // Restore state after refresh completes
+        RestoreScrollAndSelection(scrollOffset, selectedName);
+    }
+
+    private async Task FullRefreshWithScrollRestore()
+    {
+        var scrollOffset = CardsScroll.VerticalOffset;
+        var selectedName = (CompactGameList.SelectedItem as GameCardViewModel)?.GameName;
+
+        await ViewModel.FullRefreshAsync();
+
+        RestoreScrollAndSelection(scrollOffset, selectedName);
+    }
+
+    private void RestoreScrollAndSelection(double scrollOffset, string? selectedName)
+    {
+        // Restore full UI scroll position
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            CardsScroll.ChangeView(null, scrollOffset, null, disableAnimation: true);
+        });
+
+        // Restore compact mode selection
+        if (!string.IsNullOrEmpty(selectedName) && ViewModel.CompactMode)
+        {
+            _pendingCompactReselect = selectedName;
+            DispatcherQueue.TryEnqueue(TryCompactReselect);
+        }
     }
 
     private bool _aboutVisible = false;
@@ -516,8 +560,8 @@ public sealed partial class MainWindow : Window
         if (string.IsNullOrEmpty(card.InstallPath)) return;
         try
         {
-            AuxInstallService.CopyRsIni(card.InstallPath);
-            card.RsActionMessage = "✅ reshade.ini copied to game folder.";
+            AuxInstallService.MergeRsIni(card.InstallPath);
+            card.RsActionMessage = "✅ reshade.ini merged into game folder.";
         }
         catch (Exception ex)
         {
@@ -909,14 +953,27 @@ public sealed partial class MainWindow : Window
             CardsScroll.Visibility = Visibility.Visible;
         // Restore header buttons (hidden in compact mode)
         HeaderActionButtons.Visibility = ViewModel.CompactMode ? Visibility.Collapsed : Visibility.Visible;
+        HeaderBar.Visibility = ViewModel.CompactMode ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         ViewModel.SearchQuery = SearchBox.Text;
-        // Force the built-in clear button visible as soon as text is entered
-        VisualStateManager.GoToState(SearchBox,
-            string.IsNullOrEmpty(SearchBox.Text) ? "ButtonCollapsed" : "ButtonVisible", true);
+        // Always show the clear (✕) button
+        VisualStateManager.GoToState(SearchBox, "ButtonVisible", true);
+        // Sync compact search box
+        if (CompactSearchBox != null && CompactSearchBox.Text != SearchBox.Text)
+            CompactSearchBox.Text = SearchBox.Text;
+    }
+
+    private void CompactSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        ViewModel.SearchQuery = CompactSearchBox.Text;
+        // Always show the clear (✕) button
+        VisualStateManager.GoToState(CompactSearchBox, "ButtonVisible", true);
+        // Sync main search box
+        if (SearchBox.Text != CompactSearchBox.Text)
+            SearchBox.Text = CompactSearchBox.Text;
     }
 
     // ShowHidden toggle removed; Hidden tab shows hidden games by default.
@@ -1385,6 +1442,18 @@ public sealed partial class MainWindow : Window
             if (File.Exists(Path.Combine(dirPath, "uplay_install.state"))
              || File.Exists(Path.Combine(dirPath, "upc.exe"))
              || Directory.GetFiles(dirPath, "uplay_*.dll").Length > 0)
+                return true;
+
+            // Battle.net / Blizzard markers
+            if (File.Exists(Path.Combine(dirPath, ".build.info"))
+             || File.Exists(Path.Combine(dirPath, ".product.db"))
+             || File.Exists(Path.Combine(dirPath, "Blizzard Launcher.exe")))
+                return true;
+
+            // Rockstar Games Launcher markers
+            if (File.Exists(Path.Combine(dirPath, "PlayGTAV.exe"))
+             || File.Exists(Path.Combine(dirPath, "RockstarService.exe"))
+             || Directory.GetFiles(dirPath, "socialclub*.dll").Length > 0)
                 return true;
 
             // Unity marker
@@ -2146,6 +2215,9 @@ public sealed partial class MainWindow : Window
     {
         bool compact = ViewModel.CompactMode;
 
+        // Header bar: visible in full mode only, completely hidden in compact
+        HeaderBar.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+
         // Header action buttons (DC Mode, Shaders, Update All, Add Game, etc.): visible in full only
         HeaderActionButtons.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
 
@@ -2166,6 +2238,12 @@ public sealed partial class MainWindow : Window
         {
             CardsScroll.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
             CompactModeArea.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        // Auto-select first game in compact mode if nothing is selected
+        if (compact && CompactGameList.SelectedItem == null && ViewModel.DisplayedGames.Count > 0)
+        {
+            CompactGameList.SelectedItem = ViewModel.DisplayedGames[0];
         }
     }
 
@@ -2498,14 +2576,26 @@ public sealed partial class MainWindow : Window
 
     private void TryCompactReselect()
     {
-        if (_pendingCompactReselect == null || !ViewModel.CompactMode) return;
-        var name = _pendingCompactReselect;
-        var match = ViewModel.DisplayedGames.FirstOrDefault(c =>
-            c.GameName.Equals(name, StringComparison.OrdinalIgnoreCase));
-        if (match != null)
+        if (!ViewModel.CompactMode) return;
+
+        if (_pendingCompactReselect != null)
         {
-            CompactGameList.SelectedItem = match;
-            _pendingCompactReselect = null;
+            var name = _pendingCompactReselect;
+            var match = ViewModel.DisplayedGames.FirstOrDefault(c =>
+                c.GameName.Equals(name, StringComparison.OrdinalIgnoreCase));
+            if (match != null)
+            {
+                CompactGameList.SelectedItem = match;
+                CompactGameList.ScrollIntoView(match);
+                _pendingCompactReselect = null;
+                return;
+            }
+        }
+
+        // Auto-select first game if nothing is selected
+        if (CompactGameList.SelectedItem == null && ViewModel.DisplayedGames.Count > 0)
+        {
+            CompactGameList.SelectedItem = ViewModel.DisplayedGames[0];
         }
     }
 }

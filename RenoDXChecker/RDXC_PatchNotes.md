@@ -1,3 +1,40 @@
+## v1.3.6
+
+### New Features
+
+**Battle.net game detection**
+- RDXC now automatically detects games installed via the Battle.net (Blizzard) launcher.
+- Detection uses Windows Uninstall registry entries (filtering by Blizzard/Activision publisher), the Battle.net config file (`Battle.net.config`) for the default install path, and default folder scanning under `Program Files\Battle.net` and `Blizzard Entertainment`.
+- Battle.net games appear with a dedicated platform icon on game cards and in the compact mode game list.
+- Drag-and-drop exe detection now recognises Battle.net store markers (`.build.info`, `.product.db`).
+
+**Rockstar Games Launcher detection**
+- RDXC now automatically detects games installed via the Rockstar Games Launcher.
+- Detection uses Windows Uninstall registry entries (filtering by Rockstar publisher), the launcher's `titles.dat` file for install paths, and default folder scanning under `Program Files\Rockstar Games`.
+- Rockstar games appear with a dedicated platform icon on game cards and in the compact mode game list.
+- Drag-and-drop exe detection now recognises Rockstar store markers (`PlayGTAV.exe`, `socialclub*.dll`).
+
+### Changes
+
+**Compact UI layout rework**
+- The top header bar (logo, title, search box) is now completely hidden in compact mode. The filter bar is the topmost bar.
+- The search box has been moved to the right-hand toolbar, placed below the About button.
+- The RDXC logo is displayed below the search box on the right toolbar.
+- The "RDXC RenoDXCommander" title text is no longer shown in compact mode.
+- The first game alphabetically is now auto-selected when entering compact mode, so the view is never empty on launch.
+
+**About panel version**
+- The About panel now correctly displays the current version number.
+
+**Scroll and selection preservation**
+- Favouriting or unfavouriting a game no longer resets the scroll position in full UI mode or deselects the game in compact mode.
+- Refresh and Full Refresh now restore the previous scroll position in full UI and re-select the previously selected game in compact mode.
+
+**ReShade INI merge**
+- Installing ReShade or clicking the 📋 INI button now merges the template `reshade.ini` into the game's existing INI instead of overwriting it. Template keys always take precedence, but any game-specific settings not in the template (e.g. addon configs, effect toggles, custom keybinds) are preserved.
+
+---
+
 ## v1.3.5
 
 ### Bug Fixes
