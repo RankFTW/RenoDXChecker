@@ -1,3 +1,15 @@
+## v1.3.5
+
+### Bug Fixes
+
+**Drag-and-drop crash loop (source icon binding)**
+- Fixed an infinite crash loop when dragging and dropping a game exe into the window. The platform source icon binding threw `ArgumentException` when the game had no known store source (e.g. manually added games), because WinUI's `ConvertValue` cannot convert `null` to an `ImageSource`. The icon is now bound via an explicit `BitmapImage` with a typed `Uri`, bypassing `ConvertValue` entirely.
+
+**Added games appear in correct alphabetical position**
+- Games added via drag-and-drop or the ➕ Add Game button now appear in their correct alphabetical position in the game list immediately, instead of being appended to the bottom.
+
+---
+
 ## v1.3.4
 
 ### New Features

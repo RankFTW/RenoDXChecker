@@ -240,6 +240,16 @@ public partial class GameCardViewModel : ObservableObject
         _         => null
     };
 
+    /// <summary>
+    /// Returns a pack URI for the source icon, or a dummy transparent URI when no icon exists.
+    /// Used by BitmapImage.UriSource in XAML to avoid ConvertValue crashes on null/empty strings.
+    /// </summary>
+    public Uri SourceIconUri => SourceIconPath != null
+        ? new Uri($"ms-appx:///{SourceIconPath}")
+        : new Uri("ms-appx:///Assets/icons/steam.ico"); // fallback; element is Collapsed anyway
+
+    public bool HasSourceIcon => SourceIconPath != null;
+
     public Visibility SourceIconImageVisibility =>
         SourceIconPath != null ? Visibility.Visible : Visibility.Collapsed;
 

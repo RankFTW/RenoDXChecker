@@ -1,4 +1,4 @@
-# RenoDX Commander (RDXC) v1.3.4
+# RenoDX Commander (RDXC) v1.3.5
 
 RenoDX Commander (RDXC) is a desktop manager for HDR mods that auto-detects your Steam, GOG, Epic, EA, Ubisoft, and Xbox/Game Pass library and installs or updates ReShade, Display Commander, RenoDX, and Luma in a few clicks. It centralises shader packs, per-game overrides, DC Mode, and DLL naming overrides so you can standardise HDR setups across your entire library without manual file juggling.
 

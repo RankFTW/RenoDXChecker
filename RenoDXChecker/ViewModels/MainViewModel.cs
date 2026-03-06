@@ -2153,6 +2153,7 @@ public partial class MainViewModel : ObservableObject
         };
 
         _allCards.Add(card);
+        _allCards = _allCards.OrderBy(c => c.GameName, StringComparer.OrdinalIgnoreCase).ToList();
         SaveLibrary();
         ApplyFilter();
         UpdateCounts();
@@ -3945,7 +3946,7 @@ public partial class MainViewModel : ObservableObject
             // Default: hide hidden games (they belong in Hidden tab)
             if (c.IsHidden) return false;
             return true;
-        }).ToList();
+        }).OrderBy(c => c.GameName, StringComparer.OrdinalIgnoreCase).ToList();
 
         DisplayedGames.Clear();
         foreach (var c in filtered) DisplayedGames.Add(c);

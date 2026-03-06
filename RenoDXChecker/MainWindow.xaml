@@ -741,9 +741,13 @@
                                         <Border Background="#1E2848" CornerRadius="5" Padding="6,2"
                                                 Visibility="{x:Bind SourceBadgeVisibility}">
                                             <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                                <Image Source="{x:Bind SourceIconPath}" Width="14" Height="14"
+                                                <Image Width="14" Height="14"
                                                        Stretch="Uniform" VerticalAlignment="Center"
-                                                       Visibility="{x:Bind SourceIconImageVisibility}"/>
+                                                       Visibility="{x:Bind SourceIconImageVisibility}">
+                                                    <Image.Source>
+                                                        <BitmapImage UriSource="{x:Bind SourceIconUri}"/>
+                                                    </Image.Source>
+                                                </Image>
                                                 <TextBlock Text="{x:Bind SourceIcon}" FontSize="10"
                                                            Foreground="#8090B8" VerticalAlignment="Center"
                                                            Visibility="{x:Bind SourceIconTextVisibility}"/>
@@ -1226,9 +1230,13 @@
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
                                         <Grid Grid.Column="0" VerticalAlignment="Center">
-                                            <Image Source="{x:Bind SourceIconPath}" Width="14" Height="14"
+                                            <Image Width="14" Height="14"
                                                    Stretch="Uniform"
-                                                   Visibility="{x:Bind SourceIconImageVisibility}"/>
+                                                   Visibility="{x:Bind SourceIconImageVisibility}">
+                                                <Image.Source>
+                                                    <BitmapImage UriSource="{x:Bind SourceIconUri}"/>
+                                                </Image.Source>
+                                            </Image>
                                             <TextBlock Text="{x:Bind SourceIcon}" FontSize="11"
                                                        Visibility="{x:Bind SourceIconTextVisibility}"/>
                                         </Grid>
