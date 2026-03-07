@@ -1995,8 +1995,20 @@ public partial class MainViewModel : ObservableObject
         var records = _installer.LoadAll();
         var record  = records.FirstOrDefault(r => r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase));
 
-        // Scan disk for any renodx-* addon file already installed
+        // Fallback: match by InstallPath for records saved with mod name instead of game name
         var scanPath = installPath.Length > 0 ? installPath : game.InstallPath;
+        if (record == null)
+        {
+            record = records.FirstOrDefault(r =>
+                r.InstallPath.Equals(scanPath, StringComparison.OrdinalIgnoreCase));
+            if (record != null)
+            {
+                record.GameName = game.Name;
+                _installer.SaveRecordPublic(record);
+            }
+        }
+
+        // Scan disk for any renodx-* addon file already installed
         var addonOnDisk = ScanForInstalledAddon(scanPath, effectiveMod);
         if (addonOnDisk != null && record == null)
         {
@@ -2202,7 +2214,7 @@ public partial class MainViewModel : ObservableObject
                 card.ActionMessage   = p.msg;
                 card.InstallProgress = p.pct;
             });
-            var record = await _installer.InstallAsync(card.Mod, card.InstallPath, progress);
+            var record = await _installer.InstallAsync(card.Mod, card.InstallPath, progress, card.GameName);
 
             // Update only this card's observable properties in-place.
             // The card is already in DisplayedGames — WinUI bindings update the
@@ -2744,7 +2756,7 @@ public partial class MainViewModel : ObservableObject
                     card.ActionMessage   = p.msg;
                     card.InstallProgress = p.pct;
                 });
-                var record = await _installer.InstallAsync(card.Mod!, card.InstallPath, progress);
+                var record = await _installer.InstallAsync(card.Mod!, card.InstallPath, progress, card.GameName);
                 DispatcherQueue?.TryEnqueue(() =>
                 {
                     card.InstalledRecord        = record;
@@ -3083,10 +3095,32 @@ public partial class MainViewModel : ObservableObject
 
             var records    = _installer.LoadAll();
             var auxRecords = _auxInstaller.LoadAll();
+
+            // Snapshot update statuses from old cards so they survive the rebuild.
+            // The background CheckForUpdatesAsync will re-verify, but this avoids
+            // a visual gap where the update badge disappears until the network check completes.
+            var prevUpdateStatus = new Dictionary<string, (GameStatus mod, GameStatus dc, GameStatus rs)>(StringComparer.OrdinalIgnoreCase);
+            foreach (var c in _allCards)
+                prevUpdateStatus[c.GameName] = (c.Status, c.DcStatus, c.RsStatus);
+
             SubStatusText = "Matching mods and checking install status...";
             CrashReporter.Log($"Building cards for {allGames.Count} games...");
             _allCards = await Task.Run(() => BuildCards(allGames, records, auxRecords, addonCache, _genericNotes));
             CrashReporter.Log($"BuildCards complete: {_allCards.Count} cards.");
+
+            // Carry forward UpdateAvailable status from previous cards
+            foreach (var c in _allCards)
+            {
+                if (prevUpdateStatus.TryGetValue(c.GameName, out var prev))
+                {
+                    if (prev.mod == GameStatus.UpdateAvailable && c.Status == GameStatus.Installed)
+                        c.Status = GameStatus.UpdateAvailable;
+                    if (prev.dc == GameStatus.UpdateAvailable && c.DcStatus == GameStatus.Installed)
+                        c.DcStatus = GameStatus.UpdateAvailable;
+                    if (prev.rs == GameStatus.UpdateAvailable && c.RsStatus == GameStatus.Installed)
+                        c.RsStatus = GameStatus.UpdateAvailable;
+                }
+            }
 
             // Check for updates (async, parallel, non-blocking)
             CrashReporter.Log("Starting background update checks...");
@@ -3419,6 +3453,20 @@ public partial class MainViewModel : ObservableObject
 
             var record = records.FirstOrDefault(r =>
                 r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase));
+
+            // Fallback: match by InstallPath for records saved with mod name instead of game name
+            // (e.g. "Generic Unreal Engine" from before the fix).
+            if (record == null)
+            {
+                record = records.FirstOrDefault(r =>
+                    r.InstallPath.Equals(installPath, StringComparison.OrdinalIgnoreCase));
+                if (record != null)
+                {
+                    // Fix the record's GameName so future lookups work correctly
+                    record.GameName = game.Name;
+                    _installer.SaveRecordPublic(record);
+                }
+            }
 
             // Always scan disk for renodx-* addon files — catches manual installs and
             // games not yet on the wiki that already have a mod installed.

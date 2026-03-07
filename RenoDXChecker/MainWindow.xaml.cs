@@ -1561,6 +1561,12 @@ public sealed partial class MainWindow : Window
     {
         if (sender is not Button btn || btn.Tag is not GameCardViewModel card) return;
         ViewModel.ToggleFavouriteCommand.Execute(card);
+
+        // Refresh the detail panel icon to reflect the new state
+        DetailFavIcon.Text = card.IsFavourite ? "⭐" : "☆";
+        DetailFavIcon.Foreground = new SolidColorBrush(card.IsFavourite
+            ? ((SolidColorBrush)Application.Current.Resources["AccentAmberBrush"]).Color
+            : ((SolidColorBrush)Application.Current.Resources["TextDisabledBrush"]).Color);
     }
 
     // ── Card handlers ─────────────────────────────────────────────────────────────
