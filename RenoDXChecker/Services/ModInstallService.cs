@@ -415,8 +415,22 @@ public class ModInstallService
     private void SaveDb(List<InstalledModRecord> db)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(DbPath)!);
-        File.WriteAllText(DbPath, JsonSerializer.Serialize(db,
-            new JsonSerializerOptions { WriteIndented = true }));
+        var json = JsonSerializer.Serialize(db,
+            new JsonSerializerOptions { WriteIndented = true });
+
+        // Retry with short delays to handle file contention from concurrent background tasks
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                File.WriteAllText(DbPath, json);
+                return;
+            }
+            catch (IOException) when (attempt < 2)
+            {
+                Thread.Sleep(50 * (attempt + 1));
+            }
+        }
     }
 
     private static async Task<string> ComputeHashAsync(string path)
