@@ -45,7 +45,21 @@ public static class GameLibraryService
             AddonFileCache    = addonFileCache    ?? new(StringComparer.OrdinalIgnoreCase),
         };
         Directory.CreateDirectory(Path.GetDirectoryName(LibraryPath)!);
-        File.WriteAllText(LibraryPath, JsonSerializer.Serialize(lib, JsonOpts));
+        var json = JsonSerializer.Serialize(lib, JsonOpts);
+
+        // Retry with short delays to handle file contention from concurrent background tasks
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                File.WriteAllText(LibraryPath, json);
+                return;
+            }
+            catch (IOException) when (attempt < 2)
+            {
+                Thread.Sleep(50 * (attempt + 1));
+            }
+        }
     }
 
     public static List<DetectedGame> ToDetectedGames(SavedGameLibrary lib) =>

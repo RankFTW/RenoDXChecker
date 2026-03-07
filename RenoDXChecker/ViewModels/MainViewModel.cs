@@ -3124,7 +3124,17 @@ public partial class MainViewModel : ObservableObject
 
             // Check for updates (async, parallel, non-blocking)
             CrashReporter.Log("Starting background update checks...");
-            _ = Task.Run(() => CheckForUpdatesAsync(_allCards, records, auxRecords));
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await CheckForUpdatesAsync(_allCards, records, auxRecords);
+                }
+                catch (Exception ex)
+                {
+                    CrashReporter.Log($"Background update check failed: {ex}");
+                }
+            });
 
             _allCards = _allCards.OrderBy(c => c.GameName, StringComparer.OrdinalIgnoreCase).ToList();
 
@@ -3184,6 +3194,8 @@ public partial class MainViewModel : ObservableObject
 
     private async Task CheckForUpdatesAsync(List<GameCardViewModel> cards, List<InstalledModRecord> records, List<AuxInstalledRecord> auxRecords)
     {
+        CrashReporter.Log($"CheckForUpdatesAsync: {cards.Count} total cards");
+
         // Check all installed cards that have a SnapshotUrl and are directly installable.
         // Exclude IsExternalOnly cards (Nexus/Discord-only mods) — we have no way to
         // check for updates on external sources.
@@ -3195,6 +3207,8 @@ public partial class MainViewModel : ObservableObject
                      && c.Mod?.SnapshotUrl != null
                      && c.InstalledRecord?.SnapshotUrl != null)
             .ToList();
+
+        CrashReporter.Log($"CheckForUpdatesAsync: {installed.Count} RenoDX mods to check");
 
         var tasks = installed.Select(async card =>
         {
@@ -3209,17 +3223,23 @@ public partial class MainViewModel : ObservableObject
 
             if (updateAvailable)
             {
-                _installer.SaveRecordPublic(record);
+                try { _installer.SaveRecordPublic(record); }
+                catch (Exception ex) { CrashReporter.Log($"UpdateCheck: failed to save record for {card.GameName}: {ex.Message}"); }
                 DispatcherQueue?.TryEnqueue(() => { card.Status = GameStatus.UpdateAvailable; });
             }
         });
 
         await Task.WhenAll(tasks);
+        CrashReporter.Log("CheckForUpdatesAsync: RenoDX mod checks complete");
 
         // ── Aux (DC / ReShade) update checks ──────────────────────────────────────
         var auxInstalled = cards
             .Where(c => c.DcStatus == GameStatus.Installed || c.RsStatus == GameStatus.Installed)
             .ToList();
+
+        CrashReporter.Log($"CheckForUpdatesAsync: {auxInstalled.Count} aux (DC/RS) cards to check");
+        foreach (var c in auxInstalled)
+            CrashReporter.Log($"  Aux check: {c.GameName} DC={c.DcStatus} DcRec={c.DcRecord != null} RS={c.RsStatus} RsRec={c.RsRecord != null} RsBlocked={c.RsBlockedByDcMode}");
 
         var auxTasks = auxInstalled.SelectMany(card => new[]
         {
@@ -3228,6 +3248,7 @@ public partial class MainViewModel : ObservableObject
         });
 
         await Task.WhenAll(auxTasks);
+        CrashReporter.Log("CheckForUpdatesAsync: all checks complete");
 
         // Notify the UI so the Update All button colour updates after scan
         DispatcherQueue?.TryEnqueue(() =>
