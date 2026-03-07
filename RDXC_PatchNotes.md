@@ -1,3 +1,17 @@
+## v1.3.7
+
+### Changes
+
+**ReShade INI deployed with DC Mode installs**
+- Installing Display Commander in DC Mode now automatically deploys the template `reshade.ini` to the game folder using the same merge logic as standalone ReShade installs. If no INI exists, the template is copied; if one already exists, template keys are merged on top while preserving game-specific settings.
+
+### Bug Fixes
+
+**Foreign DLL backup not triggering for OptiScaler and similar tools**
+- Fixed `dxgi.dll` files from OptiScaler (and other tools that mention "ReShade" in config comments) being misidentified as ReShade and overwritten instead of backed up to `.original`. The binary scan now only matches on `reshade.me` or `crosire` — strings unique to the actual ReShade binary — and rejects files over 15 MB as too large to be ReShade.
+
+---
+
 ## v1.3.6
 
 ### New Features

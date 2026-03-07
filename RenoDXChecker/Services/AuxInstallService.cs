@@ -190,6 +190,11 @@ public class AuxInstallService
         if (!File.Exists(filePath)) return false;
         var fileSize = new FileInfo(filePath).Length;
 
+        // ReShade DLLs are typically 4-8 MB. Files over 15 MB are almost certainly
+        // something else (e.g. OptiScaler at ~28 MB) that may contain "ReShade"
+        // in config comments but are not actually ReShade.
+        if (fileSize > 15 * 1024 * 1024) return false;
+
         // Exact size match against staged ReShade64.dll
         if (File.Exists(RsStagedPath64) && fileSize == new FileInfo(RsStagedPath64).Length)
             return true;
@@ -198,15 +203,17 @@ public class AuxInstallService
             return true;
 
         // Binary string scan for ReShade markers
+        // Only match on strings unique to the actual ReShade binary — "reshade.me" (the URL
+        // embedded in the PE resources) and "crosire" (the author name). Do NOT match on
+        // generic phrases like "ReShade DLL" which appear in config comments of tools like
+        // OptiScaler that load ReShade externally.
         try
         {
             var bytes = File.ReadAllBytes(filePath);
             var text = System.Text.Encoding.ASCII.GetString(bytes);
-            // ReShade embeds its own name in the DLL
             if (text.Contains("ReShade", StringComparison.Ordinal) &&
                 (text.Contains("reshade.me", StringComparison.OrdinalIgnoreCase) ||
-                 text.Contains("crosire", StringComparison.OrdinalIgnoreCase) ||
-                 text.Contains("ReShade DLL", StringComparison.OrdinalIgnoreCase)))
+                 text.Contains("crosire", StringComparison.OrdinalIgnoreCase)))
                 return true;
         }
         catch { }
@@ -587,6 +594,15 @@ public class AuxInstallService
                 remoteSize = new FileInfo(cachePath).Length;
 
             File.Copy(cachePath, destPath, overwrite: true);
+        }
+
+        // ── Deploy reshade.ini ────────────────────────────────────────────────────
+        // DC Mode installs need a reshade.ini just like standalone ReShade installs,
+        // so addon settings, search paths, and overlay bindings are configured.
+        if (File.Exists(RsIniPath))
+        {
+            try { MergeRsIni(installPath); }
+            catch (Exception ex) { CrashReporter.Log($"InstallDcAsync: reshade.ini merge failed — {ex.Message}"); }
         }
 
         // ── Shader deployment ─────────────────────────────────────────────────────
