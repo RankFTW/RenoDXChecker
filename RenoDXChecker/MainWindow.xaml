@@ -852,6 +852,21 @@
                                     </StackPanel>
                                 </Border>
 
+                                <!-- Lazorr -->
+                                <Border Background="{StaticResource SurfaceStatusBarBrush}" CornerRadius="8" Padding="12,10" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1">
+                                    <StackPanel Spacing="3">
+                                        <TextBlock FontSize="12">
+                                            <Run Text="UI Design" FontWeight="SemiBold" Foreground="{StaticResource AccentGreenBrush}"/>
+                                            <Run Text=" by Lazorr" Foreground="{StaticResource TextTertiaryBrush}"/>
+                                        </TextBlock>
+                                        <TextBlock FontSize="11" Foreground="{StaticResource InlineDescriptionBrush}" TextWrapping="Wrap"
+                                                   Text="Somehow I have become a UI guy in multiple aspects of life lol."/>
+                                        <HyperlinkButton NavigateUri="https://github.com/lazorr410" Padding="0,2,0,0" FontSize="11">
+                                            <TextBlock Foreground="{StaticResource AccentTealDimBrush}" Text="https://github.com/lazorr410"/>
+                                        </HyperlinkButton>
+                                    </StackPanel>
+                                </Border>
+
                                 <!-- App author -->
                                 <Border Background="{StaticResource SurfaceStatusBarBrush}" CornerRadius="8" Padding="12,10" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1">
                                     <StackPanel Spacing="3">

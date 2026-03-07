@@ -2271,7 +2271,7 @@
       "projectName": "RenoDXCommander",
       "projectPath": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RDXC-1.4.0RC1\\RenoDXChecker\\RenoDXChecker.csproj",
       "packagesPath": "C:\\Users\\Mark\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RDXC-1.4.0RC1\\RenoDXChecker\\obj\\",
+      "outputPath": "C:\\Users\\Mark\\OneDrive\\Documents\\RDXC\\WIP\\RDXC-1.4.0RC1\\RenoDXChecker\\obj\\publish\\win-x64\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

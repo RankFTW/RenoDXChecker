@@ -1,3 +1,13 @@
+## v1.4.0
+
+### Changes
+
+**New UI design**
+
+- Brand new UI designed by Lazorr as well as multiple background tweaks and fixes. 
+
+---
+
 ## v1.3.7
 
 ### Changes
