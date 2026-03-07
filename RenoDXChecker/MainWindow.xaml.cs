@@ -873,19 +873,22 @@ public sealed partial class MainWindow : Window
     {
         var notes = ViewModels.MainViewModel.GetRecentPatchNotes(3);
 
+        var markdown = new CommunityToolkit.WinUI.Controls.MarkdownTextBlock
+        {
+            Text = notes,
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent),
+            Foreground = Brush("TextSecondaryBrush"),
+            FontSize = 12,
+            UseEmphasisExtras = true,
+            UseListExtras = true,
+            UseTaskLists = true,
+        };
+
         var scrollViewer = new ScrollViewer
         {
             MaxHeight = 500,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = new TextBlock
-            {
-                Text         = notes,
-                TextWrapping = TextWrapping.Wrap,
-                FontSize     = 12,
-                Foreground   = Brush("TextSecondaryBrush"),
-                LineHeight   = 20,
-                IsTextSelectionEnabled = true,
-            },
+            Content = markdown,
         };
 
         var dlg = new ContentDialog

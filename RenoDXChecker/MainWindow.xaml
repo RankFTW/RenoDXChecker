@@ -707,7 +707,7 @@
                                             <Run Text="RenoDXCommander" Foreground="{StaticResource AccentTealBrush}"/>
                                         </TextBlock>
                                         <TextBlock FontSize="12" Foreground="{StaticResource InlineDescriptionBrush}">
-                                            <Run Text="v1.3.7  ·  HDR mod manager by "/>
+                                            <Run Text="v1.4.0  ·  HDR mod manager by "/>
                                             <Run Text="RankFTW" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}"/>
                                             <Run Text="  ·  Unofficial companion tool"/>
                                         </TextBlock>

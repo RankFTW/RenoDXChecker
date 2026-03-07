@@ -1760,7 +1760,7 @@ public partial class MainViewModel : ObservableObject
                 sections.Add(string.Join("\n", currentSection));
 
             return sections.Count > 0
-                ? string.Join("\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n", sections)
+                ? string.Join("\n\n---\n\n", sections)
                 : "No patch notes available.";
         }
         catch (Exception ex)
