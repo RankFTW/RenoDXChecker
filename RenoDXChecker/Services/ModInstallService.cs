@@ -76,7 +76,8 @@ public class ModInstallService
     public async Task<InstalledModRecord> InstallAsync(
         GameMod mod,
         string gameInstallPath,
-        IProgress<(string message, double percent)>? progress = null)
+        IProgress<(string message, double percent)>? progress = null,
+        string? gameName = null)
     {
         if (mod.SnapshotUrl == null)
             throw new InvalidOperationException($"{mod.Name} has no Snapshot download URL.");
@@ -210,7 +211,7 @@ public class ModInstallService
 
         var record = new InstalledModRecord
         {
-            GameName       = mod.Name,
+            GameName       = gameName ?? mod.Name,
             InstallPath    = gameInstallPath,
             AddonFileName  = fileName,
             FileHash       = hash,
