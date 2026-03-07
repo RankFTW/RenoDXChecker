@@ -54,7 +54,7 @@ Requires Windows 10/11 (x64) and [.NET 8 Desktop Runtime](https://dotnet.microso
 | Foreign DLL blocking install | Choose **Overwrite** in the dialog, or cancel to keep the existing file |
 | Games/mods out of sync | Settings → **Full Refresh** to clear all caches |
 
-For detailed documentation on DC Mode, shader packs, Luma Framework, per-game overrides, game detection methods, and more, see the [Detailed Guide]([docs/DETAILED_GUIDE.md](https://github.com/RankFTW/RenoDXChecker/blob/main/DETAILED_GUIDE.md)).
+For detailed documentation on DC Mode, shader packs, Luma Framework, per-game overrides, game detection methods, and more, see the [Detailed Guide](https://github.com/RankFTW/rdxc-manifest/tree/main?tab=readme-ov-file#renodx-commander--detailed-guide).
 
 ---
 
@@ -79,4 +79,5 @@ For detailed documentation on DC Mode, shader packs, Luma Framework, per-game ov
 [RenoDX Discord](https://discord.gg/gF4GRJWZ2A) · [HDR Den Discord](https://discord.gg/k3cDruEQ) · [RDXC Support](https://discordapp.com/channels/1296187754979528747/1475173660686815374) · [Ultra+ Discord](https://discord.gg/pQtPYcdE)
 
 [Support RDXC on Ko-Fi ☕](https://ko-fi.com/rankftw)
+
 
