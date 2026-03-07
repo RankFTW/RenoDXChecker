@@ -2,10 +2,10 @@ using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Media;
-using RenoDXChecker.ViewModels;
+using RenoDXCommander.ViewModels;
 using Windows.UI;
 
-namespace RenoDXChecker.Converters;
+namespace RenoDXCommander.Converters;
 
 public class BoolToVisibility : IValueConverter
 {
@@ -67,5 +67,33 @@ public class GameStatusInstalledVisible : IValueConverter
     public object Convert(object v, Type t, object p, string l) =>
         v is GameStatus s && s is GameStatus.Installed or GameStatus.UpdateAvailable
             ? Visibility.Visible : Visibility.Collapsed;
+    public object ConvertBack(object v, Type t, object p, string l) => throw new NotImplementedException();
+}
+
+// ── Sidebar list item converters (bool IsSelected → theme brush) ────────────
+public class BoolToSidebarItemBg : IValueConverter
+{
+    public object Convert(object v, Type t, object p, string l) =>
+        v is true
+            ? (SolidColorBrush)Application.Current.Resources["SidebarItemSelectedBrush"]
+            : new SolidColorBrush(Colors.Transparent);
+    public object ConvertBack(object v, Type t, object p, string l) => throw new NotImplementedException();
+}
+
+public class BoolToSidebarItemBorder : IValueConverter
+{
+    public object Convert(object v, Type t, object p, string l) =>
+        v is true
+            ? (SolidColorBrush)Application.Current.Resources["SidebarItemSelectedBorderBrush"]
+            : new SolidColorBrush(Colors.Transparent);
+    public object ConvertBack(object v, Type t, object p, string l) => throw new NotImplementedException();
+}
+
+public class BoolToSidebarItemFg : IValueConverter
+{
+    public object Convert(object v, Type t, object p, string l) =>
+        v is true
+            ? (SolidColorBrush)Application.Current.Resources["SidebarItemSelectedTextBrush"]
+            : (SolidColorBrush)Application.Current.Resources["SidebarItemTextBrush"];
     public object ConvertBack(object v, Type t, object p, string l) => throw new NotImplementedException();
 }

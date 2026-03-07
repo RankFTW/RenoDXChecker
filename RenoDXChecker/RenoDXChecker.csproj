@@ -23,6 +23,10 @@
   </PropertyGroup>
   <ItemGroup>
     <Content Remove="Assets\manifest.json" />
+    <!-- Exclude backup files from XAML compilation -->
+    <None Remove="original\**" />
+    <Page Remove="original\**" />
+    <Compile Remove="original\**" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="icon.ico">

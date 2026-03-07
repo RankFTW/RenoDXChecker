@@ -9,6 +9,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Text.Json;
+using Microsoft.UI.Xaml;
 
 namespace RenoDXCommander.ViewModels;
 
@@ -23,8 +24,17 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _skipUpdateCheck;
     [ObservableProperty] private bool _lumaFeatureEnabled = true;
     [ObservableProperty] private bool _verboseLogging;
-    [ObservableProperty] private bool _compactMode;
     [ObservableProperty] private string _lastSeenVersion = "";
+
+    [ObservableProperty] private AppPage currentPage = AppPage.GameView;
+    [ObservableProperty] private GameCardViewModel? selectedGame;
+    [ObservableProperty] private bool hasUpdatesAvailable;
+
+    public Visibility HasUpdatesAvailableVisibility =>
+        hasUpdatesAvailable ? Visibility.Visible : Visibility.Collapsed;
+
+    partial void OnHasUpdatesAvailableChanged(bool value)
+        => OnPropertyChanged(nameof(HasUpdatesAvailableVisibility));
 
     /// <summary>
     /// Raised when an install would overwrite a dxgi.dll that RDXC cannot identify
@@ -73,35 +83,35 @@ public partial class MainViewModel : ObservableObject
     // Shaders button label / colours — shown in the header bar
     public string ShadersBtnLabel => ShaderDeployMode switch
     {
-        ShaderDeployMode.Off     => "🎨 Shaders: Off",
-        ShaderDeployMode.Minimum => "🎨 Shaders: Minimum",
-        ShaderDeployMode.All     => "🎨 Shaders: All",
-        ShaderDeployMode.User    => "🎨 Shaders: User",
-        _                        => "🎨 Shaders",
+        ShaderDeployMode.Off     => "Shaders: Off",
+        ShaderDeployMode.Minimum => "Shaders: Minimum",
+        ShaderDeployMode.All     => "Shaders: All",
+        ShaderDeployMode.User    => "Shaders: User",
+        _                        => "Shaders",
     };
     public string ShadersBtnBackground => ShaderDeployMode switch
     {
-        ShaderDeployMode.Off     => "#1A1820",
-        ShaderDeployMode.Minimum => "#1A1A30",
-        ShaderDeployMode.All     => "#1A1040",
-        ShaderDeployMode.User    => "#0E1E20",
-        _                        => "#1A1820",
+        ShaderDeployMode.Off     => "#1E242C",
+        ShaderDeployMode.Minimum => "#201838",
+        ShaderDeployMode.All     => "#201838",
+        ShaderDeployMode.User    => "#122830",
+        _                        => "#1E242C",
     };
     public string ShadersBtnForeground => ShaderDeployMode switch
     {
-        ShaderDeployMode.Off     => "#555066",
-        ShaderDeployMode.Minimum => "#8878C8",
-        ShaderDeployMode.All     => "#C090FF",
-        ShaderDeployMode.User    => "#40C0B0",
-        _                        => "#555066",
+        ShaderDeployMode.Off     => "#6B7A8E",
+        ShaderDeployMode.Minimum => "#B898E8",
+        ShaderDeployMode.All     => "#B898E8",
+        ShaderDeployMode.User    => "#4DC9E6",
+        _                        => "#6B7A8E",
     };
     public string ShadersBtnBorder => ShaderDeployMode switch
     {
-        ShaderDeployMode.Off     => "#2A2535",
-        ShaderDeployMode.Minimum => "#3A2880",
-        ShaderDeployMode.All     => "#6030B0",
-        ShaderDeployMode.User    => "#1A5050",
-        _                        => "#2A2535",
+        ShaderDeployMode.Off     => "#283240",
+        ShaderDeployMode.Minimum => "#3A2860",
+        ShaderDeployMode.All     => "#3A2860",
+        ShaderDeployMode.User    => "#1E4858",
+        _                        => "#283240",
     };
 
     /// <summary>The current ShaderDeployMode as a string for AuxInstallService calls.</summary>
@@ -470,27 +480,27 @@ public partial class MainViewModel : ObservableObject
     // DC Mode button label / colours — shown in the header bar
     public string DcModeBtnLabel => DcModeLevel switch
     {
-        1 => "⚙ DC Mode 1",
-        2 => "⚙ DC Mode 2",
-        _ => "⚙ DC Mode: Off",
+        1 => "DC Mode 1",
+        2 => "DC Mode 2",
+        _ => "DC Mode: Off",
     };
     public string DcModeBtnBackground => DcModeLevel switch
     {
-        1 => "#0F2A2A",
-        2 => "#1A1040",
-        _ => "#0F1E2A",
+        1 => "#122830",
+        2 => "#201838",
+        _ => "#1E242C",
     };
     public string DcModeBtnForeground => DcModeLevel switch
     {
-        1 => "#00C8FF",
-        2 => "#C090FF",
-        _ => "#556688",
+        1 => "#4DC9E6",
+        2 => "#B898E8",
+        _ => "#6B7A8E",
     };
     public string DcModeBtnBorder => DcModeLevel switch
     {
-        1 => "#1A5A5A",
-        2 => "#6030B0",
-        _ => "#1A3A4A",
+        1 => "#1E4858",
+        2 => "#3A2860",
+        _ => "#283240",
     };
 
     partial void OnVerboseLoggingChanged(bool v)
@@ -498,14 +508,15 @@ public partial class MainViewModel : ObservableObject
         CrashReporter.VerboseLogging = v;
     }
 
-    partial void OnCompactModeChanged(bool v)
-    {
-        foreach (var c in _allCards) c.CompactMode = v;
-    }
-
     partial void OnLumaFeatureEnabledChanged(bool v)
     {
         foreach (var c in _allCards) c.LumaFeatureEnabled = v;
+    }
+
+    partial void OnSelectedGameChanged(GameCardViewModel? oldValue, GameCardViewModel? newValue)
+    {
+        if (oldValue != null) oldValue.IsSelected = false;
+        if (newValue != null) newValue.IsSelected = true;
     }
 
     public int? GetPerGameDcModeOverride(string gameName)
@@ -880,9 +891,9 @@ public partial class MainViewModel : ObservableObject
                            c.RsStatus  == GameStatus.UpdateAvailable);
 
     // Button colours — purple when updates available, dim when idle
-    public string UpdateAllBtnBackground => AnyUpdateAvailable ? "#2A1050" : "#1A1230";
-    public string UpdateAllBtnForeground  => AnyUpdateAvailable ? "#D090FF" : "#886899";
-    public string UpdateAllBtnBorder      => AnyUpdateAvailable ? "#7030C0" : "#3A2555";
+    public string UpdateAllBtnBackground => AnyUpdateAvailable ? "#201838" : "#1E242C";
+    public string UpdateAllBtnForeground  => AnyUpdateAvailable ? "#B898E8" : "#6B7A8E";
+    public string UpdateAllBtnBorder      => AnyUpdateAvailable ? "#3A2860" : "#283240";
 
 
     public bool IsUpdateAllExcluded(string gameName) => _updateAllExcludedGames.Contains(gameName);
@@ -999,8 +1010,7 @@ public partial class MainViewModel : ObservableObject
         if (s.TryGetValue("VerboseLogging", out var vlVal))
             VerboseLogging = vlVal == "true";
 
-        if (s.TryGetValue("CompactMode", out var cmVal))
-            CompactMode = cmVal == "true";
+        // CompactMode key is ignored — unified layout replaces dual-mode
 
         if (s.TryGetValue("LastSeenVersion", out var lsvVal))
             LastSeenVersion = lsvVal ?? "";
@@ -1781,7 +1791,6 @@ public partial class MainViewModel : ObservableObject
             s["ShaderDeployMode"]    = ShaderDeployMode.ToString();
             s["SkipUpdateCheck"]     = SkipUpdateCheck ? "true" : "false";
             s["VerboseLogging"]     = VerboseLogging ? "true" : "false";
-            s["CompactMode"]        = CompactMode ? "true" : "false";
             s["LastSeenVersion"]     = LastSeenVersion;
             s["LumaEnabledGames"]   = JsonSerializer.Serialize(_lumaEnabledGames.ToList());
             s["LumaDisabledGames"]  = JsonSerializer.Serialize(_lumaDisabledGames.ToList());
@@ -1875,6 +1884,12 @@ public partial class MainViewModel : ObservableObject
     // ── Commands ──────────────────────────────────────────────────────────────────
 
     [RelayCommand] public void SetFilter(string filter) { FilterMode = filter; ApplyFilter(); }
+
+    [RelayCommand]
+    public void NavigateToSettings() => CurrentPage = AppPage.Settings;
+
+    [RelayCommand]
+    public void NavigateToGameView() => CurrentPage = AppPage.GameView;
 
     [RelayCommand]
     public async Task RefreshAsync()
@@ -2750,6 +2765,7 @@ public partial class MainViewModel : ObservableObject
         DispatcherQueue?.TryEnqueue(() =>
         {
             UpdateCounts();
+            HasUpdatesAvailable = AnyUpdateAvailable;
             OnPropertyChanged(nameof(AnyUpdateAvailable));
             OnPropertyChanged(nameof(UpdateAllBtnBackground));
             OnPropertyChanged(nameof(UpdateAllBtnForeground));
@@ -2823,6 +2839,7 @@ public partial class MainViewModel : ObservableObject
 
         DispatcherQueue?.TryEnqueue(() =>
         {
+            HasUpdatesAvailable = AnyUpdateAvailable;
             OnPropertyChanged(nameof(AnyUpdateAvailable));
             OnPropertyChanged(nameof(UpdateAllBtnBackground));
             OnPropertyChanged(nameof(UpdateAllBtnForeground));
@@ -2913,6 +2930,7 @@ public partial class MainViewModel : ObservableObject
 
         DispatcherQueue?.TryEnqueue(() =>
         {
+            HasUpdatesAvailable = AnyUpdateAvailable;
             OnPropertyChanged(nameof(AnyUpdateAvailable));
             OnPropertyChanged(nameof(UpdateAllBtnBackground));
             OnPropertyChanged(nameof(UpdateAllBtnForeground));
@@ -3075,6 +3093,11 @@ public partial class MainViewModel : ObservableObject
             _ = Task.Run(() => CheckForUpdatesAsync(_allCards, records, auxRecords));
 
             _allCards = _allCards.OrderBy(c => c.GameName, StringComparer.OrdinalIgnoreCase).ToList();
+
+            // If the previously selected game card was removed during refresh, reset selection.
+            if (SelectedGame != null && !_allCards.Contains(SelectedGame))
+                SelectedGame = null;
+
             _ = Task.Run(() => { try { SaveLibrary(); } catch { } }); // fire-and-forget — don't block UI
             UpdateCounts();
             ApplyFilter();
@@ -3175,6 +3198,7 @@ public partial class MainViewModel : ObservableObject
         // Notify the UI so the Update All button colour updates after scan
         DispatcherQueue?.TryEnqueue(() =>
         {
+            HasUpdatesAvailable = AnyUpdateAvailable;
             OnPropertyChanged(nameof(AnyUpdateAvailable));
             OnPropertyChanged(nameof(UpdateAllBtnBackground));
             OnPropertyChanged(nameof(UpdateAllBtnForeground));
@@ -3731,7 +3755,6 @@ public partial class MainViewModel : ObservableObject
             // ── Luma matching ──────────────────────────────────────────────────────
             var newCard = cards[^1];
             newCard.LumaFeatureEnabled = LumaFeatureEnabled;
-            newCard.CompactMode = CompactMode;
             var lumaMatch = MatchLumaGame(game.Name);
             if (lumaMatch != null)
             {

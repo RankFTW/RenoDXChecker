@@ -83,8 +83,37 @@ public partial class GameCardViewModel : ObservableObject
     /// <summary>True when a matching Luma mod exists in the wiki.</summary>
     public bool IsLumaAvailable => LumaMod != null;
 
-    // ── Compact mode — hides the tune button on cards when the inline overrides panel is visible ──
-    [ObservableProperty] private bool _compactMode;
+
+
+    // ── Sidebar selection state ───────────────────────────────────────────────────
+    [ObservableProperty] private bool _isSelected;
+
+    // Sidebar item styling (computed from IsSelected + managed state)
+    public string SidebarItemBackground => IsSelected ? "#1A2840" : "Transparent";
+    public string SidebarItemBorderBrush => IsSelected ? "#2A4060" : "Transparent";
+    public string SidebarItemForeground => IsSelected ? "#E2E8FF"
+        : IsManaged ? "#C8D4E8"   // brighter — something is installed
+        : "#5A6880";              // dimmer — untouched game
+
+    /// <summary>True when any component (RenoDX, ReShade, DC, Luma) is installed or has an update.</summary>
+    public bool IsManaged =>
+        Status is GameStatus.Installed or GameStatus.UpdateAvailable ||
+        RsStatus is GameStatus.Installed or GameStatus.UpdateAvailable ||
+        DcStatus is GameStatus.Installed or GameStatus.UpdateAvailable ||
+        LumaStatus is GameStatus.Installed or GameStatus.UpdateAvailable;
+
+    private void NotifySidebarProps()
+    {
+        OnPropertyChanged(nameof(SidebarItemBackground));
+        OnPropertyChanged(nameof(SidebarItemBorderBrush));
+        OnPropertyChanged(nameof(SidebarItemForeground));
+        OnPropertyChanged(nameof(IsManaged));
+    }
+
+    partial void OnIsSelectedChanged(bool value) => NotifySidebarProps();
+
+    // ── Component detail expand/collapse ──────────────────────────────────────────
+    [ObservableProperty] private bool _componentExpanded;
 
     // ── INI preset existence (re-checked on every NotifyAll call) ─────────────────
     /// <summary>True when reshade.ini is present in the inis folder — enables the 📋 button.</summary>
@@ -121,31 +150,146 @@ public partial class GameCardViewModel : ObservableObject
                                    : "❓ Unknown";
 
     // Badge colours change per status to make them visually distinct
-    public string WikiStatusBadgeBackground  => WikiStatus == "💬" ? "#1A1830"
-                                              : WikiStatus == "?"  ? "#2A2410"
-                                              : "#1C2848";
+    public string WikiStatusBadgeBackground  => WikiStatus == "💬" ? "#201838"
+                                              : WikiStatus == "?"  ? "#201C10"
+                                              : "#1A2030";
     public string WikiStatusBadgeBorderBrush => WikiStatus == "💬" ? "#3A2860"
-                                              : WikiStatus == "?"  ? "#504020"
-                                              : "#283C60";
-    public string WikiStatusBadgeForeground  => WikiStatus == "💬" ? "#8878C8"
-                                              : WikiStatus == "?"  ? "#C8A868"
-                                              : "#7A9AB8";
+                                              : WikiStatus == "?"  ? "#403018"
+                                              : "#283240";
+    public string WikiStatusBadgeForeground  => WikiStatus == "💬" ? "#B898E8"
+                                              : WikiStatus == "?"  ? "#D4A856"
+                                              : "#A0AABB";
 
     // Update button colours — purple when an update is available, normal blue otherwise
-    public string InstallBtnBackground  => Status == GameStatus.UpdateAvailable ? "#2A1A40" : "#22386A";
-    public string InstallBtnForeground  => Status == GameStatus.UpdateAvailable ? "#C0A0E8" : "#AACCFF";
-    public string InstallBtnBorderBrush => Status == GameStatus.UpdateAvailable ? "#6040A0" : "#3050A0";
+    public string InstallBtnBackground  => Status == GameStatus.UpdateAvailable ? "#201838" : "#182840";
+    public string InstallBtnForeground  => Status == GameStatus.UpdateAvailable ? "#B898E8" : "#7AACDD";
+    public string InstallBtnBorderBrush => Status == GameStatus.UpdateAvailable ? "#3A2860" : "#2A4468";
 
     // UE-Extended toggle label and styling
     public string UeExtendedLabel      => UseUeExtended ? "⚡ UE Extended ON" : "⚡ UE Extended";
-    public string UeExtendedBackground => UseUeExtended ? "#241840" : "#141A2C";
-    public string UeExtendedForeground => UseUeExtended ? "#B090E8" : "#404870";
-    public string UeExtendedBorderBrush => UseUeExtended ? "#5030A0" : "#202840";
+    public string UeExtendedBackground => UseUeExtended ? "#201838" : "#1E242C";
+    public string UeExtendedForeground => UseUeExtended ? "#B898E8" : "#6B7A8E";
+    public string UeExtendedBorderBrush => UseUeExtended ? "#3A2860" : "#283240";
     // Visible only on Generic UE cards (not Unity, not specific-mod cards)
     public Visibility UeExtendedToggleVisibility =>
         (IsGenericMod && EngineHint.Contains("Unreal") && !EngineHint.Contains("Legacy")
          && !IsNativeHdrGame)
             ? Visibility.Visible : Visibility.Collapsed;
+
+    // ── Combined status for simplified card ──────────────────────────────────────
+    /// <summary>True when all 3 components that are relevant are installed (or N/A).</summary>
+    private bool AllInstalled => (Mod == null || Status == GameStatus.Installed || Status == GameStatus.UpdateAvailable)
+                              && (RsStatus == GameStatus.Installed || RsStatus == GameStatus.UpdateAvailable || RsStatus == GameStatus.NotInstalled)
+                              && (DcStatus == GameStatus.Installed || DcStatus == GameStatus.UpdateAvailable || DcStatus == GameStatus.NotInstalled);
+
+    private bool AnyInstalling => IsInstalling || RsIsInstalling || DcIsInstalling;
+
+    /// <summary>Status dot: 🟢 all installed, 🟠 update available, ⚪ not installed.</summary>
+    public string CombinedStatusDot => AnyUpdateAvailable ? "🟠"
+        : (Status == GameStatus.Installed && !AnyUpdateAvailable) ? "🟢" : "⚪";
+
+    /// <summary>Per-component status dot for ReShade.</summary>
+    public string RsStatusDot => RsStatus == GameStatus.UpdateAvailable ? "🟠"
+        : (RsStatus == GameStatus.Installed) ? "🟢" : "⚪";
+
+    /// <summary>Per-component status dot for Display Commander.</summary>
+    public string DcStatusDot => DcStatus == GameStatus.UpdateAvailable ? "🟠"
+        : (DcStatus == GameStatus.Installed) ? "🟢" : "⚪";
+
+    /// <summary>Label for the primary combined action button.</summary>
+    public string CombinedActionLabel
+    {
+        get
+        {
+            if (AnyInstalling) return "Installing…";
+            if (IsExternalOnly)
+            {
+                // External-only: no RenoDX to install, only ReShade + DC
+                if (RsStatus == GameStatus.UpdateAvailable || DcStatus == GameStatus.UpdateAvailable) return "⬆  Update ReShade + DC";
+                if (RsStatus == GameStatus.Installed && DcStatus == GameStatus.Installed) return "↺  Reinstall ReShade + DC";
+                return "⬇  Install ReShade + DC";
+            }
+            if (AnyUpdateAvailable) return "⬆  Update All";
+            if (Status == GameStatus.Installed) return "↺  Reinstall All";
+            return "⬇  Install All";
+        }
+    }
+
+    /// <summary>Can the combined button be clicked?</summary>
+    public bool CanCombinedInstall => !AnyInstalling;
+
+    /// <summary>Background for combined button — purple when update, blue otherwise.</summary>
+    public string CombinedBtnBackground  => AnyUpdateAvailable ? "#201838" : "#182840";
+    public string CombinedBtnForeground  => AnyUpdateAvailable ? "#B898E8" : "#7AACDD";
+    public string CombinedBtnBorderBrush => AnyUpdateAvailable ? "#3A2860" : "#2A4468";
+
+    /// <summary>Visibility for the combined action row (non-Luma, non-external, has mod).</summary>
+    public Visibility CombinedRowVisibility => ((!IsExternalOnly && Mod?.SnapshotUrl != null || IsExternalOnly)
+        && !EffectiveLumaMode && Is32BitUeWipVisibility == Visibility.Collapsed)
+        ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Visibility for the expand/collapse chevron on the combined row.</summary>
+    public Visibility ComponentExpandVisibility => CombinedRowVisibility;
+
+    /// <summary>Chevron corner radius — rounded right when delete button is hidden.</summary>
+    public string ChevronCornerRadius => ReinstallRowVisibility == Visibility.Visible ? "0" : "0,10,10,0";
+    /// <summary>Chevron border — full right border when it's the last button.</summary>
+    public string ChevronBorderThickness => ReinstallRowVisibility == Visibility.Visible ? "1,1,0,1" : "1";
+
+    /// <summary>Visibility for the individual component detail section.</summary>
+    public Visibility ComponentDetailVisibility => ComponentExpanded ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Chevron glyph for expand/collapse.</summary>
+    public string ExpandChevron => ComponentExpanded ? "▲" : "▼";
+
+    partial void OnComponentExpandedChanged(bool v)
+    {
+        OnPropertyChanged(nameof(ComponentDetailVisibility));
+        OnPropertyChanged(nameof(ExpandChevron));
+    }
+
+    // ── Component table: short status text + short action labels ─────────────────
+    public string RdxStatusText => IsInstalling ? "Installing…"
+        : Status == GameStatus.UpdateAvailable ? "Update"
+        : Status == GameStatus.Installed       ? "Installed"
+        : Mod?.SnapshotUrl != null             ? "Ready" : "—";
+    public string RdxStatusColor => IsInstalling ? "#D4A856"
+        : Status == GameStatus.UpdateAvailable ? "#B898E8"
+        : Status == GameStatus.Installed       ? "#5ECB7D"
+        : Mod?.SnapshotUrl != null             ? "#A0AABB" : "#404858";
+    public string RdxShortAction => IsInstalling ? "…"
+        : Status == GameStatus.UpdateAvailable ? "⬆ Update"
+        : Status == GameStatus.Installed       ? "↺ Reinstall"
+        : "⬇ Install";
+
+    public string RsStatusText => RsBlockedByDcMode ? "DC Mode"
+        : RsIsInstalling ? "Installing…"
+        : RsStatus == GameStatus.UpdateAvailable ? "Update"
+        : RsStatus == GameStatus.Installed       ? "Installed"
+        : "Ready";
+    public string RsStatusColor => RsBlockedByDcMode ? "#6B7A8E"
+        : RsIsInstalling ? "#D4A856"
+        : RsStatus == GameStatus.UpdateAvailable ? "#B898E8"
+        : RsStatus == GameStatus.Installed       ? "#5ECB7D"
+        : "#A0AABB";
+    public string RsShortAction => RsBlockedByDcMode ? "🚫"
+        : RsIsInstalling ? "…"
+        : RsStatus == GameStatus.UpdateAvailable ? "⬆ Update"
+        : RsStatus == GameStatus.Installed       ? "↺ Reinstall"
+        : "⬇ Install";
+
+    public string DcStatusText => DcIsInstalling ? "Installing…"
+        : DcStatus == GameStatus.UpdateAvailable ? "Update"
+        : DcStatus == GameStatus.Installed       ? "Installed"
+        : "Ready";
+    public string DcStatusColor => DcIsInstalling ? "#D4A856"
+        : DcStatus == GameStatus.UpdateAvailable ? "#B898E8"
+        : DcStatus == GameStatus.Installed       ? "#5ECB7D"
+        : "#A0AABB";
+    public string DcShortAction => DcIsInstalling ? "…"
+        : DcStatus == GameStatus.UpdateAvailable ? "⬆ Update"
+        : DcStatus == GameStatus.Installed       ? "↺ Reinstall"
+        : "⬇ Install";
 
     // ── DC / ReShade action labels ───────────────────────────────────────────────
     // ── Dynamic corner radius for install buttons ────────────────────────────────
@@ -205,12 +349,12 @@ public partial class GameCardViewModel : ObservableObject
     }
 
     // Background colours for DC/RS buttons (purple tint when update available, blue otherwise)
-    public string DcBtnBackground  => DcStatus == GameStatus.UpdateAvailable ? "#2A1A40" : "#22386A";
-    public string DcBtnForeground  => DcStatus == GameStatus.UpdateAvailable ? "#C0A0E8" : "#AACCFF";
-    public string DcBtnBorderBrush => DcStatus == GameStatus.UpdateAvailable ? "#6040A0" : "#3050A0";
-    public string RsBtnBackground  => RsBlockedByDcMode ? "#1A1A1E" : RsStatus == GameStatus.UpdateAvailable ? "#2A1A40" : "#22386A";
-    public string RsBtnForeground  => RsBlockedByDcMode ? "#555566" : RsStatus == GameStatus.UpdateAvailable ? "#C0A0E8" : "#AACCFF";
-    public string RsBtnBorderBrush => RsBlockedByDcMode ? "#2A2A30" : RsStatus == GameStatus.UpdateAvailable ? "#6040A0" : "#3050A0";
+    public string DcBtnBackground  => DcStatus == GameStatus.UpdateAvailable ? "#201838" : "#182840";
+    public string DcBtnForeground  => DcStatus == GameStatus.UpdateAvailable ? "#B898E8" : "#7AACDD";
+    public string DcBtnBorderBrush => DcStatus == GameStatus.UpdateAvailable ? "#3A2860" : "#2A4468";
+    public string RsBtnBackground  => RsBlockedByDcMode ? "#1E242C" : RsStatus == GameStatus.UpdateAvailable ? "#201838" : "#182840";
+    public string RsBtnForeground  => RsBlockedByDcMode ? "#6B7A8E" : RsStatus == GameStatus.UpdateAvailable ? "#B898E8" : "#7AACDD";
+    public string RsBtnBorderBrush => RsBlockedByDcMode ? "#283240" : RsStatus == GameStatus.UpdateAvailable ? "#3A2860" : "#2A4468";
 
     public Visibility DcProgressVisibility => DcIsInstalling ? Visibility.Visible : Visibility.Collapsed;
     public Visibility DcMessageVisibility  => string.IsNullOrEmpty(DcActionMessage) ? Visibility.Collapsed : Visibility.Visible;
@@ -262,7 +406,7 @@ public partial class GameCardViewModel : ObservableObject
         ? (EngineHint.Contains("Unity")
            ? "Generic Unity"
            : (IsNativeHdrGame ? "Extended UE Native HDR"
-              : IsManifestUeExtended ? "Extended UE"
+              : (IsManifestUeExtended || UseUeExtended) ? "Extended UE"
               : "Generic UE"))
         : "";
 
@@ -283,9 +427,9 @@ public partial class GameCardViewModel : ObservableObject
     // ── Luma badge + button visibility ─────────────────────────────────────────────
     public Visibility LumaBadgeVisibility => (LumaFeatureEnabled && IsLumaAvailable) ? Visibility.Visible : Visibility.Collapsed;
     public string LumaBadgeLabel => IsLumaMode ? "Luma ON" : "Luma";
-    public string LumaBadgeBackground => IsLumaMode ? "#1A3020" : "#1E2040";
-    public string LumaBadgeForeground => IsLumaMode ? "#408858" : "#606880";
-    public string LumaBadgeBorderBrush => IsLumaMode ? "#305030" : "#303460";
+    public string LumaBadgeBackground => IsLumaMode ? "#122818" : "#1A2030";
+    public string LumaBadgeForeground => IsLumaMode ? "#5ECB7D" : "#6B7A8E";
+    public string LumaBadgeBorderBrush => IsLumaMode ? "#1E4028" : "#283240";
 
     // In Luma mode: hide RenoDX install, hide ReShade row, show Luma install
     private bool EffectiveLumaMode => LumaFeatureEnabled && IsLumaMode;
@@ -301,7 +445,8 @@ public partial class GameCardViewModel : ObservableObject
         : LumaStatus == GameStatus.Installed ? "↺  Reinstall Luma"
         : "⬇  Install Luma";
     // In Luma mode: hide RenoDX, ReShade, and DC rows
-    public Visibility RenoDxRowVisibility => EffectiveLumaMode ? Visibility.Collapsed : Visibility.Visible;
+    // External-only: hide RenoDX row (ReShade + DC still shown)
+    public Visibility RenoDxRowVisibility => (EffectiveLumaMode || IsExternalOnly) ? Visibility.Collapsed : Visibility.Visible;
     public Visibility ReShadeRowVisibility => EffectiveLumaMode ? Visibility.Collapsed : Visibility.Visible;
     public Visibility DcRowVisibility => EffectiveLumaMode ? Visibility.Collapsed : Visibility.Visible;
 
@@ -320,7 +465,7 @@ public partial class GameCardViewModel : ObservableObject
     public bool CanInstall            => Mod?.SnapshotUrl != null && !IsInstalling && !IsExternalOnly;
     public bool IsUnityGeneric        => IsGenericMod && EngineHint.Contains("Unity");
     public bool HasDualBitMod         => Mod?.HasBothBitVersions == true;
-    public bool HasExtraLinks         => NexusUrl != null || (DiscordUrl != null && EffectiveLumaMode);
+    public bool HasExtraLinks         => NexusUrl != null || (DiscordUrl != null && EffectiveLumaMode) || IsExternalOnly;
     public bool HasNameUrl            => !string.IsNullOrEmpty(NameUrl);
     public string HideButtonLabel     => IsHidden ? "👁 Show" : "🚫 Hide";
     public string StarForeground       => IsFavourite ? "#FFD700" : "#282840";
@@ -340,15 +485,10 @@ public partial class GameCardViewModel : ObservableObject
 
     // ── Visibility ────────────────────────────────────────────────────────────────
 
-    public Visibility TuneButtonVisibility       => CompactMode ? Visibility.Collapsed : Visibility.Visible;
-
     // Compact list item highlight — purple when any component has an update available
     private bool AnyUpdateAvailable => Status == GameStatus.UpdateAvailable
                                     || RsStatus == GameStatus.UpdateAvailable
                                     || DcStatus == GameStatus.UpdateAvailable;
-    public string CompactItemBackground  => AnyUpdateAvailable ? "#2A1A40" : "Transparent";
-    public string CompactItemBorderBrush => AnyUpdateAvailable ? "#6040A0" : "Transparent";
-    public string CompactItemForeground  => AnyUpdateAvailable ? "#C0A0E8" : "#C0D0E8";
 
     public Visibility SourceBadgeVisibility      => string.IsNullOrEmpty(Source) ? Visibility.Collapsed : Visibility.Visible;
     public Visibility GenericBadgeVisibility     => IsGenericMod ? Visibility.Visible : Visibility.Collapsed;
@@ -356,8 +496,8 @@ public partial class GameCardViewModel : ObservableObject
     public Visibility NotesButtonVisibility      => HasNotes ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ProgressVisibility         => IsInstalling ? Visibility.Visible : Visibility.Collapsed;
     public Visibility MessageVisibility          => string.IsNullOrEmpty(ActionMessage) ? Visibility.Collapsed : Visibility.Visible;
-    public Visibility ExternalBtnVisibility      => IsExternalOnly && !EffectiveLumaMode ? Visibility.Visible : Visibility.Collapsed;
-    public Visibility ExtraLinkVisibility        => HasExtraLinks && !IsExternalOnly ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility ExternalBtnVisibility      => IsExternalOnly && !EffectiveLumaMode && CombinedRowVisibility == Visibility.Collapsed ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility ExtraLinkVisibility        => HasExtraLinks ? Visibility.Visible : Visibility.Collapsed;
     public Visibility InstalledFileLabelVisible  => !string.IsNullOrEmpty(InstalledAddonFileName) && !EffectiveLumaMode ? Visibility.Visible : Visibility.Collapsed;
     // Install single button — visible for all installable cards (64-bit default; 32-bit via Overrides toggle)
     // WIP UE 32-bit cards show the WIP button instead of the install button
@@ -408,9 +548,6 @@ public partial class GameCardViewModel : ObservableObject
         OnPropertyChanged(nameof(InstalledFileLabelVisible));
         OnPropertyChanged(nameof(InstallPathDisplay));
         OnPropertyChanged(nameof(UpdateBadgeVisibility));
-        OnPropertyChanged(nameof(CompactItemBackground));
-        OnPropertyChanged(nameof(CompactItemBorderBrush));
-        OnPropertyChanged(nameof(CompactItemForeground));
         OnPropertyChanged(nameof(HideButtonLabel));
         OnPropertyChanged(nameof(StarForeground));
         OnPropertyChanged(nameof(IsFavouriteVisibility));
@@ -443,6 +580,31 @@ public partial class GameCardViewModel : ObservableObject
         OnPropertyChanged(nameof(UeExtendedBorderBrush));
         OnPropertyChanged(nameof(UeExtendedToggleVisibility));
         OnPropertyChanged(nameof(IsNotInstalling));
+        // Combined card
+        OnPropertyChanged(nameof(CombinedStatusDot));
+        OnPropertyChanged(nameof(RsStatusDot));
+        OnPropertyChanged(nameof(DcStatusDot));
+        OnPropertyChanged(nameof(CombinedActionLabel));
+        OnPropertyChanged(nameof(CanCombinedInstall));
+        OnPropertyChanged(nameof(CombinedBtnBackground));
+        OnPropertyChanged(nameof(CombinedBtnForeground));
+        OnPropertyChanged(nameof(CombinedBtnBorderBrush));
+        OnPropertyChanged(nameof(CombinedRowVisibility));
+        OnPropertyChanged(nameof(ComponentExpandVisibility));
+        OnPropertyChanged(nameof(ChevronCornerRadius));
+        OnPropertyChanged(nameof(ChevronBorderThickness));
+        OnPropertyChanged(nameof(ComponentDetailVisibility));
+        OnPropertyChanged(nameof(ExpandChevron));
+        // Component table short labels
+        OnPropertyChanged(nameof(RdxStatusText));
+        OnPropertyChanged(nameof(RdxStatusColor));
+        OnPropertyChanged(nameof(RdxShortAction));
+        OnPropertyChanged(nameof(RsStatusText));
+        OnPropertyChanged(nameof(RsStatusColor));
+        OnPropertyChanged(nameof(RsShortAction));
+        OnPropertyChanged(nameof(DcStatusText));
+        OnPropertyChanged(nameof(DcStatusColor));
+        OnPropertyChanged(nameof(DcShortAction));
         OnPropertyChanged(nameof(IsDcNotInstalling));
         OnPropertyChanged(nameof(IsRsNotInstalling));
         OnPropertyChanged(nameof(RsIniExists));
@@ -502,6 +664,9 @@ public partial class GameCardViewModel : ObservableObject
         OnPropertyChanged(nameof(RenoDxRowVisibility));
         OnPropertyChanged(nameof(ReShadeRowVisibility));
         OnPropertyChanged(nameof(DcRowVisibility));
+        // Sidebar managed-state color
+        OnPropertyChanged(nameof(IsManaged));
+        OnPropertyChanged(nameof(SidebarItemForeground));
     }
 
     partial void OnStatusChanged(GameStatus v)              => NotifyAll();
@@ -531,10 +696,10 @@ public partial class GameCardViewModel : ObservableObject
     }
     partial void OnInstallPathChanged(string v)             => OnPropertyChanged(nameof(InstallPathDisplay));
     partial void OnSourceChanged(string v)                  => OnPropertyChanged(nameof(SourceBadgeVisibility));
-    partial void OnCompactModeChanged(bool v)               => OnPropertyChanged(nameof(TuneButtonVisibility));
     partial void OnLumaFeatureEnabledChanged(bool v)        => NotifyAll();
     partial void OnIsLumaModeChanged(bool v)                => NotifyAll();
     partial void OnLumaStatusChanged(GameStatus v)          => NotifyAll();
     partial void OnIsLumaInstallingChanged(bool v)          => NotifyAll();
     partial void OnLumaActionMessageChanged(string v)       => OnPropertyChanged(nameof(LumaMessageVisibility));
+    partial void OnUseUeExtendedChanged(bool v)              => OnPropertyChanged(nameof(GenericModLabel));
 }
