@@ -34,20 +34,37 @@ public sealed partial class MainWindow : Window
         // TryRestoreWindowBounds (called on Activated) will then override this with the
         // saved size+position from the previous session, if one exists.
         AppWindow.Resize(new Windows.Graphics.SizeInt32(DefaultWidth, DefaultHeight));
+
+        // Set the title bar icon (unpackaged apps need this explicitly)
+        AppWindow.SetIcon("icon.ico");
+
+        // Dark title bar — match our theme
+        if (AppWindow.TitleBar is { } titleBar)
+        {
+            titleBar.BackgroundColor = Windows.UI.Color.FromArgb(0xFF, 0x0F, 0x13, 0x18);           // SurfaceHeader
+            titleBar.ForegroundColor = Windows.UI.Color.FromArgb(0xFF, 0xE8, 0xEC, 0xF2);           // TextPrimary
+            titleBar.InactiveBackgroundColor = Windows.UI.Color.FromArgb(0xFF, 0x0F, 0x13, 0x18);
+            titleBar.InactiveForegroundColor = Windows.UI.Color.FromArgb(0xFF, 0x6B, 0x7A, 0x8E);   // TextTertiary
+            titleBar.ButtonBackgroundColor = Windows.UI.Color.FromArgb(0xFF, 0x0F, 0x13, 0x18);
+            titleBar.ButtonForegroundColor = Windows.UI.Color.FromArgb(0xFF, 0xA0, 0xAA, 0xBB);     // TextSecondary
+            titleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(0xFF, 0x1E, 0x24, 0x2C); // SurfaceOverlay
+            titleBar.ButtonHoverForegroundColor = Windows.UI.Color.FromArgb(0xFF, 0xE8, 0xEC, 0xF2);
+            titleBar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(0xFF, 0x28, 0x32, 0x40); // BorderDefault
+            titleBar.ButtonPressedForegroundColor = Windows.UI.Color.FromArgb(0xFF, 0xE8, 0xEC, 0xF2);
+            titleBar.ButtonInactiveBackgroundColor = Windows.UI.Color.FromArgb(0xFF, 0x0F, 0x13, 0x18);
+            titleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(0xFF, 0x40, 0x48, 0x58); // TextDisabled
+        }
         // Restore window size & position after activation (ensure HWND is ready)
         this.Activated += MainWindow_Activated;
         ViewModel.SetDispatcher(DispatcherQueue);
         ViewModel.ConfirmForeignDxgiOverwrite = ShowForeignDxgiConfirmDialogAsync;
         ViewModel.ConfirmForeignWinmmOverwrite = ShowForeignWinmmConfirmDialogAsync;
         ViewModel.PropertyChanged += OnViewModelChanged;
-        GameCardsList.ItemsSource  = ViewModel.DisplayedGames;
-        CompactGameList.ItemsSource = ViewModel.DisplayedGames;
-        CompactCardDisplay.ContentTemplate = GameCardsList.ItemTemplate;
-        // Apply compact mode visibility immediately so header is hidden on startup
-        UpdateCompactModeVisibility();
-        // Always show the ✕ clear button on search boxes
+        GameList.ItemsSource = ViewModel.DisplayedGames;
+        // Apply initial visibility
+        UpdatePageVisibility();
+        // Always show the ✕ clear button on search box
         SearchBox.Loaded += (_, _) => VisualStateManager.GoToState(SearchBox, "ButtonVisible", false);
-        CompactSearchBox.Loaded += (_, _) => VisualStateManager.GoToState(CompactSearchBox, "ButtonVisible", false);
         _ = ViewModel.InitializeAsync();
         // Silent update check — runs in background, shows dialog only if update found
         _ = CheckForAppUpdateAsync();
@@ -99,9 +116,9 @@ public sealed partial class MainWindow : Window
             IsEnabled  = !isLumaMode,
             FontSize   = 12,
             Padding    = new Thickness(10, 6, 10, 6),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 14, 30)),
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 180, 100, 180)),
-            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 80, 30, 80)),
+            Background = Brush("AccentPurpleBgBrush"),
+            Foreground = Brush("AccentPurpleBrush"),
+            BorderBrush = Brush("AccentPurpleBorderBrush"),
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         ToolTipService.SetToolTip(excludeBtn,
@@ -126,9 +143,9 @@ public sealed partial class MainWindow : Window
             FontSize = 12,
             VerticalAlignment = VerticalAlignment.Bottom,
             Padding = new Thickness(10, 6, 10, 6),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 26, 24, 32)),
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 140, 130, 160)),
-            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 50, 45, 60)),
+            Background = Brush("SurfaceOverlayBrush"),
+            Foreground = Brush("TextSecondaryBrush"),
+            BorderBrush = Brush("BorderDefaultBrush"),
         };
         ToolTipService.SetToolTip(resetBtn,
             "Reset game name back to auto-detected and clear wiki name mapping.");
@@ -167,9 +184,9 @@ public sealed partial class MainWindow : Window
             IsEnabled  = !isLumaMode,
             FontSize   = 12,
             Padding    = new Thickness(10, 6, 10, 6),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 14, 28, 28)),
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 80, 200, 180)),
-            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 90, 80)),
+            Background = Brush("AccentTealBgBrush"),
+            Foreground = Brush("AccentTealBrush"),
+            BorderBrush = Brush("AccentTealBorderBrush"),
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         ToolTipService.SetToolTip(dllOverrideBtn,
@@ -238,9 +255,9 @@ public sealed partial class MainWindow : Window
             IsChecked  = isUaExcluded,
             FontSize   = 12,
             Padding    = new Thickness(10, 6, 10, 6),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 22, 10, 42)),
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 160, 100, 220)),
-            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 80, 30, 140)),
+            Background = Brush("AccentPurpleBgBrush"),
+            Foreground = Brush("AccentPurpleBrush"),
+            BorderBrush = Brush("AccentPurpleBorderBrush"),
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         ToolTipService.SetToolTip(uaExcludeBtn,
@@ -258,9 +275,9 @@ public sealed partial class MainWindow : Window
             IsEnabled  = !isLumaMode,
             FontSize   = 12,
             Padding    = new Thickness(10, 6, 10, 6),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 28, 14, 8)),
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 200, 120, 60)),
-            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 120, 50, 20)),
+            Background = Brush("AccentAmberBgBrush"),
+            Foreground = Brush("AccentAmberBrush"),
+            BorderBrush = Brush("BorderDefaultBrush"),
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         ToolTipService.SetToolTip(bit32Btn,
@@ -282,7 +299,7 @@ public sealed partial class MainWindow : Window
             SelectedIndex = currentDcMode switch { null => 0, 0 => 1, 1 => 2, 2 => 3, _ => 0 },
             FontSize     = 12,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Header       = "⚙  DC Mode for this game",
+            Header       = "DC Mode for this game",
         };
         ToolTipService.SetToolTip(dcModeCombo,
             "Follow Global = use the header DC Mode toggle. Exclude (Off) = always use normal naming. " +
@@ -304,7 +321,7 @@ public sealed partial class MainWindow : Window
             SelectedItem = currentShaderMode,
             FontSize     = 12,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Header       = "🎨  Shader mode for this game",
+            Header       = "Shader mode for this game",
         };
         ToolTipService.SetToolTip(shaderModeCombo,
             "Global = follow the header toggle. Off = no shaders. Minimum = Lilium only. All = all packs. User = custom folder only.\n" +
@@ -329,7 +346,7 @@ public sealed partial class MainWindow : Window
                                   ? "Remove mapping" : "",
             CloseButtonText   = "Cancel",
             XamlRoot          = Content.XamlRoot,
-            Background        = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 16, 20, 36)),
+            Background        = Brush("SurfaceRaisedBrush"),
         };
 
         _ = dlg.ShowAsync().AsTask().ContinueWith(t =>
@@ -449,31 +466,18 @@ public sealed partial class MainWindow : Window
             {
                 case nameof(ViewModel.IsLoading):
                     var loading = ViewModel.IsLoading;
-                    // Don't disturb the About panel if it's currently visible
-                    if (!_aboutVisible)
+                    // Don't disturb the Settings panel if it's currently visible
+                    if (ViewModel.CurrentPage != AppPage.Settings)
                     {
                         LoadingPanel.Visibility = loading ? Visibility.Visible  : Visibility.Collapsed;
-                        if (ViewModel.CompactMode)
-                        {
-                            CardsScroll.Visibility = Visibility.Collapsed;
-                            CompactModeArea.Visibility = loading ? Visibility.Collapsed : Visibility.Visible;
-                        }
-                        else
-                        {
-                            CardsScroll.Visibility  = loading ? Visibility.Collapsed : Visibility.Visible;
-                            CompactModeArea.Visibility = Visibility.Collapsed;
-                        }
+                        GameViewPanel.Visibility = loading ? Visibility.Collapsed : Visibility.Visible;
                     }
-                    // Keep header action buttons and header bar hidden in compact mode
-                    HeaderActionButtons.Visibility = ViewModel.CompactMode ? Visibility.Collapsed : Visibility.Visible;
-                    HeaderBar.Visibility = ViewModel.CompactMode ? Visibility.Collapsed : Visibility.Visible;
                     LoadingRing.IsActive = loading;
                     RefreshBtn.IsEnabled = !loading;
-                    CmpRefreshBtn.IsEnabled = !loading;
                     StatusDot.Fill = new SolidColorBrush(loading
-                        ? Windows.UI.Color.FromArgb(255, 180, 160, 100)
-                        : Windows.UI.Color.FromArgb(255, 130, 200, 140));
-                    if (!loading) TryCompactReselect();
+                        ? ((SolidColorBrush)Application.Current.Resources["AccentAmberBrush"]).Color
+                        : ((SolidColorBrush)Application.Current.Resources["AccentGreenBrush"]).Color);
+                    if (!loading) TryRestoreSelection();
                     break;
                 case nameof(ViewModel.StatusText):
                 case nameof(ViewModel.SubStatusText):
@@ -491,9 +495,6 @@ public sealed partial class MainWindow : Window
                 case nameof(ViewModel.HiddenCount):
                     HiddenCountText.Text = ViewModel.HiddenCount > 0
                         ? $"· {ViewModel.HiddenCount} hidden" : "";
-                    break;
-                case nameof(ViewModel.CompactMode):
-                    UpdateCompactModeVisibility();
                     break;
             }
         });
@@ -515,44 +516,33 @@ public sealed partial class MainWindow : Window
 
     private async Task RefreshWithScrollRestore()
     {
-        // Save scroll/selection state
-        var scrollOffset = CardsScroll.VerticalOffset;
-        var selectedName = (CompactGameList.SelectedItem as GameCardViewModel)?.GameName;
+        var selectedName = (GameList.SelectedItem as GameCardViewModel)?.GameName;
 
         await ViewModel.RefreshAsync();
 
-        // Restore state after refresh completes
-        RestoreScrollAndSelection(scrollOffset, selectedName);
+        RestoreScrollAndSelection(selectedName);
     }
 
     private async Task FullRefreshWithScrollRestore()
     {
-        var scrollOffset = CardsScroll.VerticalOffset;
-        var selectedName = (CompactGameList.SelectedItem as GameCardViewModel)?.GameName;
+        var selectedName = (GameList.SelectedItem as GameCardViewModel)?.GameName;
 
         await ViewModel.FullRefreshAsync();
 
-        RestoreScrollAndSelection(scrollOffset, selectedName);
+        RestoreScrollAndSelection(selectedName);
     }
 
-    private void RestoreScrollAndSelection(double scrollOffset, string? selectedName)
+    private void RestoreScrollAndSelection(string? selectedName)
     {
-        // Restore full UI scroll position
-        DispatcherQueue.TryEnqueue(() =>
+        // Restore game list selection
+        if (!string.IsNullOrEmpty(selectedName))
         {
-            CardsScroll.ChangeView(null, scrollOffset, null, disableAnimation: true);
-        });
-
-        // Restore compact mode selection
-        if (!string.IsNullOrEmpty(selectedName) && ViewModel.CompactMode)
-        {
-            _pendingCompactReselect = selectedName;
-            DispatcherQueue.TryEnqueue(TryCompactReselect);
+            _pendingReselect = selectedName;
+            DispatcherQueue.TryEnqueue(TryRestoreSelection);
         }
     }
 
-    private bool _aboutVisible = false;
-    private string? _pendingCompactReselect;
+    private string? _pendingReselect;
 
     private void RsIniButton_Click(object sender, RoutedEventArgs e)
     {
@@ -601,7 +591,7 @@ public sealed partial class MainWindow : Window
             Content             = new TextBlock
             {
                 TextWrapping = TextWrapping.Wrap,
-                Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 220, 180, 120)),
+                Foreground   = Brush("AccentAmberBrush"),
                 FontSize     = 13,
                 Text         = $"A dxgi.dll file was found in:\n{card.InstallPath}\n\n" +
                                $"File size: {sizeKB:N0} KB\n\n" +
@@ -612,7 +602,7 @@ public sealed partial class MainWindow : Window
             PrimaryButtonText   = "Overwrite",
             CloseButtonText     = "Cancel",
             XamlRoot            = Content.XamlRoot,
-            Background          = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 20, 10)),
+            Background          = Brush("SurfaceOverlayBrush"),
         };
 
         var result = await dlg.ShowAsync();
@@ -630,7 +620,7 @@ public sealed partial class MainWindow : Window
             Content             = new TextBlock
             {
                 TextWrapping = TextWrapping.Wrap,
-                Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 220, 180, 120)),
+                Foreground   = Brush("AccentAmberBrush"),
                 FontSize     = 13,
                 Text         = $"A winmm.dll file was found in:\n{card.InstallPath}\n\n" +
                                $"File size: {sizeKB:N0} KB\n\n" +
@@ -641,7 +631,7 @@ public sealed partial class MainWindow : Window
             PrimaryButtonText   = "Overwrite",
             CloseButtonText     = "Cancel",
             XamlRoot            = Content.XamlRoot,
-            Background          = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 20, 10)),
+            Background          = Brush("SurfaceOverlayBrush"),
         };
 
         var result = await dlg.ShowAsync();
@@ -692,7 +682,7 @@ public sealed partial class MainWindow : Window
                     new TextBlock
                     {
                         TextWrapping = TextWrapping.Wrap,
-                        Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 180, 220, 255)),
+                        Foreground   = Brush("TextSecondaryBrush"),
                         FontSize     = 14,
                         Text         = $"A new version of RDXC is available!\n\n" +
                                        $"Installed:  v{updateInfo.CurrentVersion}\n" +
@@ -704,7 +694,7 @@ public sealed partial class MainWindow : Window
             PrimaryButtonText   = "Update Now",
             CloseButtonText     = "Later",
             XamlRoot            = Content.XamlRoot,
-            Background          = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 20, 20, 35)),
+            Background          = Brush("SurfaceRaisedBrush"),
         };
 
         var result = await dlg.ShowAsync();
@@ -721,7 +711,7 @@ public sealed partial class MainWindow : Window
         {
             Text         = "Starting download...",
             TextWrapping = TextWrapping.Wrap,
-            Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 180, 220, 255)),
+            Foreground   = Brush("TextSecondaryBrush"),
             FontSize     = 13,
         };
         var progressBar = new ProgressBar
@@ -741,7 +731,7 @@ public sealed partial class MainWindow : Window
                 Children = { progressText, progressBar },
             },
             XamlRoot   = Content.XamlRoot,
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 20, 20, 35)),
+            Background = Brush("SurfaceRaisedBrush"),
             // No buttons — dialog will be closed programmatically when download completes
         };
 
@@ -785,12 +775,11 @@ public sealed partial class MainWindow : Window
         });
     }
 
-    private void AboutButton_Click(object sender, RoutedEventArgs e)
+    private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        _aboutVisible = true;
-        AboutPanel.Visibility  = Visibility.Visible;
-        CardsScroll.Visibility = Visibility.Collapsed;
-        CompactModeArea.Visibility = Visibility.Collapsed;
+        ViewModel.NavigateToSettingsCommand.Execute(null);
+        GameViewPanel.Visibility = Visibility.Collapsed;
+        SettingsPanel.Visibility = Visibility.Visible;
         LoadingPanel.Visibility = Visibility.Collapsed;
         // Sync toggle state with ViewModel
         SkipUpdateToggle.IsOn = ViewModel.SkipUpdateCheck;
@@ -884,19 +873,22 @@ public sealed partial class MainWindow : Window
     {
         var notes = ViewModels.MainViewModel.GetRecentPatchNotes(3);
 
+        var markdown = new CommunityToolkit.WinUI.Controls.MarkdownTextBlock
+        {
+            Text = notes,
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent),
+            Foreground = Brush("TextSecondaryBrush"),
+            FontSize = 12,
+            UseEmphasisExtras = true,
+            UseListExtras = true,
+            UseTaskLists = true,
+        };
+
         var scrollViewer = new ScrollViewer
         {
             MaxHeight = 500,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = new TextBlock
-            {
-                Text         = notes,
-                TextWrapping = TextWrapping.Wrap,
-                FontSize     = 12,
-                Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 170, 185, 220)),
-                LineHeight   = 20,
-                IsTextSelectionEnabled = true,
-            },
+            Content = markdown,
         };
 
         var dlg = new ContentDialog
@@ -905,7 +897,7 @@ public sealed partial class MainWindow : Window
             Content            = scrollViewer,
             CloseButtonText    = "Close",
             XamlRoot           = Content.XamlRoot,
-            Background         = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 14, 18, 32)),
+            Background         = Brush("SurfaceToolbarBrush"),
         };
 
         await dlg.ShowAsync();
@@ -940,20 +932,15 @@ public sealed partial class MainWindow : Window
         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(ModInstallService.DownloadCacheDir) { UseShellExecute = true });
     }
 
-    private void AboutBack_Click(object sender, RoutedEventArgs e)
+    private void SettingsBack_Click(object sender, RoutedEventArgs e)
     {
-        _aboutVisible = false;
-        AboutPanel.Visibility = Visibility.Collapsed;
-        // Restore whichever panel was showing before About was opened
+        ViewModel.NavigateToGameViewCommand.Execute(null);
+        SettingsPanel.Visibility = Visibility.Collapsed;
+        // Restore whichever panel was showing before Settings was opened
         if (ViewModel.IsLoading)
             LoadingPanel.Visibility = Visibility.Visible;
-        else if (ViewModel.CompactMode)
-            CompactModeArea.Visibility = Visibility.Visible;
         else
-            CardsScroll.Visibility = Visibility.Visible;
-        // Restore header buttons (hidden in compact mode)
-        HeaderActionButtons.Visibility = ViewModel.CompactMode ? Visibility.Collapsed : Visibility.Visible;
-        HeaderBar.Visibility = ViewModel.CompactMode ? Visibility.Collapsed : Visibility.Visible;
+            GameViewPanel.Visibility = Visibility.Visible;
     }
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -961,19 +948,6 @@ public sealed partial class MainWindow : Window
         ViewModel.SearchQuery = SearchBox.Text;
         // Always show the clear (✕) button
         VisualStateManager.GoToState(SearchBox, "ButtonVisible", true);
-        // Sync compact search box
-        if (CompactSearchBox != null && CompactSearchBox.Text != SearchBox.Text)
-            CompactSearchBox.Text = SearchBox.Text;
-    }
-
-    private void CompactSearchBox_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        ViewModel.SearchQuery = CompactSearchBox.Text;
-        // Always show the clear (✕) button
-        VisualStateManager.GoToState(CompactSearchBox, "ButtonVisible", true);
-        // Sync main search box
-        if (SearchBox.Text != CompactSearchBox.Text)
-            SearchBox.Text = CompactSearchBox.Text;
     }
 
     // ShowHidden toggle removed; Hidden tab shows hidden games by default.
@@ -992,14 +966,14 @@ public sealed partial class MainWindow : Window
                 Spacing = 10,
                 Children =
                 {
-                    new TextBlock { Text = "Enter the game name exactly as it appears on the wiki mod list:", TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 180, 190, 220)) },
+                    new TextBlock { Text = "Enter the game name exactly as it appears on the wiki mod list:", TextWrapping = TextWrapping.Wrap, Foreground = Brush("TextSecondaryBrush") },
                     nameBox
                 }
             },
             PrimaryButtonText   = "Pick Folder →",
             CloseButtonText     = "Cancel",
             XamlRoot            = Content.XamlRoot,
-            Background          = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 16, 20, 40)),
+            Background          = Brush("SurfaceToolbarBrush"),
         };
         var result = await nameDialog.ShowAsync();
         if (result != ContentDialogResult.Primary) return;
@@ -1113,7 +1087,7 @@ public sealed partial class MainWindow : Window
                 Content         = $"\"{existingCard.GameName}\" is already in your library at:\n{existingCard.InstallPath}",
                 CloseButtonText = "OK",
                 XamlRoot        = Content.XamlRoot,
-                Background      = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 16, 20, 40)),
+                Background      = Brush("SurfaceToolbarBrush"),
             };
             await dupDialog.ShowAsync();
             return;
@@ -1132,14 +1106,14 @@ public sealed partial class MainWindow : Window
         var confirmPanel = new StackPanel { Spacing = 8 };
         confirmPanel.Children.Add(new TextBlock
         {
-            Text = "Game name:", Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 180, 190, 220)),
+            Text = "Game name:", Foreground = Brush("TextSecondaryBrush"),
         });
         confirmPanel.Children.Add(nameBox);
         confirmPanel.Children.Add(new TextBlock
         {
             Text = $"Engine: {engineLabel}\nInstall path: {installPath}",
             TextWrapping = TextWrapping.Wrap,
-            Foreground   = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 130, 145, 175)),
+            Foreground   = Brush("TextTertiaryBrush"),
             FontSize     = 12, Margin = new Thickness(0, 6, 0, 0),
         });
 
@@ -1150,7 +1124,7 @@ public sealed partial class MainWindow : Window
             PrimaryButtonText = "Add Game",
             CloseButtonText   = "Cancel",
             XamlRoot          = Content.XamlRoot,
-            Background        = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 16, 20, 40)),
+            Background        = Brush("SurfaceToolbarBrush"),
         };
         var result = await confirmDialog.ShowAsync();
         if (result != ContentDialogResult.Primary) return;
@@ -1234,7 +1208,7 @@ public sealed partial class MainWindow : Window
             Text = $"Install {addonFileName} to a game folder.",
             TextWrapping = TextWrapping.Wrap,
             FontSize = 13,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 160, 176, 216)),
+            Foreground = Brush("TextSecondaryBrush"),
         });
         panel.Children.Add(combo);
 
@@ -1569,13 +1543,15 @@ public sealed partial class MainWindow : Window
     {
         if (sender is not Button btn) return;
         ViewModel.SetFilterCommand.Execute(btn.Tag as string ?? "Detected");
-        var active   = Windows.UI.Color.FromArgb(255, 100, 130, 200);
-        var inactive = Windows.UI.Color.FromArgb(255, 22, 27, 44);
-        var activeFg   = Colors.White;
-        var inactiveFg = Windows.UI.Color.FromArgb(255, 160, 170, 200);
+        var active   = ((SolidColorBrush)Application.Current.Resources["ChipActiveBrush"]).Color;   // ChipActive
+        var inactive = ((SolidColorBrush)Application.Current.Resources["ChipDefaultBrush"]).Color;   // ChipDefault
+        var activeFg   = ((SolidColorBrush)Application.Current.Resources["TextPrimaryBrush"]).Color; // TextPrimary
+        var inactiveFg = ((SolidColorBrush)Application.Current.Resources["ChipTextBrush"]).Color; // ChipText
+        var tag = btn.Tag as string ?? "Detected";
+        // Update both full-mode and compact-mode filter buttons
         foreach (var b in new[] { FilterFavourites, FilterDetected, FilterUnreal, FilterUnity, FilterOther, FilterRenoDX, FilterLuma, FilterHidden })
         {
-            bool isActive = b == btn;
+            bool isActive = (b.Tag as string) == tag;
             b.Background  = new SolidColorBrush(isActive ? active   : inactive);
             b.Foreground  = new SolidColorBrush(isActive ? activeFg : inactiveFg);
         }
@@ -1589,8 +1565,41 @@ public sealed partial class MainWindow : Window
 
     // ── Card handlers ─────────────────────────────────────────────────────────────
 
+    private void ExpandComponents_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is GameCardViewModel card)
+            card.ComponentExpanded = !card.ComponentExpanded;
+    }
+
+    private async void CombinedInstallButton_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not GameCardViewModel card) return;
+        if (string.IsNullOrEmpty(card.InstallPath) || !System.IO.Directory.Exists(card.InstallPath))
+        {
+            var folder = await PickFolderAsync();
+            if (folder == null) return;
+            card.InstallPath = folder;
+            ViewModel.SaveLibraryPublic();
+        }
+        // Chain: RenoDX → DC → ReShade (skip components that are N/A)
+        if (card.Mod?.SnapshotUrl != null)
+            await ViewModel.InstallModCommand.ExecuteAsync(card);
+        if (card.DcRowVisibility == Microsoft.UI.Xaml.Visibility.Visible)
+            await ViewModel.InstallDcCommand.ExecuteAsync(card);
+        if (card.ReShadeRowVisibility == Microsoft.UI.Xaml.Visibility.Visible)
+            await ViewModel.InstallReShadeCommand.ExecuteAsync(card);
+    }
+
     private async void InstallButton_Click(object sender, RoutedEventArgs e)
     {
+
+        // If this is an external-only game, open the external URL instead
+        var checkCard = GetCardFromSender(sender);
+        if (checkCard?.IsExternalOnly == true)
+        {
+            ExternalLink_Click(sender, e);
+            return;
+        }
         if (sender is not Button btn || btn.Tag is not GameCardViewModel card) return;
         await EnsurePathAndInstall(card, () => ViewModel.InstallModCommand.ExecuteAsync(card));
     }
@@ -1745,34 +1754,47 @@ public sealed partial class MainWindow : Window
             ViewModel.UninstallLumaCommand.Execute(card);
     }
 
-    private void UeExtendedToggle_Click(object sender, RoutedEventArgs e)
+    private void UeExtendedFlyoutItem_Click(object sender, RoutedEventArgs e)
     {
         var card = (sender as FrameworkElement)?.Tag as GameCardViewModel;
         if (card == null) return;
 
         ViewModel.ToggleUeExtended(card);
 
-        // Show toast only when turning UE-Extended ON
+        // Directly update the badge text based on the new state
+        string newLabel = card.UseUeExtended ? "Extended UE" : "Generic UE";
+        DetailGenericText.Text = newLabel;
+
+        // Update the UE button styling
         if (card.UseUeExtended)
-            ShowUeExtendedToast();
-    }
-
-    private DispatcherTimer? _toastTimer;
-
-    private void ShowUeExtendedToast()
-    {
-        UeExtendedToast.Visibility = Visibility.Visible;
-        UeExtendedToast.Opacity    = 1.0;
-
-        _toastTimer?.Stop();
-        _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
-        _toastTimer.Tick += (s, e) =>
         {
-            _toastTimer.Stop();
-            UeExtendedToast.Opacity    = 0.0;
-            UeExtendedToast.Visibility = Visibility.Collapsed;
-        };
-        _toastTimer.Start();
+            DetailUeExtendedBtn.Background = Brush("AccentGreenBgBrush");
+            DetailUeExtendedBtn.Foreground = Brush("AccentGreenBrush");
+            DetailUeExtendedBtn.BorderBrush = Brush("AccentGreenBorderBrush");
+        }
+        else
+        {
+            DetailUeExtendedBtn.Background = Brush("SurfaceOverlayBrush");
+            DetailUeExtendedBtn.Foreground = Brush("TextSecondaryBrush");
+            DetailUeExtendedBtn.BorderBrush = Brush("BorderStrongBrush");
+        }
+
+        // Update flyout item text
+        DetailUeExtendedItem.Text = card.UseUeExtended ? "Disable UE Extended" : "Enable UE Extended";
+
+        // Show inline message
+        if (card.UseUeExtended)
+        {
+            DetailRsMessage.Text = "⚡ UE-Extended enabled — check Discord to confirm this game is compatible.";
+            DetailRsMessage.Foreground = Brush("AccentPurpleBrush");
+            DetailRsMessage.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            DetailRsMessage.Text = "UE-Extended disabled.";
+            DetailRsMessage.Foreground = Brush("TextTertiaryBrush");
+            DetailRsMessage.Visibility = Visibility.Visible;
+        }
     }
 
     private void HideButton_Click(object sender, RoutedEventArgs e)
@@ -1847,9 +1869,9 @@ public sealed partial class MainWindow : Window
         var card = GetCardFromSender(sender);
         if (card == null) return;
 
-        var textColour = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 195, 210, 240));
-        var linkColour = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 130, 170, 240));
-        var dimColour  = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 120, 140, 170));
+        var textColour = Brush("TextSecondaryBrush");
+        var linkColour = Brush("AccentBlueBrush");
+        var dimColour  = Brush("TextTertiaryBrush");
 
         var outerPanel = new StackPanel { Spacing = 10 };
 
@@ -1885,14 +1907,14 @@ public sealed partial class MainWindow : Window
                 CornerRadius    = new CornerRadius(6),
                 Padding         = new Thickness(10, 4, 10, 4),
                 HorizontalAlignment = HorizontalAlignment.Left,
-                Background      = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 26, 48, 32)),
-                BorderBrush     = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 48, 80, 48)),
+                Background      = Brush("AccentGreenBgBrush"),
+                BorderBrush     = Brush("AccentGreenBorderBrush"),
                 BorderThickness = new Thickness(1),
                 Child = new TextBlock
                 {
                     Text       = lumaLabel,
                     FontSize   = 12,
-                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 96, 192, 112)),
+                    Foreground = Brush("AccentGreenBrush"),
                 }
             };
             outerPanel.Children.Add(lumaBadge);
@@ -2037,7 +2059,7 @@ public sealed partial class MainWindow : Window
             Content         = scrollContent,
             CloseButtonText = "Close",
             XamlRoot        = Content.XamlRoot,
-            Background      = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 16, 20, 40)),
+            Background      = Brush("SurfaceToolbarBrush"),
         };
         await dialog.ShowAsync();
     }
@@ -2046,9 +2068,13 @@ public sealed partial class MainWindow : Window
     private static Border MakeSeparator() => new()
     {
         Height = 1,
-        Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 40, 60)),
+        Background = (SolidColorBrush)Application.Current.Resources["BorderSubtleBrush"],
         Margin = new Thickness(0, 2, 0, 2),
     };
+
+    /// <summary>Looks up a SolidColorBrush from the merged theme resource dictionaries.</summary>
+    private SolidColorBrush Brush(string key) =>
+        (SolidColorBrush)Application.Current.Resources[key];
 
     /// <summary>Parses a hex colour string like "#1C2848" into a Windows.UI.Color.</summary>
     private static Windows.UI.Color ParseColor(string hex)
@@ -2095,15 +2121,14 @@ public sealed partial class MainWindow : Window
     // ── Window persistence (JSON-based, works for unpackaged WinUI 3 apps) ────────
     // ApplicationData.Current.LocalSettings requires package identity and throws in
     // unpackaged apps — so we use a plain JSON file in %LocalAppData% instead.
-    // Stores separate bounds for Full and Compact modes so each remembers its last size.
+    // Stores window bounds so the window remembers its last size/position.
 
     private static readonly string _windowSettingsPath = System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "RenoDXCommander", "window_main.json");
 
-    // In-memory cache of per-mode bounds (populated from file on first restore)
-    private (int X, int Y, int W, int H)? _fullBounds;
-    private (int X, int Y, int W, int H)? _compactBounds;
+    // In-memory cache of window bounds (populated from file on first restore)
+    private (int X, int Y, int W, int H)? _windowBounds;
 
     private void TryRestoreWindowBounds()
     {
@@ -2113,25 +2138,24 @@ public sealed partial class MainWindow : Window
             var json = System.IO.File.ReadAllText(_windowSettingsPath);
             var doc  = System.Text.Json.JsonDocument.Parse(json).RootElement;
 
-            // Load Full bounds
-            if (doc.TryGetProperty("FullX", out var fx) && doc.TryGetProperty("FullY", out var fy) &&
-                doc.TryGetProperty("FullW", out var fw) && doc.TryGetProperty("FullH", out var fh))
-                _fullBounds = (fx.GetInt32(), fy.GetInt32(), fw.GetInt32(), fh.GetInt32());
+            // Try unified bounds first (new format)
+            if (doc.TryGetProperty("X", out var ux) && doc.TryGetProperty("Y", out var uy) &&
+                doc.TryGetProperty("W", out var uw) && doc.TryGetProperty("H", out var uh))
+                _windowBounds = (ux.GetInt32(), uy.GetInt32(), uw.GetInt32(), uh.GetInt32());
 
-            // Load Compact bounds
-            if (doc.TryGetProperty("CompactX", out var cx) && doc.TryGetProperty("CompactY", out var cy) &&
+            // Legacy migration: old format stored FullX/FullY or CompactX/CompactY — prefer Compact (closest to new layout)
+            if (_windowBounds == null &&
+                doc.TryGetProperty("CompactX", out var cx) && doc.TryGetProperty("CompactY", out var cy) &&
                 doc.TryGetProperty("CompactW", out var cw) && doc.TryGetProperty("CompactH", out var ch))
-                _compactBounds = (cx.GetInt32(), cy.GetInt32(), cw.GetInt32(), ch.GetInt32());
+                _windowBounds = (cx.GetInt32(), cy.GetInt32(), cw.GetInt32(), ch.GetInt32());
 
-            // Legacy migration: old format stored X/Y/W/H without mode prefix — treat as Full
-            if (_fullBounds == null &&
-                doc.TryGetProperty("X", out var lx) && doc.TryGetProperty("Y", out var ly) &&
-                doc.TryGetProperty("W", out var lw) && doc.TryGetProperty("H", out var lh))
-                _fullBounds = (lx.GetInt32(), ly.GetInt32(), lw.GetInt32(), lh.GetInt32());
+            if (_windowBounds == null &&
+                doc.TryGetProperty("FullX", out var fx) && doc.TryGetProperty("FullY", out var fy) &&
+                doc.TryGetProperty("FullW", out var fw) && doc.TryGetProperty("FullH", out var fh))
+                _windowBounds = (fx.GetInt32(), fy.GetInt32(), fw.GetInt32(), fh.GetInt32());
 
-            // Apply the bounds for the current mode
-            var bounds = ViewModel.CompactMode ? _compactBounds : _fullBounds;
-            if (bounds is var (x, y, w, h) && w >= 400 && h >= 300 && w <= 7680 && h <= 4320)
+            // Apply the bounds
+            if (_windowBounds is var (x, y, w, h) && w >= 400 && h >= 300 && w <= 7680 && h <= 4320)
             {
                 var hwnd = WindowNative.GetWindowHandle(this);
                 SetWindowPos(hwnd, IntPtr.Zero, x, y, w, h, 0x0040 /* SWP_NOZORDER */);
@@ -2140,8 +2164,8 @@ public sealed partial class MainWindow : Window
         catch { }
     }
 
-    /// <summary>Captures the current window rect into the in-memory cache for the given mode.</summary>
-    private void CaptureCurrentBounds(bool compact)
+    /// <summary>Captures the current window rect into the in-memory cache.</summary>
+    private void CaptureCurrentBounds()
     {
         try
         {
@@ -2150,19 +2174,17 @@ public sealed partial class MainWindow : Window
             var w = r.Right - r.Left;
             var h = r.Bottom - r.Top;
             if (w < 100 || h < 100) return;
-            var tuple = (r.Left, r.Top, w, h);
-            if (compact) _compactBounds = tuple; else _fullBounds = tuple;
+            _windowBounds = (r.Left, r.Top, w, h);
         }
         catch { }
     }
 
-    /// <summary>Restores the cached bounds for the given mode, if available.</summary>
-    private void RestoreBoundsForMode(bool compact)
+    /// <summary>Restores the cached window bounds, if available.</summary>
+    private void RestoreWindowBounds()
     {
         try
         {
-            var bounds = compact ? _compactBounds : _fullBounds;
-            if (bounds is var (x, y, w, h) && w >= 400 && h >= 300 && w <= 7680 && h <= 4320)
+            if (_windowBounds is var (x, y, w, h) && w >= 400 && h >= 300 && w <= 7680 && h <= 4320)
             {
                 var hwnd = WindowNative.GetWindowHandle(this);
                 SetWindowPos(hwnd, IntPtr.Zero, x, y, w, h, 0x0040 /* SWP_NOZORDER */);
@@ -2175,18 +2197,14 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            // Capture final bounds for the current mode
-            CaptureCurrentBounds(ViewModel.CompactMode);
+            // Capture final bounds
+            CaptureCurrentBounds();
 
             System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(_windowSettingsPath)!);
             var data = new Dictionary<string, int>();
-            if (_fullBounds is var (fx, fy, fw, fh))
+            if (_windowBounds is var (x, y, w, h))
             {
-                data["FullX"] = fx; data["FullY"] = fy; data["FullW"] = fw; data["FullH"] = fh;
-            }
-            if (_compactBounds is var (cx, cy, cw, ch))
-            {
-                data["CompactX"] = cx; data["CompactY"] = cy; data["CompactW"] = cw; data["CompactH"] = ch;
+                data["X"] = x; data["Y"] = y; data["W"] = w; data["H"] = h;
             }
             var json = System.Text.Json.JsonSerializer.Serialize(data);
             System.IO.File.WriteAllText(_windowSettingsPath, json);
@@ -2194,89 +2212,344 @@ public sealed partial class MainWindow : Window
         catch { }
     }
 
-    // ── Compact / Full UI toggle ──────────────────────────────────────────────────
+    // ── Page visibility management ──────────────────────────────────────────────
 
-    private void CompactToggle_Click(object sender, RoutedEventArgs e)
+    private void UpdatePageVisibility()
     {
-        // Save the current mode's window bounds before switching
-        CaptureCurrentBounds(ViewModel.CompactMode);
-
-        ViewModel.CompactMode = !ViewModel.CompactMode;
-        ViewModel.SaveSettingsPublic();
-        UpdateCompactModeVisibility();
-
-        // Restore the target mode's last-known window bounds
-        RestoreBoundsForMode(ViewModel.CompactMode);
-
-        CrashReporter.Log($"UI mode toggled: {(ViewModel.CompactMode ? "Compact" : "Full")}");
-    }
-
-    private void UpdateCompactModeVisibility()
-    {
-        bool compact = ViewModel.CompactMode;
-
-        // Header bar: visible in full mode only, completely hidden in compact
-        HeaderBar.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
-
-        // Header action buttons (DC Mode, Shaders, Update All, Add Game, etc.): visible in full only
-        HeaderActionButtons.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
-
-        // Filter bar stays visible in both modes
-        FilterBarPanel.Visibility = Visibility.Visible;
-
-        if (_aboutVisible)
+        // Show the correct panel based on current page and loading state
+        if (ViewModel.CurrentPage == AppPage.Settings)
         {
-            CardsScroll.Visibility = Visibility.Collapsed;
-            CompactModeArea.Visibility = Visibility.Collapsed;
+            GameViewPanel.Visibility = Visibility.Collapsed;
+            SettingsPanel.Visibility = Visibility.Visible;
+            LoadingPanel.Visibility = Visibility.Collapsed;
         }
         else if (ViewModel.IsLoading)
         {
-            CardsScroll.Visibility = Visibility.Collapsed;
-            CompactModeArea.Visibility = Visibility.Collapsed;
+            GameViewPanel.Visibility = Visibility.Collapsed;
+            SettingsPanel.Visibility = Visibility.Collapsed;
+            // LoadingPanel is already Visible by default
         }
         else
         {
-            CardsScroll.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
-            CompactModeArea.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
+            GameViewPanel.Visibility = Visibility.Visible;
+            SettingsPanel.Visibility = Visibility.Collapsed;
+            LoadingPanel.Visibility = Visibility.Collapsed;
         }
 
-        // Auto-select first game in compact mode if nothing is selected
-        if (compact && CompactGameList.SelectedItem == null && ViewModel.DisplayedGames.Count > 0)
+        // Auto-select first game if nothing is selected
+        if (GameList.SelectedItem == null && ViewModel.DisplayedGames.Count > 0)
         {
-            CompactGameList.SelectedItem = ViewModel.DisplayedGames[0];
+            GameList.SelectedItem = ViewModel.DisplayedGames[0];
         }
     }
 
-    private void CompactGameList_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (CompactGameList.SelectedItem is GameCardViewModel card)
+    private void GameList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            CompactCardDisplay.Content = card;
-            BuildCompactOverridesPanel(card);
-            CompactOverridesContainer.Visibility = Visibility.Visible;
+            if (GameList.SelectedItem is GameCardViewModel card)
+            {
+                ViewModel.SelectedGame = card;
+                PopulateDetailPanel(card);
+                DetailPanel.Visibility = Visibility.Visible;
+                BuildOverridesPanel(card);
+                OverridesContainer.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                ViewModel.SelectedGame = null;
+                DetailPanel.Visibility = Visibility.Collapsed;
+                OverridesPanel.Children.Clear();
+                OverridesContainer.Visibility = Visibility.Collapsed;
+            }
+        }
+
+
+    private GameCardViewModel? _currentDetailCard;
+
+    private void PopulateDetailPanel(GameCardViewModel card)
+    {
+        // Unsubscribe from previous card
+        if (_currentDetailCard != null)
+            _currentDetailCard.PropertyChanged -= DetailCard_PropertyChanged;
+
+        _currentDetailCard = card;
+        card.PropertyChanged += DetailCard_PropertyChanged;
+
+        // Header
+        DetailGameName.Text = card.GameName;
+
+        // Source badge
+        if (card.HasSourceIcon)
+        {
+            DetailSourceIcon.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(card.SourceIconUri);
+            DetailSourceIcon.Visibility = Visibility.Visible;
         }
         else
         {
-            CompactCardDisplay.Content = null;
-            CompactOverridesPanel.Children.Clear();
-            CompactOverridesContainer.Visibility = Visibility.Collapsed;
+            DetailSourceIcon.Visibility = Visibility.Collapsed;
         }
+        DetailSourceText.Text = card.Source;
+        DetailSourceBadge.Visibility = string.IsNullOrEmpty(card.Source) ? Visibility.Collapsed : Visibility.Visible;
+
+        // Engine badge
+        if (!string.IsNullOrEmpty(card.EngineHint))
+        {
+            DetailEngineText.Text = card.EngineHint;
+            DetailEngineBadge.Visibility = Visibility.Visible;
+        }
+        else DetailEngineBadge.Visibility = Visibility.Collapsed;
+
+        // Generic badge
+        if (card.IsGenericMod)
+        {
+            DetailGenericText.Text = card.GenericModLabel;
+            DetailGenericBadge.Visibility = Visibility.Visible;
+        }
+        else DetailGenericBadge.Visibility = Visibility.Collapsed;
+
+        // 32-bit badge
+        Detail32BitBadge.Visibility = card.Is32Bit ? Visibility.Visible : Visibility.Collapsed;
+
+        // Wiki status badge
+        DetailWikiText.Text = card.WikiStatusLabel;
+        DetailWikiText.Foreground = new SolidColorBrush(ParseHexColor(card.WikiStatusBadgeForeground));
+        DetailWikiBadge.Background = new SolidColorBrush(ParseHexColor(card.WikiStatusBadgeBackground));
+        DetailWikiBadge.BorderBrush = new SolidColorBrush(ParseHexColor(card.WikiStatusBadgeBorderBrush));
+        DetailWikiBadge.BorderThickness = new Thickness(1);
+
+        // Install path + installed file
+        DetailInstallPath.Text = card.InstallPath;
+        if (!string.IsNullOrEmpty(card.InstalledAddonFileName))
+        {
+            DetailInstalledFile.Text = $"📦 {card.InstalledAddonFileName}";
+            DetailInstalledFile.Visibility = Visibility.Visible;
+        }
+        else DetailInstalledFile.Visibility = Visibility.Collapsed;
+
+        // Utility buttons — set Tag for event handlers
+        DetailFavBtn.Tag = card;
+        DetailFavIcon.Text = card.IsFavourite ? "⭐" : "☆";
+        DetailFavIcon.Foreground = new SolidColorBrush(card.IsFavourite
+            ? ((SolidColorBrush)Application.Current.Resources["AccentAmberBrush"]).Color
+            : ((SolidColorBrush)Application.Current.Resources["TextDisabledBrush"]).Color);
+
+        DetailDiscussionBtn.Tag = card;
+        DetailDiscussionBtn.Visibility = card.NameLinkVisibility;
+
+        DetailNotesBtn.Tag = card;
+        DetailNotesBtn.Visibility = card.NotesButtonVisibility;
+
+        DetailHideBtn.Tag = card;
+        ToolTipService.SetToolTip(DetailHideBtn, card.HideButtonLabel);
+        DetailHideIcon.Text = card.IsHidden ? "🚫" : "🚫";
+        DetailHideIcon.Foreground = card.IsHidden
+            ? Brush("AccentPurpleDimBrush")
+            : Brush("TextDisabledBrush");
+
+        // Folder menu items
+        DetailOpenFolder.Tag = card;
+        DetailBrowseFolder.Tag = card;
+        DetailRemoveGame.Tag = card;
+
+        // Luma badge toggle
+        if (card.LumaBadgeVisibility == Visibility.Visible)
+        {
+            DetailLumaBadgeContainer.Visibility = Visibility.Visible;
+            DetailLumaToggle.Tag = card;
+            DetailLumaToggle.IsChecked = card.IsLumaMode;
+            DetailLumaToggle.Background = new SolidColorBrush(ParseHexColor(card.LumaBadgeBackground));
+            DetailLumaToggle.BorderBrush = new SolidColorBrush(ParseHexColor(card.LumaBadgeBorderBrush));
+            DetailLumaToggleText.Text = card.LumaBadgeLabel;
+            DetailLumaToggleText.Foreground = new SolidColorBrush(ParseHexColor(card.LumaBadgeForeground));
+        }
+        else DetailLumaBadgeContainer.Visibility = Visibility.Collapsed;
+
+        // Populate component rows
+        UpdateDetailComponentRows(card);
     }
 
-    private void BuildCompactOverridesPanel(GameCardViewModel card)
+    private void UpdateDetailComponentRows(GameCardViewModel card)
     {
-        CompactOverridesPanel.Children.Clear();
+        bool isLumaMode = card.LumaFeatureEnabled && card.IsLumaMode;
+
+        // ReShade row
+        DetailRsRow.Visibility = isLumaMode ? Visibility.Collapsed : Visibility.Visible;
+        if (!isLumaMode)
+        {
+            DetailRsStatus.Text = card.RsStatusText;
+            DetailRsStatus.Foreground = new SolidColorBrush(ParseHexColor(card.RsStatusColor));
+            DetailRsInstallBtn.Tag = card;
+            DetailRsInstallBtn.Content = card.RsActionLabel;
+            DetailRsInstallBtn.IsEnabled = card.IsRsNotInstalling;
+            DetailRsInstallBtn.Background = new SolidColorBrush(ParseHexColor(card.RsBtnBackground));
+            DetailRsInstallBtn.Foreground = new SolidColorBrush(ParseHexColor(card.RsBtnForeground));
+            DetailRsInstallBtn.BorderBrush = new SolidColorBrush(ParseHexColor(card.RsBtnBorderBrush));
+            DetailRsInstallBtn.BorderThickness = new Thickness(1);
+            DetailRsIniBtn.Tag = card;
+            DetailRsIniBtn.IsEnabled = card.RsIniExists;
+            DetailRsIniCopy.Tag = card;
+            DetailRsIniCopy.Visibility = card.RsIniExists ? Visibility.Visible : Visibility.Collapsed;
+            DetailRsDeleteBtn.Tag = card;
+            DetailRsDeleteBtn.Visibility = card.RsDeleteVisibility;
+        }
+
+        // DC row
+        DetailDcRow.Visibility = isLumaMode ? Visibility.Collapsed : Visibility.Visible;
+        if (!isLumaMode)
+        {
+            DetailDcStatus.Text = card.DcStatusText;
+            DetailDcStatus.Foreground = new SolidColorBrush(ParseHexColor(card.DcStatusColor));
+            DetailDcInstallBtn.Tag = card;
+            DetailDcInstallBtn.Content = card.DcActionLabel;
+            DetailDcInstallBtn.IsEnabled = card.IsDcNotInstalling;
+            DetailDcInstallBtn.Background = new SolidColorBrush(ParseHexColor(card.DcBtnBackground));
+            DetailDcInstallBtn.Foreground = new SolidColorBrush(ParseHexColor(card.DcBtnForeground));
+            DetailDcInstallBtn.BorderBrush = new SolidColorBrush(ParseHexColor(card.DcBtnBorderBrush));
+            DetailDcInstallBtn.BorderThickness = new Thickness(1);
+            DetailDcIniBtn.Tag = card;
+            DetailDcIniBtn.IsEnabled = card.DcIniExists;
+            DetailDcIniCopy.Tag = card;
+            DetailDcIniCopy.Visibility = card.DcIniExists ? Visibility.Visible : Visibility.Collapsed;
+            DetailDcDeleteBtn.Tag = card;
+            DetailDcDeleteBtn.Visibility = card.DcDeleteVisibility;
+        }
+
+        // RenoDX row (also used for external-only / Discord link)
+        bool showRdx = !isLumaMode;
+        DetailRdxRow.Visibility = showRdx ? Visibility.Visible : Visibility.Collapsed;
+        if (showRdx)
+        {
+            DetailRdxInstallBtn.Tag = card;
+            if (card.IsExternalOnly)
+            {
+                DetailRdxStatus.Text = "";
+                DetailRdxInstallBtn.Content = card.ExternalLabel;
+                DetailRdxInstallBtn.IsEnabled = true;
+                DetailRdxInstallBtn.Background = Brush("AccentBlueBgBrush");
+                DetailRdxInstallBtn.Foreground = Brush("AccentBlueBrush");
+                DetailRdxInstallBtn.BorderBrush = Brush("AccentBlueBorderBrush");
+                DetailRdxInstallBtn.BorderThickness = new Thickness(1);
+                DetailRdxDeleteBtn.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                DetailRdxStatus.Text = card.RdxStatusText;
+                DetailRdxStatus.Foreground = new SolidColorBrush(ParseHexColor(card.RdxStatusColor));
+                DetailRdxInstallBtn.Content = card.InstallActionLabel;
+                DetailRdxInstallBtn.IsEnabled = card.CanInstall;
+                DetailRdxInstallBtn.Background = new SolidColorBrush(ParseHexColor(card.InstallBtnBackground));
+                DetailRdxInstallBtn.Foreground = new SolidColorBrush(ParseHexColor(card.InstallBtnForeground));
+                DetailRdxInstallBtn.BorderBrush = new SolidColorBrush(ParseHexColor(card.InstallBtnBorderBrush));
+                DetailRdxInstallBtn.BorderThickness = new Thickness(1);
+                DetailRdxDeleteBtn.Tag = card;
+                DetailRdxDeleteBtn.Visibility = card.ReinstallRowVisibility;
+            }
+        }
+
+        // Luma row
+        if (isLumaMode)
+        {
+            DetailLumaRow.Visibility = Visibility.Visible;
+            DetailLumaStatus.Text = card.LumaActionLabel.Replace("↺  ", "").Replace("⬇  ", "");
+            DetailLumaStatus.Foreground = new SolidColorBrush(
+                card.LumaStatus == GameStatus.Installed ? ((SolidColorBrush)Application.Current.Resources["AccentGreenBrush"]).Color
+                : ((SolidColorBrush)Application.Current.Resources["TextSecondaryBrush"]).Color);
+            DetailLumaInstallBtn.Tag = card;
+            DetailLumaInstallBtn.Content = card.LumaActionLabel;
+            DetailLumaInstallBtn.IsEnabled = card.IsLumaNotInstalling;
+            DetailLumaDeleteBtn.Tag = card;
+            DetailLumaDeleteBtn.Visibility = card.LumaReinstallVisibility;
+        }
+        else DetailLumaRow.Visibility = Visibility.Collapsed;
+
+        // UE-Extended flyout (inline in RenoDX row, column 3)
+        if (card.UeExtendedToggleVisibility == Visibility.Visible && !isLumaMode)
+        {
+            DetailUeExtendedBtn.Visibility = Visibility.Visible;
+            DetailUeExtendedBtn.Tag = card;
+            DetailUeExtendedItem.Tag = card;
+            DetailUeExtendedItem.Text = card.UseUeExtended ? "Disable UE Extended" : "Enable UE Extended";
+            // Visual indicator: green when enabled, default when off
+            if (card.UseUeExtended)
+            {
+                DetailUeExtendedBtn.Background = Brush("AccentGreenBgBrush");
+                DetailUeExtendedBtn.Foreground = Brush("AccentGreenBrush");
+                DetailUeExtendedBtn.BorderBrush = Brush("AccentGreenBorderBrush");
+            }
+            else
+            {
+                DetailUeExtendedBtn.Background = Brush("SurfaceOverlayBrush");
+                DetailUeExtendedBtn.Foreground = Brush("TextSecondaryBrush");
+                DetailUeExtendedBtn.BorderBrush = Brush("BorderStrongBrush");
+            }
+        }
+        else DetailUeExtendedBtn.Visibility = Visibility.Collapsed;
+
+        // External-only link is now shown inline in the RenoDX row
+
+        // No mod message
+        DetailNoModMsg.Visibility = card.NoModVisibility;
+
+        // Progress bars
+        DetailRsProgress.Visibility = card.RsProgressVisibility;
+        DetailRsProgress.Value = card.RsProgress;
+        DetailRsMessage.Visibility = card.RsMessageVisibility;
+        DetailRsMessage.Text = card.RsActionMessage;
+        DetailDcProgress.Visibility = card.DcProgressVisibility;
+        DetailDcProgress.Value = card.DcProgress;
+        DetailDcMessage.Visibility = card.DcMessageVisibility;
+        DetailDcMessage.Text = card.DcActionMessage;
+        DetailRdxProgress.Visibility = card.ProgressVisibility;
+        DetailRdxProgress.Value = card.InstallProgress;
+        DetailRdxMessage.Visibility = card.MessageVisibility;
+        DetailRdxMessage.Text = card.ActionMessage;
+        DetailLumaProgress.Visibility = card.LumaProgressVisibility;
+        DetailLumaProgress.Value = card.LumaProgress;
+        DetailLumaMessage.Visibility = card.LumaMessageVisibility;
+        DetailLumaMessage.Text = card.LumaActionMessage;
+    }
+
+    private void DetailCard_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (_currentDetailCard == null) return;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_currentDetailCard != null)
+                UpdateDetailComponentRows(_currentDetailCard);
+        });
+    }
+
+    private static Windows.UI.Color ParseHexColor(string hex)
+    {
+        hex = hex.TrimStart('#');
+        if (hex.Length == 6)
+            return Windows.UI.Color.FromArgb(255,
+                byte.Parse(hex[..2], System.Globalization.NumberStyles.HexNumber),
+                byte.Parse(hex[2..4], System.Globalization.NumberStyles.HexNumber),
+                byte.Parse(hex[4..6], System.Globalization.NumberStyles.HexNumber));
+        if (hex.Length == 8)
+            return Windows.UI.Color.FromArgb(
+                byte.Parse(hex[..2], System.Globalization.NumberStyles.HexNumber),
+                byte.Parse(hex[2..4], System.Globalization.NumberStyles.HexNumber),
+                byte.Parse(hex[4..6], System.Globalization.NumberStyles.HexNumber),
+                byte.Parse(hex[6..8], System.Globalization.NumberStyles.HexNumber));
+        return Windows.UI.Color.FromArgb(255, 128, 128, 128);
+    }
+
+
+    private void BuildOverridesPanel(GameCardViewModel card)
+    {
+        OverridesPanel.Children.Clear();
 
         var gameName = card.GameName;
         bool isLumaMode = ViewModel.IsLumaEnabled(gameName);
 
         // ── Title ────────────────────────────────────────────────────────────────
-        CompactOverridesPanel.Children.Add(new TextBlock
+        OverridesPanel.Children.Add(new TextBlock
         {
             Text = "⚙ Overrides",
             FontSize = 13,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 160, 176, 216)),
+            Foreground = Brush("TextSecondaryBrush"),
         });
 
         // ── Game name + Wiki name ────────────────────────────────────────────────
@@ -2302,9 +2575,9 @@ public sealed partial class MainWindow : Window
             FontSize = 12,
             VerticalAlignment = VerticalAlignment.Bottom,
             Padding = new Thickness(10, 6, 10, 6),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 26, 24, 32)),
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 140, 130, 160)),
-            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 50, 45, 60)),
+            Background = Brush("SurfaceOverlayBrush"),
+            Foreground = Brush("TextSecondaryBrush"),
+            BorderBrush = Brush("BorderDefaultBrush"),
         };
         ToolTipService.SetToolTip(resetBtn,
             "Reset game name back to auto-detected and clear wiki name mapping.");
@@ -2324,8 +2597,8 @@ public sealed partial class MainWindow : Window
         nameGrid.Children.Add(detectedBox);
         nameGrid.Children.Add(wikiBox);
         nameGrid.Children.Add(resetBtn);
-        CompactOverridesPanel.Children.Add(nameGrid);
-        CompactOverridesPanel.Children.Add(MakeSeparator());
+        OverridesPanel.Children.Add(nameGrid);
+        OverridesPanel.Children.Add(MakeSeparator());
 
         // ── DLL naming override ──────────────────────────────────────────────────
         bool isDllOverride = ViewModel.HasDllOverride(gameName);
@@ -2341,9 +2614,9 @@ public sealed partial class MainWindow : Window
             IsEnabled = !isLumaMode,
             FontSize = 12,
             Padding = new Thickness(10, 6, 10, 6),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 14, 28, 28)),
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 80, 200, 180)),
-            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 90, 80)),
+            Background = Brush("AccentTealBgBrush"),
+            Foreground = Brush("AccentTealBrush"),
+            BorderBrush = Brush("AccentTealBorderBrush"),
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         ToolTipService.SetToolTip(dllOverrideBtn,
@@ -2371,7 +2644,7 @@ public sealed partial class MainWindow : Window
         dllOverrideBtn.Checked   += (s, ev) => { rsNameBox.IsEnabled = true;  dcNameBox.IsEnabled = true; };
         dllOverrideBtn.Unchecked += (s, ev) => { rsNameBox.IsEnabled = false; dcNameBox.IsEnabled = false; };
 
-        CompactOverridesPanel.Children.Add(dllOverrideBtn);
+        OverridesPanel.Children.Add(dllOverrideBtn);
         var dllNameGrid = new Grid { ColumnSpacing = 8, Margin = new Thickness(0, 4, 0, 0) };
         dllNameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         dllNameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -2379,27 +2652,8 @@ public sealed partial class MainWindow : Window
         Grid.SetColumn(dcNameBox, 1);
         dllNameGrid.Children.Add(rsNameBox);
         dllNameGrid.Children.Add(dcNameBox);
-        CompactOverridesPanel.Children.Add(dllNameGrid);
-        CompactOverridesPanel.Children.Add(MakeSeparator());
-
-        // ── Exclude from wiki ────────────────────────────────────────────────────
-        var excludeBtn = new ToggleButton
-        {
-            Content = "🚫  Exclude from wiki",
-            IsChecked = ViewModel.IsWikiExcluded(gameName),
-            IsEnabled = !isLumaMode,
-            FontSize = 12,
-            Padding = new Thickness(10, 6, 10, 6),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 30, 14, 30)),
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 180, 100, 180)),
-            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 80, 30, 80)),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        ToolTipService.SetToolTip(excludeBtn,
-            isLumaMode ? "Disabled in Luma mode" :
-            "Exclude this game from all wiki matching. The card will show a Discord link instead of an install button.");
-        CompactOverridesPanel.Children.Add(excludeBtn);
-        CompactOverridesPanel.Children.Add(MakeSeparator());
+        OverridesPanel.Children.Add(dllNameGrid);
+        OverridesPanel.Children.Add(MakeSeparator());
 
         // ── Exclude from Update All ──────────────────────────────────────────────
         var uaExcludeBtn = new ToggleButton
@@ -2408,15 +2662,15 @@ public sealed partial class MainWindow : Window
             IsChecked = ViewModel.IsUpdateAllExcluded(gameName),
             FontSize = 12,
             Padding = new Thickness(10, 6, 10, 6),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 22, 10, 42)),
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 160, 100, 220)),
-            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 80, 30, 140)),
+            Background = Brush("AccentPurpleBgBrush"),
+            Foreground = Brush("AccentPurpleBrush"),
+            BorderBrush = Brush("AccentPurpleBorderBrush"),
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         ToolTipService.SetToolTip(uaExcludeBtn,
             "Skip this game when using Update All RenoDX, Update All ReShade, or Update All DC.");
-        CompactOverridesPanel.Children.Add(uaExcludeBtn);
-        CompactOverridesPanel.Children.Add(MakeSeparator());
+        OverridesPanel.Children.Add(uaExcludeBtn);
+        OverridesPanel.Children.Add(MakeSeparator());
 
         // ── 32-bit mode ──────────────────────────────────────────────────────────
         var bit32Btn = new ToggleButton
@@ -2426,17 +2680,17 @@ public sealed partial class MainWindow : Window
             IsEnabled = !isLumaMode,
             FontSize = 12,
             Padding = new Thickness(10, 6, 10, 6),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 28, 14, 8)),
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 200, 120, 60)),
-            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 120, 50, 20)),
+            Background = Brush("AccentAmberBgBrush"),
+            Foreground = Brush("AccentAmberBrush"),
+            BorderBrush = Brush("BorderDefaultBrush"),
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         ToolTipService.SetToolTip(bit32Btn,
             "Installs 32-bit versions of ReShade, Unity addon, and Display Commander. Only enable if you know this game is 32-bit.");
-        CompactOverridesPanel.Children.Add(bit32Btn);
-        CompactOverridesPanel.Children.Add(MakeSeparator());
+        OverridesPanel.Children.Add(bit32Btn);
+        OverridesPanel.Children.Add(MakeSeparator());
 
-        // ── Per-game DC Mode override ────────────────────────────────────────────
+        // ── Per-game DC Mode + Shader mode (side by side) ─────────────────────────
         int? currentDcMode = ViewModel.GetPerGameDcModeOverride(gameName);
         var dcModeOptions = new[] { "Follow Global", "Exclude (Off)", "DC Mode 1", "DC Mode 2" };
         var dcModeCombo = new ComboBox
@@ -2445,15 +2699,12 @@ public sealed partial class MainWindow : Window
             SelectedIndex = currentDcMode switch { null => 0, 0 => 1, 1 => 2, 2 => 3, _ => 0 },
             FontSize = 12,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Header = "⚙  DC Mode for this game",
+            Header = "DC Mode",
         };
         ToolTipService.SetToolTip(dcModeCombo,
             "Follow Global = use the header DC Mode toggle. Exclude (Off) = always use normal naming. " +
             "DC Mode 1 = force dxgi.dll proxy. DC Mode 2 = force winmm.dll proxy.");
-        CompactOverridesPanel.Children.Add(dcModeCombo);
-        CompactOverridesPanel.Children.Add(MakeSeparator());
 
-        // ── Shader mode ──────────────────────────────────────────────────────────
         string currentShaderMode = ViewModel.GetPerGameShaderMode(gameName);
         var shaderModeOptions = new[] { "Global", "Off", "Minimum", "All", "User" };
         var shaderModeCombo = new ComboBox
@@ -2462,14 +2713,22 @@ public sealed partial class MainWindow : Window
             SelectedItem = currentShaderMode,
             FontSize = 12,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Header = "🎨  Shader mode for this game",
+            Header = "Shader Mode",
         };
         ToolTipService.SetToolTip(shaderModeCombo,
             "Global = follow the header toggle. Off = no shaders. Minimum = Lilium only. All = all packs. User = custom folder only.\n" +
             "Note: Per-game shader mode only applies when ReShade is used standalone (DC Mode OFF). " +
             "When DC Mode is ON, all DC-mode games share the DC global shader folder.");
-        CompactOverridesPanel.Children.Add(shaderModeCombo);
-        CompactOverridesPanel.Children.Add(MakeSeparator());
+
+        var modeGrid = new Grid { ColumnSpacing = 8 };
+        modeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        modeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumn(dcModeCombo, 0);
+        Grid.SetColumn(shaderModeCombo, 1);
+        modeGrid.Children.Add(dcModeCombo);
+        modeGrid.Children.Add(shaderModeCombo);
+        OverridesPanel.Children.Add(modeGrid);
+        OverridesPanel.Children.Add(MakeSeparator());
 
         // ── Save button ──────────────────────────────────────────────────────────
         var saveBtn = new Button
@@ -2478,9 +2737,9 @@ public sealed partial class MainWindow : Window
             FontSize = 12,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
             Padding = new Thickness(14, 8, 14, 8),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 20, 40, 60)),
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 100, 200, 255)),
-            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 40, 80, 120)),
+            Background = Brush("AccentBlueBgBrush"),
+            Foreground = Brush("AccentTealBrush"),
+            BorderBrush = Brush("AccentBlueBorderBrush"),
             HorizontalAlignment = HorizontalAlignment.Stretch,
             CornerRadius = new CornerRadius(8),
         };
@@ -2496,10 +2755,7 @@ public sealed partial class MainWindow : Window
                 ViewModel.RenameGame(capturedName, det);
             }
 
-            // Wiki exclusion
-            bool nowExcluded = excludeBtn.IsChecked == true;
-            if (!string.IsNullOrEmpty(det) && nowExcluded != ViewModel.IsWikiExcluded(det))
-                ViewModel.ToggleWikiExclusion(det);
+
 
             // DC Mode override
             int? newDcMode = dcModeCombo.SelectedIndex switch { 1 => 0, 2 => 1, 3 => 2, _ => null };
@@ -2555,9 +2811,9 @@ public sealed partial class MainWindow : Window
 
             // Name mapping
             var key = wikiBox.Text?.Trim();
-            if (!nowExcluded && !string.IsNullOrEmpty(det) && !string.IsNullOrEmpty(key))
+            if (!string.IsNullOrEmpty(det) && !string.IsNullOrEmpty(key))
                 ViewModel.AddNameMapping(det, key);
-            else if (!nowExcluded && !string.IsNullOrEmpty(det) && string.IsNullOrEmpty(key))
+            else if (!string.IsNullOrEmpty(det) && string.IsNullOrEmpty(key))
                 ViewModel.RemoveNameMapping(det);
 
             CrashReporter.Log($"Compact overrides saved for: {det}");
@@ -2568,34 +2824,32 @@ public sealed partial class MainWindow : Window
             // no async rebuild is triggered; the IsLoading→false callback in
             // OnViewModelChanged handles the case where InitializeAsync rebuilds
             // DisplayedGames asynchronously.
-            _pendingCompactReselect = det;
-            DispatcherQueue.TryEnqueue(TryCompactReselect);
+            _pendingReselect = det;
+            DispatcherQueue.TryEnqueue(TryRestoreSelection);
         };
-        CompactOverridesPanel.Children.Add(saveBtn);
+        OverridesPanel.Children.Add(saveBtn);
     }
 
-    private void TryCompactReselect()
+    private void TryRestoreSelection()
     {
-        if (!ViewModel.CompactMode) return;
-
-        if (_pendingCompactReselect != null)
+        if (_pendingReselect != null)
         {
-            var name = _pendingCompactReselect;
+            var name = _pendingReselect;
             var match = ViewModel.DisplayedGames.FirstOrDefault(c =>
                 c.GameName.Equals(name, StringComparison.OrdinalIgnoreCase));
             if (match != null)
             {
-                CompactGameList.SelectedItem = match;
-                CompactGameList.ScrollIntoView(match);
-                _pendingCompactReselect = null;
+                GameList.SelectedItem = match;
+                GameList.ScrollIntoView(match);
+                _pendingReselect = null;
                 return;
             }
         }
 
         // Auto-select first game if nothing is selected
-        if (CompactGameList.SelectedItem == null && ViewModel.DisplayedGames.Count > 0)
+        if (GameList.SelectedItem == null && ViewModel.DisplayedGames.Count > 0)
         {
-            CompactGameList.SelectedItem = ViewModel.DisplayedGames[0];
+            GameList.SelectedItem = ViewModel.DisplayedGames[0];
         }
     }
 }
