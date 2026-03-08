@@ -339,30 +339,34 @@
                             <Border x:Name="DetailSepPlatformStatus" Width="1" Background="{StaticResource BorderSubtleBrush}"
                                     VerticalAlignment="Stretch" Visibility="Collapsed"/>
 
-                            <!-- Group 3: Status (wiki) -->
+                            <!-- Group 3: Status (wiki + luma) -->
                             <Border x:Name="DetailWikiBadge" CornerRadius="5" Padding="6,2"
                                     VerticalAlignment="Center">
                                 <TextBlock x:Name="DetailWikiText" FontSize="11"/>
                             </Border>
                         </controls:WrapPanel>
 
-                        <!-- ── Luma badge toggle (when available) ── -->
-                        <Border x:Name="DetailLumaBadgeContainer" Visibility="Collapsed"
-                                HorizontalAlignment="Center">
-                            <ToggleButton x:Name="DetailLumaToggle"
-                                          Click="LumaToggle_Click"
-                                          Background="Transparent" BorderThickness="0"
-                                          Padding="6,2" MinHeight="0" MinWidth="0" CornerRadius="5">
-                                <TextBlock x:Name="DetailLumaToggleText" FontSize="11"/>
-                            </ToggleButton>
-                        </Border>
-
                         <!-- ── Component status table ── -->
                         <Border x:Name="DetailComponentSection" Background="{StaticResource SurfaceComponentTableBrush}" CornerRadius="12"
                                 BorderBrush="{StaticResource BorderDefaultBrush}" BorderThickness="1" Padding="16,14">
                             <StackPanel Spacing="10">
-                                <TextBlock Text="Components" FontSize="13" FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Components" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                    <Border x:Name="DetailLumaBadgeContainer" Grid.Column="1" Visibility="Collapsed"
+                                            CornerRadius="6" VerticalAlignment="Center">
+                                        <ToggleButton x:Name="DetailLumaToggle"
+                                                      Click="LumaToggle_Click"
+                                                      Padding="10,4" MinHeight="0" MinWidth="0"
+                                                      CornerRadius="6" BorderThickness="1" FontSize="11">
+                                            <TextBlock x:Name="DetailLumaToggleText" FontSize="11"/>
+                                        </ToggleButton>
+                                    </Border>
+                                </Grid>
 
                                 <!-- ReShade row -->
                                 <Grid x:Name="DetailRsRow" ColumnSpacing="8">
@@ -760,7 +764,7 @@
                                             <Run Text="RenoDXCommander" Foreground="{StaticResource AccentTealBrush}"/>
                                         </TextBlock>
                                         <TextBlock FontSize="12" Foreground="{StaticResource InlineDescriptionBrush}">
-                                            <Run Text="v1.4.1  ·  HDR mod manager by "/>
+                                            <Run Text="v1.4.2  ·  HDR mod manager by "/>
                                             <Run Text="RankFTW" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}"/>
                                             <Run Text="  ·  Unofficial companion tool"/>
                                         </TextBlock>

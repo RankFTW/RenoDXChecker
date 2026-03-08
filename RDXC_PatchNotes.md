@@ -1,3 +1,13 @@
+## v1.4.2
+
+### Changes
+
+**UI Tweaks**
+
+- Layout change on game cards 
+
+---
+
 ## v1.4.1
 
 ### Changes

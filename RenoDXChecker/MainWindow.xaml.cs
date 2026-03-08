@@ -1760,8 +1760,7 @@ public sealed partial class MainWindow : Window
 
     private void LumaToggle_Click(object sender, RoutedEventArgs e)
     {
-        var card = (sender as FrameworkElement)?.Tag as GameCardViewModel;
-        if (card != null) ViewModel.ToggleLumaMode(card);
+        if (_currentDetailCard != null) ViewModel.ToggleLumaMode(_currentDetailCard);
     }
 
     private void SwitchToLumaButton_Click(object sender, RoutedEventArgs e)
@@ -2446,14 +2445,13 @@ public sealed partial class MainWindow : Window
         if (card.LumaBadgeVisibility == Visibility.Visible)
         {
             DetailLumaBadgeContainer.Visibility = Visibility.Visible;
-            DetailLumaToggle.Tag = card;
             DetailLumaToggle.IsChecked = card.IsLumaMode;
-            DetailLumaToggle.Background = new SolidColorBrush(ParseHexColor(card.LumaBadgeBackground));
-            DetailLumaToggle.BorderBrush = new SolidColorBrush(ParseHexColor(card.LumaBadgeBorderBrush));
-            DetailLumaToggleText.Text = card.LumaBadgeLabel;
-            DetailLumaToggleText.Foreground = new SolidColorBrush(ParseHexColor(card.LumaBadgeForeground));
+            UpdateLumaToggleStyle(card.IsLumaMode);
         }
-        else DetailLumaBadgeContainer.Visibility = Visibility.Collapsed;
+        else
+        {
+            DetailLumaBadgeContainer.Visibility = Visibility.Collapsed;
+        }
 
         // Populate component rows
         UpdateDetailComponentRows(card);
@@ -2623,7 +2621,31 @@ public sealed partial class MainWindow : Window
                     DetailSepModPlatform.Visibility = Visibility.Collapsed;
                 }
             }
+
+            // Refresh Luma mode buttons when luma state changes
+            if (e.PropertyName is "IsLumaMode" or "LumaStatus" or "LumaBadgeVisibility" or "LumaBadgeLabel")
+            {
+                DetailLumaToggle.IsChecked = _currentDetailCard.IsLumaMode;
+                UpdateLumaToggleStyle(_currentDetailCard.IsLumaMode);
+            }
         });
+    }
+
+    private void UpdateLumaToggleStyle(bool isLumaMode)
+    {
+        DetailLumaToggleText.Text = isLumaMode ? "Luma Enabled" : "Luma Disabled";
+        if (isLumaMode)
+        {
+            DetailLumaToggle.Background = Brush("AccentGreenBgBrush");
+            DetailLumaToggle.Foreground = Brush("AccentGreenBrush");
+            DetailLumaToggle.BorderBrush = Brush("AccentGreenBorderBrush");
+        }
+        else
+        {
+            DetailLumaToggle.Background = Brush("SurfaceOverlayBrush");
+            DetailLumaToggle.Foreground = Brush("TextTertiaryBrush");
+            DetailLumaToggle.BorderBrush = Brush("BorderStrongBrush");
+        }
     }
 
     private static Windows.UI.Color ParseHexColor(string hex)
