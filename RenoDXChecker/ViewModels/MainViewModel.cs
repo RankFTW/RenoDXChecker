@@ -229,6 +229,10 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _isLoading = true;
     [ObservableProperty] private string _searchQuery = "";
     [ObservableProperty] private string _filterMode = "Detected";
+    private readonly HashSet<string> _activeFilters = new(StringComparer.OrdinalIgnoreCase) { "Detected" };
+    private static readonly HashSet<string> ExclusiveFilters = new(StringComparer.OrdinalIgnoreCase) { "Detected", "Favourites", "Hidden" };
+    private static readonly HashSet<string> CombinableFilters = new(StringComparer.OrdinalIgnoreCase) { "Unreal", "Unity", "Other", "RenoDX", "Luma" };
+    public IReadOnlySet<string> ActiveFilters => _activeFilters;
     [ObservableProperty] private bool _showHidden = false;
     [ObservableProperty] private int _totalGames;
     [ObservableProperty] private int _installedCount;
@@ -1883,7 +1887,37 @@ public partial class MainViewModel : ObservableObject
 
     // ── Commands ──────────────────────────────────────────────────────────────────
 
-    [RelayCommand] public void SetFilter(string filter) { FilterMode = filter; ApplyFilter(); }
+    [RelayCommand] public void SetFilter(string filter)
+    {
+        if (ExclusiveFilters.Contains(filter))
+        {
+            // Exclusive filter: clear everything, set just this one
+            _activeFilters.Clear();
+            _activeFilters.Add(filter);
+            FilterMode = filter;
+        }
+        else if (CombinableFilters.Contains(filter))
+        {
+            // Remove any exclusive filter first
+            _activeFilters.RemoveWhere(f => ExclusiveFilters.Contains(f));
+
+            // Toggle the combinable filter
+            if (!_activeFilters.Add(filter))
+                _activeFilters.Remove(filter);
+
+            // If nothing left, fall back to Detected
+            if (_activeFilters.Count == 0)
+            {
+                _activeFilters.Add("Detected");
+                FilterMode = "Detected";
+            }
+            else
+            {
+                FilterMode = string.Join(",", _activeFilters);
+            }
+        }
+        ApplyFilter();
+    }
 
     [RelayCommand]
     public void NavigateToSettings() => CurrentPage = AppPage.Settings;
@@ -1946,7 +1980,7 @@ public partial class MainViewModel : ObservableObject
         card.IsFavourite = _favouriteGames.Contains(key);
         SaveLibrary();
         // Only re-filter if on the Favourites tab (unfavouriting removes the card from view)
-        if (FilterMode == "Favourites")
+        if (_activeFilters.Contains("Favourites"))
             ApplyFilter();
         UpdateCounts();
     }
@@ -3980,6 +4014,7 @@ public partial class MainViewModel : ObservableObject
     private void ApplyFilter()
     {
         var query = SearchQuery.Trim().ToLowerInvariant();
+        var filters = _activeFilters;
         var filtered = _allCards.Where(c =>
         {
             // Search match first
@@ -3989,59 +4024,59 @@ public partial class MainViewModel : ObservableObject
             if (!matchSearch) return false;
 
             // Hidden tab always shows hidden games regardless of the ShowHidden toggle
-            if (FilterMode == "Hidden") return c.IsHidden;
+            if (filters.Contains("Hidden")) return c.IsHidden;
 
             // Favourites tab: show favourited games (even if hidden)
-            if (FilterMode == "Favourites") return c.IsFavourite;
+            if (filters.Contains("Favourites")) return c.IsFavourite;
 
-            // Engine filters
-            if (FilterMode == "Unity")
-            {
-                // match cards detected as Unity (EngineHint) or generic Unity mod
-                var isUnity = (!string.IsNullOrEmpty(c.EngineHint) && c.EngineHint.IndexOf("Unity", StringComparison.OrdinalIgnoreCase) >= 0)
-                              || (c.Mod?.IsGenericUnity == true);
-                if (!isUnity) return false;
-                // hide hidden games on non-hidden tabs
-                return !c.IsHidden;
-            }
-            if (FilterMode == "Unreal")
-            {
-                var isUnreal = (!string.IsNullOrEmpty(c.EngineHint) && c.EngineHint.IndexOf("Unreal", StringComparison.OrdinalIgnoreCase) >= 0)
-                              || (c.Mod?.IsGenericUnreal == true);
-                if (!isUnreal) return false;
-                return !c.IsHidden;
-            }
-            if (FilterMode == "Other")
-            {
-                var isUnity = (!string.IsNullOrEmpty(c.EngineHint) && c.EngineHint.IndexOf("Unity", StringComparison.OrdinalIgnoreCase) >= 0)
-                              || (c.Mod?.IsGenericUnity == true);
-                var isUnreal = (!string.IsNullOrEmpty(c.EngineHint) && c.EngineHint.IndexOf("Unreal", StringComparison.OrdinalIgnoreCase) >= 0)
-                              || (c.Mod?.IsGenericUnreal == true);
-                if (isUnity || isUnreal) return false;
-                return !c.IsHidden;
-            }
-            if (FilterMode == "Luma")
-            {
-                if (c.LumaMod == null) return false;
-                return !c.IsHidden;
-            }
-            if (FilterMode == "RenoDX")
+            // "Detected" (All Games): show everything except hidden
+            if (filters.Contains("Detected"))
             {
                 if (c.IsHidden) return false;
-                // Has a RenoDX mod on the wiki
-                if (c.Mod != null) return true;
-                // Is Unreal or Unity engine (eligible for generic mod)
-                var isUnreal = !string.IsNullOrEmpty(c.EngineHint) && c.EngineHint.IndexOf("Unreal", StringComparison.OrdinalIgnoreCase) >= 0;
-                var isUnity  = !string.IsNullOrEmpty(c.EngineHint) && c.EngineHint.IndexOf("Unity", StringComparison.OrdinalIgnoreCase) >= 0;
-                if (isUnreal || isUnity) return true;
-                // Has a RenoDX mod installed in the folder
-                if (c.Status == GameStatus.Installed || c.Status == GameStatus.UpdateAvailable) return true;
-                return false;
+                return true;
             }
 
-            // Default: hide hidden games (they belong in Hidden tab)
-            if (c.IsHidden) return false;
-            return true;
+            // Combinable filters — match ANY active filter (OR logic)
+            bool matched = false;
+
+            if (filters.Contains("Unity"))
+            {
+                var isUnity = (!string.IsNullOrEmpty(c.EngineHint) && c.EngineHint.IndexOf("Unity", StringComparison.OrdinalIgnoreCase) >= 0)
+                              || (c.Mod?.IsGenericUnity == true);
+                if (isUnity) matched = true;
+            }
+            if (filters.Contains("Unreal"))
+            {
+                var isUnreal = (!string.IsNullOrEmpty(c.EngineHint) && c.EngineHint.IndexOf("Unreal", StringComparison.OrdinalIgnoreCase) >= 0)
+                              || (c.Mod?.IsGenericUnreal == true);
+                if (isUnreal) matched = true;
+            }
+            if (filters.Contains("Other"))
+            {
+                var isUnity = (!string.IsNullOrEmpty(c.EngineHint) && c.EngineHint.IndexOf("Unity", StringComparison.OrdinalIgnoreCase) >= 0)
+                              || (c.Mod?.IsGenericUnity == true);
+                var isUnreal = (!string.IsNullOrEmpty(c.EngineHint) && c.EngineHint.IndexOf("Unreal", StringComparison.OrdinalIgnoreCase) >= 0)
+                              || (c.Mod?.IsGenericUnreal == true);
+                if (!isUnity && !isUnreal) matched = true;
+            }
+            if (filters.Contains("Luma"))
+            {
+                if (c.LumaMod != null) matched = true;
+            }
+            if (filters.Contains("RenoDX"))
+            {
+                if (c.Mod != null) { matched = true; }
+                else
+                {
+                    var isUnreal = !string.IsNullOrEmpty(c.EngineHint) && c.EngineHint.IndexOf("Unreal", StringComparison.OrdinalIgnoreCase) >= 0;
+                    var isUnity  = !string.IsNullOrEmpty(c.EngineHint) && c.EngineHint.IndexOf("Unity", StringComparison.OrdinalIgnoreCase) >= 0;
+                    if (isUnreal || isUnity) matched = true;
+                    if (c.Status == GameStatus.Installed || c.Status == GameStatus.UpdateAvailable) matched = true;
+                }
+            }
+
+            if (!matched) return false;
+            return !c.IsHidden;
         }).OrderBy(c => c.GameName, StringComparer.OrdinalIgnoreCase).ToList();
 
         DisplayedGames.Clear();

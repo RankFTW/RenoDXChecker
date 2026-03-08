@@ -5,6 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:vm="using:RenoDXCommander.ViewModels"
     xmlns:converters="using:RenoDXCommander.Converters"
+    xmlns:controls="using:RenoDXCommander.Controls"
     Title="RDXC - RenoDXCommander">
     <Grid Background="{StaticResource SurfaceBaseBrush}" AllowDrop="True" DragOver="Grid_DragOver" Drop="Grid_Drop">
         <Grid.Resources>
@@ -135,14 +136,24 @@
                                 BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="0,0,0,1">
                             <StackPanel Spacing="4">
                                 <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <Button x:Name="FilterFavourites" Content="Favourites" Tag="Favourites"
-                                            Click="Filter_Click"
-                                            Background="{StaticResource ChipDefaultBrush}" Foreground="{StaticResource ChipTextBrush}"
-                                            BorderThickness="0" CornerRadius="7" Padding="10,5" FontSize="11"/>
                                     <Button x:Name="FilterDetected" Content="All Games" Tag="Detected"
                                             Click="Filter_Click"
                                             Background="{StaticResource ChipActiveBrush}" Foreground="White"
                                             BorderThickness="0" CornerRadius="7" Padding="10,5" FontSize="11"/>
+                                    <Button x:Name="FilterFavourites" Content="Favourites" Tag="Favourites"
+                                            Click="Filter_Click"
+                                            Background="{StaticResource ChipDefaultBrush}" Foreground="{StaticResource ChipTextBrush}"
+                                            BorderThickness="0" CornerRadius="7" Padding="10,5" FontSize="11"/>
+                                    <Button x:Name="FilterHidden" Content="Hidden" Tag="Hidden"
+                                            Click="Filter_Click"
+                                            Background="{StaticResource ChipDefaultBrush}" Foreground="{StaticResource ChipTextBrush}"
+                                            BorderThickness="0" CornerRadius="7" Padding="10,5" FontSize="11"/>
+                                    <Button x:Name="FilterOther" Content="Other" Tag="Other"
+                                            Click="Filter_Click"
+                                            Background="{StaticResource ChipDefaultBrush}" Foreground="{StaticResource ChipTextBrush}"
+                                            BorderThickness="0" CornerRadius="7" Padding="10,5" FontSize="11"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="4">
                                     <Button x:Name="FilterUnreal" Content="Unreal" Tag="Unreal"
                                             Click="Filter_Click"
                                             Background="{StaticResource ChipDefaultBrush}" Foreground="{StaticResource ChipTextBrush}"
@@ -151,21 +162,11 @@
                                             Click="Filter_Click"
                                             Background="{StaticResource ChipDefaultBrush}" Foreground="{StaticResource ChipTextBrush}"
                                             BorderThickness="0" CornerRadius="7" Padding="10,5" FontSize="11"/>
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <Button x:Name="FilterOther" Content="Other" Tag="Other"
-                                            Click="Filter_Click"
-                                            Background="{StaticResource ChipDefaultBrush}" Foreground="{StaticResource ChipTextBrush}"
-                                            BorderThickness="0" CornerRadius="7" Padding="10,5" FontSize="11"/>
                                     <Button x:Name="FilterRenoDX" Content="RenoDX" Tag="RenoDX"
                                             Click="Filter_Click"
                                             Background="{StaticResource ChipDefaultBrush}" Foreground="{StaticResource ChipTextBrush}"
                                             BorderThickness="0" CornerRadius="7" Padding="10,5" FontSize="11"/>
                                     <Button x:Name="FilterLuma" Content="Luma" Tag="Luma"
-                                            Click="Filter_Click"
-                                            Background="{StaticResource ChipDefaultBrush}" Foreground="{StaticResource ChipTextBrush}"
-                                            BorderThickness="0" CornerRadius="7" Padding="10,5" FontSize="11"/>
-                                    <Button x:Name="FilterHidden" Content="Hidden" Tag="Hidden"
                                             Click="Filter_Click"
                                             Background="{StaticResource ChipDefaultBrush}" Foreground="{StaticResource ChipTextBrush}"
                                             BorderThickness="0" CornerRadius="7" Padding="10,5" FontSize="11"/>
@@ -244,45 +245,12 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0" Spacing="6">
-                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                    <TextBlock x:Name="DetailGameName" FontSize="20" FontWeight="Bold"
-                                               Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"
-                                               TextTrimming="CharacterEllipsis" MaxLines="1"/>
-                                    <Border x:Name="DetailSourceBadge" CornerRadius="5" Padding="6,2"
-                                            Background="{StaticResource ChipDefaultBrush}" BorderBrush="{StaticResource BorderDefaultBrush}" BorderThickness="1"
-                                            VerticalAlignment="Center">
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <Image x:Name="DetailSourceIcon" Width="14" Height="14" Stretch="Uniform"/>
-                                            <TextBlock x:Name="DetailSourceText" FontSize="11" Foreground="{StaticResource ChipTextBrush}"/>
-                                        </StackPanel>
-                                    </Border>
-                                    <Border x:Name="DetailEngineBadge" CornerRadius="5" Padding="6,2"
-                                            Background="{StaticResource ChipDefaultBrush}" BorderBrush="{StaticResource BorderDefaultBrush}" BorderThickness="1"
-                                            VerticalAlignment="Center" Visibility="Collapsed">
-                                        <TextBlock x:Name="DetailEngineText" FontSize="11" Foreground="{StaticResource ChipTextBrush}"/>
-                                    </Border>
-                                    <Border x:Name="DetailGenericBadge" CornerRadius="5" Padding="6,2"
-                                            Background="{StaticResource SurfaceOverlayBrush}" BorderBrush="{StaticResource BorderDefaultBrush}" BorderThickness="1"
-                                            VerticalAlignment="Center" Visibility="Collapsed">
-                                        <TextBlock x:Name="DetailGenericText" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}"/>
-                                    </Border>
-                                    <Border x:Name="Detail32BitBadge" CornerRadius="5" Padding="6,2"
-                                            Background="{StaticResource AccentAmberBgBrush}" BorderBrush="{StaticResource BorderDefaultBrush}" BorderThickness="1"
-                                            VerticalAlignment="Center" Visibility="Collapsed">
-                                        <TextBlock Text="32-bit" FontSize="11" Foreground="{StaticResource AccentAmberBrush}"/>
-                                    </Border>
-                                    <Border x:Name="DetailWikiBadge" CornerRadius="5" Padding="6,2"
-                                            VerticalAlignment="Center">
-                                        <TextBlock x:Name="DetailWikiText" FontSize="11"/>
-                                    </Border>
-                                </StackPanel>
-                                <StackPanel Spacing="6">
-                                    <TextBlock x:Name="DetailInstallPath" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}"
-                                               FontFamily="Consolas" VerticalAlignment="Center"
-                                               TextWrapping="Wrap"/>
-                                    <TextBlock x:Name="DetailInstalledFile" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}"
-                                               VerticalAlignment="Center" Visibility="Collapsed"/>
-                                </StackPanel>
+                                <TextBlock x:Name="DetailGameName" FontSize="20" FontWeight="Bold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           TextTrimming="CharacterEllipsis" MaxLines="1"/>
+                                <TextBlock x:Name="DetailInstallPath" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}"
+                                           FontFamily="Consolas" VerticalAlignment="Center"
+                                           TextWrapping="Wrap"/>
                             </StackPanel>
 
                             <!-- Utility buttons -->
@@ -325,6 +293,58 @@
                                 </Button>
                             </StackPanel>
                         </Grid>
+
+                        <!-- ── Addon file + info badges ── -->
+                        <controls:WrapPanel HorizontalSpacing="8" VerticalSpacing="6">
+                            <!-- Group 1: Mod info (addon file + generic/extended badge) -->
+                            <Border x:Name="DetailInstalledFileBadge" CornerRadius="5" Padding="6,2"
+                                    Background="{StaticResource ChipDefaultBrush}" BorderBrush="{StaticResource BorderDefaultBrush}" BorderThickness="1"
+                                    VerticalAlignment="Center" Visibility="Collapsed">
+                                <TextBlock x:Name="DetailInstalledFile" FontSize="11" Foreground="{StaticResource ChipTextBrush}"/>
+                            </Border>
+                            <Border x:Name="DetailGenericBadge" CornerRadius="5" Padding="6,2"
+                                    Background="{StaticResource ChipDefaultBrush}" BorderBrush="{StaticResource BorderDefaultBrush}" BorderThickness="1"
+                                    VerticalAlignment="Center" Visibility="Collapsed">
+                                <TextBlock x:Name="DetailGenericText" FontSize="11" Foreground="{StaticResource ChipTextBrush}"/>
+                            </Border>
+
+                            <!-- Separator: mod → platform -->
+                            <Border x:Name="DetailSepModPlatform" Width="1" Background="{StaticResource BorderSubtleBrush}"
+                                    VerticalAlignment="Stretch" Visibility="Collapsed"/>
+
+                            <!-- Group 2: Platform info (source + engine + 32-bit) -->
+                            <Border x:Name="DetailSourceBadge" CornerRadius="5" Padding="6,2"
+                                    Background="{StaticResource ChipDefaultBrush}" BorderBrush="{StaticResource BorderDefaultBrush}" BorderThickness="1"
+                                    VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <Image x:Name="DetailSourceIcon" Width="14" Height="14" Stretch="Uniform"/>
+                                    <TextBlock x:Name="DetailSourceText" FontSize="11" Foreground="{StaticResource ChipTextBrush}"/>
+                                </StackPanel>
+                            </Border>
+                            <Border x:Name="DetailEngineBadge" CornerRadius="5" Padding="6,2"
+                                    Background="{StaticResource ChipDefaultBrush}" BorderBrush="{StaticResource BorderDefaultBrush}" BorderThickness="1"
+                                    VerticalAlignment="Center" Visibility="Collapsed">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <Image x:Name="DetailEngineIcon" Width="14" Height="14" Stretch="Uniform"/>
+                                    <TextBlock x:Name="DetailEngineText" FontSize="11" Foreground="{StaticResource ChipTextBrush}"/>
+                                </StackPanel>
+                            </Border>
+                            <Border x:Name="Detail32BitBadge" CornerRadius="5" Padding="6,2"
+                                    Background="{StaticResource AccentAmberBgBrush}" BorderBrush="{StaticResource BorderDefaultBrush}" BorderThickness="1"
+                                    VerticalAlignment="Center" Visibility="Collapsed">
+                                <TextBlock Text="32-bit" FontSize="11" Foreground="{StaticResource AccentAmberBrush}"/>
+                            </Border>
+
+                            <!-- Separator: platform → status -->
+                            <Border x:Name="DetailSepPlatformStatus" Width="1" Background="{StaticResource BorderSubtleBrush}"
+                                    VerticalAlignment="Stretch" Visibility="Collapsed"/>
+
+                            <!-- Group 3: Status (wiki) -->
+                            <Border x:Name="DetailWikiBadge" CornerRadius="5" Padding="6,2"
+                                    VerticalAlignment="Center">
+                                <TextBlock x:Name="DetailWikiText" FontSize="11"/>
+                            </Border>
+                        </controls:WrapPanel>
 
                         <!-- ── Luma badge toggle (when available) ── -->
                         <Border x:Name="DetailLumaBadgeContainer" Visibility="Collapsed"
