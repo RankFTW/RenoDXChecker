@@ -1,3 +1,13 @@
+## v1.4.1
+
+### Changes
+
+**Code refinement**
+
+- Additional UI cleanup and redundant code removal.
+
+---
+
 ## v1.4.0
 
 ### Changes
