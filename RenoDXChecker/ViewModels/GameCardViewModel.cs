@@ -405,8 +405,8 @@ public partial class GameCardViewModel : ObservableObject
     public string GenericModLabel => IsGenericMod
         ? (EngineHint.Contains("Unity")
            ? "Generic Unity"
-           : (IsNativeHdrGame ? "Extended UE Native HDR"
-              : (IsManifestUeExtended || UseUeExtended) ? "Extended UE"
+           : (IsNativeHdrGame ? "UE Extended Native HDR"
+              : (IsManifestUeExtended || UseUeExtended) ? "UE Extended"
               : "Generic UE"))
         : "";
 

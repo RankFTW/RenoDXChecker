@@ -958,7 +958,7 @@ public sealed partial class MainWindow : Window
 
     private void DetailScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        const double maxWidth = 700;
+        const double maxWidth = 850;
         const double padding = 48; // 24 left + 24 right
         var available = e.NewSize.Width - padding;
         DetailPanel.Width = available > maxWidth ? maxWidth : (available > 0 ? available : double.NaN);
@@ -1564,15 +1564,16 @@ public sealed partial class MainWindow : Window
     {
         if (sender is not Button btn) return;
         ViewModel.SetFilterCommand.Execute(btn.Tag as string ?? "Detected");
-        var active   = ((SolidColorBrush)Application.Current.Resources["ChipActiveBrush"]).Color;   // ChipActive
-        var inactive = ((SolidColorBrush)Application.Current.Resources["ChipDefaultBrush"]).Color;   // ChipDefault
-        var activeFg   = ((SolidColorBrush)Application.Current.Resources["TextPrimaryBrush"]).Color; // TextPrimary
-        var inactiveFg = ((SolidColorBrush)Application.Current.Resources["ChipTextBrush"]).Color; // ChipText
-        var tag = btn.Tag as string ?? "Detected";
-        // Update both full-mode and compact-mode filter buttons
+
+        // Style buttons based on active filter set
+        var active   = ((SolidColorBrush)Application.Current.Resources["ChipActiveBrush"]).Color;
+        var inactive = ((SolidColorBrush)Application.Current.Resources["ChipDefaultBrush"]).Color;
+        var activeFg   = ((SolidColorBrush)Application.Current.Resources["TextPrimaryBrush"]).Color;
+        var inactiveFg = ((SolidColorBrush)Application.Current.Resources["ChipTextBrush"]).Color;
+
         foreach (var b in new[] { FilterFavourites, FilterDetected, FilterUnreal, FilterUnity, FilterOther, FilterRenoDX, FilterLuma, FilterHidden })
         {
-            bool isActive = (b.Tag as string) == tag;
+            bool isActive = ViewModel.ActiveFilters.Contains(b.Tag as string ?? "");
             b.Background  = new SolidColorBrush(isActive ? active   : inactive);
             b.Foreground  = new SolidColorBrush(isActive ? activeFg : inactiveFg);
         }
@@ -1789,7 +1790,7 @@ public sealed partial class MainWindow : Window
         ViewModel.ToggleUeExtended(card);
 
         // Directly update the badge text based on the new state
-        string newLabel = card.UseUeExtended ? "Extended UE" : "Generic UE";
+        string newLabel = card.UseUeExtended ? "UE Extended" : "Generic UE";
         DetailGenericText.Text = newLabel;
 
         // Update the UE button styling
@@ -2371,6 +2372,13 @@ public sealed partial class MainWindow : Window
         if (!string.IsNullOrEmpty(card.EngineHint))
         {
             DetailEngineText.Text = card.EngineHint;
+            // Set engine icon
+            if (card.EngineHint.IndexOf("Unreal", StringComparison.OrdinalIgnoreCase) >= 0)
+                DetailEngineIcon.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri("ms-appx:///Assets/icons/unrealengine.ico"));
+            else if (card.EngineHint.IndexOf("Unity", StringComparison.OrdinalIgnoreCase) >= 0)
+                DetailEngineIcon.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri("ms-appx:///Assets/icons/unity.ico"));
+            else
+                DetailEngineIcon.Source = null;
             DetailEngineBadge.Visibility = Visibility.Visible;
         }
         else DetailEngineBadge.Visibility = Visibility.Collapsed;
@@ -2387,20 +2395,28 @@ public sealed partial class MainWindow : Window
         Detail32BitBadge.Visibility = card.Is32Bit ? Visibility.Visible : Visibility.Collapsed;
 
         // Wiki status badge
+        var hasWikiLabel = !string.IsNullOrEmpty(card.WikiStatusLabel);
         DetailWikiText.Text = card.WikiStatusLabel;
         DetailWikiText.Foreground = new SolidColorBrush(ParseHexColor(card.WikiStatusBadgeForeground));
         DetailWikiBadge.Background = new SolidColorBrush(ParseHexColor(card.WikiStatusBadgeBackground));
         DetailWikiBadge.BorderBrush = new SolidColorBrush(ParseHexColor(card.WikiStatusBadgeBorderBrush));
         DetailWikiBadge.BorderThickness = new Thickness(1);
+        DetailWikiBadge.Visibility = hasWikiLabel ? Visibility.Visible : Visibility.Collapsed;
+        DetailSepPlatformStatus.Visibility = hasWikiLabel ? Visibility.Visible : Visibility.Collapsed;
 
         // Install path + installed file
         DetailInstallPath.Text = card.InstallPath;
         if (!string.IsNullOrEmpty(card.InstalledAddonFileName))
         {
-            DetailInstalledFile.Text = $"📦 {card.InstalledAddonFileName}";
-            DetailInstalledFile.Visibility = Visibility.Visible;
+            DetailInstalledFile.Text = $"{card.InstalledAddonFileName}";
+            DetailInstalledFileBadge.Visibility = Visibility.Visible;
+            DetailSepModPlatform.Visibility = Visibility.Visible;
         }
-        else DetailInstalledFile.Visibility = Visibility.Collapsed;
+        else
+        {
+            DetailInstalledFileBadge.Visibility = Visibility.Collapsed;
+            DetailSepModPlatform.Visibility = Visibility.Collapsed;
+        }
 
         // Utility buttons — set Tag for event handlers
         DetailFavBtn.Tag = card;
@@ -2589,8 +2605,24 @@ public sealed partial class MainWindow : Window
         if (_currentDetailCard == null) return;
         DispatcherQueue.TryEnqueue(() =>
         {
-            if (_currentDetailCard != null)
-                UpdateDetailComponentRows(_currentDetailCard);
+            if (_currentDetailCard == null) return;
+            UpdateDetailComponentRows(_currentDetailCard);
+
+            // Refresh addon file badge when install state changes
+            if (e.PropertyName is "InstalledAddonFileName" or "Status" or "ActionMessage")
+            {
+                if (!string.IsNullOrEmpty(_currentDetailCard.InstalledAddonFileName))
+                {
+                    DetailInstalledFile.Text = $"{_currentDetailCard.InstalledAddonFileName}";
+                    DetailInstalledFileBadge.Visibility = Visibility.Visible;
+                    DetailSepModPlatform.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    DetailInstalledFileBadge.Visibility = Visibility.Collapsed;
+                    DetailSepModPlatform.Visibility = Visibility.Collapsed;
+                }
+            }
         });
     }
 
