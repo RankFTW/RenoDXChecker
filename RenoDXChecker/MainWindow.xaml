@@ -232,8 +232,10 @@
                 </Border>
 
                 <!-- ── DETAIL PANEL (Column 1) ─────────────────────────────────── -->
-                <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Padding="24,18,24,24">
-                    <StackPanel x:Name="DetailPanel" Spacing="16" Visibility="Collapsed">
+                <ScrollViewer x:Name="DetailScrollViewer" Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              SizeChanged="DetailScrollViewer_SizeChanged">
+                    <StackPanel x:Name="DetailPanel" Spacing="16" Visibility="Collapsed"
+                                Padding="24,18,24,24" HorizontalAlignment="Center">
 
                         <!-- ── Header: Name + badges + utility buttons ── -->
                         <Grid>
@@ -274,10 +276,10 @@
                                         <TextBlock x:Name="DetailWikiText" FontSize="11"/>
                                     </Border>
                                 </StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                <StackPanel Spacing="6">
                                     <TextBlock x:Name="DetailInstallPath" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}"
                                                FontFamily="Consolas" VerticalAlignment="Center"
-                                               TextTrimming="CharacterEllipsis" MaxLines="1"/>
+                                               TextWrapping="Wrap"/>
                                     <TextBlock x:Name="DetailInstalledFile" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}"
                                                VerticalAlignment="Center" Visibility="Collapsed"/>
                                 </StackPanel>
@@ -285,42 +287,41 @@
 
                             <!-- Utility buttons -->
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Top">
-                                <Button x:Name="DetailFavBtn" Background="Transparent" BorderThickness="0"
-                                        Width="32" Height="32" Padding="0"
-                                        Click="FavouriteButton_Click"
-                                        ToolTipService.ToolTip="Toggle favourite">
-                                    <TextBlock x:Name="DetailFavIcon" FontSize="14" HorizontalAlignment="Center"/>
-                                </Button>
                                 <Button x:Name="DetailDiscussionBtn" Background="Transparent" BorderThickness="0"
-                                        Width="32" Height="32" Padding="0" Visibility="Collapsed"
+                                        Padding="6,4" MinWidth="0" MinHeight="0" Visibility="Collapsed"
                                         Click="NameLink_Click"
                                         ToolTipService.ToolTip="Open discussion / instructions">
                                     <TextBlock Text="💬" FontSize="14" HorizontalAlignment="Center"/>
                                 </Button>
                                 <Button x:Name="DetailNotesBtn" Background="Transparent" BorderThickness="0"
-                                        Width="32" Height="32" Padding="0" Visibility="Collapsed"
+                                        Padding="6,4" MinWidth="0" MinHeight="0" Visibility="Collapsed"
                                         Click="NotesButton_Click"
                                         ToolTipService.ToolTip="Game info / notes">
                                     <TextBlock Text="ℹ" FontSize="15" Foreground="{StaticResource TextTertiaryBrush}" HorizontalAlignment="Center"/>
                                 </Button>
-                                <Button x:Name="DetailHideBtn" Background="Transparent" BorderThickness="0"
-                                        Width="32" Height="32" Padding="0"
+                                <Button x:Name="DetailHideBtn"
+                                        Background="{StaticResource SurfaceOverlayBrush}"
+                                        Foreground="{StaticResource TextTertiaryBrush}"
+                                        BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1"
+                                        CornerRadius="6" Padding="8,4" MinWidth="0" MinHeight="0"
+                                        FontSize="11"
                                         Click="HideButton_Click">
-                                    <TextBlock x:Name="DetailHideIcon" FontSize="13" HorizontalAlignment="Center"/>
+                                    <TextBlock x:Name="DetailHideIcon" FontSize="11"/>
                                 </Button>
-                                <Button x:Name="DetailFolderBtn" Background="Transparent" BorderThickness="0"
-                                        Width="32" Height="32" Padding="0">
-                                    <Button.Flyout>
-                                        <MenuFlyout>
-                                            <MenuFlyoutItem x:Name="DetailOpenFolder" Text="Open in Explorer"
-                                                            Click="OpenFolder_Click"/>
-                                            <MenuFlyoutItem x:Name="DetailBrowseFolder" Text="Change install folder"
-                                                            Click="BrowseFolder_Click"/>
-                                            <MenuFlyoutItem x:Name="DetailRemoveGame" Text="Reset folder / Remove game"
-                                                            Click="RemoveManualGame_Click"/>
-                                        </MenuFlyout>
-                                    </Button.Flyout>
-                                    <TextBlock Text="📁" FontSize="14" HorizontalAlignment="Center"/>
+                                <Button x:Name="DetailFolderBtn"
+                                        Background="{StaticResource SurfaceOverlayBrush}"
+                                        Foreground="{StaticResource TextTertiaryBrush}"
+                                        BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1"
+                                        CornerRadius="6" Padding="8,4" MinWidth="0" MinHeight="0"
+                                        FontSize="11" Content="Browse"
+                                        Click="OpenFolder_Click"
+                                        ToolTipService.ToolTip="Open game folder in Explorer"/>
+
+                                <Button x:Name="DetailFavBtn" Background="Transparent" BorderThickness="0"
+                                        Width="32" Height="32" Padding="0"
+                                        Click="FavouriteButton_Click"
+                                        ToolTipService.ToolTip="Toggle favourite">
+                                    <TextBlock x:Name="DetailFavIcon" FontSize="14" HorizontalAlignment="Center"/>
                                 </Button>
                             </StackPanel>
                         </Grid>
@@ -429,7 +430,7 @@
                                         <ColumnDefinition Width="36"/>
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="RenoDX" FontSize="12"
-                                               Foreground="{StaticResource AccentTealBrush}" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" FontWeight="SemiBold"/>
                                     <TextBlock x:Name="DetailRdxStatus" Grid.Column="1" FontSize="12"
                                                VerticalAlignment="Center"/>
                                     <Button x:Name="DetailRdxInstallBtn" Grid.Column="2"
@@ -529,6 +530,38 @@
                                 BorderBrush="{StaticResource BorderDefaultBrush}" BorderThickness="1"
                                 Padding="16,14" Visibility="Collapsed">
                             <StackPanel x:Name="OverridesPanel" Spacing="8"/>
+                        </Border>
+
+                        <!-- ── Game Management section ── -->
+                        <Border Background="{StaticResource SurfaceComponentTableBrush}" CornerRadius="12"
+                                BorderBrush="{StaticResource BorderDefaultBrush}" BorderThickness="1"
+                                Padding="16,14">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="Manage" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button x:Name="DetailChangeFolderBtn" Grid.Column="0"
+                                            Click="BrowseFolder_Click"
+                                            Background="{StaticResource SurfaceOverlayBrush}"
+                                            Foreground="{StaticResource TextSecondaryBrush}"
+                                            BorderBrush="{StaticResource BorderDefaultBrush}" BorderThickness="1"
+                                            CornerRadius="8" FontSize="12" Height="32"
+                                            HorizontalAlignment="Stretch"
+                                            Content="Change install folder"/>
+                                    <Button x:Name="DetailRemoveGameBtn" Grid.Column="1"
+                                            Click="RemoveManualGame_Click"
+                                            Background="{StaticResource AccentRedBgBrush}"
+                                            Foreground="{StaticResource AccentRedBrush}"
+                                            BorderBrush="{StaticResource AccentPurpleBorderBrush}" BorderThickness="1"
+                                            CornerRadius="8" FontSize="12" Height="32"
+                                            HorizontalAlignment="Stretch"
+                                            Content="Reset folder / Remove game"/>
+                                </Grid>
+                            </StackPanel>
                         </Border>
                     </StackPanel>
                 </ScrollViewer>

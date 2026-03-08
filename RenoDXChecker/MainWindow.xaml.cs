@@ -19,7 +19,7 @@ public sealed partial class MainWindow : Window
 
     // Sensible default — used on first launch before any saved size exists
     private const int DefaultWidth  = 1280;
-    private const int DefaultHeight = 880;
+    private const int DefaultHeight = 1000;
 
     public MainWindow()
     {
@@ -34,6 +34,12 @@ public sealed partial class MainWindow : Window
         // TryRestoreWindowBounds (called on Activated) will then override this with the
         // saved size+position from the previous session, if one exists.
         AppWindow.Resize(new Windows.Graphics.SizeInt32(DefaultWidth, DefaultHeight));
+
+        // Enforce minimum window size via Win32 subclass
+        _hwnd = WindowNative.GetWindowHandle(this);
+        _origWndProc = GetWindowLongPtr(_hwnd, GWLP_WNDPROC);
+        _wndProcDelegate = new WndProcDelegate(WndProc);
+        SetWindowLongPtr(_hwnd, GWLP_WNDPROC, Marshal.GetFunctionPointerForDelegate(_wndProcDelegate));
 
         // Set the title bar icon (unpackaged apps need this explicitly)
         AppWindow.SetIcon("icon.ico");
@@ -292,7 +298,8 @@ public sealed partial class MainWindow : Window
             ? ViewModel.GetPerGameDcModeOverride(prefilledDetected)
             : null;
 
-        var dcModeOptions = new[] { "Follow Global", "Exclude (Off)", "DC Mode 1", "DC Mode 2" };
+        var globalDcLabel = ViewModel.DcModeLevel switch { 1 => "DC Mode 1", 2 => "DC Mode 2", _ => "Off" };
+        var dcModeOptions = new[] { $"Global ({globalDcLabel})", "Exclude (Off)", "DC Mode 1", "DC Mode 2" };
         var dcModeCombo = new ComboBox
         {
             ItemsSource  = dcModeOptions,
@@ -302,7 +309,7 @@ public sealed partial class MainWindow : Window
             Header       = "DC Mode for this game",
         };
         ToolTipService.SetToolTip(dcModeCombo,
-            "Follow Global = use the header DC Mode toggle. Exclude (Off) = always use normal naming. " +
+            "Global = use the Settings DC Mode. Exclude (Off) = always use normal naming. " +
             "DC Mode 1 = force dxgi.dll proxy. DC Mode 2 = force winmm.dll proxy.");
 
         panel.Children.Add(dcModeCombo);
@@ -314,17 +321,21 @@ public sealed partial class MainWindow : Window
             ? ViewModel.GetPerGameShaderMode(prefilledDetected)
             : "Global";
 
-        var shaderModeOptions = new[] { "Global", "Off", "Minimum", "All", "User" };
+        var globalShaderLabel = ViewModel.ShaderDeployMode.ToString();
+        var shaderModeValues = new[] { "Global", "Off", "Minimum", "All", "User" };
+        var shaderModeDisplay = new[] { $"Global ({globalShaderLabel})", "Off", "Minimum", "All", "User" };
+        int shaderSelectedIdx = Array.IndexOf(shaderModeValues, currentShaderMode);
+        if (shaderSelectedIdx < 0) shaderSelectedIdx = 0;
         var shaderModeCombo = new ComboBox
         {
-            ItemsSource  = shaderModeOptions,
-            SelectedItem = currentShaderMode,
+            ItemsSource  = shaderModeDisplay,
+            SelectedIndex = shaderSelectedIdx,
             FontSize     = 12,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Header       = "Shader mode for this game",
         };
         ToolTipService.SetToolTip(shaderModeCombo,
-            "Global = follow the header toggle. Off = no shaders. Minimum = Lilium only. All = all packs. User = custom folder only.\n" +
+            "Global = follow the Settings toggle. Off = no shaders. Minimum = Lilium only. All = all packs. User = custom folder only.\n" +
             "Note: Per-game shader mode only applies when ReShade is used standalone (DC Mode OFF). " +
             "When DC Mode is ON, all DC-mode games share the DC global shader folder.");
 
@@ -382,7 +393,9 @@ public sealed partial class MainWindow : Window
                     ViewModel.ToggleUpdateAllExclusion(det);
 
                 // Handle per-game shader mode
-                var newShaderMode = shaderModeCombo.SelectedItem as string ?? "Global";
+                var shaderIdx = shaderModeCombo.SelectedIndex;
+                var newShaderMode = shaderIdx >= 0 && shaderIdx < shaderModeValues.Length
+                    ? shaderModeValues[shaderIdx] : "Global";
                 if (!string.IsNullOrEmpty(det) && newShaderMode != ViewModel.GetPerGameShaderMode(det))
                 {
                     ViewModel.SetPerGameShaderMode(det, newShaderMode);
@@ -941,6 +954,14 @@ public sealed partial class MainWindow : Window
             LoadingPanel.Visibility = Visibility.Visible;
         else
             GameViewPanel.Visibility = Visibility.Visible;
+    }
+
+    private void DetailScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        const double maxWidth = 700;
+        const double padding = 48; // 24 left + 24 right
+        var available = e.NewSize.Width - padding;
+        DetailPanel.Width = available > maxWidth ? maxWidth : (available > 0 ? available : double.NaN);
     }
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -2124,6 +2145,56 @@ public sealed partial class MainWindow : Window
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
 
+    // --- Minimum window size enforcement via WndProc subclass ---
+    private const int GWLP_WNDPROC = -4;
+    private const int WM_GETMINMAXINFO = 0x0024;
+    private const int MinWindowWidth = 900;
+    private const int MinWindowHeight = 800;
+
+    private IntPtr _hwnd;
+    private IntPtr _origWndProc;
+    private WndProcDelegate? _wndProcDelegate; // prevent GC
+
+    private delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")]
+    private static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
+    private static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr CallWindowProc(IntPtr lpPrevWndFunc, IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MINMAXINFO
+    {
+        public System.Drawing.Point ptReserved;
+        public System.Drawing.Point ptMaxSize;
+        public System.Drawing.Point ptMaxPosition;
+        public System.Drawing.Point ptMinTrackSize;
+        public System.Drawing.Point ptMaxTrackSize;
+    }
+
+    private IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
+    {
+        if (msg == WM_GETMINMAXINFO)
+        {
+            var dpi = GetDpiForWindow(hWnd);
+            var scale = dpi / 96.0;
+            var mmi = Marshal.PtrToStructure<MINMAXINFO>(lParam);
+            mmi.ptMinTrackSize = new System.Drawing.Point(
+                (int)(MinWindowWidth * scale),
+                (int)(MinWindowHeight * scale));
+            Marshal.StructureToPtr(mmi, lParam, false);
+            return IntPtr.Zero;
+        }
+        return CallWindowProc(_origWndProc, hWnd, msg, wParam, lParam);
+    }
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr hWnd);
+
     // ── Window persistence (JSON-based, works for unpackaged WinUI 3 apps) ────────
     // ApplicationData.Current.LocalSettings requires package identity and throws in
     // unpackaged apps — so we use a plain JSON file in %LocalAppData% instead.
@@ -2345,16 +2416,15 @@ public sealed partial class MainWindow : Window
         DetailNotesBtn.Visibility = card.NotesButtonVisibility;
 
         DetailHideBtn.Tag = card;
-        ToolTipService.SetToolTip(DetailHideBtn, card.HideButtonLabel);
-        DetailHideIcon.Text = card.IsHidden ? "🚫" : "🚫";
-        DetailHideIcon.Foreground = card.IsHidden
-            ? Brush("AccentPurpleDimBrush")
+        DetailHideIcon.Text = card.IsHidden ? "Show" : "Hide";
+        DetailHideBtn.Foreground = card.IsHidden
+            ? Brush("TextTertiaryBrush")
             : Brush("TextDisabledBrush");
 
-        // Folder menu items
-        DetailOpenFolder.Tag = card;
-        DetailBrowseFolder.Tag = card;
-        DetailRemoveGame.Tag = card;
+        // Folder management buttons
+        DetailFolderBtn.Tag = card;
+        DetailChangeFolderBtn.Tag = card;
+        DetailRemoveGameBtn.Tag = card;
 
         // Luma badge toggle
         if (card.LumaBadgeVisibility == Visibility.Visible)
@@ -2552,10 +2622,10 @@ public sealed partial class MainWindow : Window
         // ── Title ────────────────────────────────────────────────────────────────
         OverridesPanel.Children.Add(new TextBlock
         {
-            Text = "⚙ Overrides",
+            Text = "Overrides",
             FontSize = 13,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Foreground = Brush("TextSecondaryBrush"),
+            Foreground = Brush("TextPrimaryBrush"),
         });
 
         // ── Game name + Wiki name ────────────────────────────────────────────────
@@ -2606,26 +2676,69 @@ public sealed partial class MainWindow : Window
         OverridesPanel.Children.Add(nameGrid);
         OverridesPanel.Children.Add(MakeSeparator());
 
-        // ── DLL naming override ──────────────────────────────────────────────────
+        // ── Per-game DC Mode + Shader mode (side by side) ─────────────────────────
+        int? currentDcMode = ViewModel.GetPerGameDcModeOverride(gameName);
+        var globalDcLabel = ViewModel.DcModeLevel switch { 1 => "DC Mode 1", 2 => "DC Mode 2", _ => "Off" };
+        var dcModeOptions = new[] { $"Global ({globalDcLabel})", "Exclude (Off)", "DC Mode 1", "DC Mode 2" };
+        var dcModeCombo = new ComboBox
+        {
+            ItemsSource = dcModeOptions,
+            SelectedIndex = currentDcMode switch { null => 0, 0 => 1, 1 => 2, 2 => 3, _ => 0 },
+            FontSize = 12,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Header = "DC Mode",
+        };
+        ToolTipService.SetToolTip(dcModeCombo,
+            "Global = use the Settings DC Mode. Exclude (Off) = always use normal naming. " +
+            "DC Mode 1 = force dxgi.dll proxy. DC Mode 2 = force winmm.dll proxy.");
+
+        string currentShaderMode = ViewModel.GetPerGameShaderMode(gameName);
+        var globalShaderLabel = ViewModel.ShaderDeployMode.ToString();
+        var shaderModeValues = new[] { "Global", "Off", "Minimum", "All", "User" };
+        var shaderModeDisplay = new[] { $"Global ({globalShaderLabel})", "Off", "Minimum", "All", "User" };
+        int shaderSelectedIdx = Array.IndexOf(shaderModeValues, currentShaderMode);
+        if (shaderSelectedIdx < 0) shaderSelectedIdx = 0;
+        var shaderModeCombo = new ComboBox
+        {
+            ItemsSource = shaderModeDisplay,
+            SelectedIndex = shaderSelectedIdx,
+            FontSize = 12,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Header = "Shader Mode",
+        };
+        ToolTipService.SetToolTip(shaderModeCombo,
+            "Global = follow the Settings toggle. Off = no shaders. Minimum = Lilium only. All = all packs. User = custom folder only.\n" +
+            "Note: Per-game shader mode only applies when ReShade is used standalone (DC Mode OFF). " +
+            "When DC Mode is ON, all DC-mode games share the DC global shader folder.");
+
+        var modeGrid = new Grid { ColumnSpacing = 8 };
+        modeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        modeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumn(dcModeCombo, 0);
+        Grid.SetColumn(shaderModeCombo, 1);
+        modeGrid.Children.Add(dcModeCombo);
+        modeGrid.Children.Add(shaderModeCombo);
+        OverridesPanel.Children.Add(modeGrid);
+        OverridesPanel.Children.Add(MakeSeparator());
+
+        // ── DLL naming override (grouped in a border) ────────────────────────────
         bool isDllOverride = ViewModel.HasDllOverride(gameName);
         var existingCfg = ViewModel.GetDllOverride(gameName);
         bool is32Bit = ViewModel.Is32BitGame(gameName);
         var defaultRsName = is32Bit ? "ReShade32.dll" : "ReShade64.dll";
         var defaultDcName = is32Bit ? "zzz_display_commander.addon32" : "zzz_display_commander.addon64";
 
-        var dllOverrideBtn = new ToggleButton
+        var dllOverrideToggle = new ToggleSwitch
         {
-            Content = "📝  DLL naming override",
-            IsChecked = isDllOverride,
+            Header = "DLL naming override",
+            IsOn = isDllOverride,
             IsEnabled = !isLumaMode,
+            OnContent = "Custom filenames enabled",
+            OffContent = "Using default filenames",
+            Foreground = Brush("TextSecondaryBrush"),
             FontSize = 12,
-            Padding = new Thickness(10, 6, 10, 6),
-            Background = Brush("AccentTealBgBrush"),
-            Foreground = Brush("AccentTealBrush"),
-            BorderBrush = Brush("AccentTealBorderBrush"),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
         };
-        ToolTipService.SetToolTip(dllOverrideBtn,
+        ToolTipService.SetToolTip(dllOverrideToggle,
             "Override the filenames ReShade and Display Commander are installed as. " +
             "When enabled, existing RS/DC files are renamed to the custom filenames. " +
             "The game is automatically excluded from DC Mode, Update All, and global shaders.");
@@ -2647,10 +2760,8 @@ public sealed partial class MainWindow : Window
             IsEnabled = isDllOverride,
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
-        dllOverrideBtn.Checked   += (s, ev) => { rsNameBox.IsEnabled = true;  dcNameBox.IsEnabled = true; };
-        dllOverrideBtn.Unchecked += (s, ev) => { rsNameBox.IsEnabled = false; dcNameBox.IsEnabled = false; };
+        dllOverrideToggle.Toggled += (s, ev) => { rsNameBox.IsEnabled = dllOverrideToggle.IsOn; dcNameBox.IsEnabled = dllOverrideToggle.IsOn; };
 
-        OverridesPanel.Children.Add(dllOverrideBtn);
         var dllNameGrid = new Grid { ColumnSpacing = 8, Margin = new Thickness(0, 4, 0, 0) };
         dllNameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         dllNameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -2658,95 +2769,64 @@ public sealed partial class MainWindow : Window
         Grid.SetColumn(dcNameBox, 1);
         dllNameGrid.Children.Add(rsNameBox);
         dllNameGrid.Children.Add(dcNameBox);
-        OverridesPanel.Children.Add(dllNameGrid);
+
+        var dllGroupPanel = new StackPanel { Spacing = 4 };
+        dllGroupPanel.Children.Add(dllOverrideToggle);
+        dllGroupPanel.Children.Add(dllNameGrid);
+        var dllGroupBorder = new Border
+        {
+            Child = dllGroupPanel,
+            Background = Brush("SurfaceOverlayBrush"),
+            BorderBrush = Brush("BorderSubtleBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12, 10, 12, 12),
+        };
+        OverridesPanel.Children.Add(dllGroupBorder);
         OverridesPanel.Children.Add(MakeSeparator());
 
-        // ── Exclude from Update All ──────────────────────────────────────────────
-        var uaExcludeBtn = new ToggleButton
+        // ── Update All ───────────────────────────────────────────────────────────
+        var updateAllToggle = new ToggleSwitch
         {
-            Content = "⬆  Exclude from Update All",
-            IsChecked = ViewModel.IsUpdateAllExcluded(gameName),
+            Header = "Update All",
+            IsOn = !ViewModel.IsUpdateAllExcluded(gameName),
+            OnContent = "Included in bulk updates",
+            OffContent = "Excluded from bulk updates",
+            Foreground = Brush("TextSecondaryBrush"),
             FontSize = 12,
-            Padding = new Thickness(10, 6, 10, 6),
-            Background = Brush("AccentPurpleBgBrush"),
-            Foreground = Brush("AccentPurpleBrush"),
-            BorderBrush = Brush("AccentPurpleBorderBrush"),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
         };
-        ToolTipService.SetToolTip(uaExcludeBtn,
-            "Skip this game when using Update All RenoDX, Update All ReShade, or Update All DC.");
-        OverridesPanel.Children.Add(uaExcludeBtn);
+        ToolTipService.SetToolTip(updateAllToggle,
+            "When enabled, this game is included in Update All RenoDX, Update All ReShade, and Update All DC.");
+        OverridesPanel.Children.Add(updateAllToggle);
         OverridesPanel.Children.Add(MakeSeparator());
 
         // ── 32-bit mode ──────────────────────────────────────────────────────────
-        var bit32Btn = new ToggleButton
+        var bit32Toggle = new ToggleSwitch
         {
-            Content = "⚠  32-bit mode",
-            IsChecked = is32Bit,
+            Header = "32-bit mode",
+            IsOn = is32Bit,
             IsEnabled = !isLumaMode,
+            OnContent = "32-bit binaries",
+            OffContent = "64-bit binaries",
+            Foreground = Brush("TextSecondaryBrush"),
             FontSize = 12,
-            Padding = new Thickness(10, 6, 10, 6),
-            Background = Brush("AccentAmberBgBrush"),
-            Foreground = Brush("AccentAmberBrush"),
-            BorderBrush = Brush("BorderDefaultBrush"),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
         };
-        ToolTipService.SetToolTip(bit32Btn,
+        ToolTipService.SetToolTip(bit32Toggle,
             "Installs 32-bit versions of ReShade, Unity addon, and Display Commander. Only enable if you know this game is 32-bit.");
-        OverridesPanel.Children.Add(bit32Btn);
-        OverridesPanel.Children.Add(MakeSeparator());
-
-        // ── Per-game DC Mode + Shader mode (side by side) ─────────────────────────
-        int? currentDcMode = ViewModel.GetPerGameDcModeOverride(gameName);
-        var dcModeOptions = new[] { "Follow Global", "Exclude (Off)", "DC Mode 1", "DC Mode 2" };
-        var dcModeCombo = new ComboBox
-        {
-            ItemsSource = dcModeOptions,
-            SelectedIndex = currentDcMode switch { null => 0, 0 => 1, 1 => 2, 2 => 3, _ => 0 },
-            FontSize = 12,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            Header = "DC Mode",
-        };
-        ToolTipService.SetToolTip(dcModeCombo,
-            "Follow Global = use the header DC Mode toggle. Exclude (Off) = always use normal naming. " +
-            "DC Mode 1 = force dxgi.dll proxy. DC Mode 2 = force winmm.dll proxy.");
-
-        string currentShaderMode = ViewModel.GetPerGameShaderMode(gameName);
-        var shaderModeOptions = new[] { "Global", "Off", "Minimum", "All", "User" };
-        var shaderModeCombo = new ComboBox
-        {
-            ItemsSource = shaderModeOptions,
-            SelectedItem = currentShaderMode,
-            FontSize = 12,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            Header = "Shader Mode",
-        };
-        ToolTipService.SetToolTip(shaderModeCombo,
-            "Global = follow the header toggle. Off = no shaders. Minimum = Lilium only. All = all packs. User = custom folder only.\n" +
-            "Note: Per-game shader mode only applies when ReShade is used standalone (DC Mode OFF). " +
-            "When DC Mode is ON, all DC-mode games share the DC global shader folder.");
-
-        var modeGrid = new Grid { ColumnSpacing = 8 };
-        modeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        modeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        Grid.SetColumn(dcModeCombo, 0);
-        Grid.SetColumn(shaderModeCombo, 1);
-        modeGrid.Children.Add(dcModeCombo);
-        modeGrid.Children.Add(shaderModeCombo);
-        OverridesPanel.Children.Add(modeGrid);
+        OverridesPanel.Children.Add(bit32Toggle);
         OverridesPanel.Children.Add(MakeSeparator());
 
         // ── Save button ──────────────────────────────────────────────────────────
         var saveBtn = new Button
         {
-            Content = "💾  Save Overrides",
+            Content = "Save Overrides",
             FontSize = 12,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Padding = new Thickness(14, 8, 14, 8),
+            Padding = new Thickness(16, 8, 16, 8),
             Background = Brush("AccentBlueBgBrush"),
-            Foreground = Brush("AccentTealBrush"),
+            Foreground = Brush("AccentBlueBrush"),
             BorderBrush = Brush("AccentBlueBorderBrush"),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
+            BorderThickness = new Thickness(1),
+            HorizontalAlignment = HorizontalAlignment.Right,
             CornerRadius = new CornerRadius(8),
         };
         var capturedName = gameName;
@@ -2771,13 +2851,15 @@ public sealed partial class MainWindow : Window
                 ViewModel.ApplyDcModeSwitchForCard(det);
             }
 
-            // Update All exclusion
-            bool nowUaExcluded = uaExcludeBtn.IsChecked == true;
+            // Update All (toggle is inverted: IsOn = included, so excluded = !IsOn)
+            bool nowUaExcluded = !updateAllToggle.IsOn;
             if (!string.IsNullOrEmpty(det) && nowUaExcluded != ViewModel.IsUpdateAllExcluded(det))
                 ViewModel.ToggleUpdateAllExclusion(det);
 
             // Shader mode
-            var newShaderMode = shaderModeCombo.SelectedItem as string ?? "Global";
+            var shaderModeIdx = shaderModeCombo.SelectedIndex;
+            var newShaderMode = shaderModeIdx >= 0 && shaderModeIdx < shaderModeValues.Length
+                ? shaderModeValues[shaderModeIdx] : "Global";
             if (!string.IsNullOrEmpty(det) && newShaderMode != ViewModel.GetPerGameShaderMode(det))
             {
                 ViewModel.SetPerGameShaderMode(det, newShaderMode);
@@ -2785,12 +2867,12 @@ public sealed partial class MainWindow : Window
             }
 
             // 32-bit mode
-            bool now32Bit = bit32Btn.IsChecked == true;
+            bool now32Bit = bit32Toggle.IsOn;
             if (!string.IsNullOrEmpty(det) && now32Bit != ViewModel.Is32BitGame(det))
                 ViewModel.Toggle32Bit(det);
 
             // DLL naming override
-            bool nowDllOverride = dllOverrideBtn.IsChecked == true;
+            bool nowDllOverride = dllOverrideToggle.IsOn;
             bool wasDllOverride = !string.IsNullOrEmpty(det) && ViewModel.HasDllOverride(det);
             if (!string.IsNullOrEmpty(det))
             {

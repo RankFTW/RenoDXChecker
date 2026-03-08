@@ -1317,7 +1317,7 @@ public partial class MainViewModel : ObservableObject
             card.Mod           = null;
             card.IsExternalOnly = true;
             card.ExternalUrl   = "https://discord.gg/gF4GRJWZ2A";
-            card.ExternalLabel = "Get on Discord";
+            card.ExternalLabel = "Download from Discord";
             card.DiscordUrl    = "https://discord.gg/gF4GRJWZ2A";
             card.WikiStatus    = "💬";
             card.Notes         = "";
@@ -1358,7 +1358,7 @@ public partial class MainViewModel : ObservableObject
             card.IsExternalOnly = effectiveMod?.SnapshotUrl == null &&
                                   (effectiveMod?.NexusUrl != null || effectiveMod?.DiscordUrl != null);
             card.ExternalUrl    = effectiveMod?.NexusUrl ?? effectiveMod?.DiscordUrl ?? "";
-            card.ExternalLabel  = effectiveMod?.NexusUrl != null ? "Get on Nexus Mods" : "Get on Discord";
+            card.ExternalLabel  = effectiveMod?.NexusUrl != null ? "Download from Nexus Mods" : "Download from Discord";
             card.NexusUrl       = effectiveMod?.NexusUrl;
             card.DiscordUrl     = effectiveMod?.DiscordUrl;
             card.WikiStatus     = (mod == null && fallback != null && !card.UseUeExtended && !card.IsNativeHdrGame)
@@ -1486,7 +1486,7 @@ public partial class MainViewModel : ObservableObject
 
                 card.IsExternalOnly  = true;
                 card.ExternalUrl     = ov.DiscordUrl ?? "https://discord.gg/gF4GRJWZ2A";
-                card.ExternalLabel   = "Get on Discord";
+                card.ExternalLabel   = "Download from Discord";
                 card.DiscordUrl      = ov.DiscordUrl ?? "https://discord.gg/gF4GRJWZ2A";
                 card.WikiStatus      = "💬";
             }
@@ -1667,7 +1667,7 @@ public partial class MainViewModel : ObservableObject
 
                 card.IsExternalOnly = true;
                 card.ExternalUrl    = ext.Url ?? "https://discord.gg/gF4GRJWZ2A";
-                card.ExternalLabel  = ext.Label ?? "Get on Discord";
+                card.ExternalLabel  = ext.Label ?? "Download from Discord";
                 card.WikiStatus     = "💬";
             }
         }
@@ -2153,8 +2153,8 @@ public partial class MainViewModel : ObservableObject
                               ? "https://discord.gg/gF4GRJWZ2A"
                               : effectiveMod?.NexusUrl ?? effectiveMod?.DiscordUrl ?? "",
             ExternalLabel   = _wikiExclusions.Contains(game.Name)
-                              ? "Get on Discord"
-                              : effectiveMod?.NexusUrl != null ? "Get on Nexus Mods" : "Get on Discord",
+                              ? "Download from Discord"
+                              : effectiveMod?.NexusUrl != null ? "Download from Nexus Mods" : "Download from Discord",
             NexusUrl        = effectiveMod?.NexusUrl,
             DiscordUrl      = _wikiExclusions.Contains(game.Name)
                               ? "https://discord.gg/gF4GRJWZ2A"
@@ -3796,8 +3796,8 @@ public partial class MainViewModel : ObservableObject
                                          ? "https://discord.gg/gF4GRJWZ2A"
                                          : effectiveMod?.NexusUrl ?? effectiveMod?.DiscordUrl ?? "",
                 ExternalLabel          = _wikiExclusions.Contains(game.Name)
-                                         ? "Get on Discord"
-                                         : effectiveMod?.NexusUrl != null ? "Get on Nexus Mods" : "Get on Discord",
+                                         ? "Download from Discord"
+                                         : effectiveMod?.NexusUrl != null ? "Download from Nexus Mods" : "Download from Discord",
                 NexusUrl               = effectiveMod?.NexusUrl,
                 DiscordUrl             = _wikiExclusions.Contains(game.Name)
                                          ? "https://discord.gg/gF4GRJWZ2A"
