@@ -1227,6 +1227,7 @@ public static class GameDetectionService
         Dictionary<string, string>? nameMappings = null)
     {
         var modList = mods.Select(m => (mod: m, norm: NormalizeName(m.Name))).ToList();
+        var name = NormalizeName(game.Name);
 
         // 0. User-defined name mappings take absolute priority.
         //    The mapping stores detectedName → wikiName (exact strings as typed).
@@ -1254,11 +1255,7 @@ public static class GameDetectionService
             }
         }
 
-        var name = NormalizeName(game.Name);
-
         // 1. Exact normalised match — covers diacritics, punctuation, TM symbols.
-        //    "God of War Ragnarök" → "godofwarragnarok" == "God of War Ragnarok" → "godofwarragnarok" ✓
-        //    "NieR:Automata" → "nierautomata" == "NieR Automata" → "nierautomata" ✓
         var exact = modList.FirstOrDefault(t => t.norm == name);
         if (exact.mod != null) return exact.mod;
 
@@ -1271,14 +1268,24 @@ public static class GameDetectionService
         if (containedBy.mod != null) return containedBy.mod;
 
         // 3. Mod name contains the game name — abbreviated detected name.
+        //    Only match when game name appears at the START of the mod name.
         //    Reject if the extra suffix is a sequel indicator (II, III, 2, 3…).
-        foreach (var t in modList.Where(t => t.norm.Contains(name)).OrderBy(t => t.norm.Length))
+        foreach (var t in modList.Where(t => t.norm.StartsWith(name)).OrderBy(t => t.norm.Length))
         {
             var suffix = t.norm.Substring(name.Length);
+            if (string.IsNullOrEmpty(suffix)) return t.mod;
             var isSequel = System.Text.RegularExpressions.Regex.IsMatch(suffix, @"^[ivxlcdm0-9]+$");
             if (!isSequel) return t.mod;
         }
 
+        CrashReporter.Log($"MatchGame: no match for '{game.Name}' (norm='{name}') against {modList.Count} wiki mods");
+        // Log close matches for diagnostics
+        var closeMatches = modList
+            .Where(t => t.norm.Contains(name) || name.Contains(t.norm))
+            .Select(t => $"'{t.mod.Name}'→'{t.norm}'")
+            .Take(5);
+        if (closeMatches.Any())
+            CrashReporter.Log($"  Close matches: [{string.Join(", ", closeMatches)}]");
         return null;
     }
 

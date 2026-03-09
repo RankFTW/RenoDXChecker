@@ -208,9 +208,26 @@ public partial class GameCardViewModel : ObservableObject
 
     public string WikiStatusLabel => WikiStatus == "✅" ? "✅ Working"
                                    : WikiStatus == "🚧" ? "🚧 In Progress"
-                                   : WikiStatus == "?"  ? "🚧 Unknown"
+                                   : WikiStatus == "?"  ? "⚠️ May Work"
                                    : WikiStatus == "💬" ? "💬 Discord"
+                                   : WikiStatus == "—" && IsGenericMod ? "⚠️ May Work"
                                    : "❓ Unknown";
+
+    /// <summary>
+    /// Returns just the wiki status icon for grid card display.
+    /// ✅ = on wiki, working. 🚧 = on wiki, in progress. ⚠️ = not on wiki but UE/Unity (may work).
+    /// ❓ = not on wiki, unknown engine. Empty when in Luma mode (hidden).
+    /// </summary>
+    public string WikiStatusIcon => EffectiveLumaMode ? ""
+                                  : WikiStatus == "✅" ? "✅"
+                                  : WikiStatus == "🚧" ? "🚧"
+                                  : WikiStatus == "?"  ? "⚠️"
+                                  : WikiStatus == "💬" ? "💬"
+                                  : WikiStatus == "—" && IsGenericMod ? "⚠️"
+                                  : "❓";
+
+    /// <summary>Whether the wiki status icon should be visible on grid cards (hidden in Luma mode).</summary>
+    public bool WikiStatusIconVisible => !EffectiveLumaMode;
 
     // Badge colours change per status to make them visually distinct
     public string WikiStatusBadgeBackground  => WikiStatus == "💬" ? "#201838"

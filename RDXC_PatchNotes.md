@@ -7,6 +7,19 @@
 - If multiple addon files are found inside an archive, a picker dialog lets you choose which one to install.
 - If no addon files are found, a clear message is shown.
 
+### Changes
+
+**Grid view wiki status icon**
+- Each game card in grid view now displays the wiki status icon on the same row as the RDX/RS/DC installation dots, right-aligned.
+- The wiki status shows only the icon, not the full text label. Hovering shows the full label as a tooltip.
+- ✅ = Working (listed on RenoDX wiki). 🚧 = In Progress (listed on wiki). ⚠️ = May Work (not on wiki but Unreal/Unity engine detected). ❓ = Unknown (not on wiki, no known engine). 💬 = Discord-only.
+- Games in Luma mode do not show a wiki status icon on the grid card.
+
+### Bug Fixes
+
+**Wiki parser now handles all table formats**
+- The RenoDX wiki splits its game list across multiple tables with varying column layouts (3-column, 4-column, status in different positions). The parser previously only read the first 4-column table, missing ~40% of games. It now detects table structure by examining header text (Name/Maintainer/Links/Status) and parses every mod table on the page regardless of column count or order. This fixes games like Lies of P, Aragami 2, EVERSPACE 2, CODE VEIN, Avatar, Pacific Drive, and many others showing incorrect wiki status.
+
 ---
 
 ## v1.4.3

@@ -558,21 +558,43 @@ public sealed partial class MainWindow : Window
 
         root.Children.Add(header);
 
-        // ── Status row: RS/DC/RDX status dots with labels, conditionally Luma ──
-        var statusRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        // ── Status row: RS/DC/RDX status dots with labels, conditionally Luma, wiki status icon ──
+        var statusRow = new Grid();
+        statusRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // dots
+        statusRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // wiki icon
+
+        var dotsPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
 
         var rdxDotPanel = MakeStatusDot("RDX", card.CardRdxStatusDot);
         var rsDotPanel = MakeStatusDot("RS", card.CardRsStatusDot);
         var dcDotPanel = MakeStatusDot("DC", card.CardDcStatusDot);
-        statusRow.Children.Add(rdxDotPanel);
-        statusRow.Children.Add(rsDotPanel);
-        statusRow.Children.Add(dcDotPanel);
+        dotsPanel.Children.Add(rdxDotPanel);
+        dotsPanel.Children.Add(rsDotPanel);
+        dotsPanel.Children.Add(dcDotPanel);
 
         StackPanel? lumaDotPanel = null;
         if (card.CardLumaVisible)
         {
             lumaDotPanel = MakeStatusDot("Luma", card.CardLumaStatusDot);
-            statusRow.Children.Add(lumaDotPanel);
+            dotsPanel.Children.Add(lumaDotPanel);
+        }
+
+        Grid.SetColumn(dotsPanel, 0);
+        statusRow.Children.Add(dotsPanel);
+
+        // Wiki status icon (right-aligned, icon only, hidden in Luma mode)
+        if (card.WikiStatusIconVisible)
+        {
+            var wikiIcon = new TextBlock
+            {
+                Text = card.WikiStatusIcon,
+                FontSize = 14,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Right,
+            };
+            ToolTipService.SetToolTip(wikiIcon, card.WikiStatusLabel);
+            Grid.SetColumn(wikiIcon, 1);
+            statusRow.Children.Add(wikiIcon);
         }
 
         root.Children.Add(statusRow);

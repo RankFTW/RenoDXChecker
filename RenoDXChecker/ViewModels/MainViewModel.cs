@@ -1365,6 +1365,30 @@ public partial class MainViewModel : ObservableObject
             var fallback    = mod == null ? (engine == EngineType.Unreal ? MakeGenericUnreal()
                                             : engine == EngineType.Unity  ? MakeGenericUnity()
                                             : null) : null;
+
+            // Wiki mod matched but has no download URL — inject generic engine addon URL
+            if (mod != null && mod.SnapshotUrl == null && mod.NexusUrl == null && mod.DiscordUrl == null)
+            {
+                var engineFallback = engine == EngineType.Unreal ? MakeGenericUnreal()
+                                   : engine == EngineType.Unity  ? MakeGenericUnity() : null;
+                if (engineFallback != null)
+                {
+                    mod = new GameMod
+                    {
+                        Name            = mod.Name,
+                        Maintainer      = engineFallback.Maintainer,
+                        SnapshotUrl     = engineFallback.SnapshotUrl,
+                        SnapshotUrl32   = engineFallback.SnapshotUrl32,
+                        Status          = mod.Status,
+                        Notes           = mod.Notes,
+                        NameUrl         = mod.NameUrl,
+                        IsGenericUnreal = engineFallback.IsGenericUnreal,
+                        IsGenericUnity  = engineFallback.IsGenericUnity,
+                    };
+                    fallback = engineFallback;
+                }
+            }
+
             var effectiveMod = mod ?? fallback;
 
             // Apply manifest snapshot override
@@ -2045,6 +2069,30 @@ public partial class MainViewModel : ObservableObject
         var genericUnity  = MakeGenericUnity();
         var fallback = mod == null ? (engine == EngineType.Unreal      ? genericUnreal
                                    : engine == EngineType.Unity       ? genericUnity : null) : null;
+
+        // Wiki mod matched but has no download URL — inject generic engine addon URL
+        if (mod != null && mod.SnapshotUrl == null && mod.NexusUrl == null && mod.DiscordUrl == null)
+        {
+            var engineFallback = engine == EngineType.Unreal ? genericUnreal
+                               : engine == EngineType.Unity  ? genericUnity : null;
+            if (engineFallback != null)
+            {
+                mod = new GameMod
+                {
+                    Name            = mod.Name,
+                    Maintainer      = engineFallback.Maintainer,
+                    SnapshotUrl     = engineFallback.SnapshotUrl,
+                    SnapshotUrl32   = engineFallback.SnapshotUrl32,
+                    Status          = mod.Status,
+                    Notes           = mod.Notes,
+                    NameUrl         = mod.NameUrl,
+                    IsGenericUnreal = engineFallback.IsGenericUnreal,
+                    IsGenericUnity  = engineFallback.IsGenericUnity,
+                };
+                fallback = engineFallback;
+            }
+        }
+
         var effectiveMod = mod ?? fallback; // null for unknown-engine / legacy games not on wiki
 
         var records = _installer.LoadAll();
@@ -3510,6 +3558,32 @@ public partial class MainViewModel : ObservableObject
             // UnrealLegacy (UE3 and below) cannot use the RenoDX addon system — no fallback mod offered.
             var fallback = mod == null ? (engine == EngineType.Unreal      ? genericUnreal
                                         : engine == EngineType.Unity       ? genericUnity : null) : null;
+
+            // If the wiki mod matched but has no download URL (common for games listed
+            // in the generic engine tables), inject the generic engine addon URL so the
+            // install button works. The wiki mod's status and notes are preserved.
+            if (mod != null && mod.SnapshotUrl == null && mod.NexusUrl == null && mod.DiscordUrl == null)
+            {
+                var engineFallback = engine == EngineType.Unreal ? genericUnreal
+                                   : engine == EngineType.Unity  ? genericUnity : null;
+                if (engineFallback != null)
+                {
+                    mod = new GameMod
+                    {
+                        Name            = mod.Name,
+                        Maintainer      = engineFallback.Maintainer,
+                        SnapshotUrl     = engineFallback.SnapshotUrl,
+                        SnapshotUrl32   = engineFallback.SnapshotUrl32,
+                        Status          = mod.Status,
+                        Notes           = mod.Notes,
+                        NameUrl         = mod.NameUrl,
+                        IsGenericUnreal = engineFallback.IsGenericUnreal,
+                        IsGenericUnity  = engineFallback.IsGenericUnity,
+                    };
+                    fallback = engineFallback;
+                }
+            }
+
             return (game, installPath, engine, mod, fallback);
         }).ToList();
 

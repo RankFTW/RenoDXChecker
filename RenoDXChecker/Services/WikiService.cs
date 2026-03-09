@@ -31,17 +31,33 @@ public static class WikiService
         // This is robust against the wiki adding a notice/TOC table before the main one.
         var mods         = new List<GameMod>();
         var genericNotes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        bool specificFound = false;
         foreach (var table in tables)
         {
             var headerRow = table.SelectSingleNode(".//tr");
             var headerCells = headerRow?.SelectNodes("th|td");
-            int colCount = headerCells?.Count ?? 0;
-            if (!specificFound && colCount >= 4)
+            if (headerCells == null || headerCells.Count < 2) continue;
+
+            // Determine table layout by inspecting header text.
+            // The wiki uses multiple table formats:
+            //   4-col: Name | Maintainer | Links | Status
+            //   3-col: Name | Links | Status   (or Name | Status | Notes for generic)
+            // We detect mod tables by looking for a "Links" or "Status" column header.
+            var headerTexts = headerCells.Select(h => Clean(h.InnerText).ToLowerInvariant()).ToList();
+            bool hasLinksCol = headerTexts.Any(h => h.Contains("link"));
+            bool hasStatusCol = headerTexts.Any(h => h.Contains("status"));
+
+            if (hasLinksCol || (hasStatusCol && headerCells.Count >= 3))
             {
-                // 4-column table = specific mods (Name, Maintainer, Links, Status)
-                mods = ParseSpecificMods(table);
-                specificFound = true;
+                // This is a mod table — parse it with column-aware logic
+                var parsedMods = ParseModTable(table, headerTexts);
+                mods.AddRange(parsedMods);
+                // Also capture any notes into genericNotes so they're available
+                // for generic engine games that use BuildNotes + GetGenericNote.
+                foreach (var m in parsedMods)
+                {
+                    if (!string.IsNullOrEmpty(m.Notes))
+                        genericNotes[m.Name] = m.Notes;
+                }
             }
             else
             {
@@ -50,6 +66,38 @@ public static class WikiService
         }
         // Apply hardcoded status overrides for games whose wiki status lags reality
         ApplyStatusOverrides(mods);
+
+        // Log first few and last few parsed mod names for diagnostic matching
+        if (mods.Count > 0)
+        {
+            var sample = mods.Take(5).Select(m => m.Name)
+                .Concat(mods.Count > 10 ? mods.Skip(mods.Count - 3).Select(m => m.Name) : Enumerable.Empty<string>());
+            CrashReporter.Log($"Wiki parsed {mods.Count} specific mods. Sample: [{string.Join(", ", sample)}]");
+            // Log raw bytes of first 3 mod names to detect invisible Unicode
+            foreach (var m in mods.Take(3))
+            {
+                var bytes = System.Text.Encoding.UTF8.GetBytes(m.Name);
+                var hex = string.Join(" ", bytes.Select(b => b.ToString("X2")));
+                var norm = GameDetectionService.NormalizeName(m.Name);
+                CrashReporter.Log($"  Wiki mod raw: '{m.Name}' hex=[{hex}] norm='{norm}'");
+            }
+            // Also log a known game that should match — search for 'Lies of P' or similar
+            var liesOfP = mods.FirstOrDefault(m => m.Name.Contains("Lies", StringComparison.OrdinalIgnoreCase));
+            if (liesOfP != null)
+            {
+                var bytes = System.Text.Encoding.UTF8.GetBytes(liesOfP.Name);
+                var hex = string.Join(" ", bytes.Select(b => b.ToString("X2")));
+                var norm = GameDetectionService.NormalizeName(liesOfP.Name);
+                CrashReporter.Log($"  Wiki mod 'Lies' raw: '{liesOfP.Name}' hex=[{hex}] norm='{norm}'");
+            }
+            else
+            {
+                CrashReporter.Log($"  Wiki mod 'Lies': NOT FOUND in parsed mods");
+            }
+            // Full normalized dump for match diagnostics
+            var allNorms = mods.Select(m => GameDetectionService.NormalizeName(m.Name)).OrderBy(n => n).ToList();
+            CrashReporter.Log($"Wiki normalized names ({allNorms.Count}): [{string.Join(", ", allNorms)}]");
+        }
 
         progress?.Report($"Found {mods.Count} mods, {genericNotes.Count} generic game notes");
         return (mods, genericNotes);
@@ -72,23 +120,51 @@ public static class WikiService
         catch { return null; }
     }
 
-    private static List<GameMod> ParseSpecificMods(HtmlNode table)
+    /// <summary>
+    /// Parses a mod table with dynamic column detection.
+    /// Supports any column count (3+) and finds Name/Maintainer/Links/Status columns
+    /// by header text rather than hardcoded positions.
+    /// </summary>
+    private static List<GameMod> ParseModTable(HtmlNode table, List<string> headerTexts)
     {
         var mods = new List<GameMod>();
         var rows = table.SelectNodes(".//tr")?.Skip(1);
         if (rows == null) return mods;
 
+        // Determine column indices from header text
+        int nameCol       = 0; // Name is always first
+        int maintainerCol = -1;
+        int linksCol      = -1;
+        int statusCol     = -1;
+
+        for (int i = 0; i < headerTexts.Count; i++)
+        {
+            var h = headerTexts[i];
+            if (h.Contains("maintainer") || h.Contains("author") || h.Contains("developer"))
+                maintainerCol = i;
+            else if (h.Contains("link") || h.Contains("download"))
+                linksCol = i;
+            else if (h.Contains("status"))
+                statusCol = i;
+        }
+
+        // Log table layout for diagnostics
+        CrashReporter.Log($"ParseModTable: cols={headerTexts.Count} headers=[{string.Join("|", headerTexts)}] " +
+                          $"name={nameCol} maintainer={maintainerCol} links={linksCol} status={statusCol}");
+
         foreach (var row in rows)
         {
             var cells = row.SelectNodes("td");
-            if (cells == null || cells.Count < 3) continue;
+            if (cells == null || cells.Count < 2) continue;
 
-            // Capture name and optional hyperlink on the name cell (links to per-game instructions/page)
-            var name       = Clean(cells[0].InnerText);
+            // Name (always first column) + optional hyperlink
+            var name = Clean(cells[nameCol].InnerText);
+            if (string.IsNullOrWhiteSpace(name)) continue;
+
             string? nameUrl = null;
             try
             {
-                var a = cells[0].SelectSingleNode(".//a");
+                var a = cells[nameCol].SelectSingleNode(".//a");
                 if (a != null)
                 {
                     var href = a.GetAttributeValue("href", "").Trim();
@@ -104,22 +180,30 @@ public static class WikiService
                 }
             }
             catch { }
-            var maintainer = cells.Count > 1 ? Clean(cells[1].InnerText) : "";
-            var linksCell  = cells.Count > 2 ? cells[2] : null;
-            var statusCell = cells.Count > 3 ? cells[3] : null;
-            if (string.IsNullOrWhiteSpace(name)) continue;
+
+            var maintainer = (maintainerCol >= 0 && maintainerCol < cells.Count) ? Clean(cells[maintainerCol].InnerText) : "";
+            var linksCell  = (linksCol >= 0 && linksCol < cells.Count) ? cells[linksCol] : null;
+            var statusCellNode = (statusCol >= 0 && statusCol < cells.Count) ? cells[statusCol] : null;
 
             string? snapshotUrl = null, snapshotUrl32 = null, nexusUrl = null, discordUrl = null;
-            if (linksCell != null)
+
+            // Scan for download/Nexus/Discord links.
+            // If a dedicated Links column exists, only scan that cell.
+            // Otherwise, scan ALL cells (including Name and Status) since the wiki
+            // embeds download badges in varying columns depending on table format.
+            var cellsToScanForLinks = linksCol >= 0
+                ? new[] { cells[linksCol] }
+                : cells.Cast<HtmlNode>().ToArray();
+
+            foreach (var cell in cellsToScanForLinks)
             {
-                foreach (var a in linksCell.SelectNodes(".//a") ?? Enumerable.Empty<HtmlNode>())
+                foreach (var a in cell.SelectNodes(".//a") ?? Enumerable.Empty<HtmlNode>())
                 {
                     var href = a.GetAttributeValue("href", "");
                     var text = a.InnerText.Trim().ToLowerInvariant();
                     if (href.Contains(".github.io/renodx/") || href.EndsWith(".addon64") || href.EndsWith(".addon32")
                         || href.Contains("/releases/download/"))
                     {
-                        // Separate 32-bit and 64-bit downloads
                         if (href.EndsWith(".addon32"))
                             snapshotUrl32 = href;
                         else
@@ -135,13 +219,48 @@ public static class WikiService
             }
 
             string status = "✅"; string? notes = null;
-            if (statusCell != null)
+            if (statusCellNode != null)
             {
-                status = statusCell.InnerText.Contains("🚧") ? "🚧" : "✅";
-                foreach (var a in statusCell.SelectNodes(".//a[@title]") ?? Enumerable.Empty<HtmlNode>())
+                var statusText = statusCellNode.InnerText;
+                status = statusText.Contains("🚧") ? "🚧" : "✅";
+                // Extract notes from tooltip attributes first
+                foreach (var a in statusCellNode.SelectNodes(".//a[@title]") ?? Enumerable.Empty<HtmlNode>())
                 {
                     var t = a.GetAttributeValue("title", "").Trim();
                     if (!string.IsNullOrEmpty(t)) { notes = t; break; }
+                }
+            }
+
+            // Also look for notes in ALL remaining cells (any cell that isn't name/maintainer/links/status
+            // and contains meaningful text or structured content — the wiki puts game-specific instructions
+            // in varying columns depending on table layout).
+            if (string.IsNullOrEmpty(notes))
+            {
+                for (int i = 0; i < cells.Count; i++)
+                {
+                    if (i == nameCol || i == maintainerCol || i == linksCol) continue;
+                    // Skip the status column if it only has ✅/🚧 emoji and no other text
+                    if (i == statusCol)
+                    {
+                        var rawStatus = Clean(cells[i].InnerText);
+                        // Status cell may contain notes after the emoji — e.g. "✅ Disable in-game HDR"
+                        var noteAfterEmoji = rawStatus
+                            .Replace("✅", "").Replace("🚧", "")
+                            .Trim(' ', '\n', '\r', '\t');
+                        if (!string.IsNullOrEmpty(noteAfterEmoji))
+                        {
+                            notes = noteAfterEmoji;
+                            break;
+                        }
+                        continue;
+                    }
+                    // Non-status, non-name, non-links cell — treat as notes
+                    var cellNote = BuildNoteText(cells[i]);
+                    if (!string.IsNullOrEmpty(cellNote?.Trim()))
+                    {
+                        notes = cellNote.Trim();
+                        break;
+                    }
                 }
             }
 
@@ -155,6 +274,12 @@ public static class WikiService
             });
         }
         return mods;
+    }
+
+    // Keep ParseSpecificMods as alias for backward compatibility
+    private static List<GameMod> ParseSpecificMods(HtmlNode table)
+    {
+        return ParseModTable(table, new List<string> { "name", "maintainer", "links", "status" });
     }
 
     private static void ParseGenericTable(HtmlNode table, Dictionary<string, string> noteMap)
