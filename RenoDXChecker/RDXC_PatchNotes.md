@@ -1,3 +1,20 @@
+## v1.4.3
+
+### New Features
+
+**Grid View**
+
+- Users now have the option of using a Grid View. Switch between Grid View and Detail View easily with the click of a button. Each game can now be managed from a smaller pop out while in Grid View.
+
+### Changes
+
+**Background Maintainance**
+
+- Removed excess flyouts in Detail View.
+- Cleaned up some code.
+
+---
+
 ## v1.4.2
 
 ### Changes
