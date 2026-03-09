@@ -79,379 +79,6 @@ public sealed partial class MainWindow : Window
         this.Closed += MainWindow_Closed;
     }
 
-    private void TuneButton_Card_Click(object sender, RoutedEventArgs e)
-    {
-        // Per-card Tune — pre-fill the detected game name
-        var card = (sender as FrameworkElement)?.Tag as GameCardViewModel;
-        ShowTuneDialog(prefilledDetected: card?.GameName);
-    }
-
-    private void ShowTuneDialog(string? prefilledDetected)
-    {
-        // Check if this game is in Luma mode (disables some controls)
-        bool isLumaMode = false;
-        if (!string.IsNullOrEmpty(prefilledDetected))
-            isLumaMode = ViewModel.IsLumaEnabled(prefilledDetected);
-
-        var detectedBox = new TextBox
-        {
-            PlaceholderText = "Detected game name (as shown on the card)",
-            Text            = prefilledDetected ?? "",
-            Width           = 340,
-        };
-        var wikiBox = new TextBox
-        {
-            PlaceholderText = "Exact wiki name (e.g. God of War Ragnarok)",
-            Width           = 340,
-        };
-
-        if (!string.IsNullOrEmpty(prefilledDetected))
-        {
-            var existing = ViewModel.GetNameMapping(prefilledDetected);
-            if (!string.IsNullOrEmpty(existing))
-                wikiBox.Text = existing;
-        }
-
-        bool isExcluded = !string.IsNullOrEmpty(prefilledDetected) &&
-                          ViewModel.IsWikiExcluded(prefilledDetected);
-
-        var excludeBtn = new ToggleButton
-        {
-            Content    = "🚫  Exclude from wiki",
-            IsChecked  = isExcluded,
-            IsEnabled  = !isLumaMode,
-            FontSize   = 12,
-            Padding    = new Thickness(10, 6, 10, 6),
-            Background = Brush("AccentPurpleBgBrush"),
-            Foreground = Brush("AccentPurpleBrush"),
-            BorderBrush = Brush("AccentPurpleBorderBrush"),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        ToolTipService.SetToolTip(excludeBtn,
-            isLumaMode ? "Disabled in Luma mode" :
-            "Exclude this game from all wiki matching. The card will show a Discord link instead of an install button.");
-
-        var panel = new StackPanel { Spacing = 8 };
-
-        // ── Game name + Wiki name side by side ───────────────────────────────────
-        detectedBox.Header = "Game name (editable)";
-        detectedBox.Width  = double.NaN;
-        detectedBox.HorizontalAlignment = HorizontalAlignment.Stretch;
-        detectedBox.FontSize = 12;
-        wikiBox.Header = "Wiki mod name";
-        wikiBox.Width  = double.NaN;
-        wikiBox.HorizontalAlignment = HorizontalAlignment.Stretch;
-        wikiBox.FontSize = 12;
-
-        var resetBtn = new Button
-        {
-            Content = "↩ Reset",
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Bottom,
-            Padding = new Thickness(10, 6, 10, 6),
-            Background = Brush("SurfaceOverlayBrush"),
-            Foreground = Brush("TextSecondaryBrush"),
-            BorderBrush = Brush("BorderDefaultBrush"),
-        };
-        ToolTipService.SetToolTip(resetBtn,
-            "Reset game name back to auto-detected and clear wiki name mapping.");
-        var originalStoreName = !string.IsNullOrEmpty(prefilledDetected)
-            ? ViewModel.GetOriginalStoreName(prefilledDetected) : null;
-        resetBtn.Click += (s, e) =>
-        {
-            detectedBox.Text = originalStoreName ?? prefilledDetected ?? "";
-            wikiBox.Text = "";
-        };
-
-        var nameGrid = new Grid { ColumnSpacing = 8 };
-        nameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        nameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        nameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(detectedBox, 0);
-        Grid.SetColumn(wikiBox, 1);
-        Grid.SetColumn(resetBtn, 2);
-        nameGrid.Children.Add(detectedBox);
-        nameGrid.Children.Add(wikiBox);
-        nameGrid.Children.Add(resetBtn);
-        panel.Children.Add(nameGrid);
-
-        panel.Children.Add(MakeSeparator());
-
-        // ── DLL Naming Override ──────────────────────────────────────────────────
-        bool isDllOverride = !string.IsNullOrEmpty(prefilledDetected) &&
-                             ViewModel.HasDllOverride(prefilledDetected);
-        var existingCfg = !string.IsNullOrEmpty(prefilledDetected)
-            ? ViewModel.GetDllOverride(prefilledDetected) : null;
-
-        var dllOverrideBtn = new ToggleButton
-        {
-            Content    = "📝  DLL naming override",
-            IsChecked  = isDllOverride,
-            IsEnabled  = !isLumaMode,
-            FontSize   = 12,
-            Padding    = new Thickness(10, 6, 10, 6),
-            Background = Brush("AccentTealBgBrush"),
-            Foreground = Brush("AccentTealBrush"),
-            BorderBrush = Brush("AccentTealBorderBrush"),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        ToolTipService.SetToolTip(dllOverrideBtn,
-            "Override the filenames ReShade and Display Commander are installed as. " +
-            "When enabled, existing RS/DC files are renamed to the custom filenames. " +
-            "The game is automatically excluded from DC Mode, Update All, and global shaders.");
-
-        // Default names based on 32-bit mode
-        bool is32Bit = !string.IsNullOrEmpty(prefilledDetected) &&
-                       ViewModel.Is32BitGame(prefilledDetected);
-        var defaultRsName = is32Bit ? "ReShade32.dll" : "ReShade64.dll";
-        var defaultDcName = is32Bit ? "zzz_display_commander.addon32" : "zzz_display_commander.addon64";
-
-        var rsNameBox = new TextBox
-        {
-            PlaceholderText = defaultRsName,
-            Text = existingCfg?.ReShadeFileName ?? "",
-            Header = "ReShade filename",
-            FontSize = 12,
-            IsEnabled = isDllOverride,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-
-        var dcNameBox = new TextBox
-        {
-            PlaceholderText = defaultDcName,
-            Text = existingCfg?.DcFileName ?? "",
-            Header = "DC filename",
-            FontSize = 12,
-            IsEnabled = isDllOverride,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-
-        dllOverrideBtn.Checked   += (s, ev) => { rsNameBox.IsEnabled = true;  dcNameBox.IsEnabled = true; };
-        dllOverrideBtn.Unchecked += (s, ev) => { rsNameBox.IsEnabled = false; dcNameBox.IsEnabled = false; };
-
-        panel.Children.Add(dllOverrideBtn);
-
-        var dllNameGrid = new Grid
-        {
-            ColumnSpacing = 8,
-            Margin = new Thickness(0, 4, 0, 0),
-        };
-        dllNameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        dllNameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        Grid.SetColumn(rsNameBox, 0);
-        Grid.SetColumn(dcNameBox, 1);
-        dllNameGrid.Children.Add(rsNameBox);
-        dllNameGrid.Children.Add(dcNameBox);
-        panel.Children.Add(dllNameGrid);
-
-        panel.Children.Add(MakeSeparator());
-
-        // ── Exclude from wiki ────────────────────────────────────────────────────
-        panel.Children.Add(excludeBtn);
-
-        panel.Children.Add(MakeSeparator());
-
-        // ── Exclude from Update All ──────────────────────────────────────────────
-        bool isUaExcluded = !string.IsNullOrEmpty(prefilledDetected) &&
-                            ViewModel.IsUpdateAllExcluded(prefilledDetected);
-
-        var uaExcludeBtn = new ToggleButton
-        {
-            Content    = "⬆  Exclude from Update All",
-            IsChecked  = isUaExcluded,
-            FontSize   = 12,
-            Padding    = new Thickness(10, 6, 10, 6),
-            Background = Brush("AccentPurpleBgBrush"),
-            Foreground = Brush("AccentPurpleBrush"),
-            BorderBrush = Brush("AccentPurpleBorderBrush"),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        ToolTipService.SetToolTip(uaExcludeBtn,
-            "Skip this game when using Update All RenoDX, Update All ReShade, or Update All DC.");
-
-        panel.Children.Add(uaExcludeBtn);
-
-        panel.Children.Add(MakeSeparator());
-
-        // ── 32-bit mode ──────────────────────────────────────────────────────────
-        var bit32Btn = new ToggleButton
-        {
-            Content    = "⚠  32-bit mode",
-            IsChecked  = is32Bit,
-            IsEnabled  = !isLumaMode,
-            FontSize   = 12,
-            Padding    = new Thickness(10, 6, 10, 6),
-            Background = Brush("AccentAmberBgBrush"),
-            Foreground = Brush("AccentAmberBrush"),
-            BorderBrush = Brush("BorderDefaultBrush"),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
-        ToolTipService.SetToolTip(bit32Btn,
-            "Installs 32-bit versions of ReShade, Unity addon, and Display Commander. Only enable if you know this game is 32-bit.");
-
-        panel.Children.Add(bit32Btn);
-
-        panel.Children.Add(MakeSeparator());
-
-        // ── Per-game DC Mode override ──────────────────────────────────────────
-        int? currentDcMode = !string.IsNullOrEmpty(prefilledDetected)
-            ? ViewModel.GetPerGameDcModeOverride(prefilledDetected)
-            : null;
-
-        var globalDcLabel = ViewModel.DcModeLevel switch { 1 => "DC Mode 1", 2 => "DC Mode 2", _ => "Off" };
-        var dcModeOptions = new[] { $"Global ({globalDcLabel})", "Exclude (Off)", "DC Mode 1", "DC Mode 2" };
-        var dcModeCombo = new ComboBox
-        {
-            ItemsSource  = dcModeOptions,
-            SelectedIndex = currentDcMode switch { null => 0, 0 => 1, 1 => 2, 2 => 3, _ => 0 },
-            FontSize     = 12,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            Header       = "DC Mode for this game",
-        };
-        ToolTipService.SetToolTip(dcModeCombo,
-            "Global = use the Settings DC Mode. Exclude (Off) = always use normal naming. " +
-            "DC Mode 1 = force dxgi.dll proxy. DC Mode 2 = force winmm.dll proxy.");
-
-        panel.Children.Add(dcModeCombo);
-
-        panel.Children.Add(MakeSeparator());
-
-        // ── Shader mode ──────────────────────────────────────────────────────────
-        string currentShaderMode = !string.IsNullOrEmpty(prefilledDetected)
-            ? ViewModel.GetPerGameShaderMode(prefilledDetected)
-            : "Global";
-
-        var globalShaderLabel = ViewModel.ShaderDeployMode.ToString();
-        var shaderModeValues = new[] { "Global", "Off", "Minimum", "All", "User" };
-        var shaderModeDisplay = new[] { $"Global ({globalShaderLabel})", "Off", "Minimum", "All", "User" };
-        int shaderSelectedIdx = Array.IndexOf(shaderModeValues, currentShaderMode);
-        if (shaderSelectedIdx < 0) shaderSelectedIdx = 0;
-        var shaderModeCombo = new ComboBox
-        {
-            ItemsSource  = shaderModeDisplay,
-            SelectedIndex = shaderSelectedIdx,
-            FontSize     = 12,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            Header       = "Shader mode for this game",
-        };
-        ToolTipService.SetToolTip(shaderModeCombo,
-            "Global = follow the Settings toggle. Off = no shaders. Minimum = Lilium only. All = all packs. User = custom folder only.\n" +
-            "Note: Per-game shader mode only applies when ReShade is used standalone (DC Mode OFF). " +
-            "When DC Mode is ON, all DC-mode games share the DC global shader folder.");
-
-        panel.Children.Add(shaderModeCombo);
-
-        var dlg = new ContentDialog
-        {
-            Title             = "Overrides",
-            Content           = new ScrollViewer
-            {
-                Content = panel,
-                MaxHeight = 560,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                Padding = new Thickness(0, 0, 8, 0),
-            },
-            PrimaryButtonText = "Save",
-            SecondaryButtonText = !string.IsNullOrEmpty(prefilledDetected) &&
-                                  !string.IsNullOrEmpty(ViewModel.GetNameMapping(prefilledDetected ?? ""))
-                                  ? "Remove mapping" : "",
-            CloseButtonText   = "Cancel",
-            XamlRoot          = Content.XamlRoot,
-            Background        = Brush("SurfaceRaisedBrush"),
-        };
-
-        _ = dlg.ShowAsync().AsTask().ContinueWith(t =>
-        {
-            if (t.Result == ContentDialogResult.Primary)
-            {
-                var det = detectedBox.Text?.Trim();
-
-                // Handle game rename — if the user edited the name, rename everywhere first
-                // so all subsequent toggles operate on the new name.
-                if (!string.IsNullOrEmpty(prefilledDetected) && !string.IsNullOrEmpty(det)
-                    && !det.Equals(prefilledDetected, StringComparison.OrdinalIgnoreCase))
-                {
-                    ViewModel.RenameGame(prefilledDetected, det);
-                }
-
-                // Handle wiki exclusion toggle
-                bool nowExcluded = excludeBtn.IsChecked == true;
-                if (!string.IsNullOrEmpty(det) && nowExcluded != ViewModel.IsWikiExcluded(det))
-                    ViewModel.ToggleWikiExclusion(det);
-
-                // Handle per-game DC Mode override
-                int? newDcMode = dcModeCombo.SelectedIndex switch { 1 => 0, 2 => 1, 3 => 2, _ => null };
-                if (!string.IsNullOrEmpty(det) && newDcMode != ViewModel.GetPerGameDcModeOverride(det))
-                {
-                    ViewModel.SetPerGameDcModeOverride(det, newDcMode);
-                    ViewModel.ApplyDcModeSwitchForCard(det);
-                }
-
-                // Handle Update All exclusion toggle
-                bool nowUaExcluded = uaExcludeBtn.IsChecked == true;
-                if (!string.IsNullOrEmpty(det) && nowUaExcluded != ViewModel.IsUpdateAllExcluded(det))
-                    ViewModel.ToggleUpdateAllExclusion(det);
-
-                // Handle per-game shader mode
-                var shaderIdx = shaderModeCombo.SelectedIndex;
-                var newShaderMode = shaderIdx >= 0 && shaderIdx < shaderModeValues.Length
-                    ? shaderModeValues[shaderIdx] : "Global";
-                if (!string.IsNullOrEmpty(det) && newShaderMode != ViewModel.GetPerGameShaderMode(det))
-                {
-                    ViewModel.SetPerGameShaderMode(det, newShaderMode);
-                    ViewModel.DeployShadersForCard(det);
-                }
-
-                // Handle 32-bit mode toggle
-                bool now32Bit = bit32Btn.IsChecked == true;
-                if (!string.IsNullOrEmpty(det) && now32Bit != ViewModel.Is32BitGame(det))
-                    ViewModel.Toggle32Bit(det);
-
-                // Handle DLL naming override
-                bool nowDllOverride = dllOverrideBtn.IsChecked == true;
-                bool wasDllOverride = !string.IsNullOrEmpty(det) && ViewModel.HasDllOverride(det);
-                if (!string.IsNullOrEmpty(det))
-                {
-                    var targetCard = ViewModel.AllCards.FirstOrDefault(c =>
-                        c.GameName.Equals(det, StringComparison.OrdinalIgnoreCase));
-
-                    if (nowDllOverride && !wasDllOverride && targetCard != null)
-                    {
-                        // Toggled ON — enable override (uninstalls existing RS/DC)
-                        var rsName = !string.IsNullOrWhiteSpace(rsNameBox.Text) ? rsNameBox.Text.Trim() : rsNameBox.PlaceholderText;
-                        var dcName = !string.IsNullOrWhiteSpace(dcNameBox.Text) ? dcNameBox.Text.Trim() : dcNameBox.PlaceholderText;
-                        ViewModel.EnableDllOverride(targetCard, rsName, dcName);
-                    }
-                    else if (nowDllOverride && wasDllOverride && targetCard != null)
-                    {
-                        // Still ON — rename files on disk if the names changed
-                        var rsName = !string.IsNullOrWhiteSpace(rsNameBox.Text) ? rsNameBox.Text.Trim() : rsNameBox.PlaceholderText;
-                        var dcName = !string.IsNullOrWhiteSpace(dcNameBox.Text) ? dcNameBox.Text.Trim() : dcNameBox.PlaceholderText;
-                        ViewModel.UpdateDllOverrideNames(targetCard, rsName, dcName);
-                    }
-                    else if (!nowDllOverride && wasDllOverride && targetCard != null)
-                    {
-                        // Toggled OFF — disable override (removes custom-named files)
-                        ViewModel.DisableDllOverride(targetCard);
-                    }
-                }
-
-                // Save name mapping if provided and not excluded
-                // (skip if rename already triggered a rescan to avoid double-rebuild)
-                var key = wikiBox.Text?.Trim();
-                if (!nowExcluded && !string.IsNullOrEmpty(det) && !string.IsNullOrEmpty(key))
-                    ViewModel.AddNameMapping(det, key);
-                else if (!nowExcluded && !string.IsNullOrEmpty(det) && string.IsNullOrEmpty(key))
-                    ViewModel.RemoveNameMapping(det);
-            }
-            else if (t.Result == ContentDialogResult.Secondary)
-            {
-                var det = detectedBox.Text?.Trim() ?? prefilledDetected;
-                if (!string.IsNullOrEmpty(det))
-                    ViewModel.RemoveNameMapping(det);
-            }
-        }, TaskScheduler.FromCurrentSynchronizationContext());
-    }
 
     private void MainWindow_Activated(object? sender, WindowActivatedEventArgs e)
     {
@@ -504,6 +131,7 @@ public sealed partial class MainWindow : Window
                     break;
                 case nameof(ViewModel.TotalGames):
                     GameCountText.Text = $"{ViewModel.TotalGames} shown";
+                    if (ViewModel.IsGridLayout) RebuildCardGrid();
                     break;
                 case nameof(ViewModel.HiddenCount):
                     HiddenCountText.Text = ViewModel.HiddenCount > 0
@@ -786,6 +414,1337 @@ public sealed partial class MainWindow : Window
                 this.Close();
             });
         });
+    }
+
+    private void LayoutToggle_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.IsGridLayout = !ViewModel.IsGridLayout;
+        if (ViewModel.IsGridLayout)
+        {
+            RebuildCardGrid();
+        }
+        else
+        {
+            // Switching to detail mode — repopulate detail panel for selected game if any
+            if (ViewModel.SelectedGame is { } card)
+            {
+                PopulateDetailPanel(card);
+                DetailPanel.Visibility = Visibility.Visible;
+                BuildOverridesPanel(card);
+                OverridesContainer.Visibility = Visibility.Visible;
+            }
+        }
+    }
+
+    // ── Card Grid rendering (Tasks 6.2–6.4) ──────────────────────────────────────
+
+    private void RebuildCardGrid()
+    {
+        CardGridPanel.Children.Clear();
+        foreach (var card in ViewModel.DisplayedGames)
+        {
+            try
+            {
+                CardGridPanel.Children.Add(BuildGameCard(card));
+            }
+            catch (Exception ex)
+            {
+                CrashReporter.Log($"RebuildCardGrid: skipped card '{card.GameName}': {ex.Message}");
+            }
+        }
+        // If the selected game is in the displayed list, scroll to it
+        if (ViewModel.SelectedGame is { } sel && ViewModel.DisplayedGames.Contains(sel))
+            ScrollToCard(sel);
+    }
+
+    private Border BuildGameCard(GameCardViewModel card)
+    {
+        var gameName = string.IsNullOrEmpty(card.GameName) ? "Unknown Game" : card.GameName;
+
+        // ── Outer border ──────────────────────────────────────────────────────
+        var border = new Border
+        {
+            Width = 280,
+            CornerRadius = new CornerRadius(10),
+            BorderThickness = new Thickness(1),
+            Background = new SolidColorBrush(ParseColor(card.CardBackground)),
+            BorderBrush = new SolidColorBrush(ParseColor(card.CardBorderBrush)),
+            Padding = new Thickness(14, 12, 14, 12),
+            Tag = card,
+        };
+
+        var root = new StackPanel { Spacing = 8 };
+
+        // ── Header row: source icon, game name, favourite star, overrides gear ──
+        var header = new Grid();
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });  // icon
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // name
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });  // fav
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });  // gear
+
+        // Source icon
+        if (card.HasSourceIcon)
+        {
+            var srcImg = new Image
+            {
+                Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(card.SourceIconUri),
+                Width = 16, Height = 16,
+                Margin = new Thickness(0, 0, 6, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            Grid.SetColumn(srcImg, 0);
+            header.Children.Add(srcImg);
+        }
+        else
+        {
+            var srcText = new TextBlock
+            {
+                Text = card.SourceIcon,
+                FontSize = 14,
+                Margin = new Thickness(0, 0, 6, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            Grid.SetColumn(srcText, 0);
+            header.Children.Add(srcText);
+        }
+
+        // Game name (trimmed)
+        var nameBlock = new TextBlock
+        {
+            Text = gameName.Length > 28 ? gameName[..25] + "…" : gameName,
+            FontSize = 13,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = Brush("TextPrimaryBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxLines = 1,
+        };
+        ToolTipService.SetToolTip(nameBlock, gameName);
+        Grid.SetColumn(nameBlock, 1);
+        header.Children.Add(nameBlock);
+
+        // Favourite star button
+        var favBtn = new Button
+        {
+            Content = card.IsFavourite ? "⭐" : "☆",
+            Tag = card,
+            FontSize = 14,
+            Padding = new Thickness(4, 2, 4, 2),
+            MinWidth = 0, MinHeight = 0,
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0)),
+            BorderThickness = new Thickness(0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        favBtn.Click += CardFavouriteButton_Click;
+        Grid.SetColumn(favBtn, 2);
+        header.Children.Add(favBtn);
+
+        // More options (...) button
+        var moreBtn = new Button
+        {
+            Content = "⋯",
+            Tag = card,
+            FontSize = 14,
+            Padding = new Thickness(4, 0, 4, 0),
+            MinWidth = 0, MinHeight = 0,
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0)),
+            Foreground = new SolidColorBrush(ParseColor("#6B7A8E")),
+            BorderThickness = new Thickness(0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        moreBtn.Click += CardMoreMenu_Click;
+        Grid.SetColumn(moreBtn, 3);
+        header.Children.Add(moreBtn);
+
+        root.Children.Add(header);
+
+        // ── Status row: RS/DC/RDX status dots with labels, conditionally Luma ──
+        var statusRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+
+        var rdxDotPanel = MakeStatusDot("RDX", card.CardRdxStatusDot);
+        var rsDotPanel = MakeStatusDot("RS", card.CardRsStatusDot);
+        var dcDotPanel = MakeStatusDot("DC", card.CardDcStatusDot);
+        statusRow.Children.Add(rdxDotPanel);
+        statusRow.Children.Add(rsDotPanel);
+        statusRow.Children.Add(dcDotPanel);
+
+        StackPanel? lumaDotPanel = null;
+        if (card.CardLumaVisible)
+        {
+            lumaDotPanel = MakeStatusDot("Luma", card.CardLumaStatusDot);
+            statusRow.Children.Add(lumaDotPanel);
+        }
+
+        root.Children.Add(statusRow);
+
+        // ── Action row: full-width install button with flyout ──
+        var installFlyout = new Flyout
+        {
+            Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Bottom,
+        };
+        installFlyout.Opening += CardInstallFlyout_Opening;
+
+        // Apply dark background to the flyout presenter via its style
+        var flyoutPresenterStyle = new Style(typeof(FlyoutPresenter));
+        flyoutPresenterStyle.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(ParseColor("#0C1018"))));
+        flyoutPresenterStyle.Setters.Add(new Setter(Control.BorderBrushProperty, new SolidColorBrush(ParseColor("#2A4468"))));
+        flyoutPresenterStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(12)));
+        installFlyout.FlyoutPresenterStyle = flyoutPresenterStyle;
+
+        var installBtn = new Button
+        {
+            Content = card.CardPrimaryActionLabel,
+            Tag = card,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            FontSize = 12,
+            Padding = new Thickness(8, 5, 8, 5),
+            IsEnabled = card.CanCardInstall,
+            Background = new SolidColorBrush(ParseColor("#182840")),
+            Foreground = new SolidColorBrush(ParseColor("#7AACDD")),
+            BorderBrush = new SolidColorBrush(ParseColor("#2A4468")),
+            CornerRadius = new CornerRadius(6),
+            Flyout = installFlyout,
+        };
+
+        root.Children.Add(installBtn);
+
+        // ── Bottom row: info buttons (left) + overrides button (right) ──
+        var bottomRow = new Grid();
+        bottomRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        bottomRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        // Left side: info/notes buttons
+        if (card.HasInfoIndicator)
+        {
+            var infoRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            if (card.HasNameUrl)
+            {
+                var infoBtn = new Button
+                {
+                    Content = "Wiki",
+                    Tag = card,
+                    FontSize = 11,
+                    Padding = new Thickness(6, 2, 6, 2),
+                    MinWidth = 0, MinHeight = 0,
+                    Background = new SolidColorBrush(ParseColor("#1E242C")),
+                    Foreground = new SolidColorBrush(ParseColor("#6B7A8E")),
+                    BorderBrush = new SolidColorBrush(ParseColor("#283240")),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(4),
+                };
+                ToolTipService.SetToolTip(infoBtn, "Open discussion / instructions");
+                infoBtn.Click += CardInfoLink_Click;
+                infoRow.Children.Add(infoBtn);
+            }
+            if (card.HasNotes)
+            {
+                var notesBtn = new Button
+                {
+                    Content = "Info",
+                    Tag = card,
+                    FontSize = 11,
+                    Padding = new Thickness(6, 2, 6, 2),
+                    MinWidth = 0, MinHeight = 0,
+                    Background = new SolidColorBrush(ParseColor("#1E242C")),
+                    Foreground = new SolidColorBrush(ParseColor("#6B7A8E")),
+                    BorderBrush = new SolidColorBrush(ParseColor("#283240")),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(4),
+                };
+                ToolTipService.SetToolTip(notesBtn, "View notes");
+                notesBtn.Click += CardNotesButton_Click;
+                infoRow.Children.Add(notesBtn);
+            }
+            Grid.SetColumn(infoRow, 0);
+            bottomRow.Children.Add(infoRow);
+        }
+
+        // Right side: overrides button
+        var overridesBtn = new Button
+        {
+            Content = "⚙",
+            Tag = card,
+            FontSize = 12,
+            Padding = new Thickness(4, 2, 4, 2),
+            MinWidth = 0, MinHeight = 0,
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0)),
+            Foreground = new SolidColorBrush(ParseColor("#6B7A8E")),
+            BorderThickness = new Thickness(0),
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        ToolTipService.SetToolTip(overridesBtn, "Overrides");
+        overridesBtn.Click += CardOverridesButton_Click;
+        Grid.SetColumn(overridesBtn, 1);
+        bottomRow.Children.Add(overridesBtn);
+
+        root.Children.Add(bottomRow);
+
+        // ── Click-to-highlight on the card border ──
+        border.PointerPressed += Card_PointerPressed;
+
+        border.Child = root;
+
+        // ── Subscribe to PropertyChanged for live updates ──
+        card.PropertyChanged += (s, e) =>
+        {
+            if (s is not GameCardViewModel c) return;
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                try
+                {
+                    switch (e.PropertyName)
+                    {
+                        case nameof(c.CardBackground):
+                            border.Background = new SolidColorBrush(ParseColor(c.CardBackground));
+                            break;
+                        case nameof(c.CardBorderBrush):
+                            border.BorderBrush = new SolidColorBrush(ParseColor(c.CardBorderBrush));
+                            break;
+                        case nameof(c.CardPrimaryActionLabel):
+                            installBtn.Content = c.CardPrimaryActionLabel;
+                            break;
+                        case nameof(c.CanCardInstall):
+                            installBtn.IsEnabled = c.CanCardInstall;
+                            break;
+                        case nameof(c.IsFavourite):
+                            favBtn.Content = c.IsFavourite ? "⭐" : "☆";
+                            break;
+                        case nameof(c.CardRdxStatusDot):
+                            if (rdxDotPanel.Children[0] is Microsoft.UI.Xaml.Shapes.Ellipse rdxEllipse)
+                                rdxEllipse.Fill = new SolidColorBrush(ParseColor(c.CardRdxStatusDot));
+                            break;
+                        case nameof(c.CardRsStatusDot):
+                            if (rsDotPanel.Children[0] is Microsoft.UI.Xaml.Shapes.Ellipse rsEllipse)
+                                rsEllipse.Fill = new SolidColorBrush(ParseColor(c.CardRsStatusDot));
+                            break;
+                        case nameof(c.CardDcStatusDot):
+                            if (dcDotPanel.Children[0] is Microsoft.UI.Xaml.Shapes.Ellipse dcEllipse)
+                                dcEllipse.Fill = new SolidColorBrush(ParseColor(c.CardDcStatusDot));
+                            break;
+                        case nameof(c.CardLumaStatusDot):
+                            if (lumaDotPanel?.Children[0] is Microsoft.UI.Xaml.Shapes.Ellipse lumaEllipse)
+                                lumaEllipse.Fill = new SolidColorBrush(ParseColor(c.CardLumaStatusDot));
+                            break;
+                        case nameof(c.CardLumaVisible):
+                            bool effectiveLuma = c.LumaFeatureEnabled && c.IsLumaMode;
+                            // Hide/show RDX/RS/DC dots based on Luma mode
+                            rdxDotPanel.Visibility = effectiveLuma ? Visibility.Collapsed : Visibility.Visible;
+                            rsDotPanel.Visibility = effectiveLuma ? Visibility.Collapsed : Visibility.Visible;
+                            dcDotPanel.Visibility = effectiveLuma ? Visibility.Collapsed : Visibility.Visible;
+                            // Add/remove Luma dot
+                            if (c.CardLumaVisible && lumaDotPanel == null)
+                            {
+                                lumaDotPanel = MakeStatusDot("Luma", c.CardLumaStatusDot);
+                                statusRow.Children.Add(lumaDotPanel);
+                            }
+                            else if (!c.CardLumaVisible && lumaDotPanel != null)
+                            {
+                                statusRow.Children.Remove(lumaDotPanel);
+                                lumaDotPanel = null;
+                            }
+                            break;
+                    }
+                }
+                catch { /* card may have been removed from visual tree */ }
+            });
+        };
+
+        return border;
+    }
+
+    /// <summary>Creates a small status dot + label pair for the card grid.</summary>
+    private static StackPanel MakeStatusDot(string label, string colorHex)
+    {
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+        panel.Children.Add(new Microsoft.UI.Xaml.Shapes.Ellipse
+        {
+            Width = 8, Height = 8,
+            Fill = new SolidColorBrush(ParseColor(colorHex)),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = label,
+            FontSize = 11,
+            Foreground = new SolidColorBrush(ParseColor("#A0AABB")),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        return panel;
+    }
+
+    // ── Install flyout builder (Task 3.1) ────────────────────────────────────────
+
+    /// <summary>
+    /// Builds the install flyout content panel with per-component rows.
+    /// Each row has: component name, status text (colored), install button, copy config 📋 (RS/DC only), uninstall ✕.
+    /// </summary>
+    private StackPanel BuildInstallFlyoutContent(GameCardViewModel card)
+    {
+        var panel = new StackPanel { Spacing = 6, Width = 380 };
+
+        // ── Header row: "Components" label + "Install All" button ──
+        var headerRow = new Grid();
+        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var headerLabel = new TextBlock
+        {
+            Text = "Components",
+            FontSize = 13,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(ParseColor("#A0AABB")),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(headerLabel, 0);
+        headerRow.Children.Add(headerLabel);
+
+        var installAllBtn = new Button
+        {
+            Content = "Install All",
+            Tag = card,
+            FontSize = 11,
+            Padding = new Thickness(10, 4, 10, 4),
+            IsEnabled = card.CanCardInstall,
+            Background = new SolidColorBrush(ParseColor("#182840")),
+            Foreground = new SolidColorBrush(ParseColor("#7AACDD")),
+            BorderBrush = new SolidColorBrush(ParseColor("#2A4468")),
+            CornerRadius = new CornerRadius(6),
+        };
+        installAllBtn.Click += CardInstallButton_Click;
+        Grid.SetColumn(installAllBtn, 1);
+        headerRow.Children.Add(installAllBtn);
+
+        panel.Children.Add(headerRow);
+        panel.Children.Add(MakeSeparator());
+
+        // ── Component rows ──
+
+        // ReShade row
+        var rsRow = BuildComponentRow(card, "ReShade", "RS",
+            card.RsStatusText, card.RsStatusColor, card.RsShortAction,
+            card.CardRsInstallEnabled, card.IsRsInstalled,
+            showCopyConfig: true, copyConfigVisible: card.RsIniExists,
+            copyConfigTooltip: "Copy reshade.ini",
+            btnBackground: card.RsBtnBackground, btnForeground: card.RsBtnForeground, btnBorderBrush: card.RsBtnBorderBrush);
+        rsRow.Visibility = card.ReShadeRowVisibility;
+        panel.Children.Add(rsRow);
+
+        // Display Commander row
+        var dcRow = BuildComponentRow(card, "DC", "DC",
+            card.DcStatusText, card.DcStatusColor, card.DcShortAction,
+            card.CardDcInstallEnabled, card.IsDcInstalled,
+            showCopyConfig: true, copyConfigVisible: card.DcIniExists,
+            copyConfigTooltip: "Copy DisplayCommander.toml",
+            btnBackground: card.DcBtnBackground, btnForeground: card.DcBtnForeground, btnBorderBrush: card.DcBtnBorderBrush);
+        dcRow.Visibility = card.DcRowVisibility;
+        panel.Children.Add(dcRow);
+
+        // RenoDX row
+        var rdxRow = BuildComponentRow(card, "RenoDX", "RDX",
+            card.RdxStatusText, card.RdxStatusColor, card.RdxShortAction,
+            card.CardRdxInstallEnabled, card.IsRdxInstalled,
+            showCopyConfig: false, copyConfigVisible: false,
+            copyConfigTooltip: null,
+            btnBackground: card.InstallBtnBackground, btnForeground: card.InstallBtnForeground, btnBorderBrush: card.InstallBtnBorderBrush);
+        rdxRow.Visibility = card.RenoDxRowVisibility;
+        panel.Children.Add(rdxRow);
+
+        // External/Discord row — shown when game is external-only (no wiki mod)
+        Grid? externalRow = null;
+        if (card.IsExternalOnly && !(card.LumaFeatureEnabled && card.IsLumaMode))
+        {
+            externalRow = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+            externalRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
+            externalRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var extName = new TextBlock
+            {
+                Text = "RenoDX",
+                FontSize = 12,
+                Foreground = new SolidColorBrush(ParseColor("#A0AABB")),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            Grid.SetColumn(extName, 0);
+            externalRow.Children.Add(extName);
+
+            var extBtn = new Button
+            {
+                Content = card.ExternalLabel,
+                Tag = card,
+                FontSize = 11,
+                Padding = new Thickness(8, 3, 8, 3),
+                MinWidth = 0,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Background = new SolidColorBrush(ParseColor("#1A2040")),
+                Foreground = new SolidColorBrush(ParseColor("#7AACDD")),
+                BorderBrush = new SolidColorBrush(ParseColor("#2A4468")),
+                CornerRadius = new CornerRadius(6),
+            };
+            extBtn.Click += async (s, ev) =>
+            {
+                var url = card.ExternalUrl;
+                if (!string.IsNullOrEmpty(url))
+                    await Windows.System.Launcher.LaunchUriAsync(new Uri(url));
+            };
+            Grid.SetColumn(extBtn, 1);
+            externalRow.Children.Add(extBtn);
+
+            panel.Children.Add(externalRow);
+        }
+
+        // Luma row (conditional)
+        Grid? lumaRow = null;
+        if (card.CardLumaVisible)
+        {
+            lumaRow = BuildComponentRow(card, "Luma", "Luma",
+                card.LumaStatusText, card.LumaStatusColor, card.LumaShortAction,
+                card.CardLumaInstallEnabled, card.IsLumaInstalled,
+                showCopyConfig: false, copyConfigVisible: false,
+                copyConfigTooltip: null,
+                btnBackground: card.LumaBtnBackground, btnForeground: card.LumaBtnForeground,
+                btnBorderBrush: card.LumaBtnBorderBrush);
+            panel.Children.Add(lumaRow);
+        }
+
+        // ── Subscribe to PropertyChanged for live updates while flyout is open ──
+        System.ComponentModel.PropertyChangedEventHandler? handler = null;
+        handler = (s, e) =>
+        {
+            if (s is not GameCardViewModel c) return;
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                try
+                {
+                    // Update Install All button
+                    installAllBtn.IsEnabled = c.CanCardInstall;
+
+                    // Update row visibility
+                    rsRow.Visibility = c.ReShadeRowVisibility;
+                    dcRow.Visibility = c.DcRowVisibility;
+                    rdxRow.Visibility = c.RenoDxRowVisibility;
+
+                    // Update each component row's status/buttons
+                    UpdateComponentRow(rsRow, c.RsStatusText, c.RsStatusColor, c.RsShortAction,
+                        c.CardRsInstallEnabled, c.IsRsInstalled, c.RsIniExists,
+                        c.RsBtnBackground, c.RsBtnForeground, c.RsBtnBorderBrush);
+                    UpdateComponentRow(dcRow, c.DcStatusText, c.DcStatusColor, c.DcShortAction,
+                        c.CardDcInstallEnabled, c.IsDcInstalled, c.DcIniExists,
+                        c.DcBtnBackground, c.DcBtnForeground, c.DcBtnBorderBrush);
+                    UpdateComponentRow(rdxRow, c.RdxStatusText, c.RdxStatusColor, c.RdxShortAction,
+                        c.CardRdxInstallEnabled, c.IsRdxInstalled, false,
+                        c.InstallBtnBackground, c.InstallBtnForeground, c.InstallBtnBorderBrush);
+
+                    if (lumaRow != null)
+                    {
+                        UpdateComponentRow(lumaRow, c.LumaStatusText, c.LumaStatusColor, c.LumaShortAction,
+                            c.CardLumaInstallEnabled, c.IsLumaInstalled, false,
+                            c.LumaBtnBackground, c.LumaBtnForeground, c.LumaBtnBorderBrush);
+                    }
+                }
+                catch { /* flyout may have been closed / card removed */ }
+            });
+        };
+        card.PropertyChanged += handler;
+
+        // Store handler reference on the panel so we can unsubscribe on flyout close
+        panel.Tag = (card, handler);
+
+        return panel;
+    }
+
+    /// <summary>
+    /// Builds a single component row Grid with: name, status text, install button, copy config 📋, uninstall ✕.
+    /// </summary>
+    private Grid BuildComponentRow(
+        GameCardViewModel card, string componentName, string componentTag,
+        string statusText, string statusColor, string actionLabel,
+        bool installEnabled, bool isInstalled,
+        bool showCopyConfig, bool copyConfigVisible, string? copyConfigTooltip,
+        string? btnBackground = null, string? btnForeground = null, string? btnBorderBrush = null)
+    {
+        var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });  // name
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(75) });  // status
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // install btn
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });     // copy config
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });     // uninstall
+
+        // Component name
+        var nameText = new TextBlock
+        {
+            Text = componentName,
+            FontSize = 12,
+            Foreground = new SolidColorBrush(ParseColor("#A0AABB")),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(nameText, 0);
+        row.Children.Add(nameText);
+
+        // Status text (colored)
+        var statusBlock = new TextBlock
+        {
+            Text = statusText,
+            FontSize = 11,
+            Foreground = new SolidColorBrush(ParseColor(statusColor)),
+            VerticalAlignment = VerticalAlignment.Center,
+            Tag = "StatusText",
+        };
+        Grid.SetColumn(statusBlock, 1);
+        row.Children.Add(statusBlock);
+
+        // Install/update button
+        var installBtn = new Button
+        {
+            Content = actionLabel,
+            Tag = card,
+            FontSize = 11,
+            Padding = new Thickness(8, 3, 8, 3),
+            MinWidth = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            IsEnabled = installEnabled,
+            Background = new SolidColorBrush(ParseColor(btnBackground ?? "#182840")),
+            Foreground = new SolidColorBrush(ParseColor(btnForeground ?? "#7AACDD")),
+            BorderBrush = new SolidColorBrush(ParseColor(btnBorderBrush ?? "#2A4468")),
+            CornerRadius = new CornerRadius(6),
+        };
+        // Store component tag for the click handler to identify which component
+        installBtn.DataContext = componentTag;
+        installBtn.Click += CardComponentInstall_Click;
+        Grid.SetColumn(installBtn, 2);
+        row.Children.Add(installBtn);
+
+        // Copy config 📋 button — always added to reserve column space; hidden when not applicable
+        bool copyVisible = showCopyConfig && copyConfigVisible;
+        var copyBtn = new Button
+        {
+            Content = "📋",
+            Tag = card,
+            FontSize = 11,
+            Padding = new Thickness(4, 3, 4, 3),
+            MinWidth = 0, MinHeight = 0,
+            Margin = new Thickness(4, 0, 0, 0),
+            Opacity = copyVisible ? 1 : 0,
+            IsHitTestVisible = copyVisible,
+            Background = new SolidColorBrush(ParseColor("#1A2030")),
+            Foreground = new SolidColorBrush(ParseColor("#6B7A8E")),
+            BorderBrush = new SolidColorBrush(ParseColor("#283240")),
+            CornerRadius = new CornerRadius(4),
+        };
+        copyBtn.DataContext = componentTag;
+        if (componentTag == "RS")
+            copyBtn.Click += CardCopyRsIni_Click;
+        else if (componentTag == "DC")
+            copyBtn.Click += CardCopyDcToml_Click;
+        if (copyConfigTooltip != null)
+            ToolTipService.SetToolTip(copyBtn, copyConfigTooltip);
+        Grid.SetColumn(copyBtn, 3);
+        row.Children.Add(copyBtn);
+
+        // Uninstall ✕ button
+        var uninstallBtn = new Button
+        {
+            Content = "✕",
+            Tag = card,
+            FontSize = 11,
+            Padding = new Thickness(4, 3, 4, 3),
+            MinWidth = 0, MinHeight = 0,
+            Margin = new Thickness(4, 0, 0, 0),
+            Opacity = isInstalled ? 1 : 0,
+            IsHitTestVisible = isInstalled,
+            Background = new SolidColorBrush(ParseColor("#301820")),
+            Foreground = new SolidColorBrush(ParseColor("#E06060")),
+            BorderBrush = new SolidColorBrush(ParseColor("#502838")),
+            CornerRadius = new CornerRadius(4),
+        };
+        uninstallBtn.DataContext = componentTag;
+        uninstallBtn.Click += CardComponentUninstall_Click;
+        Grid.SetColumn(uninstallBtn, 4);
+        row.Children.Add(uninstallBtn);
+
+        return row;
+    }
+
+    /// <summary>
+    /// Updates a component row's status text, color, install button label/enabled, copy config visibility, and uninstall visibility.
+    /// </summary>
+    private static void UpdateComponentRow(Grid row, string statusText, string statusColor,
+        string actionLabel, bool installEnabled, bool isInstalled, bool copyConfigVisible,
+        string? btnBackground = null, string? btnForeground = null, string? btnBorderBrush = null)
+    {
+        foreach (var child in row.Children)
+        {
+            if (child is TextBlock tb && tb.Tag as string == "StatusText")
+            {
+                tb.Text = statusText;
+                tb.Foreground = new SolidColorBrush(ParseColor(statusColor));
+            }
+            else if (child is Button btn)
+            {
+                var col = Grid.GetColumn(btn);
+                if (col == 2) // install button
+                {
+                    btn.Content = actionLabel;
+                    btn.IsEnabled = installEnabled;
+                    if (btnBackground != null)
+                        btn.Background = new SolidColorBrush(ParseColor(btnBackground));
+                    if (btnForeground != null)
+                        btn.Foreground = new SolidColorBrush(ParseColor(btnForeground));
+                    if (btnBorderBrush != null)
+                        btn.BorderBrush = new SolidColorBrush(ParseColor(btnBorderBrush));
+                }
+                else if (col == 3) // copy config button
+                {
+                    btn.Opacity = copyConfigVisible ? 1 : 0;
+                    btn.IsHitTestVisible = copyConfigVisible;
+                }
+                else if (col == 4) // uninstall button
+                {
+                    btn.Opacity = isInstalled ? 1 : 0;
+                    btn.IsHitTestVisible = isInstalled;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Handler for the install flyout opening — builds the flyout content and attaches it.
+    /// Called when the install button's flyout is about to open.
+    /// </summary>
+    private void CardInstallFlyout_Opening(object? sender, object e)
+    {
+        if (sender is not Flyout flyout) return;
+        if (flyout.Target is not FrameworkElement { Tag: GameCardViewModel card }) return;
+
+        var content = BuildInstallFlyoutContent(card);
+
+        var scrollViewer = new ScrollViewer
+        {
+            Content = content,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            MaxHeight = 400,
+        };
+
+        flyout.Content = scrollViewer;
+
+        // Unsubscribe from PropertyChanged when flyout closes
+        flyout.Closed += FlyoutClosed;
+
+        void FlyoutClosed(object? s, object ev)
+        {
+            flyout.Closed -= FlyoutClosed;
+            if (content.Tag is (GameCardViewModel c, System.ComponentModel.PropertyChangedEventHandler h))
+            {
+                c.PropertyChanged -= h;
+            }
+        }
+    }
+
+    // ── Per-component install flyout click handlers ──
+
+    private async void CardComponentInstall_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not GameCardViewModel card) return;
+        var component = btn.DataContext as string;
+
+        // Ensure install path exists (same pattern as CardInstallButton_Click)
+        if (string.IsNullOrEmpty(card.InstallPath) || !System.IO.Directory.Exists(card.InstallPath))
+        {
+            var folder = await PickFolderAsync();
+            if (folder == null) return;
+            card.InstallPath = folder;
+            ViewModel.SaveLibraryPublic();
+        }
+
+        switch (component)
+        {
+            case "RDX":
+                await ViewModel.InstallModCommand.ExecuteAsync(card);
+                break;
+            case "RS":
+                await ViewModel.InstallReShadeCommand.ExecuteAsync(card);
+                break;
+            case "DC":
+                await ViewModel.InstallDcCommand.ExecuteAsync(card);
+                break;
+            case "Luma":
+                await ViewModel.InstallLumaAsync(card);
+                break;
+        }
+    }
+
+    private void CardComponentUninstall_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not GameCardViewModel card) return;
+        var component = btn.DataContext as string;
+
+        switch (component)
+        {
+            case "RDX":
+                ViewModel.UninstallModCommand.Execute(card);
+                break;
+            case "RS":
+                ViewModel.UninstallReShadeCommand.Execute(card);
+                break;
+            case "DC":
+                ViewModel.UninstallDcCommand.Execute(card);
+                break;
+            case "Luma":
+                ViewModel.UninstallLumaCommand.Execute(card);
+                break;
+        }
+    }
+
+    private void CardCopyRsIni_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: GameCardViewModel card }) return;
+        if (string.IsNullOrEmpty(card.InstallPath)) return;
+        try
+        {
+            AuxInstallService.MergeRsIni(card.InstallPath);
+            card.RsActionMessage = "✅ reshade.ini merged into game folder.";
+        }
+        catch (Exception ex)
+        {
+            card.RsActionMessage = $"❌ {ex.Message}";
+        }
+    }
+
+    private void CardCopyDcToml_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: GameCardViewModel card }) return;
+        if (string.IsNullOrEmpty(card.InstallPath)) return;
+        try
+        {
+            AuxInstallService.CopyDcIni(card.InstallPath);
+            card.DcActionMessage = "✅ DisplayCommander.toml copied to game folder.";
+        }
+        catch (Exception ex)
+        {
+            card.DcActionMessage = $"❌ {ex.Message}";
+        }
+    }
+
+    // ── Card action button handlers (Task 6.4) ───────────────────────────────────
+
+    private async void CardInstallButton_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not GameCardViewModel card) return;
+
+        // Route to Luma install if in Luma mode, otherwise RenoDX combined install
+        if (card.LumaFeatureEnabled && card.IsLumaMode && card.LumaMod != null)
+        {
+            await ViewModel.InstallLumaAsync(card);
+        }
+        else
+        {
+            // Ensure install path exists
+            if (string.IsNullOrEmpty(card.InstallPath) || !System.IO.Directory.Exists(card.InstallPath))
+            {
+                var folder = await PickFolderAsync();
+                if (folder == null) return;
+                card.InstallPath = folder;
+                ViewModel.SaveLibraryPublic();
+            }
+            // Chain: RenoDX → DC → ReShade (skip components that are N/A)
+            if (card.Mod?.SnapshotUrl != null)
+                await ViewModel.InstallModCommand.ExecuteAsync(card);
+            if (card.DcRowVisibility == Visibility.Visible)
+                await ViewModel.InstallDcCommand.ExecuteAsync(card);
+            if (card.ReShadeRowVisibility == Visibility.Visible)
+                await ViewModel.InstallReShadeCommand.ExecuteAsync(card);
+        }
+    }
+
+    private void CardFavouriteButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not GameCardViewModel card) return;
+        ViewModel.ToggleFavouriteCommand.Execute(card);
+        btn.Content = card.IsFavourite ? "⭐" : "☆";
+
+        // Also refresh the detail panel icon if this is the selected game
+        if (card == ViewModel.SelectedGame)
+        {
+            DetailFavIcon.Text = card.IsFavourite ? "⭐" : "☆";
+            DetailFavIcon.Foreground = new SolidColorBrush(card.IsFavourite
+                ? ((SolidColorBrush)Application.Current.Resources["AccentAmberBrush"]).Color
+                : ((SolidColorBrush)Application.Current.Resources["TextDisabledBrush"]).Color);
+        }
+    }
+
+    private void CardOpenFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var card = GetCardFromSender(sender);
+        if (card == null || string.IsNullOrEmpty(card.InstallPath)) return;
+        if (System.IO.Directory.Exists(card.InstallPath))
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(card.InstallPath) { UseShellExecute = true });
+    }
+
+    private void CardOverridesButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement anchor && anchor.Tag is GameCardViewModel card)
+        {
+            ViewModel.SelectedGame = card;
+            OpenOverridesFlyout(card, anchor);
+        }
+    }
+
+    private void CardMoreMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement anchor || anchor.Tag is not GameCardViewModel card)
+            return;
+
+        ViewModel.SelectedGame = card;
+
+        var menu = new MenuFlyout
+        {
+            Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.BottomEdgeAlignedRight,
+        };
+
+        // ── Open Folder ──
+        var openFolderItem = new MenuFlyoutItem
+        {
+            Text = "📂 Open Folder",
+            Tag = card,
+        };
+        openFolderItem.Click += CardOpenFolder_Click;
+        menu.Items.Add(openFolderItem);
+
+        // ── Hide / Show ──
+        var hideItem = new MenuFlyoutItem
+        {
+            Text = card.HideButtonLabel,
+            Tag = card,
+        };
+        hideItem.Click += (s, ev) => ViewModel.ToggleHideGameCommand.Execute(card);
+        menu.Items.Add(hideItem);
+
+        // ── Luma toggle (conditional — only when Luma is available for this game) ──
+        if (card.LumaFeatureEnabled && card.IsLumaAvailable)
+        {
+            var lumaLabel = card.IsLumaMode ? "🟢 Luma Enabled" : "⚫ Enable Luma";
+            var lumaItem = new MenuFlyoutItem
+            {
+                Text = lumaLabel,
+                Tag = card,
+            };
+            lumaItem.Click += (s, ev) => ViewModel.ToggleLumaMode(card);
+            menu.Items.Add(lumaItem);
+        }
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        // ── Discussion / Instructions (conditional) ──
+        if (card.HasNameUrl)
+        {
+            var discussionItem = new MenuFlyoutItem
+            {
+                Text = "ℹ Discussion / Instructions",
+                Tag = card,
+            };
+            discussionItem.Click += async (s, ev) =>
+            {
+                if (card.NameUrl != null)
+                    await Windows.System.Launcher.LaunchUriAsync(new Uri(card.NameUrl));
+            };
+            menu.Items.Add(discussionItem);
+        }
+
+        // ── View Notes (conditional) ──
+        if (card.HasNotes)
+        {
+            var notesItem = new MenuFlyoutItem
+            {
+                Text = "💬 View Notes",
+                Tag = card,
+            };
+            notesItem.Click += NotesButton_Click;
+            menu.Items.Add(notesItem);
+        }
+
+        menu.ShowAt(anchor);
+    }
+
+    private void OpenOverridesFlyout(GameCardViewModel card, FrameworkElement anchor)
+    {
+        var gameName = card.GameName;
+        bool isLumaMode = ViewModel.IsLumaEnabled(gameName);
+
+        var panel = new StackPanel { Spacing = 8, Width = 420 };
+
+        // ── Title ──
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Overrides",
+            FontSize = 13,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = Brush("TextPrimaryBrush"),
+        });
+
+        // ── Game name + Wiki name ──
+        var gameNameBox = new TextBox
+        {
+            Header = "Game name (editable)",
+            Text = gameName,
+            FontSize = 12,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Background = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x1A, 0x20, 0x30)),
+            Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0xE2, 0xE8, 0xFF)),
+            BorderBrush = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x28, 0x32, 0x40)),
+            Padding = new Thickness(8, 4, 8, 4),
+        };
+        var wikiNameBox = new TextBox
+        {
+            Header = "Wiki mod name",
+            PlaceholderText = "Exact wiki name",
+            Text = ViewModel.GetNameMapping(gameName) ?? "",
+            FontSize = 12,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Background = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x1A, 0x20, 0x30)),
+            Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0xE2, 0xE8, 0xFF)),
+            BorderBrush = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x28, 0x32, 0x40)),
+            Padding = new Thickness(8, 4, 8, 4),
+        };
+        var originalStoreName = ViewModel.GetOriginalStoreName(gameName);
+        var nameResetBtn = new Button
+        {
+            Content = "↩ Reset",
+            FontSize = 11,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Padding = new Thickness(8, 4, 8, 4),
+            Background = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x1A, 0x20, 0x30)),
+            Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x6B, 0x7A, 0x8E)),
+            BorderBrush = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x28, 0x32, 0x40)),
+        };
+        ToolTipService.SetToolTip(nameResetBtn,
+            "Reset game name back to auto-detected and clear wiki name mapping.");
+        nameResetBtn.Click += (s, ev) =>
+        {
+            gameNameBox.Text = originalStoreName ?? gameName;
+            wikiNameBox.Text = "";
+        };
+
+        var nameGrid = new Grid { ColumnSpacing = 8 };
+        nameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        nameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        nameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(gameNameBox, 0);
+        Grid.SetColumn(wikiNameBox, 1);
+        Grid.SetColumn(nameResetBtn, 2);
+        nameGrid.Children.Add(gameNameBox);
+        nameGrid.Children.Add(wikiNameBox);
+        nameGrid.Children.Add(nameResetBtn);
+        panel.Children.Add(nameGrid);
+        panel.Children.Add(MakeSeparator());
+
+        // ── DC Mode + Shader Mode (side by side) ──
+        int? currentDcMode = ViewModel.GetPerGameDcModeOverride(gameName);
+        var globalDcLabel = ViewModel.DcModeLevel switch { 1 => "DC Mode 1", 2 => "DC Mode 2", _ => "Off" };
+        var dcModeOptions = new[] { $"Global ({globalDcLabel})", "Exclude (Off)", "DC Mode 1", "DC Mode 2" };
+        var dcModeCombo = new ComboBox
+        {
+            ItemsSource = dcModeOptions,
+            SelectedIndex = currentDcMode switch { null => 0, 0 => 1, 1 => 2, 2 => 3, _ => 0 },
+            FontSize = 12,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Header = "DC Mode",
+        };
+        ToolTipService.SetToolTip(dcModeCombo,
+            "Global = use the Settings DC Mode. Exclude (Off) = always use normal naming. " +
+            "DC Mode 1 = force dxgi.dll proxy. DC Mode 2 = force winmm.dll proxy.");
+
+        string currentShaderMode = ViewModel.GetPerGameShaderMode(gameName);
+        var globalShaderLabel = ViewModel.ShaderDeployMode.ToString();
+        var shaderModeValues = new[] { "Global", "Off", "Minimum", "All", "User" };
+        var shaderModeDisplay = new[] { $"Global ({globalShaderLabel})", "Off", "Minimum", "All", "User" };
+        int shaderSelectedIdx = Array.IndexOf(shaderModeValues, currentShaderMode);
+        if (shaderSelectedIdx < 0) shaderSelectedIdx = 0;
+        var shaderModeCombo = new ComboBox
+        {
+            ItemsSource = shaderModeDisplay,
+            SelectedIndex = shaderSelectedIdx,
+            FontSize = 12,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Header = "Shader Mode",
+        };
+        ToolTipService.SetToolTip(shaderModeCombo,
+            "Global = follow the Settings toggle. Off = no shaders. Minimum = Lilium only. All = all packs. User = custom folder only.\n" +
+            "Note: Per-game shader mode only applies when ReShade is used standalone (DC Mode OFF). " +
+            "When DC Mode is ON, all DC-mode games share the DC global shader folder.");
+
+        var modeGrid = new Grid { ColumnSpacing = 8 };
+        modeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        modeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumn(dcModeCombo, 0);
+        Grid.SetColumn(shaderModeCombo, 1);
+        modeGrid.Children.Add(dcModeCombo);
+        modeGrid.Children.Add(shaderModeCombo);
+        panel.Children.Add(modeGrid);
+        panel.Children.Add(MakeSeparator());
+
+        // ── DLL naming override ──
+        bool isDllOverride = ViewModel.HasDllOverride(gameName);
+        var existingCfg = ViewModel.GetDllOverride(gameName);
+        bool is32Bit = ViewModel.Is32BitGame(gameName);
+        var defaultRsName = is32Bit ? "ReShade32.dll" : "ReShade64.dll";
+        var defaultDcName = is32Bit ? "zzz_display_commander.addon32" : "zzz_display_commander.addon64";
+
+        var dllOverrideToggle = new ToggleSwitch
+        {
+            Header = "DLL naming override",
+            IsOn = isDllOverride,
+            IsEnabled = !isLumaMode,
+            OnContent = "Custom filenames enabled",
+            OffContent = "Using default filenames",
+            Foreground = Brush("TextSecondaryBrush"),
+            FontSize = 12,
+        };
+        ToolTipService.SetToolTip(dllOverrideToggle,
+            "Override the filenames ReShade and Display Commander are installed as. " +
+            "When enabled, existing RS/DC files are renamed to the custom filenames. " +
+            "The game is automatically excluded from DC Mode, Update All, and global shaders.");
+        var rsNameBox = new TextBox
+        {
+            PlaceholderText = defaultRsName,
+            Text = existingCfg?.ReShadeFileName ?? "",
+            Header = "ReShade filename",
+            FontSize = 12,
+            IsEnabled = isDllOverride,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        var dcNameBox = new TextBox
+        {
+            PlaceholderText = defaultDcName,
+            Text = existingCfg?.DcFileName ?? "",
+            Header = "DC filename",
+            FontSize = 12,
+            IsEnabled = isDllOverride,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        dllOverrideToggle.Toggled += (s, ev) =>
+        {
+            rsNameBox.IsEnabled = dllOverrideToggle.IsOn;
+            dcNameBox.IsEnabled = dllOverrideToggle.IsOn;
+        };
+
+        var dllNameGrid = new Grid { ColumnSpacing = 8, Margin = new Thickness(0, 4, 0, 0) };
+        dllNameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        dllNameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumn(rsNameBox, 0);
+        Grid.SetColumn(dcNameBox, 1);
+        dllNameGrid.Children.Add(rsNameBox);
+        dllNameGrid.Children.Add(dcNameBox);
+
+        var dllGroupPanel = new StackPanel { Spacing = 4 };
+        dllGroupPanel.Children.Add(dllOverrideToggle);
+        dllGroupPanel.Children.Add(dllNameGrid);
+        var dllGroupBorder = new Border
+        {
+            Child = dllGroupPanel,
+            Background = Brush("SurfaceOverlayBrush"),
+            BorderBrush = Brush("BorderSubtleBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12, 10, 12, 12),
+        };
+        panel.Children.Add(dllGroupBorder);
+        panel.Children.Add(MakeSeparator());
+
+        // ── Update All exclusion ──
+        var updateAllToggle = new ToggleSwitch
+        {
+            Header = "Update All",
+            IsOn = !ViewModel.IsUpdateAllExcluded(gameName),
+            OnContent = "Included in bulk updates",
+            OffContent = "Excluded from bulk updates",
+            Foreground = Brush("TextSecondaryBrush"),
+            FontSize = 12,
+        };
+        ToolTipService.SetToolTip(updateAllToggle,
+            "When enabled, this game is included in Update All RenoDX, Update All ReShade, and Update All DC.");
+        panel.Children.Add(updateAllToggle);
+        panel.Children.Add(MakeSeparator());
+
+        // ── 32-bit mode ──
+        var bit32Toggle = new ToggleSwitch
+        {
+            Header = "32-bit mode",
+            IsOn = is32Bit,
+            IsEnabled = !isLumaMode,
+            OnContent = "32-bit binaries",
+            OffContent = "64-bit binaries",
+            Foreground = Brush("TextSecondaryBrush"),
+            FontSize = 12,
+        };
+        ToolTipService.SetToolTip(bit32Toggle,
+            "Installs 32-bit versions of ReShade, Unity addon, and Display Commander. Only enable if you know this game is 32-bit.");
+        panel.Children.Add(bit32Toggle);
+        panel.Children.Add(MakeSeparator());
+
+        // ── Wiki exclusion ──
+        var wikiExcludeToggle = new ToggleSwitch
+        {
+            Header = "Wiki exclusion",
+            IsOn = ViewModel.IsWikiExcluded(gameName),
+            OnContent = "Excluded from wiki lookups",
+            OffContent = "Included in wiki lookups",
+            Foreground = Brush("TextSecondaryBrush"),
+            FontSize = 12,
+        };
+        ToolTipService.SetToolTip(wikiExcludeToggle,
+            "When enabled, this game will not be looked up on the RenoDX wiki. " +
+            "Useful for games that share a name with an unrelated wiki entry.");
+        panel.Children.Add(wikiExcludeToggle);
+
+        // Wrap in a ScrollViewer for long content
+        var scrollViewer = new ScrollViewer
+        {
+            Content = panel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            MaxHeight = 500,
+            Padding = new Thickness(0, 0, 14, 0), // room for scrollbar so it doesn't overlap content
+        };
+
+        var flyout = new Flyout
+        {
+            Content = scrollViewer,
+            Placement = FlyoutPlacementMode.BottomEdgeAlignedRight,
+        };
+
+        // On flyout closed, save all overrides and refresh the card
+        var capturedName = gameName;
+        flyout.Closed += (s, ev) =>
+        {
+            bool anyChanged = false;
+
+            // ── Handle game rename ──
+            var det = gameNameBox.Text?.Trim();
+            var effectiveName = capturedName;
+
+            if (!string.IsNullOrEmpty(capturedName) && !string.IsNullOrEmpty(det)
+                && !det.Equals(capturedName, StringComparison.OrdinalIgnoreCase))
+            {
+                ViewModel.RenameGame(capturedName, det);
+                effectiveName = det;
+                anyChanged = true;
+            }
+
+            // ── Name mapping ──
+            var wikiKey = wikiNameBox.Text?.Trim();
+            var existingMapping = ViewModel.GetNameMapping(effectiveName);
+            if (!string.IsNullOrEmpty(effectiveName) && !string.IsNullOrEmpty(wikiKey))
+            {
+                if (!string.Equals(wikiKey, existingMapping, StringComparison.OrdinalIgnoreCase))
+                {
+                    ViewModel.AddNameMapping(effectiveName, wikiKey);
+                    anyChanged = true;
+                }
+            }
+            else if (!string.IsNullOrEmpty(effectiveName) && string.IsNullOrEmpty(wikiKey) && !string.IsNullOrEmpty(existingMapping))
+            {
+                ViewModel.RemoveNameMapping(effectiveName);
+                anyChanged = true;
+            }
+
+            // DC Mode override
+            int? newDcMode = dcModeCombo.SelectedIndex switch { 1 => 0, 2 => 1, 3 => 2, _ => null };
+            if (newDcMode != ViewModel.GetPerGameDcModeOverride(effectiveName))
+            {
+                ViewModel.SetPerGameDcModeOverride(effectiveName, newDcMode);
+                ViewModel.ApplyDcModeSwitchForCard(effectiveName);
+                anyChanged = true;
+            }
+
+            // Shader mode
+            var shaderModeIdx = shaderModeCombo.SelectedIndex;
+            var newShaderMode = shaderModeIdx >= 0 && shaderModeIdx < shaderModeValues.Length
+                ? shaderModeValues[shaderModeIdx] : "Global";
+            if (newShaderMode != ViewModel.GetPerGameShaderMode(effectiveName))
+            {
+                ViewModel.SetPerGameShaderMode(effectiveName, newShaderMode);
+                ViewModel.DeployShadersForCard(effectiveName);
+                anyChanged = true;
+            }
+
+            // DLL naming override
+            bool nowDllOverride = dllOverrideToggle.IsOn;
+            bool wasDllOverride = ViewModel.HasDllOverride(effectiveName);
+            var targetCard = ViewModel.AllCards.FirstOrDefault(c =>
+                c.GameName.Equals(effectiveName, StringComparison.OrdinalIgnoreCase));
+
+            if (nowDllOverride && !wasDllOverride && targetCard != null)
+            {
+                var rsName = !string.IsNullOrWhiteSpace(rsNameBox.Text) ? rsNameBox.Text.Trim() : rsNameBox.PlaceholderText;
+                var dcName = !string.IsNullOrWhiteSpace(dcNameBox.Text) ? dcNameBox.Text.Trim() : dcNameBox.PlaceholderText;
+                ViewModel.EnableDllOverride(targetCard, rsName, dcName);
+                anyChanged = true;
+            }
+            else if (nowDllOverride && wasDllOverride && targetCard != null)
+            {
+                var rsName = !string.IsNullOrWhiteSpace(rsNameBox.Text) ? rsNameBox.Text.Trim() : rsNameBox.PlaceholderText;
+                var dcName = !string.IsNullOrWhiteSpace(dcNameBox.Text) ? dcNameBox.Text.Trim() : dcNameBox.PlaceholderText;
+                ViewModel.UpdateDllOverrideNames(targetCard, rsName, dcName);
+                anyChanged = true;
+            }
+            else if (!nowDllOverride && wasDllOverride && targetCard != null)
+            {
+                ViewModel.DisableDllOverride(targetCard);
+                anyChanged = true;
+            }
+
+            // Update All (toggle is inverted: IsOn = included, so excluded = !IsOn)
+            bool nowUaExcluded = !updateAllToggle.IsOn;
+            if (nowUaExcluded != ViewModel.IsUpdateAllExcluded(effectiveName))
+            {
+                ViewModel.ToggleUpdateAllExclusion(effectiveName);
+                anyChanged = true;
+            }
+
+            // 32-bit mode
+            if (bit32Toggle.IsOn != ViewModel.Is32BitGame(effectiveName))
+            {
+                ViewModel.Toggle32Bit(effectiveName);
+                anyChanged = true;
+            }
+
+            // Wiki exclusion
+            if (wikiExcludeToggle.IsOn != ViewModel.IsWikiExcluded(effectiveName))
+            {
+                ViewModel.ToggleWikiExclusion(effectiveName);
+                anyChanged = true;
+            }
+
+            if (!anyChanged) return;
+
+            CrashReporter.Log($"Flyout overrides saved for: {effectiveName}");
+
+            // Trigger pending reselect and restore selection (mirrors BuildOverridesPanel save logic)
+            _pendingReselect = effectiveName;
+            DispatcherQueue.TryEnqueue(TryRestoreSelection);
+
+            // Refresh the card's status indicators
+            card.NotifyAll();
+
+            // Also rebuild the card in the grid if we're in grid mode
+            if (ViewModel.IsGridLayout)
+                RebuildCardGrid();
+        };
+
+        flyout.ShowAt(anchor);
+    }
+
+    /// <summary>Scrolls the card grid to bring the given card into view and highlights it.</summary>
+    private void ScrollToCard(GameCardViewModel target)
+    {
+        foreach (var child in CardGridPanel.Children)
+        {
+            if (child is Border b && b.Tag is GameCardViewModel c)
+            {
+                bool isTarget = c == target;
+                c.CardHighlighted = isTarget;
+                if (isTarget)
+                    b.StartBringIntoView();
+            }
+        }
     }
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
@@ -1806,8 +2765,9 @@ public sealed partial class MainWindow : Window
             DetailUeExtendedBtn.BorderBrush = Brush("BorderStrongBrush");
         }
 
-        // Update flyout item text
-        DetailUeExtendedItem.Text = card.UseUeExtended ? "Disable UE Extended" : "Enable UE Extended";
+        // Update tooltip
+        ToolTipService.SetToolTip(DetailUeExtendedBtn,
+            card.UseUeExtended ? "Disable UE Extended" : "Enable UE Extended");
 
         // Show inline message
         if (card.UseUeExtended)
@@ -1890,6 +2850,35 @@ public sealed partial class MainWindow : Window
             await Windows.System.Launcher.LaunchUriAsync(new Uri(card.NameUrl));
     }
 
+    private async void CardInfoLink_Click(object sender, RoutedEventArgs e)
+    {
+        var card = GetCardFromSender(sender);
+        if (card?.NameUrl != null)
+        {
+            try { await Windows.System.Launcher.LaunchUriAsync(new Uri(card.NameUrl)); }
+            catch (Exception ex) { CrashReporter.Log($"CardInfoLink_Click failed: {ex.Message}"); }
+        }
+    }
+
+    private void CardNotesButton_Click(object sender, RoutedEventArgs e)
+    {
+        NotesButton_Click(sender, e);
+    }
+
+    private void Card_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        try
+        {
+            if (sender is not Border b || b.Tag is not GameCardViewModel card) return;
+
+            foreach (var c in ViewModel.DisplayedGames)
+                c.CardHighlighted = false;
+
+            card.CardHighlighted = true;
+            ViewModel.SelectedGame = card;
+        }
+        catch { /* card may have been removed from visual tree */ }
+    }
 
     private async void NotesButton_Click(object sender, RoutedEventArgs e)
     {
@@ -2325,17 +3314,40 @@ public sealed partial class MainWindow : Window
             if (GameList.SelectedItem is GameCardViewModel card)
             {
                 ViewModel.SelectedGame = card;
-                PopulateDetailPanel(card);
-                DetailPanel.Visibility = Visibility.Visible;
-                BuildOverridesPanel(card);
-                OverridesContainer.Visibility = Visibility.Visible;
+
+                if (ViewModel.IsGridLayout)
+                {
+                    // In grid mode, scroll to and highlight the selected card
+                    ScrollToCard(card);
+                }
+                else
+                {
+                    // In detail mode, populate the detail panel as before
+                    PopulateDetailPanel(card);
+                    DetailPanel.Visibility = Visibility.Visible;
+                    BuildOverridesPanel(card);
+                    OverridesContainer.Visibility = Visibility.Visible;
+                }
             }
             else
             {
                 ViewModel.SelectedGame = null;
-                DetailPanel.Visibility = Visibility.Collapsed;
-                OverridesPanel.Children.Clear();
-                OverridesContainer.Visibility = Visibility.Collapsed;
+
+                if (ViewModel.IsGridLayout)
+                {
+                    // Clear highlight from all cards
+                    foreach (var child in CardGridPanel.Children)
+                    {
+                        if (child is Border b && b.Tag is GameCardViewModel c)
+                            c.CardHighlighted = false;
+                    }
+                }
+                else
+                {
+                    DetailPanel.Visibility = Visibility.Collapsed;
+                    OverridesPanel.Children.Clear();
+                    OverridesContainer.Visibility = Visibility.Collapsed;
+                }
             }
         }
 
@@ -2476,10 +3488,11 @@ public sealed partial class MainWindow : Window
             DetailRsInstallBtn.BorderThickness = new Thickness(1);
             DetailRsIniBtn.Tag = card;
             DetailRsIniBtn.IsEnabled = card.RsIniExists;
-            DetailRsIniCopy.Tag = card;
-            DetailRsIniCopy.Visibility = card.RsIniExists ? Visibility.Visible : Visibility.Collapsed;
+            DetailRsIniBtn.Opacity = card.RsIniExists ? 1 : 0.3;
             DetailRsDeleteBtn.Tag = card;
-            DetailRsDeleteBtn.Visibility = card.RsDeleteVisibility;
+            var rsShow = card.RsDeleteVisibility == Visibility.Visible;
+            DetailRsDeleteBtn.Opacity = rsShow ? 1 : 0;
+            DetailRsDeleteBtn.IsHitTestVisible = rsShow;
         }
 
         // DC row
@@ -2497,10 +3510,11 @@ public sealed partial class MainWindow : Window
             DetailDcInstallBtn.BorderThickness = new Thickness(1);
             DetailDcIniBtn.Tag = card;
             DetailDcIniBtn.IsEnabled = card.DcIniExists;
-            DetailDcIniCopy.Tag = card;
-            DetailDcIniCopy.Visibility = card.DcIniExists ? Visibility.Visible : Visibility.Collapsed;
+            DetailDcIniBtn.Opacity = card.DcIniExists ? 1 : 0.3;
             DetailDcDeleteBtn.Tag = card;
-            DetailDcDeleteBtn.Visibility = card.DcDeleteVisibility;
+            var dcShow = card.DcDeleteVisibility == Visibility.Visible;
+            DetailDcDeleteBtn.Opacity = dcShow ? 1 : 0;
+            DetailDcDeleteBtn.IsHitTestVisible = dcShow;
         }
 
         // RenoDX row (also used for external-only / Discord link)
@@ -2518,7 +3532,8 @@ public sealed partial class MainWindow : Window
                 DetailRdxInstallBtn.Foreground = Brush("AccentBlueBrush");
                 DetailRdxInstallBtn.BorderBrush = Brush("AccentBlueBorderBrush");
                 DetailRdxInstallBtn.BorderThickness = new Thickness(1);
-                DetailRdxDeleteBtn.Visibility = Visibility.Collapsed;
+                DetailRdxDeleteBtn.Opacity = 0;
+                DetailRdxDeleteBtn.IsHitTestVisible = false;
             }
             else
             {
@@ -2531,7 +3546,9 @@ public sealed partial class MainWindow : Window
                 DetailRdxInstallBtn.BorderBrush = new SolidColorBrush(ParseHexColor(card.InstallBtnBorderBrush));
                 DetailRdxInstallBtn.BorderThickness = new Thickness(1);
                 DetailRdxDeleteBtn.Tag = card;
-                DetailRdxDeleteBtn.Visibility = card.ReinstallRowVisibility;
+                var rdxShow = card.ReinstallRowVisibility == Visibility.Visible;
+                DetailRdxDeleteBtn.Opacity = rdxShow ? 1 : 0;
+                DetailRdxDeleteBtn.IsHitTestVisible = rdxShow;
             }
         }
 
@@ -2539,25 +3556,30 @@ public sealed partial class MainWindow : Window
         if (isLumaMode)
         {
             DetailLumaRow.Visibility = Visibility.Visible;
-            DetailLumaStatus.Text = card.LumaActionLabel.Replace("↺  ", "").Replace("⬇  ", "");
-            DetailLumaStatus.Foreground = new SolidColorBrush(
-                card.LumaStatus == GameStatus.Installed ? ((SolidColorBrush)Application.Current.Resources["AccentGreenBrush"]).Color
-                : ((SolidColorBrush)Application.Current.Resources["TextSecondaryBrush"]).Color);
+            DetailLumaStatus.Text = card.LumaStatusText;
+            DetailLumaStatus.Foreground = new SolidColorBrush(ParseColor(card.LumaStatusColor));
             DetailLumaInstallBtn.Tag = card;
             DetailLumaInstallBtn.Content = card.LumaActionLabel;
             DetailLumaInstallBtn.IsEnabled = card.IsLumaNotInstalling;
+            DetailLumaInstallBtn.Background = new SolidColorBrush(ParseHexColor(card.LumaBtnBackground));
+            DetailLumaInstallBtn.Foreground = new SolidColorBrush(ParseHexColor(card.LumaBtnForeground));
+            DetailLumaInstallBtn.BorderBrush = new SolidColorBrush(ParseHexColor(card.LumaBtnBorderBrush));
+            DetailLumaInstallBtn.BorderThickness = new Thickness(1);
             DetailLumaDeleteBtn.Tag = card;
-            DetailLumaDeleteBtn.Visibility = card.LumaReinstallVisibility;
+            var lumaShow = card.LumaReinstallVisibility == Visibility.Visible;
+            DetailLumaDeleteBtn.Opacity = lumaShow ? 1 : 0;
+            DetailLumaDeleteBtn.IsHitTestVisible = lumaShow;
         }
         else DetailLumaRow.Visibility = Visibility.Collapsed;
 
         // UE-Extended flyout (inline in RenoDX row, column 3)
         if (card.UeExtendedToggleVisibility == Visibility.Visible && !isLumaMode)
         {
-            DetailUeExtendedBtn.Visibility = Visibility.Visible;
+            DetailUeExtendedBtn.Opacity = 1;
+            DetailUeExtendedBtn.IsHitTestVisible = true;
             DetailUeExtendedBtn.Tag = card;
-            DetailUeExtendedItem.Tag = card;
-            DetailUeExtendedItem.Text = card.UseUeExtended ? "Disable UE Extended" : "Enable UE Extended";
+            ToolTipService.SetToolTip(DetailUeExtendedBtn,
+                card.UseUeExtended ? "Disable UE Extended" : "Enable UE Extended");
             // Visual indicator: green when enabled, default when off
             if (card.UseUeExtended)
             {
@@ -2572,7 +3594,11 @@ public sealed partial class MainWindow : Window
                 DetailUeExtendedBtn.BorderBrush = Brush("BorderStrongBrush");
             }
         }
-        else DetailUeExtendedBtn.Visibility = Visibility.Collapsed;
+        else
+        {
+            DetailUeExtendedBtn.Opacity = 0;
+            DetailUeExtendedBtn.IsHitTestVisible = false;
+        }
 
         // External-only link is now shown inline in the RenoDX row
 
@@ -2870,6 +3896,22 @@ public sealed partial class MainWindow : Window
         OverridesPanel.Children.Add(bit32Toggle);
         OverridesPanel.Children.Add(MakeSeparator());
 
+        // ── Wiki exclusion ────────────────────────────────────────────────────────
+        var wikiExcludeToggle = new ToggleSwitch
+        {
+            Header = "Wiki exclusion",
+            IsOn = ViewModel.IsWikiExcluded(gameName),
+            OnContent = "Excluded from wiki lookups",
+            OffContent = "Included in wiki lookups",
+            Foreground = Brush("TextSecondaryBrush"),
+            FontSize = 12,
+        };
+        ToolTipService.SetToolTip(wikiExcludeToggle,
+            "When enabled, this game will not be looked up on the RenoDX wiki. " +
+            "Useful for games that share a name with an unrelated wiki entry.");
+        OverridesPanel.Children.Add(wikiExcludeToggle);
+        OverridesPanel.Children.Add(MakeSeparator());
+
         // ── Save button ──────────────────────────────────────────────────────────
         var saveBtn = new Button
         {
@@ -2924,6 +3966,10 @@ public sealed partial class MainWindow : Window
             bool now32Bit = bit32Toggle.IsOn;
             if (!string.IsNullOrEmpty(det) && now32Bit != ViewModel.Is32BitGame(det))
                 ViewModel.Toggle32Bit(det);
+
+            // Wiki exclusion
+            if (!string.IsNullOrEmpty(det) && wikiExcludeToggle.IsOn != ViewModel.IsWikiExcluded(det))
+                ViewModel.ToggleWikiExclusion(det);
 
             // DLL naming override
             bool nowDllOverride = dllOverrideToggle.IsOn;
