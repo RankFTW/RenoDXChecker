@@ -1,3 +1,14 @@
+## v1.4.4
+
+### New Features
+
+**Drag-and-drop archive extraction**
+- Archives (.zip, .7z, .rar, .tar, .gz, .bz2, .xz) can now be dragged directly onto the RDXC window. The archive is extracted using the bundled 7-Zip, and any `.addon64` or `.addon32` files inside are automatically found and installed via the existing addon install flow.
+- If multiple addon files are found inside an archive, a picker dialog lets you choose which one to install.
+- If no addon files are found, a clear message is shown.
+
+---
+
 ## v1.4.3
 
 ### New Features

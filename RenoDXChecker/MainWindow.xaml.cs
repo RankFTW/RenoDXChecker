@@ -1980,11 +1980,16 @@ public sealed partial class MainWindow : Window
         if (e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems))
         {
             e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
-            e.DragUIOverride.Caption = "Drop to add game or install addon";
+            e.DragUIOverride.Caption = "Drop to add game, install addon, or extract archive";
             e.DragUIOverride.IsCaptionVisible = true;
             e.DragUIOverride.IsGlyphVisible = true;
         }
     }
+
+    private static readonly HashSet<string> ArchiveExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".zip", ".7z", ".rar", ".tar", ".gz", ".bz2", ".xz", ".tar.gz", ".tgz", ".tar.bz2", ".tar.xz",
+    };
 
     private async void Grid_Drop(object sender, DragEventArgs e)
     {
@@ -2008,6 +2013,20 @@ public sealed partial class MainWindow : Window
                 catch (Exception ex)
                 {
                     CrashReporter.Log($"DragDrop addon: error processing '{file.Path}': {ex.Message}");
+                }
+                continue;
+            }
+
+            // Handle archive files — extract and look for .addon64/.addon32 inside
+            if (ArchiveExtensions.Contains(ext))
+            {
+                try
+                {
+                    await ProcessDroppedArchive(file.Path);
+                }
+                catch (Exception ex)
+                {
+                    CrashReporter.Log($"DragDrop archive: error processing '{file.Path}': {ex.Message}");
                 }
                 continue;
             }
@@ -2118,6 +2137,139 @@ public sealed partial class MainWindow : Window
             Name = finalName, InstallPath = gameRoot, Source = "Manual", IsManuallyAdded = true
         };
         ViewModel.AddManualGameCommand.Execute(game);
+    }
+
+    /// <summary>
+    /// <summary>
+    /// Handles a dropped archive file (.zip, .7z, .rar, etc.) — extracts it using 7-Zip,
+    /// looks for .addon64/.addon32 files inside, and passes them to ProcessDroppedAddon.
+    /// </summary>
+    private async Task ProcessDroppedArchive(string archivePath)
+    {
+        var archiveName = Path.GetFileName(archivePath);
+        CrashReporter.Log($"DragDrop archive: received '{archiveName}'");
+
+        var sevenZipExe = Services.ReShadeExtractor.Find7ZipExe();
+        if (sevenZipExe == null)
+        {
+            var errDialog = new ContentDialog
+            {
+                Title = "7-Zip Not Found",
+                Content = "Cannot extract archive — 7-Zip was not found. Please reinstall RDXC.",
+                CloseButtonText = "OK",
+                XamlRoot = this.Content.XamlRoot,
+            };
+            await errDialog.ShowAsync();
+            return;
+        }
+
+        // Extract entire archive to a temp directory
+        var tempDir = Path.Combine(Path.GetTempPath(), $"rdxc_archive_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = sevenZipExe,
+                Arguments = $"x \"{archivePath}\" -o\"{tempDir}\" -y",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+
+            CrashReporter.Log($"DragDrop archive: extracting with {psi.FileName} {psi.Arguments}");
+
+            using var proc = System.Diagnostics.Process.Start(psi);
+            if (proc == null)
+            {
+                CrashReporter.Log("DragDrop archive: failed to start 7z process");
+                return;
+            }
+
+            // Read output asynchronously to prevent deadlock
+            var stdoutTask = proc.StandardOutput.ReadToEndAsync();
+            var stderrTask = proc.StandardError.ReadToEndAsync();
+            proc.WaitForExit(60_000); // 60 second timeout for large archives
+
+            var stderr = await stderrTask;
+            if (!string.IsNullOrWhiteSpace(stderr))
+                CrashReporter.Log($"DragDrop archive: 7z stderr: {stderr}");
+
+            if (proc.ExitCode != 0)
+            {
+                CrashReporter.Log($"DragDrop archive: 7z exit code {proc.ExitCode}");
+                var failDialog = new ContentDialog
+                {
+                    Title = "Archive Extraction Failed",
+                    Content = $"Failed to extract '{archiveName}'. The file may be corrupt or in an unsupported format.",
+                    CloseButtonText = "OK",
+                    XamlRoot = this.Content.XamlRoot,
+                };
+                await failDialog.ShowAsync();
+                return;
+            }
+
+            // Search for .addon64 and .addon32 files in the extracted contents
+            var addonFiles = Directory.GetFiles(tempDir, "*.addon64", SearchOption.AllDirectories)
+                .Concat(Directory.GetFiles(tempDir, "*.addon32", SearchOption.AllDirectories))
+                .ToList();
+
+            if (addonFiles.Count == 0)
+            {
+                CrashReporter.Log($"DragDrop archive: no addon files found in '{archiveName}'");
+                var noAddonDialog = new ContentDialog
+                {
+                    Title = "No Addon Found",
+                    Content = $"No .addon64 or .addon32 files were found inside '{archiveName}'.",
+                    CloseButtonText = "OK",
+                    XamlRoot = this.Content.XamlRoot,
+                };
+                await noAddonDialog.ShowAsync();
+                return;
+            }
+
+            CrashReporter.Log($"DragDrop archive: found {addonFiles.Count} addon file(s): [{string.Join(", ", addonFiles.Select(Path.GetFileName))}]");
+
+            // If multiple addons found, let the user pick; otherwise use the single one
+            string addonToInstall;
+            if (addonFiles.Count == 1)
+            {
+                addonToInstall = addonFiles[0];
+            }
+            else
+            {
+                // Show a picker dialog for multiple addons
+                var combo = new ComboBox
+                {
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    PlaceholderText = "Select addon to install...",
+                };
+                foreach (var af in addonFiles)
+                    combo.Items.Add(new ComboBoxItem { Content = Path.GetFileName(af), Tag = af });
+                combo.SelectedIndex = 0;
+
+                var pickDialog = new ContentDialog
+                {
+                    Title = $"Multiple Addons in '{archiveName}'",
+                    Content = combo,
+                    PrimaryButtonText = "Install",
+                    CloseButtonText = "Cancel",
+                    XamlRoot = this.Content.XamlRoot,
+                };
+                if (await pickDialog.ShowAsync() != ContentDialogResult.Primary) return;
+                addonToInstall = (combo.SelectedItem as ComboBoxItem)?.Tag as string ?? addonFiles[0];
+            }
+
+            // Pass the extracted addon to the existing install flow
+            await ProcessDroppedAddon(addonToInstall);
+        }
+        finally
+        {
+            // Clean up temp directory
+            try { Directory.Delete(tempDir, recursive: true); } catch { }
+        }
     }
 
     /// <summary>
