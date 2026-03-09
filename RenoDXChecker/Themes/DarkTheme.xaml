@@ -170,6 +170,19 @@
     </Style>
 
     <!-- ═══════════════════════════════════════════════════════════════════════
+         Card grid colors
+         ═══════════════════════════════════════════════════════════════════════ -->
+    <Color x:Key="CardBackground">#FF141820</Color>
+    <Color x:Key="CardHighlightBackground">#FF1A2840</Color>
+    <Color x:Key="CardBorder">#FF1E2430</Color>
+    <Color x:Key="CardHighlightBorder">#FF2A4060</Color>
+
+    <SolidColorBrush x:Key="CardBackgroundBrush"          Color="{StaticResource CardBackground}"/>
+    <SolidColorBrush x:Key="CardHighlightBackgroundBrush" Color="{StaticResource CardHighlightBackground}"/>
+    <SolidColorBrush x:Key="CardBorderBrush"              Color="{StaticResource CardBorder}"/>
+    <SolidColorBrush x:Key="CardHighlightBorderBrush"     Color="{StaticResource CardHighlightBorder}"/>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════
          Layout constants
          ═══════════════════════════════════════════════════════════════════════ -->
     <x:Double x:Key="CardItemWidth">496</x:Double>

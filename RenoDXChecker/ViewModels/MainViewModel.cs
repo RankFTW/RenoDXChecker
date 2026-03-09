@@ -29,12 +29,29 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private AppPage currentPage = AppPage.GameView;
     [ObservableProperty] private GameCardViewModel? selectedGame;
     [ObservableProperty] private bool hasUpdatesAvailable;
+    [ObservableProperty] private bool _isGridLayout = false;
 
     public Visibility HasUpdatesAvailableVisibility =>
-        hasUpdatesAvailable ? Visibility.Visible : Visibility.Collapsed;
+        HasUpdatesAvailable ? Visibility.Visible : Visibility.Collapsed;
 
     partial void OnHasUpdatesAvailableChanged(bool value)
         => OnPropertyChanged(nameof(HasUpdatesAvailableVisibility));
+
+    public Visibility DetailPanelVisibility =>
+        IsGridLayout ? Visibility.Collapsed : Visibility.Visible;
+
+    public Visibility CardGridVisibility =>
+        IsGridLayout ? Visibility.Visible : Visibility.Collapsed;
+
+    public string LayoutToggleLabel =>
+        IsGridLayout ? "Detail View" : "Grid View";
+
+    partial void OnIsGridLayoutChanged(bool value)
+    {
+        OnPropertyChanged(nameof(DetailPanelVisibility));
+        OnPropertyChanged(nameof(CardGridVisibility));
+        OnPropertyChanged(nameof(LayoutToggleLabel));
+    }
 
     /// <summary>
     /// Raised when an install would overwrite a dxgi.dll that RDXC cannot identify
@@ -1040,6 +1057,9 @@ public partial class MainViewModel : ObservableObject
         _favouriteGames = new HashSet<string>(
             Load<List<string>>("FavouriteGames", _favouriteGames?.ToList() ?? new()), StringComparer.OrdinalIgnoreCase);
 
+        if (s.TryGetValue("GridLayout", out var glVal))
+            IsGridLayout = glVal == "1";
+
         CrashReporter.Log($"LoadNameMappings: loaded {_gameRenames.Count} renames, {_dllOverrides.Count} DLL overrides, {_folderOverrides.Count} folder overrides");
         }
         finally
@@ -1803,6 +1823,7 @@ public partial class MainViewModel : ObservableObject
             s["FolderOverrides"]     = JsonSerializer.Serialize(_folderOverrides);
             s["HiddenGames"]         = JsonSerializer.Serialize(_hiddenGames?.ToList() ?? new List<string>());
             s["FavouriteGames"]      = JsonSerializer.Serialize(_favouriteGames?.ToList() ?? new List<string>());
+            s["GridLayout"]          = IsGridLayout ? "1" : "0";
             SaveSettingsFile(s);
         }
         catch { }

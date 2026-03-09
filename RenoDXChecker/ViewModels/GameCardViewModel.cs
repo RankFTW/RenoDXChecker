@@ -95,6 +95,64 @@ public partial class GameCardViewModel : ObservableObject
         : IsManaged ? "#C8D4E8"   // brighter — something is installed
         : "#5A6880";              // dimmer — untouched game
 
+    // ── Card grid highlight state ─────────────────────────────────────────────────
+    [ObservableProperty] private bool _cardHighlighted = false;
+
+    // Card highlight styling (computed from CardHighlighted)
+    public string CardBackground => CardHighlighted ? "#1A2840" : "#141820";
+    public string CardBorderBrush => CardHighlighted ? "#2A4060" : "#1E2430";
+
+    // ── Card grid: component status dot colors ────────────────────────────────────
+    // NotInstalled/Available → gray, Installed → green, UpdateAvailable → orange, Installing → blue
+    private static string StatusDotColor(GameStatus s, bool installing) =>
+        installing   ? "#2196F3"
+        : s == GameStatus.Installed       ? "#4CAF50"
+        : s == GameStatus.UpdateAvailable ? "#FF9800"
+        : "#5A6880";
+
+    public string CardRdxStatusDot  => StatusDotColor(Status, IsInstalling);
+    public string CardRsStatusDot   => StatusDotColor(RsStatus, RsIsInstalling);
+    public string CardDcStatusDot   => StatusDotColor(DcStatus, DcIsInstalling);
+    public string CardLumaStatusDot => StatusDotColor(LumaStatus, IsLumaInstalling);
+
+    /// <summary>True when the Luma status dot should be visible on the card grid.</summary>
+    public bool CardLumaVisible => LumaFeatureEnabled && IsLumaMode && LumaMod != null;
+
+    // ── Card grid: action and info properties ─────────────────────────────────────
+    /// <summary>Label for the card's primary action button.</summary>
+    public string CardPrimaryActionLabel
+    {
+        get
+        {
+            var effectiveStatus = (LumaFeatureEnabled && IsLumaMode && LumaMod != null)
+                ? LumaStatus : Status;
+            var effectiveInstalling = (LumaFeatureEnabled && IsLumaMode && LumaMod != null)
+                ? IsLumaInstalling : IsInstalling;
+
+            if (effectiveInstalling) return "Installing...";
+            if (IsManaged) return "Manage";
+            return "Install";
+        }
+    }
+
+    /// <summary>True when the game has notes or a wiki/name link — shows info indicator on card.</summary>
+    public bool HasInfoIndicator => HasNotes || HasNameUrl;
+
+    /// <summary>False when any component is currently installing — disables card install button.</summary>
+    public bool CanCardInstall => !IsInstalling && !RsIsInstalling && !DcIsInstalling && !IsLumaInstalling;
+
+    // ── Per-component install enabled (card install flyout) ───────────────────────
+    public bool CardRdxInstallEnabled  => !IsInstalling && Mod?.SnapshotUrl != null && !IsExternalOnly;
+    public bool CardRsInstallEnabled   => !RsIsInstalling && !RsBlockedByDcMode;
+    public bool CardDcInstallEnabled   => !DcIsInstalling;
+    public bool CardLumaInstallEnabled => !IsLumaInstalling && LumaMod?.DownloadUrl != null;
+
+    // ── Per-component installed state (card install flyout uninstall visibility) ──
+    public bool IsRdxInstalled  => Status is GameStatus.Installed or GameStatus.UpdateAvailable;
+    public bool IsRsInstalled   => RsStatus is GameStatus.Installed or GameStatus.UpdateAvailable;
+    public bool IsDcInstalled   => DcStatus is GameStatus.Installed or GameStatus.UpdateAvailable;
+    public bool IsLumaInstalled => LumaStatus is GameStatus.Installed or GameStatus.UpdateAvailable;
+
     /// <summary>True when any component (RenoDX, ReShade, DC, Luma) is installed or has an update.</summary>
     public bool IsManaged =>
         Status is GameStatus.Installed or GameStatus.UpdateAvailable ||
@@ -111,6 +169,11 @@ public partial class GameCardViewModel : ObservableObject
     }
 
     partial void OnIsSelectedChanged(bool value) => NotifySidebarProps();
+    partial void OnCardHighlightedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CardBackground));
+        OnPropertyChanged(nameof(CardBorderBrush));
+    }
 
     // ── Component detail expand/collapse ──────────────────────────────────────────
     [ObservableProperty] private bool _componentExpanded;
@@ -355,6 +418,9 @@ public partial class GameCardViewModel : ObservableObject
     public string RsBtnBackground  => RsBlockedByDcMode ? "#1E242C" : RsStatus == GameStatus.UpdateAvailable ? "#201838" : "#182840";
     public string RsBtnForeground  => RsBlockedByDcMode ? "#6B7A8E" : RsStatus == GameStatus.UpdateAvailable ? "#B898E8" : "#7AACDD";
     public string RsBtnBorderBrush => RsBlockedByDcMode ? "#283240" : RsStatus == GameStatus.UpdateAvailable ? "#3A2860" : "#2A4468";
+    public string LumaBtnBackground  => LumaStatus == GameStatus.UpdateAvailable ? "#201838" : "#182840";
+    public string LumaBtnForeground  => LumaStatus == GameStatus.UpdateAvailable ? "#B898E8" : "#7AACDD";
+    public string LumaBtnBorderBrush => LumaStatus == GameStatus.UpdateAvailable ? "#3A2860" : "#2A4468";
 
     public Visibility DcProgressVisibility => DcIsInstalling ? Visibility.Visible : Visibility.Collapsed;
     public Visibility DcMessageVisibility  => string.IsNullOrEmpty(DcActionMessage) ? Visibility.Collapsed : Visibility.Visible;
@@ -444,6 +510,21 @@ public partial class GameCardViewModel : ObservableObject
     public string LumaActionLabel => IsLumaInstalling ? "Installing..."
         : LumaStatus == GameStatus.Installed ? "↺  Reinstall Luma"
         : "⬇  Install Luma";
+
+    // Component table: Luma short status/action (consistent with RS/DC/RDX)
+    public string LumaStatusText => IsLumaInstalling ? "Installing…"
+        : LumaStatus == GameStatus.UpdateAvailable ? "Update"
+        : LumaStatus == GameStatus.Installed       ? "Installed"
+        : "Ready";
+    public string LumaStatusColor => IsLumaInstalling ? "#D4A856"
+        : LumaStatus == GameStatus.UpdateAvailable ? "#B898E8"
+        : LumaStatus == GameStatus.Installed       ? "#5ECB7D"
+        : "#A0AABB";
+    public string LumaShortAction => IsLumaInstalling ? "…"
+        : LumaStatus == GameStatus.UpdateAvailable ? "⬆ Update"
+        : LumaStatus == GameStatus.Installed       ? "↺ Reinstall"
+        : "⬇ Install";
+
     // In Luma mode: hide RenoDX, ReShade, and DC rows
     // External-only: hide RenoDX row (ReShade + DC still shown)
     public Visibility RenoDxRowVisibility => (EffectiveLumaMode || IsExternalOnly) ? Visibility.Collapsed : Visibility.Visible;
@@ -661,12 +742,36 @@ public partial class GameCardViewModel : ObservableObject
         OnPropertyChanged(nameof(LumaProgressVisibility));
         OnPropertyChanged(nameof(LumaMessageVisibility));
         OnPropertyChanged(nameof(LumaActionLabel));
+        OnPropertyChanged(nameof(LumaStatusText));
+        OnPropertyChanged(nameof(LumaStatusColor));
+        OnPropertyChanged(nameof(LumaShortAction));
+        OnPropertyChanged(nameof(LumaBtnBackground));
+        OnPropertyChanged(nameof(LumaBtnForeground));
+        OnPropertyChanged(nameof(LumaBtnBorderBrush));
         OnPropertyChanged(nameof(RenoDxRowVisibility));
         OnPropertyChanged(nameof(ReShadeRowVisibility));
         OnPropertyChanged(nameof(DcRowVisibility));
         // Sidebar managed-state color
         OnPropertyChanged(nameof(IsManaged));
         OnPropertyChanged(nameof(SidebarItemForeground));
+        // Card grid properties
+        OnPropertyChanged(nameof(CardRdxStatusDot));
+        OnPropertyChanged(nameof(CardRsStatusDot));
+        OnPropertyChanged(nameof(CardDcStatusDot));
+        OnPropertyChanged(nameof(CardLumaStatusDot));
+        OnPropertyChanged(nameof(CardLumaVisible));
+        OnPropertyChanged(nameof(CardPrimaryActionLabel));
+        OnPropertyChanged(nameof(HasInfoIndicator));
+        OnPropertyChanged(nameof(CanCardInstall));
+        // Per-component install enabled / installed state
+        OnPropertyChanged(nameof(CardRdxInstallEnabled));
+        OnPropertyChanged(nameof(CardRsInstallEnabled));
+        OnPropertyChanged(nameof(CardDcInstallEnabled));
+        OnPropertyChanged(nameof(CardLumaInstallEnabled));
+        OnPropertyChanged(nameof(IsRdxInstalled));
+        OnPropertyChanged(nameof(IsRsInstalled));
+        OnPropertyChanged(nameof(IsDcInstalled));
+        OnPropertyChanged(nameof(IsLumaInstalled));
     }
 
     partial void OnStatusChanged(GameStatus v)              => NotifyAll();
