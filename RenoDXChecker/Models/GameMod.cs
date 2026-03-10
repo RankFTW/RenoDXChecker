@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using RenoDXCommander.Services;
 
 namespace RenoDXCommander.Models;
 
@@ -62,6 +63,8 @@ public class SavedGameLibrary
     public Dictionary<string, string> ResolvedPathCache { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>Maps resolvedPath (lower) → addon filename on disk (empty string = none found).</summary>
     public Dictionary<string, string> AddonFileCache { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Maps resolvedPath (lower) → detected PE MachineType. Populated during game library scan, cleared on rescan.</summary>
+    public Dictionary<string, MachineType> BitnessCache { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public class SavedGame

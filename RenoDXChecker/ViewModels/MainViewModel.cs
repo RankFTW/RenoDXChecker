@@ -210,6 +210,7 @@ public partial class MainViewModel : ObservableObject
     private Dictionary<string, string> _engineTypeCache = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, string> _resolvedPathCache = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, string> _addonFileCache = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, MachineType> _bitnessCache = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>Maps current (renamed) game name → original store-detected name.
     /// Populated during ApplyGameRenames so the Overrides dialog can reset to the original.</summary>
     private Dictionary<string, string> _originalDetectedNames = new(StringComparer.OrdinalIgnoreCase);
@@ -559,8 +560,6 @@ public partial class MainViewModel : ObservableObject
     private Dictionary<string, int> _perGameDcModeOverride = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _updateAllExcludedGames  = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, string> _perGameShaderMode = new(StringComparer.OrdinalIgnoreCase);
-    private HashSet<string> _is32BitGames            = new(StringComparer.OrdinalIgnoreCase);
-
     // ── DLL Naming Override ───────────────────────────────────────────────────────
 
     /// <summary>Per-game DLL naming overrides. Key = game name, Value = config with custom file names.</summary>
@@ -867,21 +866,7 @@ public partial class MainViewModel : ObservableObject
         return false;
     }
 
-    public bool Is32BitGame(string gameName) => _is32BitGames.Contains(gameName);
-    public void Toggle32Bit(string gameName)
-    {
-        if (_is32BitGames.Contains(gameName))
-            _is32BitGames.Remove(gameName);
-        else
-            _is32BitGames.Add(gameName);
-        SaveNameMappings();
-        var card = _allCards.FirstOrDefault(c => c.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase));
-        if (card != null)
-        {
-            card.Is32Bit = _is32BitGames.Contains(gameName);
-            card.NotifyAll();
-        }
-    }
+
 
     /// <summary>Returns the per-game shader mode override, or "Global" if no override set.</summary>
     public string GetPerGameShaderMode(string gameName)
@@ -940,7 +925,6 @@ public partial class MainViewModel : ObservableObject
         _perGameDcModeOverride  = new(StringComparer.OrdinalIgnoreCase);
         _updateAllExcludedGames = new(StringComparer.OrdinalIgnoreCase);
         _perGameShaderMode      = new(StringComparer.OrdinalIgnoreCase);
-        _is32BitGames           = new(StringComparer.OrdinalIgnoreCase);
         _gameRenames            = new(StringComparer.OrdinalIgnoreCase);
         _dllOverrides           = new(StringComparer.OrdinalIgnoreCase);
         _folderOverrides        = new(StringComparer.OrdinalIgnoreCase);
@@ -1017,8 +1001,7 @@ public partial class MainViewModel : ObservableObject
             foreach (var name in oldList) _perGameShaderMode[name] = "Off";
         }
 
-        _is32BitGames = new HashSet<string>(
-            Load<List<string>>("Is32BitGames", new()), StringComparer.OrdinalIgnoreCase);
+        // Is32BitGames key is ignored — auto-detection via PE header replaces manual toggle
 
         if (s.TryGetValue("ShaderDeployMode", out var sdm) &&
             Enum.TryParse<ShaderDeployMode>(sdm, out var parsedSdm))
@@ -1119,7 +1102,6 @@ public partial class MainViewModel : ObservableObject
         MigrateHashSet(_ueExtendedGames, oldName, newName);
         MigrateDict(_perGameDcModeOverride, oldName, newName);
         MigrateHashSet(_updateAllExcludedGames, oldName, newName);
-        MigrateHashSet(_is32BitGames, oldName, newName);
         MigrateHashSet(_lumaEnabledGames, oldName, newName);
         MigrateHashSet(_lumaDisabledGames, oldName, newName);
 
@@ -1567,7 +1549,7 @@ public partial class MainViewModel : ObservableObject
     // ── Remote Manifest ───────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Seeds the working sets (_nameMappings, _ueExtendedGames, _is32BitGames, etc.)
+    /// Seeds the working sets (_nameMappings, _ueExtendedGames, etc.)
     /// with values from the remote manifest. Local user overrides always take priority:
     /// manifest values are only applied where no local setting already exists.
     /// Must be called BEFORE BuildCards.
@@ -1602,12 +1584,7 @@ public partial class MainViewModel : ObservableObject
                 _manifestNativeHdrGames.Add(game);
         }
 
-        // 32-bit games — additive merge
-        if (manifest.ThirtyTwoBitGames != null)
-        {
-            foreach (var game in manifest.ThirtyTwoBitGames)
-                _is32BitGames.Add(game);
-        }
+        // 32-bit games — no longer seeded; auto-detection via PE header replaces manifest seeding
 
         // DC mode overrides — local per-game overrides take priority
         if (manifest.DcModeOverrides != null)
@@ -1835,7 +1812,6 @@ public partial class MainViewModel : ObservableObject
             s["PerGameDcModeOverride"]  = JsonSerializer.Serialize(_perGameDcModeOverride);
             s["UpdateAllExcluded"]     = JsonSerializer.Serialize(_updateAllExcludedGames.ToList());
             s["PerGameShaderMode"]    = JsonSerializer.Serialize(_perGameShaderMode);
-            s["Is32BitGames"]         = JsonSerializer.Serialize(_is32BitGames.ToList());
             s["ShaderDeployMode"]    = ShaderDeployMode.ToString();
             s["SkipUpdateCheck"]     = SkipUpdateCheck ? "true" : "false";
             s["VerboseLogging"]     = VerboseLogging ? "true" : "false";
@@ -1984,6 +1960,7 @@ public partial class MainViewModel : ObservableObject
         _engineTypeCache.Clear();
         _resolvedPathCache.Clear();
         _addonFileCache.Clear();
+        _bitnessCache.Clear();
         ApplyDcModeSwitch();
         await InitializeAsync(forceRescan: true);
     }
@@ -2225,6 +2202,10 @@ public partial class MainViewModel : ObservableObject
             r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase) &&
             r.AddonType == AuxInstallService.TypeReShade);
 
+        // Detect bitness for the manually added game
+        var manualMachine = PeHeaderService.DetectGameArchitecture(scanPath);
+        _bitnessCache[scanPath.ToLowerInvariant()] = manualMachine;
+
         var card = new GameCardViewModel
         {
             GameName       = game.Name,
@@ -2272,7 +2253,7 @@ public partial class MainViewModel : ObservableObject
             ExcludeFromUpdateAll   = _updateAllExcludedGames.Contains(game.Name),
             ExcludeFromShaders     = IsShaderExcluded(game.Name),
             ShaderModeOverride     = _perGameShaderMode.TryGetValue(game.Name, out var smO) ? smO : null,
-            Is32Bit                = _is32BitGames.Contains(game.Name),
+            Is32Bit                = manualMachine == MachineType.I386,
             LumaFeatureEnabled     = LumaFeatureEnabled,
             DcRecord        = dcRecManual,
             DcStatus        = dcRecManual != null ? GameStatus.Installed : GameStatus.NotInstalled,
@@ -2852,6 +2833,13 @@ public partial class MainViewModel : ObservableObject
         {
             card.IsInstalling  = true;
             card.ActionMessage = "Updating...";
+
+            // 32-bit toggle: swap URL before install, restore after
+            string? originalSnapshotUrl = card.Mod!.SnapshotUrl;
+            bool swappedTo32 = card.Is32Bit && card.Mod.SnapshotUrl32 != null;
+            if (swappedTo32)
+                card.Mod.SnapshotUrl = card.Mod.SnapshotUrl32;
+
             try
             {
                 var progress = new Progress<(string msg, double pct)>(p =>
@@ -2873,7 +2861,13 @@ public partial class MainViewModel : ObservableObject
             {
                 card.ActionMessage = $"❌ Failed: {ex.Message}";
             }
-            finally { card.IsInstalling = false; }
+            finally
+            {
+                card.IsInstalling = false;
+                // Restore original URL if we swapped to 32-bit for the install
+                if (swappedTo32 && card.Mod != null && originalSnapshotUrl != null)
+                    card.Mod.SnapshotUrl = originalSnapshotUrl;
+            }
         }
 
         SaveLibrary();
@@ -3084,6 +3078,7 @@ public partial class MainViewModel : ObservableObject
                 _engineTypeCache   = savedLib.EngineTypeCache   ?? new(StringComparer.OrdinalIgnoreCase);
                 _resolvedPathCache = savedLib.ResolvedPathCache ?? new(StringComparer.OrdinalIgnoreCase);
                 _addonFileCache    = savedLib.AddonFileCache    ?? new(StringComparer.OrdinalIgnoreCase);
+                _bitnessCache      = savedLib.BitnessCache      ?? new(StringComparer.OrdinalIgnoreCase);
             }
 
             if (savedLib != null && !forceRescan)
@@ -3519,6 +3514,7 @@ public partial class MainViewModel : ObservableObject
         // Thread-safe caches populated during parallel detection, saved to library afterwards.
         var newEngineTypeCache   = new ConcurrentDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var newResolvedPathCache = new ConcurrentDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var newBitnessCache      = new ConcurrentDictionary<string, MachineType>(StringComparer.OrdinalIgnoreCase);
 
         var gameInfos = detectedGames.AsParallel().Select(game =>
         {
@@ -3552,6 +3548,19 @@ public partial class MainViewModel : ObservableObject
                     installPath = overridePath;
             }
 
+            // Detect bitness: use cached value if available, otherwise run PE detection.
+            MachineType machineType;
+            var resolvedKey = installPath.ToLowerInvariant();
+            if (_bitnessCache.TryGetValue(resolvedKey, out var cachedMachine))
+            {
+                machineType = cachedMachine;
+            }
+            else
+            {
+                machineType = PeHeaderService.DetectGameArchitecture(installPath);
+            }
+            newBitnessCache[resolvedKey] = machineType;
+
             var mod      = GameDetectionService.MatchGame(game, _allMods, _nameMappings);
             // Wiki unlink: discard false fuzzy match so the game uses its generic engine addon
             if (mod != null && _manifestWikiUnlinks.Contains(game.Name)) mod = null;
@@ -3584,15 +3593,16 @@ public partial class MainViewModel : ObservableObject
                 }
             }
 
-            return (game, installPath, engine, mod, fallback);
+            return (game, installPath, engine, mod, fallback, machineType);
         }).ToList();
 
         // Snapshot the new caches for SaveLibrary.
         _engineTypeCache   = new Dictionary<string, string>(newEngineTypeCache, StringComparer.OrdinalIgnoreCase);
         _resolvedPathCache = new Dictionary<string, string>(newResolvedPathCache, StringComparer.OrdinalIgnoreCase);
+        _bitnessCache      = new Dictionary<string, MachineType>(newBitnessCache, StringComparer.OrdinalIgnoreCase);
         var newAddonFileCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var (game, installPath, engine, mod, origFallback) in gameInfos)
+        foreach (var (game, installPath, engine, mod, origFallback, detectedMachine) in gameInfos)
         {
             // Always show every detected game — even if no wiki mod exists.
             // The card will have no install button if there's no snapshot URL,
@@ -3936,7 +3946,7 @@ public partial class MainViewModel : ObservableObject
                 ExcludeFromUpdateAll   = _updateAllExcludedGames.Contains(game.Name),
                 ExcludeFromShaders     = IsShaderExcluded(game.Name),
                 ShaderModeOverride     = _perGameShaderMode.TryGetValue(game.Name, out var smBc) ? smBc : null,
-                Is32Bit                = _is32BitGames.Contains(game.Name),
+                Is32Bit                = detectedMachine == MachineType.I386,
                 DllOverrideEnabled     = _dllOverrides.ContainsKey(game.Name),
                 IsNativeHdrGame        = isNativeHdr,
                 IsManifestUeExtended   = useUeExt && !isNativeHdr,
@@ -4206,7 +4216,7 @@ public partial class MainViewModel : ObservableObject
             addonCache[c.InstallPath.ToLowerInvariant()] = !string.IsNullOrEmpty(c.InstalledAddonFileName);
 
         GameLibraryService.Save(detectedGames, addonCache, _hiddenGames, _favouriteGames, _manualGames,
-            _engineTypeCache, _resolvedPathCache, _addonFileCache);
+            _engineTypeCache, _resolvedPathCache, _addonFileCache, _bitnessCache);
     }
 
     private static string FormatAge(DateTime utc)

@@ -219,7 +219,7 @@ public partial class GameCardViewModel : ObservableObject
     /// ❓ = not on wiki, unknown engine. Empty when in Luma mode (hidden).
     /// </summary>
     public string WikiStatusIcon => EffectiveLumaMode ? ""
-                                  : WikiStatus == "✅" ? "✅"
+                                  : WikiStatus == "✅" ? ""
                                   : WikiStatus == "🚧" ? "🚧"
                                   : WikiStatus == "?"  ? "⚠️"
                                   : WikiStatus == "💬" ? "💬"

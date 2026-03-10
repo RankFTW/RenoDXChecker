@@ -24,7 +24,8 @@ public static class GameLibraryService
         HashSet<string> hiddenGames, HashSet<string> favouriteGames, List<DetectedGame> manualGames,
         Dictionary<string, string>? engineTypeCache = null,
         Dictionary<string, string>? resolvedPathCache = null,
-        Dictionary<string, string>? addonFileCache = null)
+        Dictionary<string, string>? addonFileCache = null,
+        Dictionary<string, MachineType>? bitnessCache = null)
     {
         var lib = new SavedGameLibrary
         {
@@ -43,6 +44,7 @@ public static class GameLibraryService
             EngineTypeCache   = engineTypeCache   ?? new(StringComparer.OrdinalIgnoreCase),
             ResolvedPathCache = resolvedPathCache ?? new(StringComparer.OrdinalIgnoreCase),
             AddonFileCache    = addonFileCache    ?? new(StringComparer.OrdinalIgnoreCase),
+            BitnessCache      = bitnessCache      ?? new(StringComparer.OrdinalIgnoreCase),
         };
         Directory.CreateDirectory(Path.GetDirectoryName(LibraryPath)!);
         var json = JsonSerializer.Serialize(lib, JsonOpts);
