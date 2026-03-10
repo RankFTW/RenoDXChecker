@@ -7,6 +7,10 @@
 - If multiple addon files are found inside an archive, a picker dialog lets you choose which one to install.
 - If no addon files are found, a clear message is shown.
 
+**32bit Mod**
+
+- 32bit Mode has been replaced by automatic detection of 32bit game executables. Thanks to Lazorr for implementing this and Jon for the starting point.
+
 ### Changes
 
 **Grid view wiki status icon**

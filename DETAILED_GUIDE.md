@@ -32,7 +32,7 @@ Selecting a game loads its details in the panel to the right.
 
 When a game is selected, the detail panel shows:
 
-- **Game name** with badges for platform source, engine type, wiki status, UE-Extended / Native HDR, and 32-bit mode
+- **Game name** with badges for platform source, engine type, wiki status, UE-Extended / Native HDR
 - **Install path** in monospace text
 - **Components table** — ReShade, Display Commander, RenoDX, and Luma (when applicable), each with status, install/reinstall/update button, options menu, and uninstall button
 - **Overrides section** — all per-game settings inline with descriptions
@@ -189,7 +189,7 @@ Custom shaders: `%LOCALAPPDATA%\RenoDXCommander\reshade\Custom\Shaders\` and `\T
 - Installing Luma deploys the mod zip, `reshade.ini`, and Lilium HDR shaders — everything self-contained.
 - Uninstalling or toggling off removes all Luma files.
 - The ℹ popup shows Luma-specific notes from the wiki and remote manifest.
-- Overrides disables "Exclude from wiki" and "32-bit mode" while Luma is active.
+- Overrides disables "Exclude from wiki" while Luma is active.
 
 Luma downloads are restricted to trusted GitHub URLs under `https://github.com/Filoppi/`.
 
@@ -206,7 +206,6 @@ The Overrides section appears below Components in the detail panel.
 | **↩ Reset** | Restore original name and clear wiki mapping |
 | **DLL naming override** | Custom filenames for ReShade and DC. Existing installs are renamed in place. |
 | **Exclude from Update All** | Skip during bulk updates |
-| **32-bit mode** | Install 32-bit ReShade, DC, and Unity addon |
 | **DC Mode** | Follow Global / Force Off / Force Mode 1 / Force Mode 2 |
 | **Shader Mode** | Global / Off / Minimum / All / User. Per-game shader mode only applies when DC Mode is OFF. |
 | **Save Overrides** | Apply changes and refresh status |
