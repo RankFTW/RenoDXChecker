@@ -1,342 +1,88 @@
-[center][size=6][b]RenoDX Commander (RDXC) v1.3.7[/b][/size]
-[size=3]RenoDX Commander (RDXC) is a desktop manager for HDR mods that auto-detects your Steam, GOG, Epic, EA, Ubisoft, Xbox/Game Pass, Battle.net, and Rockstar Games library and installs or updates ReShade, Display Commander, RenoDX, and Luma in a few clicks. It centralises shader packs, per-game overrides, DC Mode, and DLL naming overrides so you can standardise HDR setups across your entire library without manual file juggling.[/size][/center]
+[center][size=6][b]RenoDX Commander (RDXC)[/b][/size]
+[size=3]A desktop manager for HDR game mods on Windows. Auto-detects your game libraries, installs ReShade, Display Commander, RenoDX, and Luma Framework mods all in a few clicks.[/size][/center]
 
 [line]
 
-[color=#FF6644][b]Disclaimer:[/b][/color] RDXC is an unofficial third-party tool, not affiliated with or endorsed by the RenoDX project, Crosire, pmnoxx, or the Luma Framework. ReShade with full addon support is downloaded from reshade.me at runtime. 7-Zip is bundled under LGPL for archive extraction. Display Commander, RenoDX mods, and Luma Framework mods are downloaded from their official GitHub sources at runtime.
+[color=FF6644][b]Disclaimer[/b][/color]
+RDXC is an unofficial third-party tool, not affiliated with or endorsed by the RenoDX project, Crosire, pmnoxx, or the Luma Framework. All mod files are downloaded from their official sources at runtime and are not redistributed.
 
-[color=#FF4444][b]⚠ Single-player only:[/b][/color] RDXC installs ReShade with full addon support, which may be flagged by anti-cheat systems in online or multiplayer games. Do not use RDXC-installed ReShade in games with active anti-cheat. Uninstall ReShade from any game before playing online.
+[color=FF4444][b] Single-player only[/b][/color]
+RDXC installs ReShade with full addon support, which may be flagged by anti-cheat in online/multiplayer games. Uninstall ReShade before playing online.
+
+[line]
+
+[size=5][b]Download[/b][/size]
+Grab the latest installer from the [url=https://github.com/RankFTW/RenoDXChecker/releases/tag/RDXC]Releases page[/url]. Requires Windows 10/11 x64 and [url=https://dotnet.microsoft.com/download/dotnet/8.0].NET 8 Desktop Runtime[/url].
 
 [line]
 
 [size=5][b]Quick Start[/b][/size]
-
 [list=1]
-[*][b]Run RDXC[/b] — it automatically detects games from Steam, GOG, Epic, EA App, Ubisoft Connect, Xbox / Game Pass, Battle.net, and Rockstar Games Launcher on every launch.
-[*][b]Find your game[/b] using the search bar or filter tabs.
-[*][b]Install ReShade[/b] — top row button on any game card. Downloaded from reshade.me on first launch and cached locally.
-[*][b]Install Display Commander[/b] — middle row. Downloaded from GitHub on first install, cached locally after.
-[*][b]Install RenoDX[/b] — bottom row (supported games only). Downloaded from GitHub.
-[*][b]Launch the game[/b], press [b]Home[/b] to open ReShade, go to the [b]Add-ons[/b] tab, and configure RenoDX.
+[*] [b]Run RDXC[/b] — games are auto-detected from Steam, GOG, Epic, EA App, Ubisoft, Xbox Game Pass, Battle.net, and Rockstar on every launch.
+[*] [b]Pick a game[/b] from the sidebar. Use search or filter chips to narrow the list.
+[*] [b]Install components[/b] from the detail panel — ReShade, Display Commander, and RenoDX each have a one-click install button.
+[*] [b]Launch the game[/b], press [b]Home[/b] to open ReShade, go to the [b]Add-ons[/b] tab, and configure RenoDX.
 [/list]
 
 [line]
 
-[size=5][b]Compact UI[/b][/size]
-
-RDXC offers two layout modes. Toggle between them with the [b]📐[/b] button.
-
+[size=5][b]Features[/b][/size]
 [list]
-[*][b]Full UI (default)[/b] — Card grid showing all games at once. The 📐 button is in the header bar.
-[*][b]Compact UI[/b] — Alphabetical game list on the left, selected game's card and overrides in the center, vertical toolbar on the right. The 📐 button is at the top of the right toolbar.
+[*] [b]8-store game detection[/b] — Steam, GOG, Epic, EA App, Ubisoft Connect, Xbox Game Pass, Battle.net, Rockstar. New games appear automatically on every launch.
+[*] [b]One-click install/update/uninstall[/b] for ReShade, Display Commander, RenoDX addons, and Luma Framework mods
+[*] [b]DC Mode[/b] — 3 levels; controls how Display Commander loads alongside ReShade for better compatibility
+[*] [b]Shader pack management[/b] — 7 HDR shader packs with four deploy modes: Off, Minimum, All, User
+[*] [b]Per-game overrides[/b] — DLL naming, shader mode, DC mode, wiki name mapping, Update All exclusion
+[*] [b]Drag-and-drop[/b] — drop a game .exe to add it, or drop an .addon64/.addon32 to install it
+[*] [b]Remote manifest[/b] — game-specific overrides updated server-side without app releases
+[*] [b]UE-Extended / Native HDR[/b] — automatic detection and addon assignment for Unreal Engine games
+[*] [b]Foreign DLL protection[/b] — detects DXVK, Special K, ENB, etc. before overwriting
+[*] [b]Auto-update[/b] — checks for new RDXC versions on launch
+[*] [b]Settings page[/b] — DC Mode, shader mode, deploy actions, preferences, logs, about, and credits all in one place
 [/list]
-
-Each mode remembers its own window size independently. The active mode preference is saved and persists across app restarts.
-
-In Compact mode the game list displays platform icons (Steam, GOG, Epic, EA App, Ubisoft, Xbox, Battle.net, Rockstar) next to each game name. Games with an available update show a highlighted border.
-
-[line]
-
-[size=5][b]Remote Manifest[/b][/size]
-
-RDXC fetches a remote manifest from GitHub on every launch. The manifest provides game-specific overrides that can be updated without releasing a new version of the app:
-
-[list]
-[*][b]Blacklist[/b] — permanently excluded non-game apps
-[*][b]Install path overrides[/b] — corrected install folders for games with non-standard layouts
-[*][b]Wiki status overrides[/b] — force a specific wiki status label for games the scraper misidentifies
-[*][b]Game notes[/b] — custom notes shown in the info popup (can append to or replace wiki notes)
-[*][b]Native HDR list[/b] — Unreal Engine games automatically assigned UE-Extended
-[*][b]Shader pack URLs[/b] — downloadable shader packs
-[*][b]Luma default games[/b] — games that automatically start in Luma mode on first detection
-[*][b]Luma game notes[/b] — custom notes shown in the info popup when a game is in Luma mode
-[*][b]Wiki unlinks[/b] — force specific games to ignore false fuzzy wiki matches and use their generic engine addon instead
-[/list]
-
-The manifest is fetched from the GitHub API with a raw.githubusercontent.com fallback, and cached locally so RDXC works offline after the first successful fetch.
-
-[line]
-
-[size=5][b]Requirements[/b][/size]
-
-[list]
-[*]Windows 10 or 11 (x64)
-[*][url=https://dotnet.microsoft.com/download/dotnet/8.0].NET 8 Desktop Runtime[/url]
-[/list]
-
-[line]
-
-[size=5][b]Game Detection[/b][/size]
-
-RDXC re-scans all stores on every launch and merges newly installed games into its cached library automatically. New games just appear — no need to delete cache files.
-
-[list]
-[*][b]Steam[/b] — Reads libraryfolders.vdf and appmanifest_*.acf files across all library folders
-[*][b]GOG[/b] — Registry keys under HKLM\SOFTWARE\GOG.com\Games
-[*][b]Epic Games[/b] — Manifest .item files in ProgramData\Epic\EpicGamesLauncher\Data\Manifests
-[*][b]EA App[/b] — installerdata.xml manifests, registry keys (Origin Games, EA Games, Criterion Games, Respawn, BioWare, DICE, PopCap, Ghost Games), default EA Games folders, and EA Desktop config path discovery
-[*][b]Ubisoft Connect[/b] — Registry keys under HKLM\SOFTWARE\Ubisoft\Launcher\Installs, settings.yml game installation path, and default Ubisoft Game Launcher games folder
-[*][b]Xbox / Game Pass[/b] — Windows PackageManager API — identifies games by MicrosoftGame.config presence. Falls back to .GamingRoot file parsing, registry, and folder scanning
-[*][b]Battle.net[/b] — Windows Uninstall registry entries (filtered by Blizzard/Activision publisher), Battle.net.config default install path, and default folder scanning under Program Files\Battle.net and Blizzard Entertainment
-[*][b]Rockstar Games[/b] — Windows Uninstall registry entries (filtered by Rockstar publisher), launcher titles.dat install paths, and default folder scanning under Program Files\Rockstar Games
-[/list]
-
-Games on a disconnected drive are preserved in the cache until the drive is reconnected.
-
-[size=4][b]Adding Games Manually[/b][/size]
-
-Games not automatically detected can be added two ways:
-
-[list]
-[*][b]Add Game button[/b] — enter the game name and pick the install folder.
-[*][b]Drag and drop .exe[/b] — drag a game's .exe file directly onto the RDXC window. RDXC automatically detects the engine type (Unreal, Unity, or Unknown), infers the game root folder by recognising store markers (Steam, GOG, Epic, EA, Xbox, Ubisoft, Battle.net, Rockstar) and engine layouts, and guesses the game name from folder structure and exe name. A confirmation dialog shows all detected info and lets you edit the name before adding.
-[*][b]Drag and drop .addon64/.addon32[/b] — drag a RenoDX addon file onto the RDXC window to install it for a specific game. A game picker lets you choose which game to install the addon to. If a RenoDX addon already exists in the game folder, the dialog warns that it will be replaced. Display Commander addons are never touched. Non-.addon64 / .addon32 files are rejected with a clear error before any download or install.
-[/list]
-
-[line]
-
-[size=5][b]Game Cards[/b][/size]
-
-Each detected game gets a card with up to three rows:
-
-[list]
-[*][b]Top row — ReShade:[/b] Install / Reinstall / Update — Copy INI — Uninstall
-[*][b]Middle row — Display Commander:[/b] Install / Reinstall / Update — Copy TOML — Uninstall
-[*][b]Bottom row — RenoDX Mod:[/b] Install / Reinstall / Update — Links — UE-Extended — Uninstall
-[/list]
-
-Additional controls on each card:
-
-[list]
-[*][b]Star[/b] — Toggle favourite. Favourited games appear in the Favourites tab.
-[*][b]Folder[/b] — Open or change the game's install folder
-[*][b]Target[/b] — Per-game overrides (hover each toggle for details)
-[*][b]Info[/b] — Game info — wiki status, game-specific notes, and common warnings
-[*][b]Chat[/b] — Link to the wiki discussion thread
-[*][b]Hide[/b] — Hide or unhide the game
-[/list]
-
-The engine type badge (Unreal, Unity, or Generic) and store source (Steam, GOG, Epic, EA App, Xbox) appear on each card.
-
-[line]
-
-[size=5][b]DC Mode[/b][/size]
-
-The DC Mode button in the header cycles through three levels that control how Display Commander is loaded and where ReShade lives:
-
-[list]
-[*][b]OFF (default):[/b] ReShade = dxgi.dll in the game folder, DC = zzz_display_commander.addon64 in the game folder
-[*][b]Mode 1:[/b] ReShade is NOT in the game folder (DC loads it from a shared folder), DC = dxgi.dll in the game folder
-[*][b]Mode 2:[/b] ReShade is NOT in the game folder (DC loads it from a shared folder), DC = winmm.dll in the game folder
-[/list]
-
-When DC Mode is active (Mode 1 or 2), ReShade is [b]not installed into individual game folders[/b]. Instead, RDXC syncs the latest ReShade DLLs (ReShade64.dll / ReShade32.dll) to Display Commander's shared ReShade folder at %LOCALAPPDATA%\Programs\Display_Commander\Reshade\. Display Commander loads ReShade from this shared location at runtime. Any existing per-game ReShade install is automatically removed when DC Mode is activated. The ReShade install button on each game card is hidden while DC Mode is active for that game.
-
-Mode 2 installs Display Commander as winmm.dll instead of dxgi.dll, freeing the dxgi.dll slot for other tools or proxy chains. The Deploy DC Mode button next to the DC Mode button applies file renames immediately across all installed games without a full rescan. The Deploy Shaders button deploys the current shader mode to all installed games immediately. Individual games can override the global DC Mode level via Overrides (Follow Global / Force Off / Force Mode 1 / Force Mode 2).
-
-[size=4][b]Why DC Mode is Recommended[/b][/size]
-
-DC Mode (loading Display Commander as dxgi.dll) is the preferred method of running Display Commander. As explained by pmnoxx (Display Commander's developer), loading DC as a ReShade addon causes it to hook too late, which prevents several features from working correctly. See the full [url=https://github.com/pmnoxx/display-commander?tab=readme-ov-file#features]Display Commander feature list[/url] for details:
-
-[list=1]
-[*][b]Streamline / DLSS integration[/b] — Cannot swap DLSS files or view/control DLSS settings when DC loads as an addon.
-[*][b]FPS limiter[/b] — In games without native Reflex, hooking directly into D3D11/D3D12 does not work when DC is an addon.
-[*][b]VSync control[/b] — Toggling VSync on/off does not currently work when a RenoDX addon is also loaded.
-[*][b]Flip swapchain upgrade[/b] — Many games crash when upgrading the swapchain to flip mode. Fixable when DC loads as dxgi.dll.
-[*][b]ASI loader functionality[/b] — DC supports loading DLL files as .asi. Some addons will not work if DC is not loaded as dxgi.dll.
-[*][b]General addon load order[/b] — DLL load order is game-dependent and unpredictable. Some DC functionality may break when loading as an addon.
-[/list]
-
-[line]
-
-[size=5][b]Foreign DLL Protection[/b][/size]
-
-When installing ReShade or DC as dxgi.dll, RDXC checks whether an existing dxgi.dll belongs to another tool (DXVK, Special K, ENB, etc.) using binary signature scanning. If the file cannot be positively identified as ReShade or Display Commander, a confirmation dialog asks whether to overwrite it. During Update All, unidentified foreign files are silently skipped.
-
-The same protection applies to winmm.dll when using DC Mode 2. If an existing winmm.dll cannot be identified as Display Commander, a confirmation dialog asks whether to overwrite it. During Update All, unidentified foreign winmm.dll files are silently skipped.
-
-[line]
-
-[size=5][b]UE-Extended and Native HDR[/b][/size]
-
-Unreal Engine games with native HDR support benefit from the UE-Extended addon instead of the generic UE plugin. Games tagged as native HDR in the remote manifest are automatically assigned UE-Extended and cannot be switched to the generic addon.
-
-These cards display "Extended UE Native HDR" as their engine label. The info popup for these games includes a note that [b]in-game HDR must be turned on[/b] for UE-Extended to work correctly. Other Generic UE cards can be manually toggled to UE-Extended via the lightning bolt button.
-
-[line]
-
-[size=5][b]Luma Framework[/b][/size]
-
-[url=https://github.com/Filoppi/Luma-Framework]Luma Framework[/url] by Pumbo (Filoppi) is a DX11 modding framework built on the ReShade addon system. It adds HDR support, improved rendering, and other graphics enhancements to supported games. RDXC detects Luma-compatible games and shows a Luma toggle badge on each eligible card. Certain games are automatically defaulted to Luma mode via the remote manifest.
-
-[size=4][b]How Luma Mode Works[/b][/size]
-
-[list]
-[*]Activating the Luma badge puts the game into [b]Luma mode[/b].
-[*]RenoDX, ReShade, and Display Commander are [b]automatically uninstalled[/b] and their install rows are hidden.
-[*]Installing Luma downloads and extracts the mod to the game folder, and deploys the bundled reshade.ini and the Lilium HDR shader pack.
-[*]Uninstalling Luma or toggling Luma mode off removes all installed files.
-[*]The info popup shows Luma-specific notes — both from the wiki and from the remote manifest's custom Luma game notes.
-[*]Luma mode state is saved per-game and persists across app restarts.
-[/list]
-
-Luma mod data is fetched at runtime from the [url=https://github.com/Filoppi/Luma-Framework/wiki/Mods-List]Luma wiki[/url]. Additional game-specific notes and defaults are provided by the remote manifest. Luma snapshot downloads are restricted to trusted GitHub URLs under https://github.com/Filoppi/ to prevent untrusted sources.
-
-[line]
-
-[size=5][b]Per-Game Overrides[/b][/size]
-
-Click the target icon on any game card to access overrides. Hover each control for a description.
-
-[list]
-[*][b]Game name[/b] — Editable. Rename the game and the change persists across Refresh and app restarts.
-[*][b]Exclude from wiki[/b] — Use a Discord link instead of install. Ignore wiki matches.
-[*][b]DC Mode[/b] — Dropdown: [b]Follow Global[/b], [b]Force Off[/b], [b]Force DC Mode 1[/b], [b]Force DC Mode 2[/b]. Overrides the global DC Mode level for this game.
-[*][b]Exclude from Update All[/b] — Skip this game during bulk update operations.
-[*][b]Shader mode[/b] — Dropdown: [b]Global[/b] (follow header toggle), [b]Off[/b] (no shaders), [b]Minimum[/b] (Lilium only), [b]All[/b] (all packs), [b]User[/b] (custom folder only). Note: per-game shader mode only applies when DC Mode is OFF. When DC Mode is ON, all DC-mode games share the DC global shader folder.
-[*][b]Wiki name mapping[/b] — Match the game to a different wiki entry by specifying the exact wiki mod name. Also applies to Luma mod matching.
-[*][b]↩ Reset[/b] — Restores the game name to the original store-detected name and clears the wiki name mapping.
-[*][b]DLL naming override[/b] — Override the filenames ReShade and Display Commander are installed as. When enabled, existing RS/DC installs are renamed in place to the custom filenames and kept tracked as installed — no reinstall required. Two text boxes set the ReShade and DC filenames. When toggled off, the custom-named files are removed.
-[/list]
-
-[line]
-
-[size=5][b]INI Presets[/b][/size]
-
-RDXC bundles a default reshade.ini that is seeded into the inis folder on first launch. If you already have a customised file there, it is never overwritten.
-
-When ReShade is installed to a game folder, the bundled reshade.ini is always deployed alongside the DLL, overwriting any existing reshade.ini in that game folder. This ensures ReShade starts with sensible defaults on every install. The deployed ini is left in place if ReShade is later uninstalled.
-
-[line]
-
-[size=5][b]Shader Packs[/b][/size]
-
-RDXC downloads and maintains 7 HDR-compatible ReShade shader packs on every launch.
-
-[size=4][b]Included Packs[/b][/size]
-
-[list]
-[*][url=https://github.com/EndlesslyFlowering/ReShade_HDR_shaders]ReShade HDR Shaders[/url] by EndlesslyFlowering (Lilium)
-[*][url=https://github.com/Filoppi/PumboAutoHDR]PumboAutoHDR[/url] by Filoppi (Pumbo)
-[*][url=https://github.com/smolbbsoop/smolbbsoopshaders]smolbbsoop shaders[/url] by smolbbsoop
-[*][url=https://github.com/MaxG2D/ReshadeSimpleHDRShaders]Reshade Simple HDR Shaders[/url] by MaxG2D
-[*][url=https://github.com/clshortfuse/reshade-shaders]reshade-shaders[/url] by clshortfuse
-[*][url=https://github.com/CreepySasquatch/potatoFX]potatoFX[/url] by CreepySasquatch
-[*][url=https://github.com/crosire/reshade-shaders/tree/slim]reshade-shaders (slim)[/url] by crosire
-[/list]
-
-[size=4][b]Deploy Modes[/b][/size]
-
-The Shaders button in the header cycles through four modes:
-
-[list]
-[*][b]Off[/b] — No shaders deployed. Manage your own manually.
-[*][b]Minimum (default)[/b] — Only the Lilium HDR Shaders pack is deployed.
-[*][b]All[/b] — All 7 packs are deployed.
-[*][b]User[/b] — Only files from your custom folder are deployed.
-[/list]
-
-Custom shaders go in %LOCALAPPDATA%\RenoDXCommander\reshade\Custom\Shaders\ and \Textures\.
-
-The Deploy Shaders button next to the Shaders cycle button deploys the current shader mode to all installed games immediately — no Refresh required. Saving a per-game shader override in the Overrides dialog also triggers a shader deploy for that game automatically.
-
-Clicking Refresh re-evaluates the current mode against all installed games, adding missing files and removing files from packs no longer selected. The status bar shows shader deployment progress.
-
-[size=4][b]Deploy Destinations[/b][/size]
-
-[list]
-[*][b]DC Mode ON:[/b] %LOCALAPPDATA%\Programs\Display_Commander\Reshade\Shaders\ and \Textures\
-[*][b]DC Mode OFF (no DC installed):[/b] <game folder>\reshade-shaders\Shaders\ and \Textures\
-[/list]
-
-[line]
-
-[size=5][b]Filter Tabs[/b][/size]
-
-[list]
-[*][b]Favourites[/b] — Games you've starred as favourites (includes hidden favourites)
-[*][b]All Games[/b] — All auto-detected and manually added games
-[*][b]Unreal[/b] — Unreal Engine games only
-[*][b]Unity[/b] — Unity engine games only
-[*][b]Other[/b] — Games with unknown engine type
-[*][b]RenoDX[/b] — Games with RenoDX wiki mods available
-[*][b]Luma[/b] — Games with Luma Framework mods available
-[*][b]Hidden[/b] — Games you've hidden
-[/list]
-
-The search bar filters within whichever tab is active.
-
-[line]
-
-[size=5][b]Update All[/b][/size]
-
-Three Update All buttons in the header update ReShade, Display Commander, and RenoDX mods across all eligible games in one click. Games excluded via overrides or with unidentified foreign dxgi.dll or winmm.dll files are automatically skipped.
-
-[line]
-
-[size=5][b]Auto-Update[/b][/size]
-
-On every launch, RDXC silently checks for new versions at the [url=https://github.com/RankFTW/RenoDXChecker/releases/tag/RDXC]GitHub release page[/url]. If a newer version is found, a dialog offers Update Now or Later.
-
-To disable this check entirely, go to [b]About > Settings[/b] and toggle [b]Skip update check on launch[/b].
-
-The Settings section also includes:
-
-[list]
-[*][b]Verbose Logging[/b] — When enabled, all activity is continuously logged to rdxc_log.txt in the logs folder. The log auto-rotates at 5 MB. Useful for diagnosing issues — send the log file to the developer alongside any bug reports.
-[/list]
-
-[size=4][b]Full Refresh[/b][/size]
-
-The compact ↻ button next to the Refresh button clears all engine, path, and addon detection caches and re-scans everything from disk. Use this when game files have changed or detection results seem stale. The regular Refresh keeps caches intact and only re-evaluates the library against the latest store data.
 
 [line]
 
 [size=5][b]Troubleshooting[/b][/size]
-
 [list]
-[*][b]Game not detected?[/b] Click Add Game or drag the game's .exe onto the RDXC window.
-[*][b]Xbox games not appearing?[/b] RDXC uses the Windows PackageManager API. Games should appear automatically. If not, click Refresh.
-[*][b]ReShade not loading in-game?[/b] The dxgi.dll file must be in the same folder as the game's main executable. Check with the folder icon that the install path is correct.
-[*][b]Black screen in Unreal games?[/b] Open ReShade (Home key) > Add-ons > RenoDX > set R10G10B10A2_UNORM to output size.
-[*][b]UE-Extended not working?[/b] Ensure in-game HDR is turned ON. UE-Extended requires the game's native HDR output.
-[*][b]Downloads failing?[/b] Click Refresh. If the problem persists, clear the cache from About > Open Downloads Cache.
-[*][b]Foreign dxgi.dll or winmm.dll blocking install?[/b] RDXC detected a file from another mod (DXVK, Special K, ENB, etc.). Choose Overwrite or cancel to keep the existing file.
+[*] [b]Game not detected?[/b] Click [b]Add Game[/b] in the toolbar or drag the game's .exe onto the window.
+[*] [b]Xbox games missing?[/b] Click Refresh — RDXC uses the PackageManager API.
+[*] [b]ReShade not loading?[/b] Check the install path via the folder icon — dxgi.dll must be next to the game exe.
+[*] [b]Black screen (Unreal)?[/b] ReShade → Add-ons → RenoDX → set R10G10B10A2UNORM to output size.
+[*] [b]UE-Extended not working?[/b] Turn on in-game HDR — UE-Extended requires native HDR output.
+[*] [b]Downloads failing?[/b] Click Refresh, or clear cache from Settings → Open Downloads Cache.
+[*] [b]Foreign DLL blocking install?[/b] Choose Overwrite in the dialog, or cancel to keep the existing file.
+[*] [b]Games/mods out of sync?[/b] Settings → Full Refresh to clear all caches.
 [/list]
+
+For detailed documentation on DC Mode, shader packs, Luma Framework, per-game overrides, game detection methods, and more, see the [url=https://github.com/RankFTW/RenoDXChecker]Detailed Guide[/url].
 
 [line]
 
-[size=5][b]Credits[/b][/size]
-
+[size=5][b]Third-Party Components[/b][/size]
 [list]
-[*][url=https://github.com/clshortfuse/renodx]RenoDX[/url] by clshortfuse and contributors — MIT Licence
-[*][url=https://reshade.me]ReShade[/url] by Crosire — BSD 3-Clause Licence
-[*][url=https://github.com/pmnoxx/display-commander]Display Commander[/url] by pmnoxx — Source-available
-[*][url=https://github.com/Filoppi/Luma-Framework]Luma Framework[/url] by Pumbo (Filoppi) — Source-available
-[*][url=https://github.com/zzzprojects/html-agility-pack]HtmlAgilityPack[/url] by ZZZ Projects — MIT Licence
-[*][url=https://github.com/CommunityToolkit/dotnet]CommunityToolkit.Mvvm[/url] by Microsoft — MIT Licence
-[*][url=https://github.com/adamhathcock/sharpcompress]SharpCompress[/url] by Adam Hathcock — MIT Licence
-[*][url=https://www.7-zip.org/]7-Zip[/url] by Igor Pavlov — LGPL-2.1 / BSD-3-Clause
+[*] [url=https://reshade.me]ReShade[/url] by Crosire — BSD 3-Clause
+[*] [url=https://github.com/pmnoxx/display-commander]Display Commander[/url] by pmnoxx — Source-available
+[*] [url=https://github.com/clshortfuse/renodx]RenoDX[/url] by clshortfuse & contributors — MIT
+[*] [url=https://github.com/FiloppiLuma-Framework]Luma Framework[/url] by Pumbo & Filoppi — Source-available
+[*] [url=https://www.7-zip.org]7-Zip[/url] by Igor Pavlov — LGPL-2.1 / BSD-3-Clause
 [/list]
 
 [line]
 
 [size=5][b]Links[/b][/size]
-
 [list]
-[*][url=https://github.com/clshortfuse/renodx]RenoDX GitHub[/url]
-[*][url=https://github.com/clshortfuse/renodx/wiki/Mods]RenoDX Mod Wiki[/url]
-[*][url=https://reshade.me]ReShade[/url]
-[*][url=https://github.com/pmnoxx/display-commander]Display Commander[/url]
-[*][url=https://github.com/pmnoxx/display-commander?tab=readme-ov-file#features]Display Commander Features[/url]
-[*][url=https://github.com/Filoppi/Luma-Framework]Luma Framework[/url]
-[*][url=https://github.com/Filoppi/Luma-Framework/wiki/Mods-List]Luma Mods List[/url]
-[*][url=https://www.hdrmods.com]Creepy's HDR Guides[/url]
-[*][url=https://discord.gg/gF4GRJWZ2A]RenoDX Discord[/url]
-[*][url=https://discord.gg/k3cDruEQ]HDR Den Discord[/url]
-[*][url=https://github.com/Filoppi/Luma-Framework/wiki/Mods-List]HDR Den / Luma Wiki[/url]
-[*][url=https://discordapp.com/channels/1296187754979528747/1475173660686815374]RDXC Support Channel[/url]
-[*][url=https://discord.gg/pQtPYcdE]The Ultra Place / Ultra+ Discord[/url]
-[*][url=https://github.com/RankFTW/RenoDXChecker]RDXC GitHub[/url]
-[*][url=https://ko-fi.com/rankftw]Support RDXC on Ko-Fi[/url]
+[*] [url=https://github.com/clshortfuse/renodx]RenoDX[/url]
+[*] [url=https://github.com/clshortfuse/renodx/wiki/Mods]RenoDX Wiki[/url]
+[*] [url=https://reshade.me]ReShade[/url]
+[*] [url=https://github.com/pmnoxx/display-commander]Display Commander[/url]
+[*] [url=https://github.com/FiloppiLuma-Framework]Luma Framework[/url]
+[*] [url=https://github.com/FiloppiLuma-Framework/wiki/Mods-List]Luma Mods List[/url]
+[*] [url=https://www.hdrmods.com]HDR Guides[/url]
+[*] [url=https://discord.gg/gF4GRJWZ2A]RenoDX Discord[/url]
+[*] [url=https://discord.gg/k3cDruEQ]HDR Den Discord[/url]
+[*] [url=https://discordapp.com/channels/1296187754979528747/1475173660686815374]RDXC Support Channel[/url]
+[*] [url=https://discord.gg/pQtPYcdE]The Ultra Place (Ultra Discord)[/url]
+[*] [url=https://github.com/RankFTW/RenoDXChecker]RDXC GitHub[/url]
+[*] [url=https://ko-fi.com/rankftw]Support RDXC on Ko-Fi[/url]
 [/list]
