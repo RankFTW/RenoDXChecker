@@ -1506,7 +1506,7 @@ public sealed partial class MainWindow : Window
         // ── DLL naming override ──
         bool isDllOverride = ViewModel.HasDllOverride(gameName);
         var existingCfg = ViewModel.GetDllOverride(gameName);
-        bool is32Bit = ViewModel.Is32BitGame(gameName);
+        bool is32Bit = card.Is32Bit;
         var defaultRsName = is32Bit ? "ReShade32.dll" : "ReShade64.dll";
         var defaultDcName = is32Bit ? "zzz_display_commander.addon32" : "zzz_display_commander.addon64";
 
@@ -1586,22 +1586,6 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(updateAllToggle);
         panel.Children.Add(MakeSeparator());
 
-        // ── 32-bit mode ──
-        var bit32Toggle = new ToggleSwitch
-        {
-            Header = "32-bit mode",
-            IsOn = is32Bit,
-            IsEnabled = !isLumaMode,
-            OnContent = "32-bit binaries",
-            OffContent = "64-bit binaries",
-            Foreground = Brush("TextSecondaryBrush"),
-            FontSize = 12,
-        };
-        ToolTipService.SetToolTip(bit32Toggle,
-            "Installs 32-bit versions of ReShade, Unity addon, and Display Commander. Only enable if you know this game is 32-bit.");
-        panel.Children.Add(bit32Toggle);
-        panel.Children.Add(MakeSeparator());
-
         // ── Wiki exclusion ──
         var wikiExcludeToggle = new ToggleSwitch
         {
@@ -1622,8 +1606,8 @@ public sealed partial class MainWindow : Window
         {
             Content = panel,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             MaxHeight = 500,
-            Padding = new Thickness(0, 0, 14, 0), // room for scrollbar so it doesn't overlap content
         };
 
         var flyout = new Flyout
@@ -1718,13 +1702,6 @@ public sealed partial class MainWindow : Window
             if (nowUaExcluded != ViewModel.IsUpdateAllExcluded(effectiveName))
             {
                 ViewModel.ToggleUpdateAllExclusion(effectiveName);
-                anyChanged = true;
-            }
-
-            // 32-bit mode
-            if (bit32Toggle.IsOn != ViewModel.Is32BitGame(effectiveName))
-            {
-                ViewModel.Toggle32Bit(effectiveName);
                 anyChanged = true;
             }
 
@@ -3978,7 +3955,7 @@ public sealed partial class MainWindow : Window
         // ── DLL naming override (grouped in a border) ────────────────────────────
         bool isDllOverride = ViewModel.HasDllOverride(gameName);
         var existingCfg = ViewModel.GetDllOverride(gameName);
-        bool is32Bit = ViewModel.Is32BitGame(gameName);
+        bool is32Bit = card.Is32Bit;
         var defaultRsName = is32Bit ? "ReShade32.dll" : "ReShade64.dll";
         var defaultDcName = is32Bit ? "zzz_display_commander.addon32" : "zzz_display_commander.addon64";
 
@@ -4054,22 +4031,6 @@ public sealed partial class MainWindow : Window
         OverridesPanel.Children.Add(updateAllToggle);
         OverridesPanel.Children.Add(MakeSeparator());
 
-        // ── 32-bit mode ──────────────────────────────────────────────────────────
-        var bit32Toggle = new ToggleSwitch
-        {
-            Header = "32-bit mode",
-            IsOn = is32Bit,
-            IsEnabled = !isLumaMode,
-            OnContent = "32-bit binaries",
-            OffContent = "64-bit binaries",
-            Foreground = Brush("TextSecondaryBrush"),
-            FontSize = 12,
-        };
-        ToolTipService.SetToolTip(bit32Toggle,
-            "Installs 32-bit versions of ReShade, Unity addon, and Display Commander. Only enable if you know this game is 32-bit.");
-        OverridesPanel.Children.Add(bit32Toggle);
-        OverridesPanel.Children.Add(MakeSeparator());
-
         // ── Wiki exclusion ────────────────────────────────────────────────────────
         var wikiExcludeToggle = new ToggleSwitch
         {
@@ -4135,11 +4096,6 @@ public sealed partial class MainWindow : Window
                 ViewModel.SetPerGameShaderMode(det, newShaderMode);
                 ViewModel.DeployShadersForCard(det);
             }
-
-            // 32-bit mode
-            bool now32Bit = bit32Toggle.IsOn;
-            if (!string.IsNullOrEmpty(det) && now32Bit != ViewModel.Is32BitGame(det))
-                ViewModel.Toggle32Bit(det);
 
             // Wiki exclusion
             if (!string.IsNullOrEmpty(det) && wikiExcludeToggle.IsOn != ViewModel.IsWikiExcluded(det))
