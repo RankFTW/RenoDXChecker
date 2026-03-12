@@ -1,150 +1,222 @@
 {
-	"version": 1,
-
-	"blacklist": [
-		"Steamworks Common Redistributables",
-		"QuickPasta",
-		"Apple Music",
-		"DSX",
-		"PlayStation®VR2 App",
-		"SteamVR",
-		"Telegram Desktop",
-		"Windows"
-	],
-
-	"nativeHdrGames": [
-		"Alone in the Dark",
-		"Avowed",
-		"Hell is Us",
-		"Lies of P",
-		"Lost Soul Aside",
-		"Mafia: The Old Country",
-		"Marvel's Midnight Suns",
-		"Mortal Kombat 1",
-		"Returnal",
-		"Still Wakes the Deep"
-	],
-	"ueExtendedGames": [
-		"Crisol: Theater of Idols",
-		"High on Life 2",
-		"Of Ash and Steel",
-		"ROMEO IS A DEAD MAN"
-	],
-	"thirtyTwoBitGames": [
-		"Far Cry 2",
-		"Far Cry 3"
-	],
-
-	"wikiNameOverrides": {
-		"BurnoutPR": "Burnout Paradise Remastered",
-		"Far Cry 2": "Far Cry 2 (dx10) · Far Cry 3 (dx11)",
-		"Far Cry 3": "Far Cry 2 (dx10) · Far Cry 3 (dx11)",
-		"FINAL FANTASY VII REMAKE INTERGRADE": "Final Fantasy VII Remake"
-	},
-	"wikiStatusOverrides": {
-		"Code Vein II": "✅"
-	},
-
-	"installPathOverrides": {
-		"Cyberpunk 2077": "bin\\x64",
-		"Of Ash and Steel": "ofAshAndSteelGame\\Binaries\\Win64"
-	},
-	"snapshotOverrides": {
-		"Far Cry 2": "https://clshortfuse.github.io/renodx/renodx-duniaengine.addon32",
-		"Far Cry 3": "https://clshortfuse.github.io/renodx/renodx-duniaengine.addon32"
-	},
-	"dcModeOverrides": {
-		"Red Dead Redemption 2": 1,
-		"X4: Timelines": 2
-	},
-	"forceExternalOnly": {
-		"Cyberpunk 2077": {
-			"url": "https://discord.gg/gF4GRJWZ2A",
-			"label": "Get on Discord"
-		},
-		"Code Vein II": {
-			"url": "https://github.com/clshortfuse/renodx/discussions/494",
-			"label": "RenoDX Instructions Here"
-		}
-	},
-
-	"gameNotes": {
-		"Crisol: Theater of Idols": {
-			"notes": "ℹ️ Game supports UE-Extended using Native HDR",
-			"notesUrl": null,
-			"notesUrlLabel": null
-		},
-		"Cyberpunk 2077": {
-			"notes": "⚠️ The RenoDX mod for Cyberpunk 2077 is a WIP. Always get the latest build directly from the RenoDX Discord — it is updated more frequently than any wiki download.\n\nSee Creepy's Cyberpunk RenoDX Guide for setup instructions:",
-			"notesUrl": "https://www.hdrmods.com/Cyberpunk",
-			"notesUrlLabel": "Creepy's Cyberpunk RenoDX Guide"
-		},
-		"Dishonored": {
-			"notes": "ℹ️ This game has both 32-bit and 64-bit RenoDX builds.\n\n• 64-bit (default) — for the Microsoft Store and Epic Games Store versions.\n• 32-bit — for the Steam version. Enable 32-bit mode in 🎯 Overrides to use this.",
-			"notesUrl": null,
-			"notesUrlLabel": null
-		},
-		"Far Cry 2": {
-			"notes": "⚠️ Far Cry 2 must run in DX10 for RenoDX to work.\n\nMore information available on Nexus:",
-			"notesUrl": "https://www.nexusmods.com/farcry2/mods/350",
-			"notesUrlLabel": "Far Cry 2 Nexus Link"
-		},
-		"Far Cry 3": {
-			"notes": "⚠️ Far Cry 3 must run in DX11 for RenoDX to work.\n\nMore information available on Nexus:",
-			"notesUrl": "https://www.nexusmods.com/farcry3/mods/354",
-			"notesUrlLabel": "Far Cry 3 Nexus Link"
-		},
-		"Grand Theft Auto V Enhanced": {
-			"notes": "ℹ️ Change ReShade overlay button in ReShade.ini so it doesn't conflict with Rockstar overlay",
-			"notesUrl": null,
-			"notesUrlLabel": null
-		},
-		"High On Life 2": {
-			"notes": "⚠️ This game supports UE-Extended using native HDR. Additional steps must be taken for this to work.\n\nLaunch the game with UE-Extended installed to generate the correct segment of ReShade.ini.\nClose the game and in ReShade.ini look for the line that says 'Set_Path=1' and change this to 'Set_Path=0'\n\nCreate an Engine.ini in the game's Appdata folder with the following information:\n\n[SystemSettings]\nr.AllowHDR=1\nr.HDR.EnableHDROutput=1\nr.HDR.Display.OutputDevice=3\nr.HDR.Display.ColorGamut=2\nr.HDR.UI.CompositeMode=1\n\n[/Script/Engine.RendererSettings]\nr.LUT.UpdateEveryFrame=1\n\nYou can download a preconfigured Engine.ini here:",
-			"notesUrl": "https://github.com/RankFTW/rdxc-manifest/releases/download/Engine.ini/Engine.ini",
-			"notesUrlLabel": "Engine.ini"
-		},
-		"Of Ash and Steel": {
-			"notes": "ℹ️ Works with UE-Extended - Upgrades SDR to HDR",
-			"notesUrl": null,
-			"notesUrlLabel": null
-		},
-		"Red Dead Redemption 2": {
-			"notes": "⚠️ Game must use DC Mode 1 if using DC Mode.\nℹ️ Change ReShade overlay button in ReShade.ini so it doesn't conflict with Rockstar overlay",
-			"notesUrl": null,
-			"notesUrlLabel": null
-		},
-		"X4: Timelines": {
-			"notes": "⚠️ DC must be loaded as winmm.dll using DC Mode 2. Game will not launch with ReShade installed normally and it must be proxied through DC",
-			"notesUrl": null,
-			"notesUrlLabel": null
-		}
-	},
-
-	"wikiUnlinks": [
-		"Elin",
-		"Northern Journey"
-	],
-
-	"lumaDefaultGames": [
-		"Bioshock 2 Remastered",
-		"Bioshock Remastered",
-		"Burnout Paradise Remastered",
-		"BurnoutPR",
-		"FINAL FANTASY VII REMAKE INTERGRADE",
-		"Hollow Knight: Silksong",
-		"Inside"
-	],
-	"lumaGameNotes": {
-		"BioShock Remastered": {
-			"notes": "Additional information available on Nexus below:",
-			"notesUrl": "https://www.nexusmods.com/bioshock/mods/94",
-			"notesUrlLabel": "BioShock Remastered Nexus"
-		},
-		"FINAL FANTASY VII REMAKE INTERGRADE": {
-			"notes": "Recommended to use Luma for this game for best HDR results.\nYou must switch the game to DX11 with launch argument -dx11\n\nAdditional information available on Nexus below:",
-			"notesUrl": "https://www.nexusmods.com/finalfantasy7remake/mods/1974",
-			"notesUrlLabel": "Final Fantasy VII Remake Nexus"
-		}
-	}
+  "version": 1,
+  "blacklist": [
+    "Steamworks Common Redistributables",
+    "QuickPasta",
+    "Apple Music",
+    "DSX",
+    "PlayStation\u00aeVR2 App",
+    "SteamVR",
+    "Telegram Desktop",
+    "Windows",
+    "ShaderGlass",
+    "Soundpad",
+    "3D Mark",
+    "Borderless Gaming",
+    "Lossless Scaling",
+    "OCCT",
+    "Battle.net.exe",
+    "Battle.net.16125",
+    "Battle.net.15492",
+    "Battle.net.15561",
+    "Call of Duty: Modern Warfare 3 - Dedicated Server",
+    "Muckingham Files 3",
+    "Muckingham Files 4",
+    "Pool Party - Summer",
+    "Winter 2023 Seasonal Pack"
+  ],
+  "nativeHdrGames": [
+    "Alone in the Dark",
+    "Avowed",
+    "Hell is Us",
+    "Lies of P",
+    "Lost Soul Aside",
+    "Mafia: The Old Country",
+    "Marvel's Midnight Suns",
+    "Mortal Kombat 1",
+    "Nobody Wants to Die",
+    "Returnal",
+    "Still Wakes the Deep"
+  ],
+  "ueExtendedGames": [
+    "Crisol: Theater of Idols",
+    "Echoes of the End",
+    "High on Life 2",
+    "Nobody Wants to Die",
+    "Of Ash and Steel",
+    "ROMEO IS A DEAD MAN",
+    "Titan Quest II"
+  ],
+  "thirtyTwoBitGames": [
+    "Batman: Arkham Asylum GOTY Edition",
+    "Banquet for Fools",
+    "Far Cry 2",
+    "Far Cry 3",
+    "Max Payne 3",
+    "Tomb Raider (2013)",
+    "Tomb Raider",
+    "Ori and the Blind Forest: Definitive Edition"
+  ],
+  "wikiNameOverrides": {
+    "BurnoutPR": "Burnout Paradise Remastered",
+    "DRAGON QUEST VII Reimagined": "Dragon Quest VII Remake",
+    "DRAGON QUEST\u00ae XI S: Echoes of an Elusive Age\u2122 - Definitive Edition": "Dragon Quest XI (Original & DE)",
+    "EVERSPACE\u2122 2": "EVERSPACE 2",
+    "Far Cry 2": "Far Cry 2 (dx10) \u00b7 Far Cry 3 (dx11)",
+    "Far Cry 3": "Far Cry 2 (dx10) \u00b7 Far Cry 3 (dx11)",
+    "FINAL FANTASY VII REMAKE INTERGRADE": "Final Fantasy VII Remake",
+    "FINAL FANTASY VII REBIRTH": "Final Fantasy 7 : Rebirth",
+    "ELDEN RING": "Elden Ring",
+    "Jedi Survivor": "STAR WARS Jedi: Survivor\u2122"
+  },
+  "wikiStatusOverrides": {
+    "Cities: Skylines": "\u26a0\ufe0f",
+    "Code Vein II": "\u2705",
+    "High On Life 2": "\u2705",
+    "Lies of P": "\u2705",
+    "Nobody Wants to Die": "\u2705"
+  },
+  "installPathOverrides": {
+    "Batman: Arkham Asylum GOTY Edition": "Binaries",
+    "Cyberpunk 2077": "bin\\x64",
+    "Of Ash and Steel": "ofAshAndSteelGame\\Binaries\\Win64",
+    "ELDEN RING": "Game"
+  },
+  "snapshotOverrides": {
+    "Cities: Skylines": "https://notvoosh.github.io/renodx-unity/renodx-unityengine.addon64",
+    "CODE VEIN II": "https://marat569.github.io/renodx/renodx-codevein2.addon64",
+    "Far Cry 2": "https://clshortfuse.github.io/renodx/renodx-duniaengine.addon32",
+    "Far Cry 3": "https://clshortfuse.github.io/renodx/renodx-duniaengine.addon32",
+    "Jedi Fallen Order": "https://clshortfuse.github.io/renodx/renodx-unrealengine.addon64"
+  },
+  "dcModeOverrides": {
+    "X4: Timelines": 2
+  },
+  "forceExternalOnly": {
+    "Avatar: Frontiers of Pandora": {
+      "url": "https://discord.gg/gF4GRJWZ2A",
+      "label": "Get on Discord"
+    },
+    "Cyberpunk 2077": {
+      "url": "https://discord.gg/gF4GRJWZ2A",
+      "label": "Get on Discord"
+    }
+  },
+  "gameNotes": {
+    "Crisol: Theater of Idols": {
+      "notes": "\u2139\ufe0f Game supports UE-Extended using Native HDR.\n\nLaunch the game with UE-Extended installed to generate the correct segment of ReShade.ini.\nClose the game and in ReShade.ini look for the line that says 'Set_Path=1' and change this to 'Set_Path=0'",
+      "notesUrl": null,
+      "notesUrlLabel": null
+    },
+    "Cyberpunk 2077": {
+      "notes": "\u26a0\ufe0f The RenoDX mod for Cyberpunk 2077 is a WIP. Always get the latest build directly from the RenoDX Discord \u2014 it is updated more frequently than any wiki download.\n\nSee Creepy's Cyberpunk RenoDX Guide for setup instructions:",
+      "notesUrl": "https://www.hdrmods.com/Cyberpunk",
+      "notesUrlLabel": "Creepy's Cyberpunk RenoDX Guide"
+    },
+    "Dishonored": {
+      "notes": "\u2139\ufe0f This game has both 32-bit and 64-bit RenoDX builds.\n\n\u2022 64-bit (default) \u2014 for the Microsoft Store and Epic Games Store versions.\n\u2022 32-bit \u2014 for the Steam version. Enable 32-bit mode in \ud83c\udfaf Overrides to use this.",
+      "notesUrl": null,
+      "notesUrlLabel": null
+    },
+    "Dragon Quest VII Reimagined": {
+      "notes": "\u2139\ufe0f Optional: Enable HDR from Engine.ini with DQ7RFix. see below.\nAdd the following cvars to the DQ7RFix.ini.\n\nr.AllowHDR=1\nr.HDR.EnableHDROutput=1\nr.HDR.Display.OutputDevice=5\nr.HDR.Display.ColorGamut=2\nr.HDR.UI.CompositeMode=1\nr.HDR.UI.Level=1.5\n\nThe game has to be run in DX11 mode with '-dx11' argument.\n\nIf using the recommended Engine.ini route then you must also set the Processing Path to Engine HDR in the RenoDX tab of ReShade once in game.\n\nThis is reported to have the best result. SDR upgrade with DX11 and DX12 still works, but can exhibit UI/fog rendering problems.",
+      "notesUrl": "https://codeberg.org/Lyall/DQ7RFix/releases",
+      "notesUrlLabel": "Lyall's DQ7RFix"
+    },
+    "DRAGON QUEST\u00ae XI S: Echoes of an Elusive Age\u2122 - Definitive Edition": {
+      "notes": "\u2139\ufe0f Optional: Enable HDR from Engine.ini. The SDR upgrade path might break some text box UIs.\n\nr.AllowHDR=1\nr.HDR.EnableHDROutput=1\nr.HDR.Display.OutputDevice=5\nr.HDR.Display.ColorGamut=2\nr.HDR.UI.CompositeMode=1\nr.HDR.UI.Level=1.5\n\nAlso support the original game. By default it uses Filmic Postprocess (Mobile).\nCompatible with Luma DLSS/DLAA.",
+      "notesUrl": null,
+      "notesUrlLabel": null
+    },
+    "Echoes of the End: Enhanced Edition": {
+      "notes": "\u2139\ufe0f Game supports UE-Extended using Native HDR\n\nLaunch the game with UE-Extended installed to generate the correct segment of ReShade.ini.\nClose the game and in ReShade.ini look for the line that says 'Set_Path=1' and change this to 'Set_Path=0'",
+      "notesUrl": null,
+      "notesUrlLabel": null
+    },
+    "Far Cry 2": {
+      "notes": "\u26a0\ufe0f Far Cry 2 must run in DX10 for RenoDX to work.\n\nMore information available on Nexus:",
+      "notesUrl": "https://www.nexusmods.com/farcry2/mods/350",
+      "notesUrlLabel": "Far Cry 2 Nexus Link"
+    },
+    "Far Cry 3": {
+      "notes": "\u26a0\ufe0f Far Cry 3 must run in DX11 for RenoDX to work.\n\nMore information available on Nexus:",
+      "notesUrl": "https://www.nexusmods.com/farcry3/mods/354",
+      "notesUrlLabel": "Far Cry 3 Nexus Link"
+    },
+    "Grand Theft Auto V Enhanced": {
+      "notes": "\u2139\ufe0f Change ReShade overlay button in ReShade.ini so it doesn't conflict with Rockstar overlay",
+      "notesUrl": null,
+      "notesUrlLabel": null
+    },
+    "High On Life 2": {
+      "notes": "\u26a0\ufe0f This game supports UE-Extended using native HDR. Additional steps must be taken for this to work.\n\nLaunch the game with UE-Extended installed to generate the correct segment of ReShade.ini.\nClose the game and in ReShade.ini look for the line that says 'Set_Path=1' and change this to 'Set_Path=0'\n\nCreate an Engine.ini in the game's Appdata folder with the following information:\n\n[SystemSettings]\nr.AllowHDR=1\nr.HDR.EnableHDROutput=1\nr.HDR.Display.OutputDevice=3\nr.HDR.Display.ColorGamut=2\nr.HDR.UI.CompositeMode=1\n\n[/Script/Engine.RendererSettings]\nr.LUT.UpdateEveryFrame=1\n\nYou can download a preconfigured Engine.ini here:",
+      "notesUrl": "https://github.com/RankFTW/rdxc-manifest/releases/download/Engine.ini/Engine.ini",
+      "notesUrlLabel": "Engine.ini"
+    },
+    "Nobody Wants to Die": {
+      "notes": "\u26a0\ufe0f This game supports UE-Extended using native HDR. Additional steps must be taken for this to work.\n\nLaunch the game with UE-Extended installed to generate the correct segment of ReShade.ini.\nClose the game and in ReShade.ini look for the line that says 'Set_Path=1' and change this to 'Set_Path=0'\n\nCreate an Engine.ini in the game's Appdata folder with the following information:\n\n[SystemSettings]\nr.AllowHDR=1\nr.HDR.EnableHDROutput=1\nr.HDR.Display.OutputDevice=3\nr.HDR.Display.ColorGamut=2\nr.HDR.UI.CompositeMode=1\n\n[/Script/Engine.RendererSettings]\nr.LUT.UpdateEveryFrame=1\n\nYou can download a preconfigured Engine.ini here:",
+      "notesUrl": "https://github.com/RankFTW/rdxc-manifest/releases/download/Engine.ini/Engine.ini",
+      "notesUrlLabel": "Engine.ini"
+    },
+    "Of Ash and Steel": {
+      "notes": "\u2139\ufe0f Works with UE-Extended - Upgrades SDR to HDR",
+      "notesUrl": null,
+      "notesUrlLabel": null
+    },
+    "Red Dead Redemption 2": {
+      "notes": "\u26a0\ufe0f In DX12 you must use DC Mode Off installs of ReShade and Display Commander OR DC Mode 1\n\n\u26a0\ufe0fIn Vulkan you must use DC Mode 2 or install ReShade independently from the installer in %LOCALAPPDATA%/RenoDXCommander/ReShade\n\n\u2139\ufe0f Change ReShade overlay button in ReShade.ini so it doesn't conflict with Rockstar overlay",
+      "notesUrl": null,
+      "notesUrlLabel": null
+    },
+    "Resident Evil Requiem": {
+      "notes": "\u26a0\ufe0f You must download REFramework in order to use ReShade and RenoDX in this title.\n",
+      "notesUrl": "https://github.com/praydog/REFramework-nightly/releases",
+      "notesUrlLabel": "Download the latest version of REFramework here."
+    },
+    "Titan Quest II": {
+      "notes": "\u26a0\ufe0f This game supports UE-Extended using native HDR. Additional steps must be taken for this to work.\n\nThe only way to enable native HDR is by using the Ultra Plus mod which is linked below\n\nLaunch the game with UE-Extended installed to generate the correct segment of ReShade.ini.\nClose the game and in ReShade.ini look for the line that says 'Set_Path=1' and change this to 'Set_Path=0'\n\nGame screen will go black while in inventory while using UE-Extended in this title\n\nDownload Ultra Plus mod here, Ultra Plus Mod Manager recommended:",
+      "notesUrl": "https://www.nexusmods.com/titanquest2/mods/11",
+      "notesUrlLabel": "UltraPlus Mod"
+    },
+    "X4: Timelines": {
+      "notes": "\u26a0\ufe0f DC must be loaded as winmm.dll using DC Mode 2. Game will not launch with ReShade installed normally and it must be proxied through DC",
+      "notesUrl": null,
+      "notesUrlLabel": null
+    }
+  },
+  "wikiUnlinks": [
+    "Avatar: Frontiers of Pandora",
+    "Elin",
+    "Northern Journey",
+    "Descenders",
+    "Death's Door",
+    "Haste",
+    "LEGO\u00ae Builder's Journey",
+    "Resident Evil",
+    "Spark the Electric Jester 3",
+    "XF Extreme Formula"
+  ],
+  "lumaDefaultGames": [
+    "Bioshock 2 Remastered",
+    "Bioshock Remastered",
+    "Burnout Paradise Remastered",
+    "BurnoutPR",
+    "FINAL FANTASY VII REMAKE INTERGRADE",
+    "Hollow Knight: Silksong",
+    "Inside"
+  ],
+  "lumaGameNotes": {
+    "BioShock Remastered": {
+      "notes": "Additional information available on Nexus below:",
+      "notesUrl": "https://www.nexusmods.com/bioshock/mods/94",
+      "notesUrlLabel": "BioShock Remastered Nexus"
+    },
+    "FINAL FANTASY VII REMAKE INTERGRADE": {
+      "notes": "Recommended to use Luma for this game for best HDR results.\nYou must switch the game to DX11 with launch argument -dx11\n\nAdditional information available on Nexus below:",
+      "notesUrl": "https://www.nexusmods.com/finalfantasy7remake/mods/1974",
+      "notesUrlLabel": "Final Fantasy VII Remake Nexus"
+    }
+  },
+  "sixtyFourBitGames": [],
+  "engineOverrides": {}
 }

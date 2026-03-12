@@ -93,6 +93,7 @@ public sealed partial class MainWindow : Window
 
     private void MainWindow_Closed(object? sender, WindowEventArgs e)
     {
+        ViewModel.SaveSettingsPublic(); // persist GridLayout and other settings
         SaveWindowBounds();
     }
 
@@ -419,6 +420,7 @@ public sealed partial class MainWindow : Window
     private void LayoutToggle_Click(object sender, RoutedEventArgs e)
     {
         ViewModel.IsGridLayout = !ViewModel.IsGridLayout;
+        ViewModel.SaveSettingsPublic(); // persist the chosen layout
         if (ViewModel.IsGridLayout)
         {
             RebuildCardGrid();
@@ -2681,7 +2683,7 @@ public sealed partial class MainWindow : Window
         var activeFg   = ((SolidColorBrush)Application.Current.Resources["TextPrimaryBrush"]).Color;
         var inactiveFg = ((SolidColorBrush)Application.Current.Resources["ChipTextBrush"]).Color;
 
-        foreach (var b in new[] { FilterFavourites, FilterDetected, FilterUnreal, FilterUnity, FilterOther, FilterRenoDX, FilterLuma, FilterHidden })
+        foreach (var b in new[] { FilterFavourites, FilterInstalled, FilterDetected, FilterUnreal, FilterUnity, FilterOther, FilterRenoDX, FilterLuma, FilterHidden })
         {
             bool isActive = ViewModel.ActiveFilters.Contains(b.Tag as string ?? "");
             b.Background  = new SolidColorBrush(isActive ? active   : inactive);
@@ -2920,12 +2922,14 @@ public sealed partial class MainWindow : Window
         ToolTipService.SetToolTip(DetailUeExtendedBtn,
             card.UseUeExtended ? "Disable UE Extended" : "Enable UE Extended");
 
-        // Show inline message
+        // Show inline message or warning dialog
         if (card.UseUeExtended)
         {
             DetailRsMessage.Text = "⚡ UE-Extended enabled — check Discord to confirm this game is compatible.";
             DetailRsMessage.Foreground = Brush("AccentPurpleBrush");
             DetailRsMessage.Visibility = Visibility.Visible;
+            // Show compatibility warning dialog
+            _ = ShowUeExtendedWarningAsync(card);
         }
         else
         {
@@ -2933,6 +2937,40 @@ public sealed partial class MainWindow : Window
             DetailRsMessage.Foreground = Brush("TextTertiaryBrush");
             DetailRsMessage.Visibility = Visibility.Visible;
         }
+    }
+
+    private async Task ShowUeExtendedWarningAsync(GameCardViewModel card)
+    {
+        try
+        {
+            while (Content.XamlRoot == null)
+                await Task.Delay(100);
+
+            var hasNotes = !string.IsNullOrWhiteSpace(card.Notes);
+            var notesHint = hasNotes
+                ? "\n\nCheck the Notes section for any additional compatibility information for this game."
+                : "\n\nNo specific notes are available for this game — check the RDXC Discord for community reports.";
+
+            var dlg = new ContentDialog
+            {
+                Title               = "⚠ UE-Extended Compatibility Warning",
+                Content             = new TextBlock
+                {
+                    TextWrapping = TextWrapping.Wrap,
+                    FontSize     = 13,
+                    Text         = "Not all Unreal Engine games are compatible with UE-Extended.\n\n" +
+                                   "UE-Extended uses a different injection method that works better " +
+                                   "with some games but may cause crashes or issues with others." +
+                                   notesHint,
+                },
+                PrimaryButtonText   = "OK, I understand",
+                XamlRoot            = Content.XamlRoot,
+                Background          = Brush("SurfaceOverlayBrush"),
+            };
+
+            await dlg.ShowAsync();
+        }
+        catch { }
     }
 
     private void HideButton_Click(object sender, RoutedEventArgs e)

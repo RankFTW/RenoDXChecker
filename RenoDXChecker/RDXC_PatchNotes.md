@@ -1,4 +1,46 @@
+## v1.4.5
+
+### New Features
+
+**Improved Unity engine detection**
+- Unity games that don't have `UnityPlayer.dll` in the base folder are now detected correctly.
+- Detection now also checks for `Mono` folder, `MonoBleedingEdge` folder, `il2cpp` folder, and `GameAssembly.dll` — all common markers of Unity IL2CPP and Mono builds.
+
+**UE-Extended available for all generic Unreal Engine games**
+- The UE-Extended toggle now appears for every Unreal Engine game that does not have a named mod on the RenoDX wiki, not just games explicitly listed in the manifest.
+- A compatibility warning dialog now pops up when enabling UE-Extended, advising that not all games are compatible and to check the Notes section for any game-specific information.
+
+**Manifest 32-bit / 64-bit flags**
+- The `thirtyTwoBitGames` manifest flag now takes priority over automatic PE header detection, restoring the ability to force-flag a game as 32-bit from the manifest.
+- A new `sixtyFourBitGames` manifest flag allows games incorrectly detected as 32-bit by the auto-detection to be force-flagged as 64-bit.
+
+**Remember last view**
+- The app now remembers whether it was last in Detail View or Grid View and opens in that same view on next launch.
+
+**Installed filter**
+- New filter button between All Games and Favourites that shows only games with RenoDX or Luma installed (DC and ReShade alone do not qualify).
+
+**Manifest engine overrides**
+- A new `engineOverrides` manifest field allows the engine for any game to be overridden.
+- Setting a game to `"Unreal"` or `"Unity"` changes both its filter category and enables the correct generic mod/addon behaviour (UE-Extended eligibility, generic Unity addon, etc.).
+- Setting a game to any other string (e.g. `"Silk"`, `"Source 2"`, `"Creation Engine"`) displays that label in the engine badge but keeps the game in the Other filter — it will not incorrectly receive a UE or Unity generic mod.
+- Games with no known or overridden engine continue to show as Unknown and filter into Other.
+
+### Changes
+
+**Filter layout**
+- The Other filter has been moved from the top row to the second row, now sitting between Unity and RenoDX.
+
+### Bug Fixes
+
+**UE-Extended toggle not applying**
+- Clicking the UE-Extended button was silently ignored for games that had not yet been flagged as `IsGenericMod`, even though the button was visible. The eligibility check now matches the same conditions used to show the button, so the toggle works correctly for all games that display it.
+- The "UE-Extended disabled" notification was incorrectly appearing when clicking to enable, because the toggle was never actually applying. This is resolved.
+
+---
+
 ## v1.4.4
+
 
 ### New Features
 

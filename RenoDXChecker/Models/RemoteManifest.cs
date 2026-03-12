@@ -22,6 +22,9 @@ public class RemoteManifest
     [JsonPropertyName("thirtyTwoBitGames")]
     public List<string>? ThirtyTwoBitGames { get; set; }
 
+    [JsonPropertyName("sixtyFourBitGames")]
+    public List<string>? SixtyFourBitGames { get; set; }
+
     [JsonPropertyName("gameNotes")]
     public Dictionary<string, GameNoteEntry>? GameNotes { get; set; }
 
@@ -66,6 +69,22 @@ public class RemoteManifest
     /// </summary>
     [JsonPropertyName("wikiUnlinks")]
     public List<string>? WikiUnlinks { get; set; }
+
+    /// <summary>
+    /// Per-game engine overrides. Allows the manifest to force a specific engine label
+    /// for a game, overriding auto-detection.
+    /// 
+    /// Special values that affect filtering and mod behaviour:
+    ///   "Unreal"         → treated as Unreal Engine 4/5 (filters into Unreal, eligible for UE-Extended)
+    ///   "Unreal (Legacy)"→ treated as Unreal Engine 3 (filters into Unreal)
+    ///   "Unity"          → treated as Unity (filters into Unity, eligible for generic Unity addon)
+    /// 
+    /// Any other string (e.g. "Silk", "Source 2", "Creation Engine") is stored as-is and
+    /// displayed in the engine badge. The game filters into Other, not Unreal or Unity.
+    /// Key = game name, Value = engine label string.
+    /// </summary>
+    [JsonPropertyName("engineOverrides")]
+    public Dictionary<string, string>? EngineOverrides { get; set; }
 }
 
 public class GameNoteEntry

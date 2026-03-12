@@ -73,9 +73,9 @@ public partial class MainViewModel : ObservableObject
     /// call SaveNameMappings before all fields have been loaded.</summary>
     private bool _isLoadingSettings;
 
-    partial void OnShaderDeployModeChanged(ShaderDeployMode v)
+    partial void OnShaderDeployModeChanged(ShaderDeployMode value)
     {
-        ShaderPackService.CurrentMode = v;
+        ShaderPackService.CurrentMode = value;
         SaveNameMappings();
         // Notify computed button properties
         OnPropertyChanged(nameof(ShadersBtnLabel));
@@ -205,6 +205,9 @@ public partial class MainViewModel : ObservableObject
     private RemoteManifest? _manifest;
     private HashSet<string> _manifestNativeHdrGames = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _manifestBlacklist = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> _manifest32BitGames = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> _manifest64BitGames = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, string> _manifestEngineOverrides = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _hiddenGames = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _favouriteGames = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, string> _engineTypeCache = new(StringComparer.OrdinalIgnoreCase);
@@ -248,7 +251,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _searchQuery = "";
     [ObservableProperty] private string _filterMode = "Detected";
     private readonly HashSet<string> _activeFilters = new(StringComparer.OrdinalIgnoreCase) { "Detected" };
-    private static readonly HashSet<string> ExclusiveFilters = new(StringComparer.OrdinalIgnoreCase) { "Detected", "Favourites", "Hidden" };
+    private static readonly HashSet<string> ExclusiveFilters = new(StringComparer.OrdinalIgnoreCase) { "Detected", "Favourites", "Hidden", "Installed" };
     private static readonly HashSet<string> CombinableFilters = new(StringComparer.OrdinalIgnoreCase) { "Unreal", "Unity", "Other", "RenoDX", "Luma" };
     public IReadOnlySet<string> ActiveFilters => _activeFilters;
     [ObservableProperty] private bool _showHidden = false;
@@ -311,7 +314,7 @@ public partial class MainViewModel : ObservableObject
     /// <summary>Backward-compat: true when any DC Mode level is active.</summary>
     public bool DcModeEnabled => DcModeLevel > 0;
 
-    partial void OnDcModeLevelChanged(int v)
+    partial void OnDcModeLevelChanged(int value)
     {
         SaveNameMappings();
         OnPropertyChanged(nameof(DcModeEnabled));
@@ -525,14 +528,14 @@ public partial class MainViewModel : ObservableObject
         _ => "#283240",
     };
 
-    partial void OnVerboseLoggingChanged(bool v)
+    partial void OnVerboseLoggingChanged(bool value)
     {
-        CrashReporter.VerboseLogging = v;
+        CrashReporter.VerboseLogging = value;
     }
 
-    partial void OnLumaFeatureEnabledChanged(bool v)
+    partial void OnLumaFeatureEnabledChanged(bool value)
     {
-        foreach (var c in _allCards) c.LumaFeatureEnabled = v;
+        foreach (var c in _allCards) c.LumaFeatureEnabled = value;
     }
 
     partial void OnSelectedGameChanged(GameCardViewModel? oldValue, GameCardViewModel? newValue)
@@ -838,6 +841,56 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private bool IsUeExtendedGameMatch(string gameName)
         => MatchesGameSet(gameName, _ueExtendedGames);
+
+    /// <summary>
+    /// Returns the effective Is32Bit flag for a game, giving manifest overrides priority over PE header auto-detection.
+    /// Manifest thirtyTwoBitGames forces 32-bit; sixtyFourBitGames forces 64-bit (overrides incorrect detection).
+    /// </summary>
+    private bool ResolveIs32Bit(string gameName, MachineType detectedMachine)
+    {
+        if (_manifest32BitGames.Count > 0 && MatchesGameSet(gameName, _manifest32BitGames))
+            return true;
+        if (_manifest64BitGames.Count > 0 && MatchesGameSet(gameName, _manifest64BitGames))
+            return false;
+        return detectedMachine == MachineType.I386;
+    }
+
+    /// <summary>
+    /// Returns the manifest engine override for a game, if one exists.
+    /// The out parameter <paramref name="overrideEngine"/> is the EngineType to use for
+    /// mod/fallback selection ("Unreal", "Unreal (Legacy)", "Unity" map to their EngineType;
+    /// all other values stay Unknown so the game falls into Other).
+    /// The return value is the display label to use in EngineHint (may differ from the
+    /// EngineType — e.g. "Silk" stays "Silk" but overrideEngine is Unknown).
+    /// Returns null if no override is defined for this game.
+    /// </summary>
+    private string? ResolveEngineOverride(string gameName, out EngineType overrideEngine)
+    {
+        overrideEngine = EngineType.Unknown;
+        if (_manifestEngineOverrides.Count == 0) return null;
+
+        string? label = null;
+        if (_manifestEngineOverrides.TryGetValue(gameName, out var raw))
+            label = raw;
+        else
+        {
+            // Try stripped name (™®© removed)
+            var stripped = gameName.Replace("™", "").Replace("®", "").Replace("©", "").Trim();
+            if (stripped != gameName && _manifestEngineOverrides.TryGetValue(stripped, out raw))
+                label = raw;
+        }
+
+        if (label == null) return null;
+
+        // Map known engine strings to EngineType for mod/fallback logic
+        overrideEngine = label.Equals("Unreal", StringComparison.OrdinalIgnoreCase)            ? EngineType.Unreal
+                       : label.Equals("Unreal Engine", StringComparison.OrdinalIgnoreCase)     ? EngineType.Unreal
+                       : label.StartsWith("Unreal (Legacy)", StringComparison.OrdinalIgnoreCase) ? EngineType.UnrealLegacy
+                       : label.Equals("Unity", StringComparison.OrdinalIgnoreCase)              ? EngineType.Unity
+                       : EngineType.Unknown;
+
+        return label;
+    }
 
     /// <summary>
     /// Checks if <paramref name="gameName"/> matches any entry in <paramref name="gameSet"/>.
@@ -1341,6 +1394,9 @@ public partial class MainViewModel : ObservableObject
                 return;
             }
             var (_, engine) = GameDetectionService.DetectEngineAndPath(game.InstallPath);
+            // Apply manifest engine override (takes priority over auto-detection)
+            var engineOverrideLabel = ResolveEngineOverride(game.Name, out var engineOverride);
+            if (engineOverrideLabel != null) engine = engineOverride;
             var mod         = GameDetectionService.MatchGame(game, _allMods, _nameMappings);
             // Wiki unlink: discard false fuzzy match so the game uses its generic engine addon
             if (mod != null && _manifestWikiUnlinks.Contains(game.Name)) mod = null;
@@ -1417,7 +1473,13 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public void ToggleUeExtended(GameCardViewModel card)
     {
-        if (card == null || !card.IsGenericMod) return;
+        if (card == null) return;
+        // Allow toggle for any UE card that shows the button:
+        // IsGenericMod covers most cases, but also allow cards where Mod is null or IsGenericUnreal
+        bool isEligible = card.IsGenericMod
+                          || card.Mod == null
+                          || (card.Mod?.IsGenericUnreal == true);
+        if (!isEligible) return;
 
         bool nowExtended = !card.UseUeExtended;
 
@@ -1540,8 +1602,7 @@ public partial class MainViewModel : ObservableObject
         {
             if (card.Mod?.HasBothBitVersions != true) continue;
             if (overrides.ContainsKey(card.GameName)) continue; // already has a custom note
-            var dualNote = "ℹ️ This game has both 32-bit and 64-bit RenoDX builds. " +
-                           "Enable 32-bit mode in 🎯 Overrides if your game version requires the 32-bit addon.";
+            var dualNote = "";
             card.Notes = string.IsNullOrWhiteSpace(card.Notes) ? dualNote : card.Notes + "\n\n" + dualNote;
         }
     }
@@ -1558,6 +1619,9 @@ public partial class MainViewModel : ObservableObject
     {
         _manifestNativeHdrGames.Clear();
         _manifestWikiUnlinks.Clear();
+        _manifest32BitGames.Clear();
+        _manifest64BitGames.Clear();
+        _manifestEngineOverrides.Clear();
         if (manifest == null) return;
 
         // Wiki name overrides — local user name mappings take priority
@@ -1585,6 +1649,20 @@ public partial class MainViewModel : ObservableObject
         }
 
         // 32-bit games — no longer seeded; auto-detection via PE header replaces manifest seeding
+
+        // 32-bit games — manifest flag takes priority over auto-detection
+        if (manifest.ThirtyTwoBitGames != null)
+        {
+            foreach (var game in manifest.ThirtyTwoBitGames)
+                _manifest32BitGames.Add(game);
+        }
+
+        // 64-bit games — manifest flag takes priority over auto-detection (overrides incorrect 32-bit detection)
+        if (manifest.SixtyFourBitGames != null)
+        {
+            foreach (var game in manifest.SixtyFourBitGames)
+                _manifest64BitGames.Add(game);
+        }
 
         // DC mode overrides — local per-game overrides take priority
         if (manifest.DcModeOverrides != null)
@@ -1621,17 +1699,28 @@ public partial class MainViewModel : ObservableObject
                 _manifestWikiUnlinks.Add(game);
         }
 
+        // Engine overrides — force a specific engine label for a game, overriding auto-detection.
+        // "Unreal", "Unreal (Legacy)", "Unity" have full mod/filter consequences.
+        // Any other string is stored as-is for display; game still filters into Other.
+        if (manifest.EngineOverrides != null)
+        {
+            foreach (var (key, value) in manifest.EngineOverrides)
+                _manifestEngineOverrides[key] = value;
+        }
+
         CrashReporter.Log($"ApplyManifest: v{manifest.Version}, " +
             $"+{manifest.WikiNameOverrides?.Count ?? 0} name overrides, " +
             $"+{manifest.UeExtendedGames?.Count ?? 0} UE-Ext, " +
             $"+{manifest.NativeHdrGames?.Count ?? 0} NativeHDR, " +
             $"+{manifest.ThirtyTwoBitGames?.Count ?? 0} 32-bit, " +
+            $"+{manifest.SixtyFourBitGames?.Count ?? 0} 64-bit, " +
             $"+{manifest.DcModeOverrides?.Count ?? 0} DC overrides, " +
             $"+{manifest.Blacklist?.Count ?? 0} blacklisted, " +
             $"+{manifest.InstallPathOverrides?.Count ?? 0} path overrides, " +
             $"+{manifest.WikiStatusOverrides?.Count ?? 0} status overrides, " +
             $"+{manifest.SnapshotOverrides?.Count ?? 0} snapshot overrides, " +
-            $"+{manifest.WikiUnlinks?.Count ?? 0} wiki unlinks");
+            $"+{manifest.WikiUnlinks?.Count ?? 0} wiki unlinks, " +
+            $"+{manifest.EngineOverrides?.Count ?? 0} engine overrides");
     }
 
     /// <summary>
@@ -2030,6 +2119,9 @@ public partial class MainViewModel : ObservableObject
 
         // Build card for this game immediately
         var (installPath, engine) = GameDetectionService.DetectEngineAndPath(game.InstallPath);
+        // Apply manifest engine override (takes priority over auto-detection)
+        var engineOverrideLabel = ResolveEngineOverride(game.Name, out var engineOverride);
+        if (engineOverrideLabel != null) engine = engineOverride;
 
         // Apply per-game install path overrides (e.g. Cyberpunk 2077 → bin\x64)
         if (_installPathOverrides.TryGetValue(game.Name, out var manualSubPath))
@@ -2223,7 +2315,9 @@ public partial class MainViewModel : ObservableObject
                                 : effectiveMod?.Status ?? "—",
             Maintainer     = effectiveMod?.Maintainer ?? "",
             IsGenericMod   = useUeExt || (fallback != null && mod == null),
-            EngineHint     = (useUeExt && engine == EngineType.Unknown) ? "Unreal Engine"
+            EngineHint     = engineOverrideLabel != null
+                           ? (useUeExt && engine == EngineType.Unknown ? "Unreal Engine" : engineOverrideLabel)
+                           : (useUeExt && engine == EngineType.Unknown) ? "Unreal Engine"
                            : engine == EngineType.Unreal       ? "Unreal Engine"
                            : engine == EngineType.UnrealLegacy ? "Unreal (Legacy)"
                            : engine == EngineType.Unity        ? "Unity" : "",
@@ -2253,7 +2347,7 @@ public partial class MainViewModel : ObservableObject
             ExcludeFromUpdateAll   = _updateAllExcludedGames.Contains(game.Name),
             ExcludeFromShaders     = IsShaderExcluded(game.Name),
             ShaderModeOverride     = _perGameShaderMode.TryGetValue(game.Name, out var smO) ? smO : null,
-            Is32Bit                = manualMachine == MachineType.I386,
+            Is32Bit                = ResolveIs32Bit(game.Name, manualMachine),
             LumaFeatureEnabled     = LumaFeatureEnabled,
             DcRecord        = dcRecManual,
             DcStatus        = dcRecManual != null ? GameStatus.Installed : GameStatus.NotInstalled,
@@ -3536,6 +3630,10 @@ public partial class MainViewModel : ObservableObject
                 (installPath, engine) = GameDetectionService.DetectEngineAndPath(game.InstallPath);
             }
 
+            // Apply manifest engine override (takes priority over auto-detection and cache)
+            var engineOverrideLabel = ResolveEngineOverride(game.Name, out var engineOverride);
+            if (engineOverrideLabel != null) engine = engineOverride;
+
             // Record for saving
             newEngineTypeCache[rootKey]   = engine.ToString();
             newResolvedPathCache[rootKey] = installPath;
@@ -3593,7 +3691,7 @@ public partial class MainViewModel : ObservableObject
                 }
             }
 
-            return (game, installPath, engine, mod, fallback, machineType);
+            return (game, installPath, engine, mod, fallback, machineType, engineOverrideLabel);
         }).ToList();
 
         // Snapshot the new caches for SaveLibrary.
@@ -3602,7 +3700,7 @@ public partial class MainViewModel : ObservableObject
         _bitnessCache      = new Dictionary<string, MachineType>(newBitnessCache, StringComparer.OrdinalIgnoreCase);
         var newAddonFileCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var (game, installPath, engine, mod, origFallback, detectedMachine) in gameInfos)
+        foreach (var (game, installPath, engine, mod, origFallback, detectedMachine, engineOverrideLabel) in gameInfos)
         {
             // Always show every detected game — even if no wiki mod exists.
             // The card will have no install button if there's no snapshot URL,
@@ -3917,7 +4015,9 @@ public partial class MainViewModel : ObservableObject
                                             : effectiveMod?.Status ?? "—",
                 Maintainer             = effectiveMod?.Maintainer ?? "",
                 IsGenericMod           = useUeExt || (fallback != null && mod == null),
-                EngineHint             = (useUeExt && engine == EngineType.Unknown) ? "Unreal Engine"
+                EngineHint             = engineOverrideLabel != null
+                                       ? (useUeExt && engine == EngineType.Unknown ? "Unreal Engine" : engineOverrideLabel)
+                                       : (useUeExt && engine == EngineType.Unknown) ? "Unreal Engine"
                                        : engine == EngineType.Unreal       ? "Unreal Engine"
                                        : engine == EngineType.UnrealLegacy ? "Unreal (Legacy)"
                                        : engine == EngineType.Unity        ? "Unity" : "",
@@ -3946,7 +4046,7 @@ public partial class MainViewModel : ObservableObject
                 ExcludeFromUpdateAll   = _updateAllExcludedGames.Contains(game.Name),
                 ExcludeFromShaders     = IsShaderExcluded(game.Name),
                 ShaderModeOverride     = _perGameShaderMode.TryGetValue(game.Name, out var smBc) ? smBc : null,
-                Is32Bit                = detectedMachine == MachineType.I386,
+                Is32Bit                = ResolveIs32Bit(game.Name, detectedMachine),
                 DllOverrideEnabled     = _dllOverrides.ContainsKey(game.Name),
                 IsNativeHdrGame        = isNativeHdr,
                 IsManifestUeExtended   = useUeExt && !isNativeHdr,
@@ -4134,6 +4234,14 @@ public partial class MainViewModel : ObservableObject
             // Favourites tab: show favourited games (even if hidden)
             if (filters.Contains("Favourites")) return c.IsFavourite;
 
+            // Installed tab: show games with RenoDX OR Luma installed (not DC/ReShade only)
+            if (filters.Contains("Installed"))
+            {
+                bool rdxInstalled  = c.Status == GameStatus.Installed || c.Status == GameStatus.UpdateAvailable;
+                bool lumaInstalled = c.LumaStatus == GameStatus.Installed || c.LumaStatus == GameStatus.UpdateAvailable;
+                return (rdxInstalled || lumaInstalled) && !c.IsHidden;
+            }
+
             // "Detected" (All Games): show everything except hidden
             if (filters.Contains("Detected"))
             {
@@ -4228,8 +4336,8 @@ public partial class MainViewModel : ObservableObject
         return $"{(int)age.TotalDays}d ago";
     }
 
-    partial void OnSearchQueryChanged(string v)  => ApplyFilter();
-    partial void OnShowHiddenChanged(bool v)     => ApplyFilter();
+    partial void OnSearchQueryChanged(string value)  => ApplyFilter();
+    partial void OnShowHiddenChanged(bool value)     => ApplyFilter();
 }
 
 

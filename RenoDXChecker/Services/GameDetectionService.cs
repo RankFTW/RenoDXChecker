@@ -1026,9 +1026,51 @@ public static class GameDetectionService
         if (unityPlayer != null)
             return (Path.GetDirectoryName(unityPlayer)!, EngineType.Unity);
 
+        // Additional Unity detection: Mono folder, MonoBleedingEdge folder, il2cpp file, or GameAssembly.dll
+        // Some Unity games (especially IL2CPP builds) may not have UnityPlayer.dll in the base folder
+        if (IsUnityGame(rootPath))
+        {
+            var unityExeFolder = FindShallowExeFolder(rootPath);
+            return (unityExeFolder ?? rootPath, EngineType.Unity);
+        }
+
         // --- Generic fallback ---
         var exeFolder = FindShallowExeFolder(rootPath);
         return (exeFolder ?? rootPath, EngineType.Unknown);
+    }
+
+    /// <summary>
+    /// Returns true if the game folder contains Unity-specific markers other than UnityPlayer.dll.
+    /// Covers IL2CPP builds and other Unity configurations that don't ship UnityPlayer.dll in the root.
+    /// Checks for: Mono folder, MonoBleedingEdge folder, il2cpp folder/file, GameAssembly.dll
+    /// </summary>
+    private static bool IsUnityGame(string root)
+    {
+        try
+        {
+            // Check for Mono folder (classic Unity Mono scripting backend)
+            if (Directory.Exists(Path.Combine(root, "Mono"))) return true;
+            // Check for MonoBleedingEdge folder (Unity 2017+)
+            if (Directory.Exists(Path.Combine(root, "MonoBleedingEdge"))) return true;
+            // Check for il2cpp folder (Unity IL2CPP build)
+            if (Directory.Exists(Path.Combine(root, "il2cpp"))) return true;
+            // Check for GameAssembly.dll (Unity IL2CPP build marker)
+            if (FindFileShallow(root, "GameAssembly.dll", maxDepth: 2) != null) return true;
+            // Check one level deep for these markers (game data subfolder pattern)
+            foreach (var sub in Directory.GetDirectories(root))
+            {
+                if (IsSkippedFolder(sub)) continue;
+                var name = Path.GetFileName(sub);
+                // Unity data folders are typically named "<GameName>_Data"
+                if (!name.EndsWith("_Data", StringComparison.OrdinalIgnoreCase)) continue;
+                if (Directory.Exists(Path.Combine(sub, "Mono"))) return true;
+                if (Directory.Exists(Path.Combine(sub, "MonoBleedingEdge"))) return true;
+                if (Directory.Exists(Path.Combine(sub, "il2cpp"))) return true;
+                if (File.Exists(Path.Combine(sub, "Resources", "unity_builtin_extra"))) return true;
+            }
+        }
+        catch { }
+        return false;
     }
 
     /// <summary>

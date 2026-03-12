@@ -250,10 +250,10 @@ public partial class GameCardViewModel : ObservableObject
     public string UeExtendedBackground => UseUeExtended ? "#201838" : "#1E242C";
     public string UeExtendedForeground => UseUeExtended ? "#B898E8" : "#6B7A8E";
     public string UeExtendedBorderBrush => UseUeExtended ? "#3A2860" : "#283240";
-    // Visible only on Generic UE cards (not Unity, not specific-mod cards)
+    // Visible on all UE cards that don't have a named mod (generic UE) — not legacy, not native HDR
     public Visibility UeExtendedToggleVisibility =>
-        (IsGenericMod && EngineHint.Contains("Unreal") && !EngineHint.Contains("Legacy")
-         && !IsNativeHdrGame)
+        (EngineHint.Contains("Unreal") && !EngineHint.Contains("Legacy")
+         && !IsNativeHdrGame && (IsGenericMod || Mod == null || Mod.IsGenericUnreal))
             ? Visibility.Visible : Visibility.Collapsed;
 
     // ── Combined status for simplified card ──────────────────────────────────────
@@ -322,7 +322,7 @@ public partial class GameCardViewModel : ObservableObject
     /// <summary>Chevron glyph for expand/collapse.</summary>
     public string ExpandChevron => ComponentExpanded ? "▲" : "▼";
 
-    partial void OnComponentExpandedChanged(bool v)
+    partial void OnComponentExpandedChanged(bool value)
     {
         OnPropertyChanged(nameof(ComponentDetailVisibility));
         OnPropertyChanged(nameof(ExpandChevron));
@@ -791,17 +791,17 @@ public partial class GameCardViewModel : ObservableObject
         OnPropertyChanged(nameof(IsLumaInstalled));
     }
 
-    partial void OnStatusChanged(GameStatus v)              => NotifyAll();
-    partial void OnDcStatusChanged(GameStatus v)            => NotifyAll();
-    partial void OnRsStatusChanged(GameStatus v)            => NotifyAll();
-    partial void OnDcIsInstallingChanged(bool v)            => NotifyAll();
-    partial void OnRsIsInstallingChanged(bool v)            => NotifyAll();
-    partial void OnIsInstallingChanged(bool v)              => NotifyAll();
-    partial void OnInstalledAddonFileNameChanged(string? v) => NotifyAll();
-    partial void OnActionMessageChanged(string v)           => OnPropertyChanged(nameof(MessageVisibility));
-    partial void OnDcActionMessageChanged(string v)         => OnPropertyChanged(nameof(DcMessageVisibility));
-    partial void OnRsActionMessageChanged(string v)         => OnPropertyChanged(nameof(RsMessageVisibility));
-    partial void OnRsBlockedByDcModeChanged(bool v)
+    partial void OnStatusChanged(GameStatus value)              => NotifyAll();
+    partial void OnDcStatusChanged(GameStatus value)            => NotifyAll();
+    partial void OnRsStatusChanged(GameStatus value)            => NotifyAll();
+    partial void OnDcIsInstallingChanged(bool value)            => NotifyAll();
+    partial void OnRsIsInstallingChanged(bool value)            => NotifyAll();
+    partial void OnIsInstallingChanged(bool value)              => NotifyAll();
+    partial void OnInstalledAddonFileNameChanged(string? value) => NotifyAll();
+    partial void OnActionMessageChanged(string value)           => OnPropertyChanged(nameof(MessageVisibility));
+    partial void OnDcActionMessageChanged(string value)         => OnPropertyChanged(nameof(DcMessageVisibility));
+    partial void OnRsActionMessageChanged(string value)         => OnPropertyChanged(nameof(RsMessageVisibility));
+    partial void OnRsBlockedByDcModeChanged(bool value)
     {
         OnPropertyChanged(nameof(IsRsNotInstalling));
         OnPropertyChanged(nameof(RsActionLabel));
@@ -809,19 +809,19 @@ public partial class GameCardViewModel : ObservableObject
         OnPropertyChanged(nameof(RsBtnForeground));
         OnPropertyChanged(nameof(RsBtnBorderBrush));
     }
-    partial void OnIsHiddenChanged(bool v)                  => OnPropertyChanged(nameof(HideButtonLabel));
-    partial void OnIsFavouriteChanged(bool v)
+    partial void OnIsHiddenChanged(bool value)                  => OnPropertyChanged(nameof(HideButtonLabel));
+    partial void OnIsFavouriteChanged(bool value)
     {
         OnPropertyChanged(nameof(StarForeground));
         OnPropertyChanged(nameof(IsFavouriteVisibility));
         OnPropertyChanged(nameof(IsNotFavouriteVisibility));
     }
-    partial void OnInstallPathChanged(string v)             => OnPropertyChanged(nameof(InstallPathDisplay));
-    partial void OnSourceChanged(string v)                  => OnPropertyChanged(nameof(SourceBadgeVisibility));
-    partial void OnLumaFeatureEnabledChanged(bool v)        => NotifyAll();
-    partial void OnIsLumaModeChanged(bool v)                => NotifyAll();
-    partial void OnLumaStatusChanged(GameStatus v)          => NotifyAll();
-    partial void OnIsLumaInstallingChanged(bool v)          => NotifyAll();
-    partial void OnLumaActionMessageChanged(string v)       => OnPropertyChanged(nameof(LumaMessageVisibility));
-    partial void OnUseUeExtendedChanged(bool v)              => OnPropertyChanged(nameof(GenericModLabel));
+    partial void OnInstallPathChanged(string value)             => OnPropertyChanged(nameof(InstallPathDisplay));
+    partial void OnSourceChanged(string value)                  => OnPropertyChanged(nameof(SourceBadgeVisibility));
+    partial void OnLumaFeatureEnabledChanged(bool value)        => NotifyAll();
+    partial void OnIsLumaModeChanged(bool value)                => NotifyAll();
+    partial void OnLumaStatusChanged(GameStatus value)          => NotifyAll();
+    partial void OnIsLumaInstallingChanged(bool value)          => NotifyAll();
+    partial void OnLumaActionMessageChanged(string value)       => OnPropertyChanged(nameof(LumaMessageVisibility));
+    partial void OnUseUeExtendedChanged(bool value)              => OnPropertyChanged(nameof(GenericModLabel));
 }

@@ -148,15 +148,15 @@
                                             Click="Filter_Click"
                                             Background="{StaticResource ChipActiveBrush}" Foreground="White"
                                             BorderThickness="0" CornerRadius="7" Padding="10,5" FontSize="11"/>
+                                    <Button x:Name="FilterInstalled" Content="Installed" Tag="Installed"
+                                            Click="Filter_Click"
+                                            Background="{StaticResource ChipDefaultBrush}" Foreground="{StaticResource ChipTextBrush}"
+                                            BorderThickness="0" CornerRadius="7" Padding="10,5" FontSize="11"/>
                                     <Button x:Name="FilterFavourites" Content="Favourites" Tag="Favourites"
                                             Click="Filter_Click"
                                             Background="{StaticResource ChipDefaultBrush}" Foreground="{StaticResource ChipTextBrush}"
                                             BorderThickness="0" CornerRadius="7" Padding="10,5" FontSize="11"/>
                                     <Button x:Name="FilterHidden" Content="Hidden" Tag="Hidden"
-                                            Click="Filter_Click"
-                                            Background="{StaticResource ChipDefaultBrush}" Foreground="{StaticResource ChipTextBrush}"
-                                            BorderThickness="0" CornerRadius="7" Padding="10,5" FontSize="11"/>
-                                    <Button x:Name="FilterOther" Content="Other" Tag="Other"
                                             Click="Filter_Click"
                                             Background="{StaticResource ChipDefaultBrush}" Foreground="{StaticResource ChipTextBrush}"
                                             BorderThickness="0" CornerRadius="7" Padding="10,5" FontSize="11"/>
@@ -167,6 +167,10 @@
                                             Background="{StaticResource ChipDefaultBrush}" Foreground="{StaticResource ChipTextBrush}"
                                             BorderThickness="0" CornerRadius="7" Padding="10,5" FontSize="11"/>
                                     <Button x:Name="FilterUnity" Content="Unity" Tag="Unity"
+                                            Click="Filter_Click"
+                                            Background="{StaticResource ChipDefaultBrush}" Foreground="{StaticResource ChipTextBrush}"
+                                            BorderThickness="0" CornerRadius="7" Padding="10,5" FontSize="11"/>
+                                    <Button x:Name="FilterOther" Content="Other" Tag="Other"
                                             Click="Filter_Click"
                                             Background="{StaticResource ChipDefaultBrush}" Foreground="{StaticResource ChipTextBrush}"
                                             BorderThickness="0" CornerRadius="7" Padding="10,5" FontSize="11"/>
@@ -776,7 +780,7 @@
                                             <Run Text="RenoDXCommander" Foreground="{StaticResource AccentTealBrush}"/>
                                         </TextBlock>
                                         <TextBlock FontSize="12" Foreground="{StaticResource InlineDescriptionBrush}">
-                                            <Run Text="v1.4.4  ·  HDR mod manager by "/>
+                                            <Run Text="v1.4.5  ·  HDR mod manager by "/>
                                             <Run Text="RankFTW" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}"/>
                                             <Run Text="  ·  Unofficial companion tool"/>
                                         </TextBlock>
