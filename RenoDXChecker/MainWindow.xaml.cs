@@ -193,7 +193,11 @@ public sealed partial class MainWindow : Window
         try
         {
             AuxInstallService.MergeRsIni(card.InstallPath);
-            card.RsActionMessage = "✅ reshade.ini merged into game folder.";
+            AuxInstallService.CopyRsPresetIniIfPresent(card.InstallPath);
+            bool presetDeployed = File.Exists(AuxInstallService.RsPresetIniPath);
+            card.RsActionMessage = presetDeployed
+                ? "✅ reshade.ini merged & ReShadePreset.ini copied."
+                : "✅ reshade.ini merged into game folder.";
         }
         catch (Exception ex)
         {
@@ -848,7 +852,7 @@ public sealed partial class MainWindow : Window
             card.RsStatusText, card.RsStatusColor, card.RsShortAction,
             card.CardRsInstallEnabled, card.IsRsInstalled,
             showCopyConfig: true, copyConfigVisible: card.RsIniExists,
-            copyConfigTooltip: "Copy reshade.ini",
+            copyConfigTooltip: "Copy ReShade.ini & ReShadePreset.ini",
             btnBackground: card.RsBtnBackground, btnForeground: card.RsBtnForeground, btnBorderBrush: card.RsBtnBorderBrush);
         rsRow.Visibility = card.ReShadeRowVisibility;
         panel.Children.Add(rsRow);
@@ -2983,7 +2987,10 @@ public sealed partial class MainWindow : Window
     {
         var card = GetCardFromSender(sender);
         if (card == null) return;
-        var folder = await PickFolderAsync();
+        var suggestedPath = card.InstallPath is { Length: > 0 } p && Directory.Exists(p) ? p
+                          : card.DetectedGame?.InstallPath is { Length: > 0 } dp && Directory.Exists(dp) ? dp
+                          : null;
+        var folder = await PickFolderAsync(suggestedPath);
         if (folder != null)
         {
             card.InstallPath = folder;
@@ -3303,15 +3310,112 @@ public sealed partial class MainWindow : Window
         _ => null
     };
 
-    private async Task<string?> PickFolderAsync()
+    private async Task<string?> PickFolderAsync(string? suggestedPath = null)
     {
+        // WinUI 3 unpackaged FolderPicker ignores SuggestedStartLocation for arbitrary paths.
+        // Use IFileOpenDialog via COM directly so we can call SetFolder() with the game directory.
+        if (!string.IsNullOrEmpty(suggestedPath) && Directory.Exists(suggestedPath))
+        {
+            try
+            {
+                return await Task.Run(() =>
+                {
+                    var dialog = (IFileOpenDialog)new FileOpenDialogClass();
+                    dialog.SetOptions(FOS.FOS_PICKFOLDERS | FOS.FOS_FORCEFILESYSTEM);
+
+                    // Set the initial folder to the game directory
+                    int hr = SHCreateItemFromParsingName(suggestedPath, IntPtr.Zero,
+                        ref IID_IShellItem, out IShellItem startFolder);
+                    if (hr == 0 && startFolder != null)
+                        dialog.SetFolder(startFolder);
+
+                    var hwnd = WindowNative.GetWindowHandle(this);
+                    hr = dialog.Show(hwnd);
+                    if (hr != 0) return null; // user cancelled (HRESULT_FROM_WIN32(ERROR_CANCELLED))
+
+                    dialog.GetResult(out IShellItem result);
+                    result.GetDisplayName(SIGDN.SIGDN_FILESYSPATH, out string path);
+                    return path;
+                });
+            }
+            catch
+            {
+                // Fall through to standard picker on any COM failure
+            }
+        }
+
+        // Standard picker for the no-suggested-path case (Add Game, etc.)
         var picker = new FolderPicker { SuggestedStartLocation = PickerLocationId.ComputerFolder };
         picker.FileTypeFilter.Add("*");
-        var hwnd = WindowNative.GetWindowHandle(this);
-        InitializeWithWindow.Initialize(picker, hwnd);
+        var hwnd2 = WindowNative.GetWindowHandle(this);
+        InitializeWithWindow.Initialize(picker, hwnd2);
         var folder = await picker.PickSingleFolderAsync();
         return folder?.Path;
     }
+
+    // ── COM interop for IFileOpenDialog ──────────────────────────────────────────
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
+    private static extern int SHCreateItemFromParsingName(
+        string pszPath, IntPtr pbc, ref Guid riid, out IShellItem ppv);
+
+    private static Guid IID_IShellItem = new("43826D1E-E718-42EE-BC55-A1E261C37BFE");
+
+    [Flags]
+    private enum FOS : uint
+    {
+        FOS_PICKFOLDERS    = 0x00000020,
+        FOS_FORCEFILESYSTEM = 0x00000040,
+    }
+
+    private enum SIGDN : uint
+    {
+        SIGDN_FILESYSPATH = 0x80058000,
+    }
+
+    [ComImport, Guid("d57c7288-d4ad-4768-be02-9d969532d960"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IFileOpenDialog
+    {
+        [PreserveSig] int Show(IntPtr hwnd);
+        void SetFileTypes(uint cFileTypes, IntPtr rgFilterSpec);
+        void SetFileTypeIndex(uint iFileType);
+        void GetFileTypeIndex(out uint piFileType);
+        void Advise(IntPtr pfde, out uint pdwCookie);
+        void Unadvise(uint dwCookie);
+        void SetOptions(FOS fos);
+        void GetOptions(out FOS pfos);
+        void SetDefaultFolder(IShellItem psi);
+        void SetFolder(IShellItem psi);
+        void GetFolder(out IShellItem ppsi);
+        void GetCurrentSelection(out IShellItem ppsi);
+        void SetFileName([MarshalAs(UnmanagedType.LPWStr)] string pszName);
+        void GetFileName([MarshalAs(UnmanagedType.LPWStr)] out string pszName);
+        void SetTitle([MarshalAs(UnmanagedType.LPWStr)] string pszTitle);
+        void SetOkButtonLabel([MarshalAs(UnmanagedType.LPWStr)] string pszText);
+        void SetFileNameLabel([MarshalAs(UnmanagedType.LPWStr)] string pszLabel);
+        void GetResult(out IShellItem ppsi);
+        void AddPlace(IShellItem psi, int fdap);
+        void SetDefaultExtension([MarshalAs(UnmanagedType.LPWStr)] string pszDefaultExtension);
+        void Close(int hr);
+        void SetClientGuid(ref Guid guid);
+        void ClearClientData();
+        void SetFilter(IntPtr pFilter);
+        void GetResults(out IntPtr ppenum);
+        void GetSelectedItems(out IntPtr ppsai);
+    }
+
+    [ComImport, Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IShellItem
+    {
+        void BindToHandler(IntPtr pbc, ref Guid bhid, ref Guid riid, out IntPtr ppv);
+        void GetParent(out IShellItem ppsi);
+        void GetDisplayName(SIGDN sigdnName, [MarshalAs(UnmanagedType.LPWStr)] out string ppszName);
+        void GetAttributes(uint sfgaoMask, out uint psfgaoAttribs);
+        void Compare(IShellItem psi, uint hint, out int piOrder);
+    }
+
+    [ComImport, Guid("DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7")]
+    private class FileOpenDialogClass { }
 
     // --- Window persistence helpers ---
     [DllImport("user32.dll")]
@@ -3578,7 +3682,7 @@ public sealed partial class MainWindow : Window
             else if (card.EngineHint.IndexOf("Unity", StringComparison.OrdinalIgnoreCase) >= 0)
                 DetailEngineIcon.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri("ms-appx:///Assets/icons/unity.ico"));
             else
-                DetailEngineIcon.Source = null;
+                DetailEngineIcon.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri("ms-appx:///Assets/icons/engine.ico"));
             DetailEngineBadge.Visibility = Visibility.Visible;
         }
         else DetailEngineBadge.Visibility = Visibility.Collapsed;

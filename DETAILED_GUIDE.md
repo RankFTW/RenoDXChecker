@@ -204,7 +204,7 @@ The Overrides section appears below Components in the detail panel.
 | **Game name (editable)** | Rename the game — persists across Refresh and restarts |
 | **Wiki mod name** | Match to a different wiki entry. Also applies to Luma matching. |
 | **↩ Reset** | Restore original name and clear wiki mapping |
-| **DLL naming override** | Custom filenames for ReShade and DC. Existing installs are renamed in place. |
+| **DLL naming override** | Custom filenames for ReShade and DC. Existing installs are renamed in place. Takes priority over any manifest-defined DLL names. |
 | **Exclude from Update All** | Skip during bulk updates |
 | **DC Mode** | Follow Global / Force Off / Force Mode 1 / Force Mode 2 |
 | **Shader Mode** | Global / Off / Minimum / All / User. Per-game shader mode only applies when DC Mode is OFF. |
@@ -220,8 +220,11 @@ Config files in `%LOCALAPPDATA%\RenoDXCommander\inis\`:
 
 | File | Copied When |
 |------|-------------|
-| `reshade.ini` | Every ReShade install, or via ⋯ menu on the ReShade row |
-| `DisplayCommander.toml` | Via ⋯ menu on the Display Commander row |
+| `reshade.ini` | Every ReShade or DC install, or via 📋 button on the ReShade row |
+| `ReShadePreset.ini` | Automatically alongside `reshade.ini` if the file exists in the inis folder |
+| `DisplayCommander.toml` | Via 📋 button on the Display Commander row |
+
+To use a custom ReShade preset, place your `ReShadePreset.ini` in the inis folder. It will be copied to every new game install automatically.
 
 ---
 
@@ -231,12 +234,18 @@ RDXC fetches a remote manifest from GitHub on every launch, providing game-speci
 
 - Blacklist (excluded non-game apps)
 - Install path overrides
-- Wiki status overrides
+- Wiki name overrides (map detected game name to wiki mod name)
+- Wiki status overrides (force a specific wiki status icon)
+- Wiki unlinks (ignore false fuzzy wiki matches, fall back to generic engine addon)
 - Game notes (append or replace wiki notes)
 - Native HDR list (auto-assign UE-Extended)
-- Shader pack URLs
+- UE-Extended games list
+- 32-bit / 64-bit game flags (override auto-detected bitness)
+- Engine overrides — force a specific engine label for a game; `"Unreal"` / `"Unity"` affect mod assignment and filter, any other string (e.g. `"Silk"`) is display-only and filters into Other
+- DLL name overrides — set the ReShade and/or DC install filename per game (e.g. `"Mirror's Edge": { "reshade": "d3d9.dll", "dc": "winmm.dll" }`); user-set overrides in the Manage panel take priority
+- Snapshot URL overrides (direct addon download URL when wiki lacks one)
+- DC mode overrides (force a specific DC mode level per game)
 - Luma default games and game notes
-- Wiki unlinks (ignore false fuzzy matches)
 
 Cached locally for offline use after first fetch.
 

@@ -208,6 +208,7 @@ public partial class MainViewModel : ObservableObject
     private HashSet<string> _manifest32BitGames = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _manifest64BitGames = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, string> _manifestEngineOverrides = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, ManifestDllNames> _manifestDllNameOverrides = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _hiddenGames = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _favouriteGames = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, string> _engineTypeCache = new(StringComparer.OrdinalIgnoreCase);
@@ -337,6 +338,90 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Renames installed ReShade and Display Commander files to match any manifest DLL name
+    /// overrides. Called after every BuildCards so that adding a manifest override takes
+    /// effect on next Refresh without the user needing to reinstall.
+    ///
+    /// Only runs for games that do NOT already have a user-set DLL override, since user
+    /// overrides take priority and their filenames are already correct.
+    /// </summary>
+    private void ApplyManifestDllRenames()
+    {
+        if (_manifestDllNameOverrides.Count == 0) return;
+
+        foreach (var card in _allCards)
+        {
+            if (card.DllOverrideEnabled) continue;             // user override takes priority
+            if (_manifestDllOverrideOptOuts.Contains(card.GameName)) continue; // user opted out
+            if (string.IsNullOrEmpty(card.InstallPath)) continue;
+
+            var manifestNames = GetManifestDllNames(card.GameName);
+            if (manifestNames == null) continue;
+
+            // Determine effective filenames — fall back to current installed name when manifest field is empty
+            var effectiveRs = !string.IsNullOrEmpty(manifestNames.ReShade)
+                ? manifestNames.ReShade
+                : (card.RsRecord?.InstalledAs ?? (card.Is32Bit ? AuxInstallService.RsDcModeName32 : AuxInstallService.RsDcModeName));
+            var effectiveDc = !string.IsNullOrEmpty(manifestNames.Dc)
+                ? manifestNames.Dc
+                : (card.DcRecord?.InstalledAs ?? (card.Is32Bit ? AuxInstallService.DcNormalName32 : AuxInstallService.DcNormalName));
+
+            // ── Inject into _dllOverrides so the UI toggle turns on and filenames appear ──
+            SetDllOverride(card.GameName, effectiveRs, effectiveDc);
+            _manifestDllOverrideGames.Add(card.GameName);
+            card.DllOverrideEnabled = true;
+
+            // ── ReShade rename (only if file exists under the old name) ────────────
+            if (card.RsRecord != null
+                && !card.RsRecord.InstalledAs.Equals(effectiveRs, StringComparison.OrdinalIgnoreCase))
+            {
+                var oldPath = Path.Combine(card.InstallPath, card.RsRecord.InstalledAs);
+                var newPath = Path.Combine(card.InstallPath, effectiveRs);
+                try
+                {
+                    if (File.Exists(oldPath))
+                    {
+                        if (File.Exists(newPath)) File.Delete(newPath);
+                        File.Move(oldPath, newPath);
+                        card.RsRecord.InstalledAs = effectiveRs;
+                        _auxInstaller.SaveAuxRecord(card.RsRecord);
+                        card.RsInstalledFile = effectiveRs;
+                        CrashReporter.Log($"ManifestDllRename [RS] {card.GameName}: {Path.GetFileName(oldPath)} → {effectiveRs}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    CrashReporter.Log($"ManifestDllRename [RS] {card.GameName}: rename failed — {ex.Message}");
+                }
+            }
+
+            // ── Display Commander rename ─────────────────────────────────────────
+            if (card.DcRecord != null
+                && !card.DcRecord.InstalledAs.Equals(effectiveDc, StringComparison.OrdinalIgnoreCase))
+            {
+                var oldPath = Path.Combine(card.InstallPath, card.DcRecord.InstalledAs);
+                var newPath = Path.Combine(card.InstallPath, effectiveDc);
+                try
+                {
+                    if (File.Exists(oldPath))
+                    {
+                        if (File.Exists(newPath)) File.Delete(newPath);
+                        File.Move(oldPath, newPath);
+                        card.DcRecord.InstalledAs = effectiveDc;
+                        _auxInstaller.SaveAuxRecord(card.DcRecord);
+                        card.DcInstalledFile = effectiveDc;
+                        CrashReporter.Log($"ManifestDllRename [DC] {card.GameName}: {Path.GetFileName(oldPath)} → {effectiveDc}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    CrashReporter.Log($"ManifestDllRename [DC] {card.GameName}: rename failed — {ex.Message}");
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// Renames installed DC and ReShade files across all games to match the current DcModeLevel.
     /// Called after cycling the DC Mode so that a subsequent Refresh picks up the new naming.
     /// 
@@ -373,8 +458,9 @@ public partial class MainViewModel : ObservableObject
                 {
                     CrashReporter.Log($"DC Mode switch: RS uninstall failed for {card.GameName} — {ex.Message}");
                 }
-                card.RsRecord = null;
-                card.RsInstalledFile = null;
+                card.RsRecord           = null;
+                card.RsInstalledFile    = null;
+                card.RsInstalledVersion = null;
                 card.RsStatus = GameStatus.NotInstalled;
             }
 
@@ -432,8 +518,9 @@ public partial class MainViewModel : ObservableObject
             {
                 CrashReporter.Log($"DC Mode switch (card): RS uninstall failed for {card.GameName} — {ex.Message}");
             }
-            card.RsRecord = null;
-            card.RsInstalledFile = null;
+            card.RsRecord           = null;
+            card.RsInstalledFile    = null;
+            card.RsInstalledVersion = null;
             card.RsStatus = GameStatus.NotInstalled;
         }
 
@@ -567,6 +654,19 @@ public partial class MainViewModel : ObservableObject
 
     /// <summary>Per-game DLL naming overrides. Key = game name, Value = config with custom file names.</summary>
     private Dictionary<string, DllOverrideConfig> _dllOverrides = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Tracks games whose DLL override was injected from the remote manifest rather than set by the user.
+    /// These entries are shown in the UI like user overrides but are NOT persisted to settings.json —
+    /// they are re-applied from the manifest on every launch/refresh.
+    /// </summary>
+    private HashSet<string> _manifestDllOverrideGames = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Games where the user has explicitly disabled a manifest-driven DLL override.
+    /// These are persisted to settings.json so the opt-out survives refreshes.
+    /// </summary>
+    private HashSet<string> _manifestDllOverrideOptOuts = new(StringComparer.OrdinalIgnoreCase);
 
     // ── Folder Override ──────────────────────────────────────────────────────────
 
@@ -712,6 +812,8 @@ public partial class MainViewModel : ObservableObject
         }
 
         SetDllOverride(name, reshadeFileName, dcFileName);
+        // User is explicitly enabling — clear any manifest opt-out for this game
+        _manifestDllOverrideOptOuts.Remove(name);
         card.DllOverrideEnabled = true;
         card.NotifyAll();
     }
@@ -799,6 +901,14 @@ public partial class MainViewModel : ObservableObject
                 var dcPath = Path.Combine(card.InstallPath, cfg.DcFileName);
                 try { if (File.Exists(dcPath)) File.Delete(dcPath); } catch { }
             }
+        }
+
+        // If this was a manifest-injected override, record that the user has opted out
+        // so ApplyManifestDllRenames doesn't re-enable it on the next refresh.
+        if (_manifestDllOverrideGames.Contains(name))
+        {
+            _manifestDllOverrideOptOuts.Add(name);
+            _manifestDllOverrideGames.Remove(name);
         }
 
         RemoveDllOverride(name);
@@ -893,6 +1003,27 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Returns the manifest-defined DLL filenames for a game, if any.
+    /// User-set per-game DLL overrides always take priority over the manifest.
+    /// Returns null if no manifest override is defined.
+    /// </summary>
+    private ManifestDllNames? GetManifestDllNames(string gameName)
+    {
+        if (_manifestDllNameOverrides.Count == 0) return null;
+        if (_manifestDllNameOverrides.TryGetValue(gameName, out var names)) return names;
+        // Try stripped name (™®© removed)
+        var stripped = gameName.Replace("™", "").Replace("®", "").Replace("©", "").Trim();
+        if (stripped != gameName && _manifestDllNameOverrides.TryGetValue(stripped, out names)) return names;
+        // Normalized comparison as last resort
+        var norm = NormalizeForLookup(gameName);
+        foreach (var (key, value) in _manifestDllNameOverrides)
+        {
+            if (NormalizeForLookup(key) == norm) return value;
+        }
+        return null;
+    }
+
+    /// <summary>
     /// Checks if <paramref name="gameName"/> matches any entry in <paramref name="gameSet"/>.
     /// Tries exact match first, then stripped (™®© removed), then fully normalised.
     /// </summary>
@@ -980,6 +1111,8 @@ public partial class MainViewModel : ObservableObject
         _perGameShaderMode      = new(StringComparer.OrdinalIgnoreCase);
         _gameRenames            = new(StringComparer.OrdinalIgnoreCase);
         _dllOverrides           = new(StringComparer.OrdinalIgnoreCase);
+        _manifestDllOverrideGames.Clear();
+        _manifestDllOverrideOptOuts = new(StringComparer.OrdinalIgnoreCase);
         _folderOverrides        = new(StringComparer.OrdinalIgnoreCase);
         _lumaEnabledGames       = new(StringComparer.OrdinalIgnoreCase);
         _lumaDisabledGames      = new(StringComparer.OrdinalIgnoreCase);
@@ -1083,6 +1216,10 @@ public partial class MainViewModel : ObservableObject
 
         _dllOverrides = new(Load<Dictionary<string, DllOverrideConfig>>("DllOverrides",
             new(StringComparer.OrdinalIgnoreCase)), StringComparer.OrdinalIgnoreCase);
+
+        _manifestDllOverrideOptOuts = new(
+            Load<List<string>>("ManifestDllOptOuts", new()),
+            StringComparer.OrdinalIgnoreCase);
 
         _folderOverrides = new(Load<Dictionary<string, string>>("FolderOverrides",
             new(StringComparer.OrdinalIgnoreCase)), StringComparer.OrdinalIgnoreCase);
@@ -1602,8 +1739,7 @@ public partial class MainViewModel : ObservableObject
         {
             if (card.Mod?.HasBothBitVersions != true) continue;
             if (overrides.ContainsKey(card.GameName)) continue; // already has a custom note
-            var dualNote = "";
-            card.Notes = string.IsNullOrWhiteSpace(card.Notes) ? dualNote : card.Notes + "\n\n" + dualNote;
+            // Dual-bitness note intentionally omitted — per-game notes handle this via manifest gameNotes where needed
         }
     }
 
@@ -1622,6 +1758,12 @@ public partial class MainViewModel : ObservableObject
         _manifest32BitGames.Clear();
         _manifest64BitGames.Clear();
         _manifestEngineOverrides.Clear();
+        _manifestDllNameOverrides.Clear();
+
+        // Remove previously manifest-injected DLL overrides so they can be re-evaluated
+        foreach (var name in _manifestDllOverrideGames)
+            _dllOverrides.Remove(name);
+        _manifestDllOverrideGames.Clear();
         if (manifest == null) return;
 
         // Wiki name overrides — local user name mappings take priority
@@ -1708,6 +1850,25 @@ public partial class MainViewModel : ObservableObject
                 _manifestEngineOverrides[key] = value;
         }
 
+        // DLL name overrides — remotely set ReShade/DC install filenames for specific games.
+        // User-set per-game DLL overrides take priority; manifest only applies when no user override is set.
+        if (manifest.DllNameOverrides != null)
+        {
+            foreach (var (key, value) in manifest.DllNameOverrides)
+                _manifestDllNameOverrides[key] = value;
+        }
+
+        // Prune opt-outs for games no longer in the manifest's dllNameOverrides —
+        // if the manifest removes an override, the user's opt-out is no longer relevant.
+        if (manifest.DllNameOverrides != null)
+        {
+            var manifestKeys = new HashSet<string>(
+                manifest.DllNameOverrides.Keys, StringComparer.OrdinalIgnoreCase);
+            _manifestDllOverrideOptOuts.RemoveWhere(name =>
+                !manifestKeys.Contains(name)
+                && !manifestKeys.Any(k => NormalizeForLookup(k) == NormalizeForLookup(name)));
+        }
+
         CrashReporter.Log($"ApplyManifest: v{manifest.Version}, " +
             $"+{manifest.WikiNameOverrides?.Count ?? 0} name overrides, " +
             $"+{manifest.UeExtendedGames?.Count ?? 0} UE-Ext, " +
@@ -1720,7 +1881,8 @@ public partial class MainViewModel : ObservableObject
             $"+{manifest.WikiStatusOverrides?.Count ?? 0} status overrides, " +
             $"+{manifest.SnapshotOverrides?.Count ?? 0} snapshot overrides, " +
             $"+{manifest.WikiUnlinks?.Count ?? 0} wiki unlinks, " +
-            $"+{manifest.EngineOverrides?.Count ?? 0} engine overrides");
+            $"+{manifest.EngineOverrides?.Count ?? 0} engine overrides, " +
+            $"+{manifest.DllNameOverrides?.Count ?? 0} DLL name overrides");
     }
 
     /// <summary>
@@ -1908,7 +2070,11 @@ public partial class MainViewModel : ObservableObject
             s["LumaEnabledGames"]   = JsonSerializer.Serialize(_lumaEnabledGames.ToList());
             s["LumaDisabledGames"]  = JsonSerializer.Serialize(_lumaDisabledGames.ToList());
             s["GameRenames"]         = JsonSerializer.Serialize(_gameRenames);
-            s["DllOverrides"]        = JsonSerializer.Serialize(_dllOverrides);
+            s["DllOverrides"]        = JsonSerializer.Serialize(
+                _dllOverrides
+                    .Where(kv => !_manifestDllOverrideGames.Contains(kv.Key))
+                    .ToDictionary(kv => kv.Key, kv => kv.Value));
+            s["ManifestDllOptOuts"]  = JsonSerializer.Serialize(_manifestDllOverrideOptOuts.ToList());
             s["FolderOverrides"]     = JsonSerializer.Serialize(_folderOverrides);
             s["HiddenGames"]         = JsonSerializer.Serialize(_hiddenGames?.ToList() ?? new List<string>());
             s["FavouriteGames"]      = JsonSerializer.Serialize(_favouriteGames?.ToList() ?? new List<string>());
@@ -2294,6 +2460,18 @@ public partial class MainViewModel : ObservableObject
             r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase) &&
             r.AddonType == AuxInstallService.TypeReShade);
 
+        // Drop stale records whose files no longer exist on disk
+        if (rsRecManual != null && !File.Exists(Path.Combine(rsRecManual.InstallPath, rsRecManual.InstalledAs)))
+        {
+            _auxInstaller.RemoveRecord(rsRecManual);
+            rsRecManual = null;
+        }
+        if (dcRecManual != null && !File.Exists(Path.Combine(dcRecManual.InstallPath, dcRecManual.InstalledAs)))
+        {
+            _auxInstaller.RemoveRecord(dcRecManual);
+            dcRecManual = null;
+        }
+
         // Detect bitness for the manually added game
         var manualMachine = PeHeaderService.DetectGameArchitecture(scanPath);
         _bitnessCache[scanPath.ToLowerInvariant()] = manualMachine;
@@ -2352,9 +2530,11 @@ public partial class MainViewModel : ObservableObject
             DcRecord        = dcRecManual,
             DcStatus        = dcRecManual != null ? GameStatus.Installed : GameStatus.NotInstalled,
             DcInstalledFile = dcRecManual?.InstalledAs,
+            DcInstalledVersion = dcRecManual != null ? AuxInstallService.ReadInstalledVersion(dcRecManual.InstallPath, dcRecManual.InstalledAs) : null,
             RsRecord        = rsRecManual,
             RsStatus        = rsRecManual != null ? GameStatus.Installed : GameStatus.NotInstalled,
             RsInstalledFile = rsRecManual?.InstalledAs,
+            RsInstalledVersion = rsRecManual != null ? AuxInstallService.ReadInstalledVersion(rsRecManual.InstallPath, rsRecManual.InstalledAs) : null,
             RsBlockedByDcMode = !_dllOverrides.ContainsKey(game.Name)
                                  && (_perGameDcModeOverride.ContainsKey(game.Name) ? pgdmM : DcModeLevel) > 0,
         };
@@ -2536,14 +2716,17 @@ public partial class MainViewModel : ObservableObject
                 existingRsRecord: card.RsRecord,
                 shaderModeOverride: card.ShaderModeOverride,
                 use32Bit:         card.Is32Bit,
-                filenameOverride: card.DllOverrideEnabled ? (GetDllOverride(card.GameName)?.DcFileName) : null,
+                filenameOverride: card.DllOverrideEnabled
+                    ? (GetDllOverride(card.GameName)?.DcFileName)
+                    : (GetManifestDllNames(card.GameName)?.Dc is { Length: > 0 } mDc ? mDc : null),
                 progress:         progress);
             DispatcherQueue?.TryEnqueue(() =>
             {
-                card.DcRecord        = record;
-                card.DcInstalledFile = record.InstalledAs;
-                card.DcStatus        = GameStatus.Installed;
-                card.DcActionMessage = "✅ Display Commander installed!";
+                card.DcRecord           = record;
+                card.DcInstalledFile    = record.InstalledAs;
+                card.DcInstalledVersion = AuxInstallService.ReadInstalledVersion(record.InstallPath, record.InstalledAs);
+                card.DcStatus           = GameStatus.Installed;
+                card.DcActionMessage    = "✅ Display Commander installed!";
                 card.NotifyAll();
             });
         }
@@ -2562,10 +2745,11 @@ public partial class MainViewModel : ObservableObject
         try
         {
             _auxInstaller.Uninstall(card.DcRecord);
-            card.DcRecord        = null;
-            card.DcInstalledFile = null;
-            card.DcStatus        = GameStatus.NotInstalled;
-            card.DcActionMessage = "Display Commander removed.";
+            card.DcRecord           = null;
+            card.DcInstalledFile    = null;
+            card.DcInstalledVersion = null;
+            card.DcStatus           = GameStatus.NotInstalled;
+            card.DcActionMessage    = "Display Commander removed.";
             card.NotifyAll();
         }
         catch (Exception ex)
@@ -2637,14 +2821,17 @@ public partial class MainViewModel : ObservableObject
                 dcIsInstalled:  card.DcStatus == GameStatus.Installed,
                 shaderModeOverride: card.ShaderModeOverride,
                 use32Bit:       card.Is32Bit,
-                filenameOverride: card.DllOverrideEnabled ? (GetDllOverride(card.GameName)?.ReShadeFileName) : null,
+                filenameOverride: card.DllOverrideEnabled
+                    ? (GetDllOverride(card.GameName)?.ReShadeFileName)
+                    : (GetManifestDllNames(card.GameName)?.ReShade is { Length: > 0 } mRs ? mRs : null),
                 progress:       progress);
             DispatcherQueue?.TryEnqueue(() =>
             {
-                card.RsRecord        = record;
-                card.RsInstalledFile = record.InstalledAs;
-                card.RsStatus        = GameStatus.Installed;
-                card.RsActionMessage = "✅ ReShade installed!";
+                card.RsRecord           = record;
+                card.RsInstalledFile    = record.InstalledAs;
+                card.RsInstalledVersion = AuxInstallService.ReadInstalledVersion(record.InstallPath, record.InstalledAs);
+                card.RsStatus           = GameStatus.Installed;
+                card.RsActionMessage    = "✅ ReShade installed!";
                 card.NotifyAll();
             });
         }
@@ -2671,10 +2858,11 @@ public partial class MainViewModel : ObservableObject
             }
 
             _auxInstaller.Uninstall(card.RsRecord);
-            card.RsRecord        = null;
-            card.RsInstalledFile = null;
-            card.RsStatus        = GameStatus.NotInstalled;
-            card.RsActionMessage = "ReShade removed.";
+            card.RsRecord           = null;
+            card.RsInstalledFile    = null;
+            card.RsInstalledVersion = null;
+            card.RsStatus           = GameStatus.NotInstalled;
+            card.RsActionMessage    = "ReShade removed.";
             card.NotifyAll();
         }
         catch (Exception ex)
@@ -2770,8 +2958,9 @@ public partial class MainViewModel : ObservableObject
                 try
                 {
                     _auxInstaller.Uninstall(card.RsRecord);
-                    card.RsRecord = null;
-                    card.RsInstalledFile = null;
+                    card.RsRecord           = null;
+                    card.RsInstalledFile    = null;
+                    card.RsInstalledVersion = null;
                     card.RsStatus = GameStatus.NotInstalled;
                 }
                 catch (Exception ex) { CrashReporter.Log($"Luma toggle: ReShade uninstall failed — {ex.Message}"); }
@@ -2783,8 +2972,9 @@ public partial class MainViewModel : ObservableObject
                 try
                 {
                     _auxInstaller.Uninstall(card.DcRecord);
-                    card.DcRecord = null;
-                    card.DcInstalledFile = null;
+                    card.DcRecord           = null;
+                    card.DcInstalledFile    = null;
+                    card.DcInstalledVersion = null;
                     card.DcStatus = GameStatus.NotInstalled;
                 }
                 catch (Exception ex) { CrashReporter.Log($"Luma toggle: DC uninstall failed — {ex.Message}"); }
@@ -3022,13 +3212,17 @@ public partial class MainViewModel : ObservableObject
                     dcIsInstalled:  dcInstalled,
                     shaderModeOverride: card.ShaderModeOverride,
                     use32Bit:       card.Is32Bit,
+                    filenameOverride: card.DllOverrideEnabled
+                        ? (GetDllOverride(card.GameName)?.ReShadeFileName)
+                        : (GetManifestDllNames(card.GameName)?.ReShade is { Length: > 0 } mRs ? mRs : null),
                     progress:       progress);
                 DispatcherQueue?.TryEnqueue(() =>
                 {
-                    card.RsRecord        = record;
-                    card.RsInstalledFile = record.InstalledAs;
-                    card.RsStatus        = GameStatus.Installed;
-                    card.RsActionMessage = "✅ Updated!";
+                    card.RsRecord           = record;
+                    card.RsInstalledFile    = record.InstalledAs;
+                    card.RsInstalledVersion = AuxInstallService.ReadInstalledVersion(record.InstallPath, record.InstalledAs);
+                    card.RsStatus           = GameStatus.Installed;
+                    card.RsActionMessage    = "✅ Updated!";
                     card.NotifyAll();
                 });
             }
@@ -3113,13 +3307,17 @@ public partial class MainViewModel : ObservableObject
                     existingRsRecord: card.RsRecord,
                     shaderModeOverride: card.ShaderModeOverride,
                     use32Bit:         card.Is32Bit,
+                    filenameOverride: card.DllOverrideEnabled
+                        ? (GetDllOverride(card.GameName)?.DcFileName)
+                        : (GetManifestDllNames(card.GameName)?.Dc is { Length: > 0 } mDc ? mDc : null),
                     progress:         progress);
                 DispatcherQueue?.TryEnqueue(() =>
                 {
-                    card.DcRecord        = record;
-                    card.DcInstalledFile = record.InstalledAs;
-                    card.DcStatus        = GameStatus.Installed;
-                    card.DcActionMessage = "✅ Updated!";
+                    card.DcRecord           = record;
+                    card.DcInstalledFile    = record.InstalledAs;
+                    card.DcInstalledVersion = AuxInstallService.ReadInstalledVersion(record.InstallPath, record.InstalledAs);
+                    card.DcStatus           = GameStatus.Installed;
+                    card.DcActionMessage    = "✅ Updated!";
                     card.NotifyAll();
                 });
             }
@@ -3299,6 +3497,9 @@ public partial class MainViewModel : ObservableObject
             CrashReporter.Log($"Building cards for {allGames.Count} games...");
             _allCards = await Task.Run(() => BuildCards(allGames, records, auxRecords, addonCache, _genericNotes));
             CrashReporter.Log($"BuildCards complete: {_allCards.Count} cards.");
+
+            // Apply manifest DLL name overrides to any existing installs whose filenames don't match
+            ApplyManifestDllRenames();
 
             // Carry forward UpdateAvailable status from previous cards
             foreach (var c in _allCards)
@@ -3773,6 +3974,13 @@ public partial class MainViewModel : ObservableObject
                 };
                 _installer.SaveRecordPublic(record);
             }
+            else if (addonOnDisk == null && record != null)
+            {
+                // DB record exists but addon file is no longer on disk — user manually removed it.
+                // Remove the stale record so the card shows Available rather than Installed.
+                _installer.RemoveRecord(record);
+                record = null;
+            }
 
             // If the installed addon on disk has a different source URL than what the
             // wiki mod specifies (e.g. renodx-ue-extended.addon64 on a generic UE card),
@@ -3885,6 +4093,19 @@ public partial class MainViewModel : ObservableObject
             var rsRec = auxRecords.FirstOrDefault(r =>
                 r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase) &&
                 r.AddonType == AuxInstallService.TypeReShade);
+
+            // Verify DB records against disk — if the file no longer exists the record is stale.
+            // This handles the case where the user manually deleted files without using RDXC.
+            if (rsRec != null && !File.Exists(Path.Combine(rsRec.InstallPath, rsRec.InstalledAs)))
+            {
+                _auxInstaller.RemoveRecord(rsRec);
+                rsRec = null;
+            }
+            if (dcRec != null && !File.Exists(Path.Combine(dcRec.InstallPath, dcRec.InstalledAs)))
+            {
+                _auxInstaller.RemoveRecord(dcRec);
+                dcRec = null;
+            }
 
             // ── Disk detection for ReShade & Display Commander ────────────────────
             // If no DB record exists, scan disk for the known filenames so that
@@ -4053,9 +4274,11 @@ public partial class MainViewModel : ObservableObject
                 DcRecord               = dcRec,
                 DcStatus               = dcRec != null ? GameStatus.Installed : GameStatus.NotInstalled,
                 DcInstalledFile        = dcRec?.InstalledAs,
+                DcInstalledVersion     = dcRec != null ? AuxInstallService.ReadInstalledVersion(dcRec.InstallPath, dcRec.InstalledAs) : null,
                 RsRecord               = rsRec,
                 RsStatus               = rsRec != null ? GameStatus.Installed : GameStatus.NotInstalled,
                 RsInstalledFile        = rsRec?.InstalledAs,
+                RsInstalledVersion     = rsRec != null ? AuxInstallService.ReadInstalledVersion(rsRec.InstallPath, rsRec.InstalledAs) : null,
                 RsBlockedByDcMode      = !_dllOverrides.ContainsKey(game.Name)
                                            && (_perGameDcModeOverride.ContainsKey(game.Name) ? pgdmBc : DcModeLevel) > 0,
             });

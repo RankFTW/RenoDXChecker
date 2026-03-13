@@ -38,6 +38,7 @@ public partial class GameCardViewModel : ObservableObject
     [ObservableProperty] private double     _dcProgress;
     [ObservableProperty] private string     _dcActionMessage = "";
     [ObservableProperty] private string?    _dcInstalledFile;
+    [ObservableProperty] private string?    _dcInstalledVersion;
     public AuxInstalledRecord? DcRecord { get; set; }
 
     // ── ReShade state ─────────────────────────────────────────────────────────────
@@ -46,6 +47,7 @@ public partial class GameCardViewModel : ObservableObject
     [ObservableProperty] private double     _rsProgress;
     [ObservableProperty] private string     _rsActionMessage = "";
     [ObservableProperty] private string?    _rsInstalledFile;
+    [ObservableProperty] private string?    _rsInstalledVersion;
     public AuxInstalledRecord? RsRecord { get; set; }
 
     // Plain properties — not mutated after card creation, no need to observe
@@ -345,7 +347,7 @@ public partial class GameCardViewModel : ObservableObject
     public string RsStatusText => RsBlockedByDcMode ? "DC Mode"
         : RsIsInstalling ? "Installing…"
         : RsStatus == GameStatus.UpdateAvailable ? "Update"
-        : RsStatus == GameStatus.Installed       ? "Installed"
+        : RsStatus == GameStatus.Installed       ? (RsInstalledVersion ?? "Installed")
         : "Ready";
     public string RsStatusColor => RsBlockedByDcMode ? "#6B7A8E"
         : RsIsInstalling ? "#D4A856"
@@ -360,7 +362,7 @@ public partial class GameCardViewModel : ObservableObject
 
     public string DcStatusText => DcIsInstalling ? "Installing…"
         : DcStatus == GameStatus.UpdateAvailable ? "Update"
-        : DcStatus == GameStatus.Installed       ? "Installed"
+        : DcStatus == GameStatus.Installed       ? (DcInstalledVersion ?? "Installed")
         : "Ready";
     public string DcStatusColor => DcIsInstalling ? "#D4A856"
         : DcStatus == GameStatus.UpdateAvailable ? "#B898E8"

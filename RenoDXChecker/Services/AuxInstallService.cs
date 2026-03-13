@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using RenoDXCommander.Models;
 
@@ -299,6 +300,7 @@ public class AuxInstallService
         "RenoDXCommander", "inis");
 
     public static string RsIniPath => Path.Combine(InisDir, "reshade.ini");
+    public static string RsPresetIniPath => Path.Combine(InisDir, "ReShadePreset.ini");
     public static string DcIniPath => Path.Combine(InisDir, "DisplayCommander.toml");
 
     /// <summary>
@@ -379,6 +381,24 @@ public class AuxInstallService
         if (!File.Exists(RsIniPath))
             throw new FileNotFoundException("reshade.ini not found in inis folder.", RsIniPath);
         File.Copy(RsIniPath, Path.Combine(gameDir, "reshade.ini"), overwrite: true);
+    }
+
+    /// <summary>
+    /// Copies ReShadePreset.ini from the inis folder to the given game directory if the file exists.
+    /// Silent no-op when the file is absent — the preset is optional.
+    /// </summary>
+    public static void CopyRsPresetIniIfPresent(string gameDir)
+    {
+        if (!File.Exists(RsPresetIniPath)) return;
+        try
+        {
+            File.Copy(RsPresetIniPath, Path.Combine(gameDir, "ReShadePreset.ini"), overwrite: true);
+            CrashReporter.Log($"CopyRsPresetIniIfPresent: copied to {gameDir}");
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"CopyRsPresetIniIfPresent failed for {gameDir}: {ex.Message}");
+        }
     }
 
     // ── INI parsing / writing helpers ─────────────────────────────────────────────
@@ -604,6 +624,8 @@ public class AuxInstallService
             try { MergeRsIni(installPath); }
             catch (Exception ex) { CrashReporter.Log($"InstallDcAsync: reshade.ini merge failed — {ex.Message}"); }
         }
+        // Deploy ReShadePreset.ini alongside reshade.ini when the user has placed one in the inis folder.
+        CopyRsPresetIniIfPresent(installPath);
 
         // ── Shader deployment ─────────────────────────────────────────────────────
         // DC installation: remove the local reshade-shaders folder (ReShade will use
@@ -696,6 +718,8 @@ public class AuxInstallService
         // to the game folder here. Manual 📋 button can overwrite it later.
         if (File.Exists(RsIniPath))
             MergeRsIni(installPath);
+        // Deploy ReShadePreset.ini alongside reshade.ini when the user has placed one in the inis folder.
+        CopyRsPresetIniIfPresent(installPath);
 
         progress?.Report(("ReShade installed!", 100));
 
@@ -726,6 +750,40 @@ public class AuxInstallService
     }
 
     // ── Update detection ──────────────────────────────────────────────────────────
+
+    // ── Version reading ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Reads the product version string from an installed ReShade or Display Commander file.
+    /// Returns a short human-readable version string (e.g. "6.7.3" or "0.12.461") or null
+    /// if the file doesn't exist or has no version info.
+    /// For ReShade DLLs this is the ProductVersion from the PE resource (e.g. "6.7.3").
+    /// For Display Commander addon files this is also the ProductVersion (e.g. "0.12.461.2731",
+    /// trimmed to 3 parts for display: "0.12.461").
+    /// </summary>
+    public static string? ReadInstalledVersion(string installPath, string fileName)
+    {
+        var filePath = Path.Combine(installPath, fileName);
+        if (!File.Exists(filePath)) return null;
+        try
+        {
+            var info = FileVersionInfo.GetVersionInfo(filePath);
+            var ver  = info.ProductVersion?.Trim();
+            if (string.IsNullOrEmpty(ver)) return null;
+
+            // Trim build number for DC: "0.12.461.2731" → "0.12.461"
+            // ReShade already ships as "6.7.3" (3 parts), so this is a no-op for it.
+            var parts = ver.Split('.');
+            if (parts.Length > 3)
+                ver = string.Join(".", parts[0], parts[1], parts[2]);
+
+            return ver;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
     /// <summary>
     /// Checks if an installed ReShade file is outdated by comparing its size

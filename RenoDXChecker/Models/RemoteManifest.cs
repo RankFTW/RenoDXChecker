@@ -85,6 +85,16 @@ public class RemoteManifest
     /// </summary>
     [JsonPropertyName("engineOverrides")]
     public Dictionary<string, string>? EngineOverrides { get; set; }
+
+    /// <summary>
+    /// Per-game DLL filename overrides. Allows the manifest to remotely set the filename
+    /// that ReShade and Display Commander are installed as for specific games.
+    /// Key = game name, Value = object with "reshade" and/or "dc" filename strings.
+    /// Either field may be empty/null — an empty string means that file keeps its default name.
+    /// Example: "Mirror's Edge": { "reshade": "d3d9.dll", "dc": "winmm.dll" }
+    /// </summary>
+    [JsonPropertyName("dllNameOverrides")]
+    public Dictionary<string, ManifestDllNames>? DllNameOverrides { get; set; }
 }
 
 public class GameNoteEntry
@@ -106,4 +116,15 @@ public class ForceExternalEntry
 
     [JsonPropertyName("label")]
     public string? Label { get; set; }
+}
+
+public class ManifestDllNames
+{
+    /// <summary>Filename to install ReShade as (e.g. "d3d9.dll"). Empty = use default.</summary>
+    [JsonPropertyName("reshade")]
+    public string? ReShade { get; set; }
+
+    /// <summary>Filename to install Display Commander as (e.g. "winmm.dll"). Empty = use default.</summary>
+    [JsonPropertyName("dc")]
+    public string? Dc { get; set; }
 }

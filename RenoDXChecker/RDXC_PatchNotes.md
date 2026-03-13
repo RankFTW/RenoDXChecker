@@ -23,19 +23,54 @@
 **Manifest engine overrides**
 - A new `engineOverrides` manifest field allows the engine for any game to be overridden.
 - Setting a game to `"Unreal"` or `"Unity"` changes both its filter category and enables the correct generic mod/addon behaviour (UE-Extended eligibility, generic Unity addon, etc.).
-- Setting a game to any other string (e.g. `"Silk"`, `"Source 2"`, `"Creation Engine"`) displays that label in the engine badge but keeps the game in the Other filter — it will not incorrectly receive a UE or Unity generic mod.
+- Setting a game to any other string (e.g. `"Silk"`, `"Source 2"`, `"Creation Engine"`) displays that label in the engine badge but keeps the game in the Other filter.
 - Games with no known or overridden engine continue to show as Unknown and filter into Other.
+
+**Manifest DLL name overrides**
+- A new `dllNameOverrides` manifest field allows the ReShade and Display Commander install filenames to be set remotely per game.
+- Example: `"Mirror's Edge": { "reshade": "d3d9.dll", "dc": "winmm.dll" }`. Either field may be empty to keep the default name.
+- User-set per-game DLL overrides in the Manage panel always take priority over manifest values.
+
+**ReShadePreset.ini auto-deploy**
+- If a `ReShadePreset.ini` file is placed in `%LOCALAPPDATA%\RenoDXCommander\inis\`, it is automatically copied to the game folder alongside `reshade.ini` on every ReShade or Display Commander install.
+- The 📋 INI button on the ReShade row also copies the preset file if present.
+
+**ReShade and Display Commander version display**
+- The status label next to the ReShade and Display Commander install buttons now shows the installed version number (e.g. `6.7.3`) instead of just `Installed`.
+- Falls back to `Installed` if no version information is available.
+- Applies to both Detail View and the grid card Manage popout.
+
+**Custom engine icon**
+- Games with a custom engine name set via `engineOverrides` in the manifest now show a dedicated engine icon in the engine badge, rather than no icon.
 
 ### Changes
 
 **Filter layout**
 - The Other filter has been moved from the top row to the second row, now sitting between Unity and RenoDX.
 
+**Change install folder now opens game folder**
+- The folder picker for changing a game's install path now opens directly in the game's current folder instead of the last-used location.
+
 ### Bug Fixes
 
 **UE-Extended toggle not applying**
-- Clicking the UE-Extended button was silently ignored for games that had not yet been flagged as `IsGenericMod`, even though the button was visible. The eligibility check now matches the same conditions used to show the button, so the toggle works correctly for all games that display it.
-- The "UE-Extended disabled" notification was incorrectly appearing when clicking to enable, because the toggle was never actually applying. This is resolved.
+- Clicking the UE-Extended button was silently ignored for games that had not yet been flagged as `IsGenericMod`, even though the button was visible. The eligibility check now matches the same conditions used to show the button.
+
+**Games showing as installed after manual file removal**
+- After a full Refresh, games with ReShade, Display Commander, or RenoDX manually deleted from the game folder were still showing as installed in the UI.
+- RDXC now verifies that the installed file actually exists on disk when loading saved records. Stale records are automatically cleaned up and the correct status is shown immediately on the next Refresh.
+
+**Manifest DLL name override not applying to existing installs**
+- The `dllNameOverrides` manifest field was only used as the filename for new installs. Games already installed under a different filename were not renamed when the manifest override was applied.
+- RDXC now renames existing ReShade and Display Commander files to match the manifest override on every Refresh, matching the behaviour of user-set DLL overrides.
+
+**Manifest DLL name override not visible in UI**
+- Games flagged via `dllNameOverrides` in the manifest were silently installing with the correct filename but the DLL naming override toggle in the Overrides section remained off, giving no indication anything was different.
+- Games with a manifest DLL override now have the toggle turned on automatically and the filenames pre-filled, identical to a user-set override. The override can be disabled per-game and that preference is remembered across refreshes.
+
+**Change install folder picker opening in Documents**
+- The Change Install Folder button was opening the file picker in the Documents folder instead of the game's current install directory.
+- The picker now opens directly in the game's folder using the native `IFileOpenDialog` COM interface, which correctly supports arbitrary start paths in WinUI 3 unpackaged apps.
 
 ---
 

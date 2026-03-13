@@ -406,7 +406,7 @@
                                             Background="{StaticResource SurfaceOverlayBrush}" Foreground="{StaticResource TextSecondaryBrush}"
                                             BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
                                             CornerRadius="8" Width="36" Height="32" Padding="0"
-                                            ToolTipService.ToolTip="Copy reshade.ini">
+                                            ToolTipService.ToolTip="Copy ReShade.ini &amp; ReShadePreset.ini">
                                         <TextBlock Text="📋" FontSize="12" HorizontalAlignment="Center"/>
                                     </Button>
                                     <Button x:Name="DetailRsDeleteBtn" Grid.Column="4"
