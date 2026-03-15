@@ -58,7 +58,7 @@ public class AuxInstallService : IAuxInstallService
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"SyncReShadeToDisplayCommander failed: {ex.Message}");
+            CrashReporter.Log($"[AuxInstallService.SyncReShadeToDisplayCommander] Failed — {ex.Message}");
         }
     }
 
@@ -153,12 +153,12 @@ public class AuxInstallService : IAuxInstallService
         {
             if (File.Exists(backupPath)) File.Delete(backupPath);
             File.Move(dllPath, backupPath);
-            CrashReporter.Log($"BackupForeignDll: {name} → {name}.original in {Path.GetDirectoryName(dllPath)}");
+            CrashReporter.Log($"[AuxInstallService.BackupForeignDll] {name} → {name}.original in {Path.GetDirectoryName(dllPath)}");
             return true;
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"BackupForeignDll failed for {dllPath}: {ex.Message}");
+            CrashReporter.Log($"[AuxInstallService.BackupForeignDll] Failed for '{dllPath}' — {ex.Message}");
             return false;
         }
     }
@@ -177,11 +177,11 @@ public class AuxInstallService : IAuxInstallService
         {
             File.Move(backupPath, dllPath);
             var name = Path.GetFileName(dllPath);
-            CrashReporter.Log($"RestoreForeignDll: {name}.original → {name} in {Path.GetDirectoryName(dllPath)}");
+            CrashReporter.Log($"[AuxInstallService.RestoreForeignDll] {name}.original → {name} in {Path.GetDirectoryName(dllPath)}");
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"RestoreForeignDll failed for {dllPath}: {ex.Message}");
+            CrashReporter.Log($"[AuxInstallService.RestoreForeignDll] Failed for '{dllPath}' — {ex.Message}");
         }
     }
 
@@ -324,11 +324,11 @@ public class AuxInstallService : IAuxInstallService
                 try
                 {
                     File.Copy(bundled, RsIniPath, overwrite: false);
-                    CrashReporter.Log("EnsureInisDir: seeded default reshade.ini from bundle");
+                    CrashReporter.Log("[AuxInstallService.EnsureInisDir] Seeded default reshade.ini from bundle");
                 }
                 catch (Exception ex)
                 {
-                    CrashReporter.Log($"EnsureInisDir: failed to seed reshade.ini — {ex.Message}");
+                    CrashReporter.Log($"[AuxInstallService.EnsureInisDir] Failed to seed reshade.ini — {ex.Message}");
                 }
             }
         }
@@ -396,11 +396,11 @@ public class AuxInstallService : IAuxInstallService
         try
         {
             File.Copy(RsPresetIniPath, Path.Combine(gameDir, "ReShadePreset.ini"), overwrite: true);
-            CrashReporter.Log($"CopyRsPresetIniIfPresent: copied to {gameDir}");
+            CrashReporter.Log($"[AuxInstallService.CopyRsPresetIniIfPresent] Copied to {gameDir}");
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"CopyRsPresetIniIfPresent failed for {gameDir}: {ex.Message}");
+            CrashReporter.Log($"[AuxInstallService.CopyRsPresetIniIfPresent] Failed for '{gameDir}' — {ex.Message}");
         }
     }
 
@@ -628,7 +628,7 @@ public class AuxInstallService : IAuxInstallService
         if (File.Exists(RsIniPath))
         {
             try { MergeRsIni(installPath); }
-            catch (Exception ex) { CrashReporter.Log($"InstallDcAsync: reshade.ini merge failed — {ex.Message}"); }
+            catch (Exception ex) { CrashReporter.Log($"[AuxInstallService.InstallDcAsync] reshade.ini merge failed — {ex.Message}"); }
         }
         // Deploy ReShadePreset.ini alongside reshade.ini when the user has placed one in the inis folder.
         CopyRsPresetIniIfPresent(installPath);
@@ -643,8 +643,10 @@ public class AuxInstallService : IAuxInstallService
 
         // Sync shaders to the DC global folder (prune + deploy for mode changes).
         // Off mode triggers removal inside SyncDcFolder.
+        // IMPORTANT: Always use the global shader mode for the DC folder — it is shared
+        // across all DC-mode games, so a per-game override must not alter it.
         if (dcModeLevel > 0)
-            _shaderPackService.SyncDcFolder(effectiveShaderMode);
+            _shaderPackService.SyncDcFolder(ShaderPackService.CurrentMode);
 
         var record = new AuxInstalledRecord
         {
@@ -748,7 +750,8 @@ public class AuxInstallService : IAuxInstallService
         // files from the previous mode. Off mode triggers removal inside Sync.
         var effectiveShaderMode = ResolveShaderMode(shaderModeOverride);
         if (dcMode)
-            _shaderPackService.SyncDcFolder(effectiveShaderMode);
+            // DC folder is shared across all DC-mode games — always use global mode.
+            _shaderPackService.SyncDcFolder(ShaderPackService.CurrentMode);
         else if (!dcIsInstalled)
             _shaderPackService.SyncGameFolder(installPath, effectiveShaderMode);
 
@@ -831,19 +834,19 @@ public class AuxInstallService : IAuxInstallService
     {
         if (record.SourceUrl == null)
         {
-            CrashReporter.Log($"AuxUpdate [{record.AddonType}] {record.GameName}: no SourceUrl — skipping");
+            CrashReporter.Log($"[AuxInstallService.CheckForUpdateAsync] [{record.AddonType}] {record.GameName}: no SourceUrl — skipping");
             return false;
         }
 
         var localFile = Path.Combine(record.InstallPath, record.InstalledAs);
         if (!File.Exists(localFile))
         {
-            CrashReporter.Log($"AuxUpdate [{record.AddonType}] {record.GameName}: local file missing — update needed");
+            CrashReporter.Log($"[AuxInstallService.CheckForUpdateAsync] [{record.AddonType}] {record.GameName}: local file missing — update needed");
             return true;
         }
 
         var localSize = new FileInfo(localFile).Length;
-        CrashReporter.Log($"AuxUpdate [{record.AddonType}] {record.GameName}: local={localSize}, stored={record.RemoteFileSize}");
+        CrashReporter.Log($"[AuxInstallService.CheckForUpdateAsync] [{record.AddonType}] {record.GameName}: local={localSize}, stored={record.RemoteFileSize}");
 
         try
         {
@@ -854,9 +857,9 @@ public class AuxInstallService : IAuxInstallService
                 var headResp = await _http.SendAsync(new HttpRequestMessage(HttpMethod.Head, record.SourceUrl));
                 if (headResp.IsSuccessStatusCode)
                     remoteSize = headResp.Content.Headers.ContentLength;
-                CrashReporter.Log($"AuxUpdate [{record.AddonType}] {record.GameName}: HEAD status={headResp.StatusCode}, CL={remoteSize}");
+                CrashReporter.Log($"[AuxInstallService.CheckForUpdateAsync] [{record.AddonType}] {record.GameName}: HEAD status={headResp.StatusCode}, CL={remoteSize}");
             }
-            catch (Exception ex) { CrashReporter.Log($"AuxUpdate [{record.AddonType}] HEAD failed: {ex.Message}"); }
+            catch (Exception ex) { CrashReporter.Log($"[AuxInstallService.CheckForUpdateAsync] [{record.AddonType}] HEAD failed — {ex.Message}"); }
 
             // ── Strategy 2: Range GET for Content-Range total ──────────────────
             if (!remoteSize.HasValue)
@@ -870,10 +873,10 @@ public class AuxInstallService : IAuxInstallService
                         remoteSize = totalLen;
                     else if (rangeResp.IsSuccessStatusCode)
                         remoteSize = rangeResp.Content.Headers.ContentLength;
-                    CrashReporter.Log($"AuxUpdate [{record.AddonType}] {record.GameName}: Range GET size={remoteSize}");
+                    CrashReporter.Log($"[AuxInstallService.CheckForUpdateAsync] [{record.AddonType}] {record.GameName}: Range GET size={remoteSize}");
                     rangeResp.Dispose();
                 }
-                catch (Exception ex) { CrashReporter.Log($"AuxUpdate [{record.AddonType}] Range failed: {ex.Message}"); }
+                catch (Exception ex) { CrashReporter.Log($"[AuxInstallService.CheckForUpdateAsync] [{record.AddonType}] Range failed — {ex.Message}"); }
             }
 
             // ── Strategy 3: Full download comparison ───────────────────────────
@@ -881,7 +884,7 @@ public class AuxInstallService : IAuxInstallService
             // different-content update), download the file and compare bytes.
             if (!remoteSize.HasValue || remoteSize.Value == localSize)
             {
-                CrashReporter.Log($"AuxUpdate [{record.AddonType}] {record.GameName}: falling back to download comparison (remoteSize={remoteSize}, localSize={localSize})");
+                CrashReporter.Log($"[AuxInstallService.CheckForUpdateAsync] [{record.AddonType}] {record.GameName}: falling back to download comparison (remoteSize={remoteSize}, localSize={localSize})");
                 try
                 {
                     var cacheName = record.InstalledAs.Contains("32", StringComparison.Ordinal)
@@ -896,7 +899,7 @@ public class AuxInstallService : IAuxInstallService
                         await File.WriteAllBytesAsync(tempPath, bytes);
                         var downloadedSize = bytes.Length;
 
-                        CrashReporter.Log($"AuxUpdate [{record.AddonType}] {record.GameName}: downloaded {downloadedSize} bytes, local {localSize} bytes");
+                        CrashReporter.Log($"[AuxInstallService.CheckForUpdateAsync] [{record.AddonType}] {record.GameName}: downloaded {downloadedSize} bytes, local {localSize} bytes");
 
                         if (downloadedSize != localSize)
                         {
@@ -911,7 +914,7 @@ public class AuxInstallService : IAuxInstallService
                         // Same size — compare bytes directly
                         var localBytes = await File.ReadAllBytesAsync(localFile);
                         bool contentDiffers = !bytes.AsSpan().SequenceEqual(localBytes.AsSpan());
-                        CrashReporter.Log($"AuxUpdate [{record.AddonType}] {record.GameName}: same size, content differs={contentDiffers}");
+                        CrashReporter.Log($"[AuxInstallService.CheckForUpdateAsync] [{record.AddonType}] {record.GameName}: same size, content differs={contentDiffers}");
 
                         if (contentDiffers)
                         {
@@ -926,19 +929,19 @@ public class AuxInstallService : IAuxInstallService
                         return false;
                     }
                 }
-                catch (Exception ex) { CrashReporter.Log($"AuxUpdate [{record.AddonType}] download compare failed: {ex.Message}"); }
+                catch (Exception ex) { CrashReporter.Log($"[AuxInstallService.CheckForUpdateAsync] [{record.AddonType}] Download compare failed — {ex.Message}"); }
 
                 return false;
             }
 
             // Size-based comparison
             bool update = remoteSize.Value != localSize;
-            CrashReporter.Log($"AuxUpdate [{record.AddonType}] {record.GameName}: remote={remoteSize}, local={localSize} → update={update}");
+            CrashReporter.Log($"[AuxInstallService.CheckForUpdateAsync] [{record.AddonType}] {record.GameName}: remote={remoteSize}, local={localSize} → update={update}");
             return update;
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"AuxUpdate [{record.AddonType}] {record.GameName} exception: {ex.Message}");
+            CrashReporter.Log($"[AuxInstallService.CheckForUpdateAsync] [{record.AddonType}] {record.GameName} exception — {ex.Message}");
             return false;
         }
     }

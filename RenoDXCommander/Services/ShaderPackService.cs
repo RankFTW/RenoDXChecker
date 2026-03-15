@@ -153,7 +153,7 @@ public class ShaderPackService : IShaderPackService
         {
             try { await EnsurePackAsync(pack, progress); }
             catch (Exception ex)
-            { CrashReporter.Log($"ShaderPacks [{pack.Id}]: Unexpected error: {ex.Message}"); }
+            { CrashReporter.Log($"[ShaderPackService.EnsureLatestAsync] Unexpected error for '{pack.Id}' — {ex.Message}"); }
         }
     }
 
@@ -189,16 +189,16 @@ public class ShaderPackService : IShaderPackService
 
         if (versionMatch && cacheExists && hasExtracted)
         {
-            CrashReporter.Log($"ShaderPacks [{pack.Id}]: Up to date ({versionToken}).");
+            CrashReporter.Log($"[ShaderPackService.EnsurePackAsync] [{pack.Id}] Up to date ({versionToken})");
             return;
         }
 
-        CrashReporter.Log($"ShaderPacks [{pack.Id}]: Need update. " +
+        CrashReporter.Log($"[ShaderPackService.EnsurePackAsync] [{pack.Id}] Need update — " +
             $"versionMatch={versionMatch} cacheExists={cacheExists} hasExtracted={hasExtracted}");
 
         // ── Download ──────────────────────────────────────────────────────────────
         progress?.Report($"Downloading {pack.DisplayName}...");
-        CrashReporter.Log($"ShaderPacks [{pack.Id}]: Downloading from {downloadUrl}");
+        CrashReporter.Log($"[ShaderPackService.EnsurePackAsync] [{pack.Id}] Downloading from {downloadUrl}");
 
         Directory.CreateDirectory(AuxInstallService.DownloadCacheDir);
         var tempPath = cachePath + ".tmp";
@@ -208,7 +208,7 @@ public class ShaderPackService : IShaderPackService
             var dlResp = await _http.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
             if (!dlResp.IsSuccessStatusCode)
             {
-                CrashReporter.Log($"ShaderPacks [{pack.Id}]: Download failed ({dlResp.StatusCode}).");
+                CrashReporter.Log($"[ShaderPackService.EnsurePackAsync] [{pack.Id}] Download failed ({dlResp.StatusCode})");
                 return;
             }
 
@@ -234,8 +234,8 @@ public class ShaderPackService : IShaderPackService
         }
         catch (Exception ex)
         {
-            if (File.Exists(tempPath)) try { File.Delete(tempPath); } catch (Exception cleanupEx) { CrashReporter.Log($"[ShaderPackService] Temp file cleanup failed — {cleanupEx.Message}"); }
-            CrashReporter.Log($"ShaderPacks [{pack.Id}]: Download exception: {ex.Message}");
+            if (File.Exists(tempPath)) try { File.Delete(tempPath); } catch (Exception cleanupEx) { CrashReporter.Log($"[ShaderPackService.EnsurePackAsync] Temp file cleanup failed — {cleanupEx.Message}"); }
+            CrashReporter.Log($"[ShaderPackService.EnsurePackAsync] [{pack.Id}] Download exception — {ex.Message}");
             return;
         }
 
@@ -290,17 +290,17 @@ public class ShaderPackService : IShaderPackService
 
             // Record which files this pack contributed so we can verify presence later
             RecordExtractedFiles(pack.Id, cachePath);
-            CrashReporter.Log($"ShaderPacks [{pack.Id}]: Extracted successfully.");
+            CrashReporter.Log($"[ShaderPackService.EnsurePackAsync] [{pack.Id}] Extracted successfully");
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"ShaderPacks [{pack.Id}]: Extraction failed: {ex.Message}");
+            CrashReporter.Log($"[ShaderPackService.EnsurePackAsync] [{pack.Id}] Extraction failed — {ex.Message}");
             return;
         }
 
         SaveStoredVersion(pack.Id, versionToken);
         progress?.Report($"{pack.DisplayName} updated.");
-        CrashReporter.Log($"ShaderPacks [{pack.Id}]: Done. Version = {versionToken}");
+        CrashReporter.Log($"[ShaderPackService.EnsurePackAsync] [{pack.Id}] Done. Version = {versionToken}");
     }
 
     // ── Extracted-file tracking ───────────────────────────────────────────────────
@@ -370,7 +370,7 @@ public class ShaderPackService : IShaderPackService
             Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
             File.WriteAllText(SettingsPath, JsonSerializer.Serialize(d, new JsonSerializerOptions { WriteIndented = true }));
         }
-        catch (Exception ex) { CrashReporter.Log($"ShaderPacks: RecordExtractedFiles failed for {packId}: {ex.Message}"); }
+        catch (Exception ex) { CrashReporter.Log($"[ShaderPackService.RecordExtractedFiles] Failed for '{packId}' — {ex.Message}"); }
     }
 
     // ── Source resolution ─────────────────────────────────────────────────────────
@@ -386,7 +386,7 @@ public class ShaderPackService : IShaderPackService
             var resp = await _http.SendAsync(req);
             if (!resp.IsSuccessStatusCode)
             {
-                CrashReporter.Log($"ShaderPacks [{pack.Id}]: GitHub API {resp.StatusCode}");
+                CrashReporter.Log($"[ShaderPackService.ResolveGhRelease] [{pack.Id}] GitHub API {resp.StatusCode}");
                 return (null, "");
             }
 
@@ -416,12 +416,12 @@ public class ShaderPackService : IShaderPackService
                     return (zbUrl, $"source_{tagName}.zip");
             }
 
-            CrashReporter.Log($"ShaderPacks [{pack.Id}]: No suitable asset found.");
+            CrashReporter.Log($"[ShaderPackService.ResolveGhRelease] [{pack.Id}] No suitable asset found");
             return (null, "");
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"ShaderPacks [{pack.Id}]: GH API error: {ex.Message}");
+            CrashReporter.Log($"[ShaderPackService.ResolveGhRelease] [{pack.Id}] GH API error — {ex.Message}");
             return (null, "");
         }
     }
@@ -548,7 +548,7 @@ public class ShaderPackService : IShaderPackService
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"ShaderPacks: DeployCustomIfAbsent failed: {ex.Message}");
+            CrashReporter.Log($"[ShaderPackService.DeployCustomIfAbsent] Failed — {ex.Message}");
         }
     }
 
@@ -582,7 +582,7 @@ public class ShaderPackService : IShaderPackService
             File.WriteAllText(marker, ManagedMarkerContent);
         }
         catch (Exception ex)
-        { CrashReporter.Log($"ShaderPacks: Failed to write marker: {ex.Message}"); }
+        { CrashReporter.Log($"[ShaderPackService.WriteMarkerFile] Failed to write marker — {ex.Message}"); }
     }
 
     /// <summary>
@@ -599,7 +599,7 @@ public class ShaderPackService : IShaderPackService
         {
             try { Directory.Move(orig, current); }
             catch (Exception ex)
-            { CrashReporter.Log($"ShaderPacks: Failed to restore original: {ex.Message}"); }
+            { CrashReporter.Log($"[ShaderPackService.RestoreOriginalShaders] Failed to restore original — {ex.Message}"); }
         }
     }
 
@@ -640,10 +640,10 @@ public class ShaderPackService : IShaderPackService
                 if (!Directory.Exists(origDir))
                     Directory.Move(rsDir, origDir);
                 else
-                    CrashReporter.Log($"ShaderPacks: reshade-shaders-original already exists in {gameDir}; skipping rename.");
+                    CrashReporter.Log($"[ShaderPackService.SyncGameFolder] reshade-shaders-original already exists in {gameDir}; skipping rename");
             }
             catch (Exception ex)
-            { CrashReporter.Log($"ShaderPacks: Failed to rename existing reshade-shaders: {ex.Message}"); }
+            { CrashReporter.Log($"[ShaderPackService.SyncGameFolder] Failed to rename existing reshade-shaders — {ex.Message}"); }
         }
 
         if (m == DeployMode.User)
@@ -668,7 +668,7 @@ public class ShaderPackService : IShaderPackService
         if (IsManagedByRdxc(gameDir))
         {
             try { Directory.Delete(rsDir, recursive: true); }
-            catch (Exception ex) { CrashReporter.Log($"ShaderPacks: Failed to remove managed reshade-shaders: {ex.Message}"); }
+            catch (Exception ex) { CrashReporter.Log($"[ShaderPackService.RemoveFromGameFolder] Failed to remove managed reshade-shaders — {ex.Message}"); }
         }
         else
         {
@@ -676,7 +676,7 @@ public class ShaderPackService : IShaderPackService
             var origDir = Path.Combine(gameDir, GameReShadeOriginal);
             if (!Directory.Exists(origDir))
                 try { Directory.Move(rsDir, origDir); }
-                catch (Exception ex) { CrashReporter.Log($"ShaderPacks: Failed to rename user reshade-shaders: {ex.Message}"); }
+                catch (Exception ex) { CrashReporter.Log($"[ShaderPackService.RemoveFromGameFolder] Failed to rename user reshade-shaders — {ex.Message}"); }
         }
     }
 
@@ -727,7 +727,7 @@ public class ShaderPackService : IShaderPackService
             var path = Path.Combine(destDir, rel);
             if (!File.Exists(path)) continue;
             try { File.Delete(path); }
-            catch (Exception ex) { CrashReporter.Log($"ShaderPacks: PruneFiles failed for {path}: {ex.Message}"); }
+            catch (Exception ex) { CrashReporter.Log($"[ShaderPackService.PruneFiles] Failed for '{path}' — {ex.Message}"); }
         }
     }
 
@@ -928,7 +928,9 @@ public class ShaderPackService : IShaderPackService
 
                 if (!dcSynced)
                 {
-                    SyncDcFolder(effectiveMode);
+                    // DC folder is shared across all DC-mode games — always use
+                    // the global mode, never a per-game override.
+                    SyncDcFolder(globalMode);
                     dcSynced = true;
                 }
             }
@@ -1007,7 +1009,7 @@ public class ShaderPackService : IShaderPackService
                 // Overwrite if the staged file differs from the deployed file
                 if (!IsFileStale(src, dest)) continue;
                 try { File.Copy(src, dest, overwrite: true); }
-                catch (Exception ex) { CrashReporter.Log($"ShaderPacks: update '{rel}' failed — {ex.Message}"); }
+                catch (Exception ex) { CrashReporter.Log($"[ShaderPackService.DeployFileListIfAbsent] Update '{rel}' failed — {ex.Message}"); }
             }
             else
             {
@@ -1034,7 +1036,7 @@ public class ShaderPackService : IShaderPackService
             {
                 if (!IsFileStale(file, destFile)) continue;
                 try { File.Copy(file, destFile, overwrite: true); }
-                catch (Exception ex) { CrashReporter.Log($"ShaderPacks: update '{rel}' failed — {ex.Message}"); }
+                catch (Exception ex) { CrashReporter.Log($"[ShaderPackService.DeployFolderIfAbsent] Update '{rel}' failed — {ex.Message}"); }
             }
             else
             {
@@ -1073,6 +1075,6 @@ public class ShaderPackService : IShaderPackService
             Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
             File.WriteAllText(SettingsPath, JsonSerializer.Serialize(d, new JsonSerializerOptions { WriteIndented = true }));
         }
-        catch (Exception ex) { CrashReporter.Log($"ShaderPacks: Failed to save version for {packId}: {ex.Message}"); }
+        catch (Exception ex) { CrashReporter.Log($"[ShaderPackService.SaveStoredVersion] Failed to save version for '{packId}' — {ex.Message}"); }
     }
 }

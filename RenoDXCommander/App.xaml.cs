@@ -52,10 +52,11 @@ public partial class App : Application
         services.AddSingleton<FilterViewModel>();
 
         // Extracted services
-        services.AddSingleton<UpdateOrchestrationService>();
-        services.AddSingleton<DllOverrideService>();
-        services.AddSingleton<GameNameService>();
-        services.AddSingleton<GameInitializationService>();
+        services.AddSingleton<IUpdateOrchestrationService, UpdateOrchestrationService>();
+        services.AddSingleton<IDllOverrideService, DllOverrideService>();
+        services.AddSingleton<IGameNameService, GameNameService>();
+        services.AddSingleton<IGameInitializationService, GameInitializationService>();
+        services.AddSingleton<ISevenZipExtractor, ReShadeExtractor>();
 
         services.AddSingleton<MainViewModel>();
 
@@ -67,9 +68,9 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        CrashReporter.Log("App.OnLaunched — creating MainWindow");
+        CrashReporter.Log("[App.OnLaunched] Creating MainWindow");
         _window = Services.GetRequiredService<MainWindow>();
         _window.Activate();
-        CrashReporter.Log("MainWindow activated");
+        CrashReporter.Log("[App.OnLaunched] MainWindow activated");
     }
 }

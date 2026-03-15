@@ -23,10 +23,12 @@ public class ReShadeUpdateService : IReShadeUpdateService
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private readonly HttpClient _http;
+    private readonly ISevenZipExtractor _extractor;
 
-    public ReShadeUpdateService(HttpClient http)
+    public ReShadeUpdateService(HttpClient http, ISevenZipExtractor extractor)
     {
         _http = http;
+        _extractor = extractor;
     }
 
     /// <summary>Gets the currently staged ReShade version, or null if not yet downloaded.</summary>
@@ -45,26 +47,26 @@ public class ReShadeUpdateService : IReShadeUpdateService
     {
         try
         {
-            CrashReporter.Log($"ReShadeUpdate: fetching {ReShadeMeUrl}...");
+            CrashReporter.Log($"[ReShadeUpdateService.CheckLatestVersionAsync] Fetching {ReShadeMeUrl}...");
             var html = await _http.GetStringAsync(ReShadeMeUrl);
-            CrashReporter.Log($"ReShadeUpdate: page fetched, {html.Length} chars");
+            CrashReporter.Log($"[ReShadeUpdateService.CheckLatestVersionAsync] Page fetched, {html.Length} chars");
             var match = DownloadLinkRegex.Match(html);
             if (!match.Success)
             {
                 // Log a snippet of the page for debugging
                 var snippet = html.Length > 500 ? html[..500] : html;
-                CrashReporter.Log($"ReShadeUpdate: addon download link not found on page. Snippet: {snippet}");
+                CrashReporter.Log($"[ReShadeUpdateService.CheckLatestVersionAsync] Addon download link not found on page. Snippet: {snippet}");
                 return null;
             }
 
             var version = match.Groups[1].Value;
             var url = $"{ReShadeMeUrl}{match.Value}";
-            CrashReporter.Log($"ReShadeUpdate: found v{version} at {url}");
+            CrashReporter.Log($"[ReShadeUpdateService.CheckLatestVersionAsync] Found v{version} at {url}");
             return (version, url);
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"ReShadeUpdate: version check failed — {ex.GetType().Name}: {ex.Message}");
+            CrashReporter.Log($"[ReShadeUpdateService.CheckLatestVersionAsync] Version check failed — {ex.GetType().Name}: {ex.Message}");
             return null;
         }
     }
@@ -75,14 +77,14 @@ public class ReShadeUpdateService : IReShadeUpdateService
     /// </summary>
     public async Task<bool> EnsureLatestAsync(IProgress<(string msg, double pct)>? progress = null)
     {
-        CrashReporter.Log("ReShadeUpdate: EnsureLatestAsync started");
+        CrashReporter.Log("[ReShadeUpdateService.EnsureLatestAsync] Started");
         Directory.CreateDirectory(CacheDir);
 
         progress?.Report(("Checking for ReShade updates...", 5));
         var latest = await CheckLatestVersionAsync();
         if (latest == null)
         {
-            CrashReporter.Log("ReShadeUpdate: could not determine latest version — check failed or page unreadable");
+            CrashReporter.Log("[ReShadeUpdateService.EnsureLatestAsync] Could not determine latest version");
             return false;
         }
 
@@ -96,7 +98,7 @@ public class ReShadeUpdateService : IReShadeUpdateService
             && new FileInfo(AuxInstallService.RsStagedPath64).Length > 0
             && new FileInfo(AuxInstallService.RsStagedPath32).Length > 0)
         {
-            CrashReporter.Log($"ReShadeUpdate: already have v{version}");
+            CrashReporter.Log($"[ReShadeUpdateService.EnsureLatestAsync] Already have v{version}");
             progress?.Report(($"ReShade {version} is current", 100));
             return false;
         }
@@ -108,7 +110,7 @@ public class ReShadeUpdateService : IReShadeUpdateService
         if (!File.Exists(exePath))
         {
             progress?.Report(($"Downloading ReShade {version}...", 15));
-            CrashReporter.Log($"ReShadeUpdate: downloading {url}");
+            CrashReporter.Log($"[ReShadeUpdateService.EnsureLatestAsync] Downloading {url}");
 
             try
             {
@@ -120,7 +122,7 @@ public class ReShadeUpdateService : IReShadeUpdateService
                 response.EnsureSuccessStatusCode();
 
                 var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
-                CrashReporter.Log($"ReShadeUpdate: response Content-Type={contentType}, Content-Length={response.Content.Headers.ContentLength}");
+                CrashReporter.Log($"[ReShadeUpdateService.EnsureLatestAsync] Response Content-Type={contentType}, Content-Length={response.Content.Headers.ContentLength}");
 
                 var totalBytes = response.Content.Headers.ContentLength ?? 0;
                 var tempPath = exePath + ".tmp";
@@ -150,19 +152,19 @@ public class ReShadeUpdateService : IReShadeUpdateService
                 if (header[0] != 0x4D || header[1] != 0x5A) // "MZ"
                 {
                     var snippet = File.ReadAllText(tempPath)[..Math.Min(200, (int)new FileInfo(tempPath).Length)];
-                    CrashReporter.Log($"ReShadeUpdate: downloaded file is NOT a valid PE exe. First bytes: {header[0]:X2} {header[1]:X2}. Snippet: {snippet}");
+                    CrashReporter.Log($"[ReShadeUpdateService.EnsureLatestAsync] Downloaded file is NOT a valid PE exe. First bytes: {header[0]:X2} {header[1]:X2}. Snippet: {snippet}");
                     try { File.Delete(tempPath); } catch (Exception cleanupEx) { CrashReporter.Log($"[ReShadeUpdateService.EnsureLatestAsync] Failed to clean up invalid temp file — {cleanupEx.Message}"); }
                     return false;
                 }
 
-                CrashReporter.Log($"ReShadeUpdate: download complete, {new FileInfo(tempPath).Length} bytes, valid PE header");
+                CrashReporter.Log($"[ReShadeUpdateService.EnsureLatestAsync] Download complete, {new FileInfo(tempPath).Length} bytes, valid PE header");
 
                 if (File.Exists(exePath)) File.Delete(exePath);
                 File.Move(tempPath, exePath);
             }
             catch (Exception ex)
             {
-                CrashReporter.Log($"ReShadeUpdate: download failed — {ex.Message}");
+                CrashReporter.Log($"[ReShadeUpdateService.EnsureLatestAsync] Download failed — {ex.Message}");
                 // Clean up partial download
                 var tempPath = exePath + ".tmp";
                 try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch (Exception cleanupEx) { CrashReporter.Log($"[ReShadeUpdateService.EnsureLatestAsync] Failed to clean up partial download — {cleanupEx.Message}"); }
@@ -179,22 +181,22 @@ public class ReShadeUpdateService : IReShadeUpdateService
                     fs.Read(header, 0, 2);
                 if (header[0] != 0x4D || header[1] != 0x5A) // "MZ"
                 {
-                    CrashReporter.Log($"ReShadeUpdate: cached exe is NOT a valid PE (bytes: {header[0]:X2} {header[1]:X2}), deleting and re-downloading");
+                    CrashReporter.Log($"[ReShadeUpdateService.EnsureLatestAsync] Cached exe is NOT a valid PE (bytes: {header[0]:X2} {header[1]:X2}), deleting and re-downloading");
                     File.Delete(exePath);
                     // Recurse to re-download
                     return await EnsureLatestAsync(progress);
                 }
             }
-            catch (Exception ex) { CrashReporter.Log($"ReShadeUpdate: cached exe validation failed — {ex.Message}"); }
-            CrashReporter.Log($"ReShadeUpdate: exe already cached at {exePath}");
+            catch (Exception ex) { CrashReporter.Log($"[ReShadeUpdateService.EnsureLatestAsync] Cached exe validation failed — {ex.Message}"); }
+            CrashReporter.Log($"[ReShadeUpdateService.EnsureLatestAsync] Exe already cached at {exePath}");
         }
 
         // Validate the downloaded exe is reasonably sized
         var exeSize = new FileInfo(exePath).Length;
-        CrashReporter.Log($"ReShadeUpdate: exe size = {exeSize} bytes at {exePath}");
+        CrashReporter.Log($"[ReShadeUpdateService.EnsureLatestAsync] Exe size = {exeSize} bytes at {exePath}");
         if (exeSize < 500_000) // ReShade exe should be several MB
         {
-            CrashReporter.Log($"ReShadeUpdate: downloaded exe too small ({exeSize} bytes), deleting");
+            CrashReporter.Log($"[ReShadeUpdateService.EnsureLatestAsync] Downloaded exe too small ({exeSize} bytes), deleting");
             try { File.Delete(exePath); } catch (Exception cleanupEx) { CrashReporter.Log($"[ReShadeUpdateService.EnsureLatestAsync] Failed to delete undersized exe — {cleanupEx.Message}"); }
             return false;
         }
@@ -203,17 +205,17 @@ public class ReShadeUpdateService : IReShadeUpdateService
         progress?.Report(("Extracting ReShade DLLs...", 80));
         try
         {
-            ReShadeExtractor.ExtractFile(exePath, "ReShade64.dll", AuxInstallService.RsStagedPath64);
-            ReShadeExtractor.ExtractFile(exePath, "ReShade32.dll", AuxInstallService.RsStagedPath32);
+            _extractor.ExtractFile(exePath, "ReShade64.dll", AuxInstallService.RsStagedPath64);
+            _extractor.ExtractFile(exePath, "ReShade32.dll", AuxInstallService.RsStagedPath32);
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"ReShadeUpdate: extraction failed — {ex.Message}");
+            CrashReporter.Log($"[ReShadeUpdateService.EnsureLatestAsync] Extraction failed — {ex.Message}");
             // Log what's inside the archive for diagnostics
             try
             {
-                var entries = ReShadeExtractor.ListEntries(exePath);
-                CrashReporter.Log($"ReShadeUpdate: archive entries: [{string.Join(", ", entries)}]");
+                var entries = _extractor.ListEntries(exePath);
+                CrashReporter.Log($"[ReShadeUpdateService.EnsureLatestAsync] Archive entries: [{string.Join(", ", entries)}]");
             }
             catch (Exception listEx) { CrashReporter.Log($"[ReShadeUpdateService.EnsureLatestAsync] Failed to list archive entries — {listEx.Message}"); }
             return false;
@@ -221,7 +223,7 @@ public class ReShadeUpdateService : IReShadeUpdateService
 
         // Write version marker
         try { File.WriteAllText(VersionFile, version); }
-        catch (Exception ex) { CrashReporter.Log($"ReShadeUpdate: version file write failed — {ex.Message}"); }
+        catch (Exception ex) { CrashReporter.Log($"[ReShadeUpdateService.EnsureLatestAsync] Version file write failed — {ex.Message}"); }
 
         // Clean up old installer exes (keep only current)
         try
@@ -235,7 +237,7 @@ public class ReShadeUpdateService : IReShadeUpdateService
         catch (Exception ex) { CrashReporter.Log($"[ReShadeUpdateService.EnsureLatestAsync] Failed to clean up old installers — {ex.Message}"); }
 
         progress?.Report(($"ReShade {version} ready!", 100));
-        CrashReporter.Log($"ReShadeUpdate: staged v{version} successfully");
+        CrashReporter.Log($"[ReShadeUpdateService.EnsureLatestAsync] Staged v{version} successfully");
         return true;
     }
 }

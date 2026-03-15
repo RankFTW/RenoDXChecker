@@ -346,12 +346,12 @@ public class ModInstallService : IModInstallService
             record.RemoteFileSize = remoteSize;
             SaveRecordPublic(record);
 
-            CrashReporter.Log($"UpdateCheck [{Path.GetFileName(localFile)}]: update detected via download ({localSize} → {remoteSize} bytes)");
+            CrashReporter.Log($"[ModInstallService.CheckForUpdateByDownloadAsync] Update detected via download ({localSize} → {remoteSize} bytes)");
             return true;
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"UpdateCheck [{Path.GetFileName(localFile)}]: download check failed: {ex.Message}");
+            CrashReporter.Log($"[ModInstallService.CheckForUpdateByDownloadAsync] Download check failed — {ex.Message}");
             if (File.Exists(tempFile)) try { File.Delete(tempFile); } catch (Exception cleanupEx) { CrashReporter.Log($"[ModInstallService.CheckForUpdateByDownloadAsync] Failed to clean up temp file '{tempFile}' — {cleanupEx.Message}"); }
             return false;
         }

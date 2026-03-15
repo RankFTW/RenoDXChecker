@@ -146,7 +146,7 @@ public partial class GameCardViewModel
     {
         OnPropertyChanged(nameof(InstallActionLabel));
         OnPropertyChanged(nameof(CanInstall));
-        OnPropertyChanged(nameof(GenericModLabel));
+        // GenericModLabel removed — it depends on IsGenericMod/EngineHint/UseUeExtended, not Status
         OnPropertyChanged(nameof(InstallBtnBackground));
         OnPropertyChanged(nameof(InstallBtnForeground));
         OnPropertyChanged(nameof(InstallBtnBorderBrush));

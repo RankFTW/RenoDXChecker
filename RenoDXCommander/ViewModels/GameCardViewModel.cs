@@ -111,60 +111,181 @@ public partial class GameCardViewModel : ObservableObject
 
     /// <summary>
     /// Refreshes all computed properties. Called by external code after bulk state changes.
-    /// Internally delegates to targeted notification methods for each component.
+    /// Uses a <see cref="HashSet{T}"/> guard to ensure each property is notified at most once,
+    /// even though the underlying Notify*Dependents methods share overlapping property sets.
     /// </summary>
     public void NotifyAll()
     {
-        // RenoDX dependents
-        NotifyStatusDependents();
-        NotifyIsInstallingDependents();
+        var notified = new HashSet<string>(StringComparer.Ordinal);
 
-        // Display Commander dependents
-        NotifyDcStatusDependents();
-        NotifyDcIsInstallingDependents();
+        void NotifyOnce(string propertyName)
+        {
+            if (notified.Add(propertyName))
+                OnPropertyChanged(propertyName);
+        }
 
-        // ReShade dependents
-        NotifyRsStatusDependents();
-        NotifyRsIsInstallingDependents();
+        // ── RenoDX: Status dependents ─────────────────────────────────────────
+        NotifyOnce(nameof(InstallActionLabel));
+        NotifyOnce(nameof(CanInstall));
+        NotifyOnce(nameof(GenericModLabel));
+        NotifyOnce(nameof(InstallBtnBackground));
+        NotifyOnce(nameof(InstallBtnForeground));
+        NotifyOnce(nameof(InstallBtnBorderBrush));
+        NotifyOnce(nameof(InstallOnlyBtnVisibility));
+        NotifyOnce(nameof(ReinstallRowVisibility));
+        NotifyOnce(nameof(IsNotInstalling));
+        NotifyOnce(nameof(IsRdxInstalled));
+        NotifyOnce(nameof(RdxStatusText));
+        NotifyOnce(nameof(RdxStatusColor));
+        NotifyOnce(nameof(RdxShortAction));
+        NotifyOnce(nameof(CardRdxStatusDot));
+        NotifyOnce(nameof(CardRdxInstallEnabled));
+        NotifyOnce(nameof(UpdateBadgeVisibility));
+        NotifyOnce(nameof(CombinedStatusDot));
+        NotifyOnce(nameof(CombinedActionLabel));
+        NotifyOnce(nameof(CanCombinedInstall));
+        NotifyOnce(nameof(CombinedBtnBackground));
+        NotifyOnce(nameof(CombinedBtnForeground));
+        NotifyOnce(nameof(CombinedBtnBorderBrush));
+        NotifyOnce(nameof(CombinedRowVisibility));
+        NotifyOnce(nameof(ComponentExpandVisibility));
+        NotifyOnce(nameof(ChevronCornerRadius));
+        NotifyOnce(nameof(ChevronBorderThickness));
+        NotifyOnce(nameof(R7bInstallCornerRadius));
+        NotifyOnce(nameof(R7bInstallBorderThickness));
+        NotifyOnce(nameof(R7bInstallMargin));
+        NotifyOnce(nameof(IsManaged));
+        NotifyOnce(nameof(SidebarItemForeground));
+        NotifyOnce(nameof(CardPrimaryActionLabel));
+        NotifyOnce(nameof(CanCardInstall));
+        NotifyOnce(nameof(ExternalBtnVisibility));
+        NotifyOnce(nameof(NoModVisibility));
+        NotifyOnce(nameof(SwitchToLumaVisibility));
 
-        // Luma dependents
-        NotifyLumaStatusDependents();
-        NotifyIsLumaInstallingDependents();
-        NotifyLumaFeatureEnabledDependents();
-        NotifyIsLumaModeDependents();
+        // ── RenoDX: IsInstalling dependents ───────────────────────────────────
+        NotifyOnce(nameof(ProgressVisibility));
 
-        // Properties not covered by targeted methods above
-        OnPropertyChanged(nameof(DualBitInstallVisibility));
-        OnPropertyChanged(nameof(InstalledFileLabel));
-        OnPropertyChanged(nameof(InstalledFileLabelVisible));
-        OnPropertyChanged(nameof(InstallPathDisplay));
-        OnPropertyChanged(nameof(HideButtonLabel));
-        OnPropertyChanged(nameof(StarForeground));
-        OnPropertyChanged(nameof(IsFavouriteVisibility));
-        OnPropertyChanged(nameof(IsNotFavouriteVisibility));
-        OnPropertyChanged(nameof(IsHiddenVisibility));
-        OnPropertyChanged(nameof(IsNotHiddenVisibility));
-        OnPropertyChanged(nameof(GenericBadgeVisibility));
-        OnPropertyChanged(nameof(NotesButtonVisibility));
-        OnPropertyChanged(nameof(HasNotes));
-        OnPropertyChanged(nameof(HasDualBitMod));
-        OnPropertyChanged(nameof(WikiStatusLabel));
-        OnPropertyChanged(nameof(WikiStatusBadgeBackground));
-        OnPropertyChanged(nameof(WikiStatusBadgeBorderBrush));
-        OnPropertyChanged(nameof(WikiStatusBadgeForeground));
-        OnPropertyChanged(nameof(Is32BitBadgeVisibility));
-        OnPropertyChanged(nameof(Is32BitUeWipVisibility));
-        OnPropertyChanged(nameof(UeExtendedLabel));
-        OnPropertyChanged(nameof(UeExtendedBackground));
-        OnPropertyChanged(nameof(UeExtendedForeground));
-        OnPropertyChanged(nameof(UeExtendedBorderBrush));
-        OnPropertyChanged(nameof(UeExtendedToggleVisibility));
-        OnPropertyChanged(nameof(ComponentDetailVisibility));
-        OnPropertyChanged(nameof(ExpandChevron));
-        OnPropertyChanged(nameof(RsIniExists));
-        OnPropertyChanged(nameof(DcIniExists));
-        OnPropertyChanged(nameof(RsBlockedByDcMode));
-        OnPropertyChanged(nameof(IsLumaAvailable));
-        OnPropertyChanged(nameof(HasInfoIndicator));
+        // ── Display Commander: DcStatus dependents ────────────────────────────
+        NotifyOnce(nameof(DcStatusDot));
+        NotifyOnce(nameof(DcActionLabel));
+        NotifyOnce(nameof(DcBtnBackground));
+        NotifyOnce(nameof(DcBtnForeground));
+        NotifyOnce(nameof(DcBtnBorderBrush));
+        NotifyOnce(nameof(DcDeleteVisibility));
+        NotifyOnce(nameof(DcInstalledVisible));
+        NotifyOnce(nameof(DcStatusText));
+        NotifyOnce(nameof(DcStatusColor));
+        NotifyOnce(nameof(DcShortAction));
+        NotifyOnce(nameof(DcInstallCornerRadius));
+        NotifyOnce(nameof(DcInstallBorderThickness));
+        NotifyOnce(nameof(DcInstallMargin));
+        NotifyOnce(nameof(DcIniCornerRadius));
+        NotifyOnce(nameof(DcIniBorderThickness));
+        NotifyOnce(nameof(DcIniMargin));
+        NotifyOnce(nameof(IsDcInstalled));
+        NotifyOnce(nameof(CardDcStatusDot));
+        NotifyOnce(nameof(CardDcInstallEnabled));
+
+        // ── Display Commander: DcIsInstalling dependents ──────────────────────
+        NotifyOnce(nameof(DcProgressVisibility));
+        NotifyOnce(nameof(IsDcNotInstalling));
+
+        // ── ReShade: RsStatus dependents ──────────────────────────────────────
+        NotifyOnce(nameof(RsStatusDot));
+        NotifyOnce(nameof(RsActionLabel));
+        NotifyOnce(nameof(RsBtnBackground));
+        NotifyOnce(nameof(RsBtnForeground));
+        NotifyOnce(nameof(RsBtnBorderBrush));
+        NotifyOnce(nameof(RsDeleteVisibility));
+        NotifyOnce(nameof(RsInstalledVisible));
+        NotifyOnce(nameof(RsStatusText));
+        NotifyOnce(nameof(RsStatusColor));
+        NotifyOnce(nameof(RsShortAction));
+        NotifyOnce(nameof(RsInstallCornerRadius));
+        NotifyOnce(nameof(RsInstallBorderThickness));
+        NotifyOnce(nameof(RsInstallMargin));
+        NotifyOnce(nameof(RsIniCornerRadius));
+        NotifyOnce(nameof(RsIniBorderThickness));
+        NotifyOnce(nameof(RsIniMargin));
+        NotifyOnce(nameof(IsRsInstalled));
+        NotifyOnce(nameof(CardRsStatusDot));
+        NotifyOnce(nameof(CardRsInstallEnabled));
+
+        // ── ReShade: RsIsInstalling dependents ────────────────────────────────
+        NotifyOnce(nameof(RsProgressVisibility));
+        NotifyOnce(nameof(IsRsNotInstalling));
+
+        // ── Luma: LumaStatus dependents ───────────────────────────────────────
+        NotifyOnce(nameof(LumaActionLabel));
+        NotifyOnce(nameof(LumaInstallVisibility));
+        NotifyOnce(nameof(LumaReinstallVisibility));
+        NotifyOnce(nameof(LumaStatusText));
+        NotifyOnce(nameof(LumaStatusColor));
+        NotifyOnce(nameof(LumaShortAction));
+        NotifyOnce(nameof(LumaBtnBackground));
+        NotifyOnce(nameof(LumaBtnForeground));
+        NotifyOnce(nameof(LumaBtnBorderBrush));
+        NotifyOnce(nameof(IsLumaInstalled));
+        NotifyOnce(nameof(CardLumaStatusDot));
+        NotifyOnce(nameof(CardLumaInstallEnabled));
+
+        // ── Luma: IsLumaInstalling dependents ─────────────────────────────────
+        NotifyOnce(nameof(IsLumaNotInstalling));
+        NotifyOnce(nameof(LumaProgressVisibility));
+
+        // ── Luma: LumaFeatureEnabled dependents ───────────────────────────────
+        NotifyOnce(nameof(LumaBadgeVisibility));
+        NotifyOnce(nameof(CardLumaVisible));
+        NotifyOnce(nameof(R7bLumaSwitchVisibility));
+        NotifyOnce(nameof(R7bLumaSwitchCornerRadius));
+        NotifyOnce(nameof(R7bLumaSwitchBorderThickness));
+        NotifyOnce(nameof(R7bLumaSwitchMargin));
+        NotifyOnce(nameof(RenoDxRowVisibility));
+        NotifyOnce(nameof(ReShadeRowVisibility));
+        NotifyOnce(nameof(DcRowVisibility));
+        NotifyOnce(nameof(InstalledFileLabelVisible));
+        NotifyOnce(nameof(WikiStatusIcon));
+        NotifyOnce(nameof(WikiStatusIconVisible));
+        NotifyOnce(nameof(HasExtraLinks));
+        NotifyOnce(nameof(ExtraLinkVisibility));
+
+        // ── Luma: IsLumaMode dependents ───────────────────────────────────────
+        NotifyOnce(nameof(LumaBadgeLabel));
+        NotifyOnce(nameof(LumaBadgeBackground));
+        NotifyOnce(nameof(LumaBadgeForeground));
+        NotifyOnce(nameof(LumaBadgeBorderBrush));
+
+        // ── Properties not covered by targeted methods ────────────────────────
+        NotifyOnce(nameof(DualBitInstallVisibility));
+        NotifyOnce(nameof(InstalledFileLabel));
+        NotifyOnce(nameof(InstallPathDisplay));
+        NotifyOnce(nameof(HideButtonLabel));
+        NotifyOnce(nameof(StarForeground));
+        NotifyOnce(nameof(IsFavouriteVisibility));
+        NotifyOnce(nameof(IsNotFavouriteVisibility));
+        NotifyOnce(nameof(IsHiddenVisibility));
+        NotifyOnce(nameof(IsNotHiddenVisibility));
+        NotifyOnce(nameof(GenericBadgeVisibility));
+        NotifyOnce(nameof(NotesButtonVisibility));
+        NotifyOnce(nameof(HasNotes));
+        NotifyOnce(nameof(HasDualBitMod));
+        NotifyOnce(nameof(WikiStatusLabel));
+        NotifyOnce(nameof(WikiStatusBadgeBackground));
+        NotifyOnce(nameof(WikiStatusBadgeBorderBrush));
+        NotifyOnce(nameof(WikiStatusBadgeForeground));
+        NotifyOnce(nameof(Is32BitBadgeVisibility));
+        NotifyOnce(nameof(Is32BitUeWipVisibility));
+        NotifyOnce(nameof(UeExtendedLabel));
+        NotifyOnce(nameof(UeExtendedBackground));
+        NotifyOnce(nameof(UeExtendedForeground));
+        NotifyOnce(nameof(UeExtendedBorderBrush));
+        NotifyOnce(nameof(UeExtendedToggleVisibility));
+        NotifyOnce(nameof(ComponentDetailVisibility));
+        NotifyOnce(nameof(ExpandChevron));
+        NotifyOnce(nameof(RsIniExists));
+        NotifyOnce(nameof(DcIniExists));
+        NotifyOnce(nameof(RsBlockedByDcMode));
+        NotifyOnce(nameof(IsLumaAvailable));
+        NotifyOnce(nameof(HasInfoIndicator));
     }
 }

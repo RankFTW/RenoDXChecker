@@ -1,3 +1,34 @@
+## v1.4.7
+
+### Bug Fixes
+
+**Global shader button not updating in Settings**
+- Clicking the shader mode button in the Settings panel cycled the mode internally but the button label and colours did not update visually. The SettingsViewModel was raising PropertyChanged on its own properties, but the XAML bindings target MainViewModel which was not forwarding those notifications. MainViewModel now subscribes to SettingsViewModel.PropertyChanged and re-raises the shader button property changes so the UI reflects the current mode immediately.
+
+**DC install/update overwriting shared shader folder with per-game mode**
+- Installing or updating Display Commander for any game was syncing the DC AppData shader folder using that game's per-game shader mode override instead of the global shader mode. Because the DC shader folder is shared across all DC-mode games, a per-game override of "Off" would wipe shaders for every other DC-mode game, and a per-game override of "All" would deploy extra shaders globally. The DC folder sync now always uses the global shader deploy mode, while per-game overrides continue to apply only to standalone ReShade game folders.
+
+### Changes
+
+**Codebase optimisation**
+- Shared UI helpers extracted (UIFactory, ResourceKeys) to eliminate duplicated brush/style creation across CardBuilder, DetailPanelBuilder, and DragDropHandler.
+- Five new service interfaces introduced (IGameInitializationService, IUpdateOrchestrationService, IDllOverrideService, IGameNameService, ILiliumShaderService) to decouple MainViewModel from concrete implementations.
+- Property notification deduplication — SetProperty guards added to prevent redundant UI updates.
+- String comparisons standardised to OrdinalIgnoreCase across all filter and lookup paths.
+- Async best practices applied — ConfigureAwait(false) on non-UI awaits, SafeFireAndForget extension for fire-and-forget tasks.
+- Error handling normalised — ~180 CrashReporter.Log calls standardised with consistent tag format.
+- Retry logic added to settings and library file writes to handle file contention.
+- Per-platform exception isolation in game detection prevents one platform's failure from blocking others.
+- ManifestService null-safety hardened for malformed remote JSON.
+- GameDetectionService optimised with configurable max scan depth and engine detection caching.
+- Memory management improvements — HttpClient lifetime audit, brush caching, PropertyChanged cleanup.
+- WrapPanel measure/arrange optimised to reduce layout passes.
+- DragDropHandler hardened with upfront extension validation.
+- XML documentation added to all new public APIs.
+- 11 property-based tests added covering filter correctness, batch collection, drag-drop validation, and property notification.
+
+---
+
 ## v1.4.6
 
 ### New Features

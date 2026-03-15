@@ -112,7 +112,7 @@ public partial class GameCardViewModel
     // ── Targeted notification: DcIsInstalling changed ─────────────────────────────
     private void NotifyDcIsInstallingDependents()
     {
-        OnPropertyChanged(nameof(DcStatusDot));
+        // DcStatusDot removed — it depends on DcStatus, not DcIsInstalling
         OnPropertyChanged(nameof(DcActionLabel));
         OnPropertyChanged(nameof(DcProgressVisibility));
         OnPropertyChanged(nameof(IsDcNotInstalling));

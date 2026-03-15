@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI;
 using RenoDXCommander.Services;
 using Microsoft.UI.Xaml;
@@ -34,8 +35,8 @@ public sealed partial class MainWindow : Window
         AuxInstallService.EnsureReShadeStaging(); // create staging dir (DLLs downloaded by ReShadeUpdateService)
         Title = "RDXC - RenoDXCommander";
         // Fire-and-forget: check/download Lilium HDR shaders in the background
-        _ = ViewModel.ShaderPackServiceInstance.EnsureLatestAsync();
-        CrashReporter.Log("MainWindow: InitializeComponent complete");
+        ViewModel.ShaderPackServiceInstance.EnsureLatestAsync().SafeFireAndForget("MainWindow.ShaderPack");
+        CrashReporter.Log("[MainWindow.MainWindow] InitializeComponent complete");
         // Set a sensible default size immediately so the window isn't huge on first launch.
         // TryRestoreWindowBounds (called on Activated) will then override this with the
         // saved size+position from the previous session, if one exists.
@@ -77,11 +78,11 @@ public sealed partial class MainWindow : Window
         UpdatePageVisibility();
         // Always show the ✕ clear button on search box
         SearchBox.Loaded += (_, _) => VisualStateManager.GoToState(SearchBox, "ButtonVisible", false);
-        _ = ViewModel.InitializeAsync();
+        ViewModel.InitializeAsync().SafeFireAndForget("MainWindow.Init");
         // Silent update check — runs in background, shows dialog only if update found
-        _ = CheckForAppUpdateAsync();
+        CheckForAppUpdateAsync().SafeFireAndForget("MainWindow.UpdateCheck");
         // Show patch notes on first launch after update
-        _ = ShowPatchNotesIfNewVersionAsync();
+        ShowPatchNotesIfNewVersionAsync().SafeFireAndForget("MainWindow.PatchNotes");
         this.Closed += MainWindow_Closed;
     }
 
@@ -99,6 +100,13 @@ public sealed partial class MainWindow : Window
 
     private void MainWindow_Closed(object? sender, WindowEventArgs e)
     {
+        // Unsubscribe from ViewModel property changes to avoid leaks (Requirement 8.5)
+        ViewModel.PropertyChanged -= OnViewModelChanged;
+
+        // Unsubscribe detail panel builder from current card's PropertyChanged
+        if (_detailPanelBuilder.CurrentDetailCard != null)
+            _detailPanelBuilder.CurrentDetailCard.PropertyChanged -= _detailPanelBuilder.DetailCard_PropertyChanged;
+
         ViewModel.SaveSettingsPublic(); // persist GridLayout and other settings
         SaveWindowBounds();
     }
@@ -122,8 +130,8 @@ public sealed partial class MainWindow : Window
                     LoadingRing.IsActive = loading;
                     RefreshBtn.IsEnabled = !loading;
                     StatusDot.Fill = new SolidColorBrush(loading
-                        ? ((SolidColorBrush)Application.Current.Resources["AccentAmberBrush"]).Color
-                        : ((SolidColorBrush)Application.Current.Resources["AccentGreenBrush"]).Color);
+                        ? ((SolidColorBrush)Application.Current.Resources[ResourceKeys.AccentAmberBrush]).Color
+                        : ((SolidColorBrush)Application.Current.Resources[ResourceKeys.AccentGreenBrush]).Color);
                     if (!loading) TryRestoreSelection();
                     break;
                 case nameof(ViewModel.StatusText):
@@ -152,13 +160,13 @@ public sealed partial class MainWindow : Window
 
     private void RefreshButton_Click(object sender, RoutedEventArgs e)
     {
-        CrashReporter.Log("User clicked Refresh");
+        CrashReporter.Log("[MainWindow.RefreshButton_Click] User clicked Refresh");
         _ = RefreshWithScrollRestore();
     }
 
     private void FullRefreshButton_Click(object sender, RoutedEventArgs e)
     {
-        CrashReporter.Log("User clicked Full Refresh");
+        CrashReporter.Log("[MainWindow.FullRefreshButton_Click] User clicked Full Refresh");
         _ = FullRefreshWithScrollRestore();
     }
 
@@ -243,7 +251,7 @@ public sealed partial class MainWindow : Window
             Content             = new TextBlock
             {
                 TextWrapping = TextWrapping.Wrap,
-                Foreground   = Brush("AccentAmberBrush"),
+                Foreground   = Brush(ResourceKeys.AccentAmberBrush),
                 FontSize     = 13,
                 Text         = $"A dxgi.dll file was found in:\n{card.InstallPath}\n\n" +
                                $"File size: {sizeKB:N0} KB\n\n" +
@@ -254,7 +262,7 @@ public sealed partial class MainWindow : Window
             PrimaryButtonText   = "Overwrite",
             CloseButtonText     = "Cancel",
             XamlRoot            = Content.XamlRoot,
-            Background          = Brush("SurfaceOverlayBrush"),
+            Background          = Brush(ResourceKeys.SurfaceOverlayBrush),
         };
 
         var result = await dlg.ShowAsync();
@@ -272,7 +280,7 @@ public sealed partial class MainWindow : Window
             Content             = new TextBlock
             {
                 TextWrapping = TextWrapping.Wrap,
-                Foreground   = Brush("AccentAmberBrush"),
+                Foreground   = Brush(ResourceKeys.AccentAmberBrush),
                 FontSize     = 13,
                 Text         = $"A winmm.dll file was found in:\n{card.InstallPath}\n\n" +
                                $"File size: {sizeKB:N0} KB\n\n" +
@@ -283,7 +291,7 @@ public sealed partial class MainWindow : Window
             PrimaryButtonText   = "Overwrite",
             CloseButtonText     = "Cancel",
             XamlRoot            = Content.XamlRoot,
-            Background          = Brush("SurfaceOverlayBrush"),
+            Background          = Brush(ResourceKeys.SurfaceOverlayBrush),
         };
 
         var result = await dlg.ShowAsync();
@@ -298,7 +306,7 @@ public sealed partial class MainWindow : Window
         {
             if (ViewModel.SkipUpdateCheck)
             {
-                CrashReporter.Log("MainWindow: update check skipped (disabled in settings)");
+                CrashReporter.Log("[MainWindow.CheckForAppUpdateAsync] Update check skipped (disabled in settings)");
                 return;
             }
 
@@ -317,7 +325,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"MainWindow: update check error — {ex.Message}");
+            CrashReporter.Log($"[MainWindow.CheckForAppUpdateAsync] Update check error — {ex.Message}");
         }
     }
 
@@ -334,7 +342,7 @@ public sealed partial class MainWindow : Window
                     new TextBlock
                     {
                         TextWrapping = TextWrapping.Wrap,
-                        Foreground   = Brush("TextSecondaryBrush"),
+                        Foreground   = Brush(ResourceKeys.TextSecondaryBrush),
                         FontSize     = 14,
                         Text         = $"A new version of RDXC is available!\n\n" +
                                        $"Installed:  v{updateInfo.CurrentVersion}\n" +
@@ -346,7 +354,7 @@ public sealed partial class MainWindow : Window
             PrimaryButtonText   = "Update Now",
             CloseButtonText     = "Later",
             XamlRoot            = Content.XamlRoot,
-            Background          = Brush("SurfaceRaisedBrush"),
+            Background          = Brush(ResourceKeys.SurfaceRaisedBrush),
         };
 
         var result = await dlg.ShowAsync();
@@ -363,7 +371,7 @@ public sealed partial class MainWindow : Window
         {
             Text         = "Starting download...",
             TextWrapping = TextWrapping.Wrap,
-            Foreground   = Brush("TextSecondaryBrush"),
+            Foreground   = Brush(ResourceKeys.TextSecondaryBrush),
             FontSize     = 13,
         };
         var progressBar = new ProgressBar
@@ -383,7 +391,7 @@ public sealed partial class MainWindow : Window
                 Children = { progressText, progressBar },
             },
             XamlRoot   = Content.XamlRoot,
-            Background = Brush("SurfaceRaisedBrush"),
+            Background = Brush(ResourceKeys.SurfaceRaisedBrush),
             // No buttons — dialog will be closed programmatically when download completes
         };
 
@@ -461,7 +469,7 @@ public sealed partial class MainWindow : Window
             }
             catch (Exception ex)
             {
-                CrashReporter.Log($"RebuildCardGrid: skipped card '{card.GameName}': {ex.Message}");
+                CrashReporter.Log($"[MainWindow.RebuildCardGrid] Skipped card '{card.GameName}' — {ex.Message}");
             }
         }
         // If the selected game is in the displayed list, scroll to it
@@ -631,8 +639,8 @@ public sealed partial class MainWindow : Window
         {
             DetailFavIcon.Text = card.IsFavourite ? "⭐" : "☆";
             DetailFavIcon.Foreground = new SolidColorBrush(card.IsFavourite
-                ? ((SolidColorBrush)Application.Current.Resources["AccentAmberBrush"]).Color
-                : ((SolidColorBrush)Application.Current.Resources["TextDisabledBrush"]).Color);
+                ? ((SolidColorBrush)Application.Current.Resources[ResourceKeys.AccentAmberBrush]).Color
+                : ((SolidColorBrush)Application.Current.Resources[ResourceKeys.TextDisabledBrush]).Color);
         }
     }
 
@@ -742,7 +750,7 @@ public sealed partial class MainWindow : Window
             Text = "Overrides",
             FontSize = 13,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Foreground = Brush("TextPrimaryBrush"),
+            Foreground = Brush(ResourceKeys.TextPrimaryBrush),
         });
 
         // ── Game name + Wiki name ──
@@ -860,7 +868,7 @@ public sealed partial class MainWindow : Window
             IsEnabled = !isLumaMode,
             OnContent = "Custom filenames enabled",
             OffContent = "Using default filenames",
-            Foreground = Brush("TextSecondaryBrush"),
+            Foreground = Brush(ResourceKeys.TextSecondaryBrush),
             FontSize = 12,
         };
         ToolTipService.SetToolTip(dllOverrideToggle,
@@ -929,8 +937,8 @@ public sealed partial class MainWindow : Window
         var dllGroupBorder = new Border
         {
             Child = dllGroupPanel,
-            Background = Brush("SurfaceOverlayBrush"),
-            BorderBrush = Brush("BorderSubtleBrush"),
+            Background = Brush(ResourceKeys.SurfaceOverlayBrush),
+            BorderBrush = Brush(ResourceKeys.BorderSubtleBrush),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(12, 10, 12, 12),
@@ -943,7 +951,7 @@ public sealed partial class MainWindow : Window
         {
             Text = "Global update inclusion",
             FontSize = 12,
-            Foreground = Brush("TextSecondaryBrush"),
+            Foreground = Brush(ResourceKeys.TextSecondaryBrush),
             Margin = new Thickness(0, 0, 0, 8),
         });
 
@@ -953,7 +961,7 @@ public sealed partial class MainWindow : Window
             IsOn = !ViewModel.IsUpdateAllExcludedReShade(gameName),
             OnContent = "Yes",
             OffContent = "No",
-            Foreground = Brush("TextSecondaryBrush"),
+            Foreground = Brush(ResourceKeys.TextSecondaryBrush),
             FontSize = 11,
             MinWidth = 0,
         };
@@ -963,7 +971,7 @@ public sealed partial class MainWindow : Window
             IsOn = !ViewModel.IsUpdateAllExcludedDc(gameName),
             OnContent = "Yes",
             OffContent = "No",
-            Foreground = Brush("TextSecondaryBrush"),
+            Foreground = Brush(ResourceKeys.TextSecondaryBrush),
             FontSize = 11,
             MinWidth = 0,
         };
@@ -973,7 +981,7 @@ public sealed partial class MainWindow : Window
             IsOn = !ViewModel.IsUpdateAllExcludedRenoDx(gameName),
             OnContent = "Yes",
             OffContent = "No",
-            Foreground = Brush("TextSecondaryBrush"),
+            Foreground = Brush(ResourceKeys.TextSecondaryBrush),
             FontSize = 11,
             MinWidth = 0,
         };
@@ -981,7 +989,7 @@ public sealed partial class MainWindow : Window
         var rsBorder = new Border
         {
             Child = rsToggle,
-            BorderBrush = Brush("BorderDefaultBrush"),
+            BorderBrush = Brush(ResourceKeys.BorderDefaultBrush),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(8, 6, 8, 6),
@@ -989,7 +997,7 @@ public sealed partial class MainWindow : Window
         var dcBorder = new Border
         {
             Child = dcToggle,
-            BorderBrush = Brush("BorderDefaultBrush"),
+            BorderBrush = Brush(ResourceKeys.BorderDefaultBrush),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(8, 6, 8, 6),
@@ -997,7 +1005,7 @@ public sealed partial class MainWindow : Window
         var rdxBorder = new Border
         {
             Child = rdxToggle,
-            BorderBrush = Brush("BorderDefaultBrush"),
+            BorderBrush = Brush(ResourceKeys.BorderDefaultBrush),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(8, 6, 8, 6),
@@ -1021,7 +1029,7 @@ public sealed partial class MainWindow : Window
             IsOn = ViewModel.IsWikiExcluded(gameName),
             OnContent = "Excluded from wiki lookups",
             OffContent = "Included in wiki lookups",
-            Foreground = Brush("TextSecondaryBrush"),
+            Foreground = Brush(ResourceKeys.TextSecondaryBrush),
             FontSize = 12,
         };
         ToolTipService.SetToolTip(wikiExcludeToggle,
@@ -1035,9 +1043,9 @@ public sealed partial class MainWindow : Window
             Content = "Reset Overrides",
             FontSize = 12,
             Padding = new Thickness(16, 8, 16, 8),
-            Background = Brush("SurfaceOverlayBrush"),
-            Foreground = Brush("TextSecondaryBrush"),
-            BorderBrush = Brush("BorderDefaultBrush"),
+            Background = Brush(ResourceKeys.SurfaceOverlayBrush),
+            Foreground = Brush(ResourceKeys.TextSecondaryBrush),
+            BorderBrush = Brush(ResourceKeys.BorderDefaultBrush),
             BorderThickness = new Thickness(1),
             HorizontalAlignment = HorizontalAlignment.Left,
             CornerRadius = new CornerRadius(8),
@@ -1188,7 +1196,7 @@ public sealed partial class MainWindow : Window
 
             if (!anyChanged) return;
 
-            CrashReporter.Log($"Flyout overrides saved for: {effectiveName}");
+            CrashReporter.Log($"[MainWindow.OpenOverridesFlyout] Flyout overrides saved for: {effectiveName}");
 
             // Trigger pending reselect and restore selection (mirrors BuildOverridesPanel save logic)
             _pendingReselect = effectiveName;
@@ -1293,7 +1301,7 @@ public sealed partial class MainWindow : Window
             }
             catch (Exception ex)
             {
-                CrashReporter.Log($"MainWindow: failed to write patch notes marker — {ex.Message}");
+                CrashReporter.Log($"[MainWindow.ShowPatchNotesIfNewVersionAsync] Failed to write patch notes marker — {ex.Message}");
             }
 
             DispatcherQueue.TryEnqueue(async () =>
@@ -1304,13 +1312,13 @@ public sealed partial class MainWindow : Window
                 }
                 catch (Exception ex)
                 {
-                    CrashReporter.Log($"MainWindow: patch notes dialog failed — {ex.Message}");
+                    CrashReporter.Log($"[MainWindow.ShowPatchNotesIfNewVersionAsync] Patch notes dialog failed — {ex.Message}");
                 }
             });
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"MainWindow: patch notes check error — {ex.Message}");
+            CrashReporter.Log($"[MainWindow.ShowPatchNotesIfNewVersionAsync] Patch notes check error — {ex.Message}");
         }
     }
 
@@ -1322,7 +1330,7 @@ public sealed partial class MainWindow : Window
         {
             Text = notes,
             Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent),
-            Foreground = Brush("TextSecondaryBrush"),
+            Foreground = Brush(ResourceKeys.TextSecondaryBrush),
             FontSize = 12,
             UseEmphasisExtras = true,
             UseListExtras = true,
@@ -1342,7 +1350,7 @@ public sealed partial class MainWindow : Window
             Content            = scrollViewer,
             CloseButtonText    = "Close",
             XamlRoot           = Content.XamlRoot,
-            Background         = Brush("SurfaceToolbarBrush"),
+            Background         = Brush(ResourceKeys.SurfaceToolbarBrush),
         };
 
         await dlg.ShowAsync();
@@ -1356,7 +1364,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"MainWindow: patch notes dialog error — {ex.Message}");
+            CrashReporter.Log($"[MainWindow.PatchNotesLink_Click] Patch notes dialog error — {ex.Message}");
         }
     }
 
@@ -1366,14 +1374,14 @@ public sealed partial class MainWindow : Window
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "RenoDXCommander", "logs");
         System.IO.Directory.CreateDirectory(logsDir);
-        CrashReporter.Log("User opened logs folder from About panel");
+        CrashReporter.Log("[MainWindow.OpenLogsFolder_Click] User opened logs folder from About panel");
         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(logsDir) { UseShellExecute = true });
     }
 
     private void OpenDownloadsFolder_Click(object sender, RoutedEventArgs e)
     {
         System.IO.Directory.CreateDirectory(ModInstallService.DownloadCacheDir);
-        CrashReporter.Log("User opened downloads cache folder from About panel");
+        CrashReporter.Log("[MainWindow.OpenDownloadsFolder_Click] User opened downloads cache folder from About panel");
         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(ModInstallService.DownloadCacheDir) { UseShellExecute = true });
     }
 
@@ -1419,21 +1427,21 @@ public sealed partial class MainWindow : Window
                 Spacing = 10,
                 Children =
                 {
-                    new TextBlock { Text = "Enter the game name exactly as it appears on the wiki mod list:", TextWrapping = TextWrapping.Wrap, Foreground = Brush("TextSecondaryBrush") },
+                    new TextBlock { Text = "Enter the game name exactly as it appears on the wiki mod list:", TextWrapping = TextWrapping.Wrap, Foreground = Brush(ResourceKeys.TextSecondaryBrush) },
                     nameBox
                 }
             },
             PrimaryButtonText   = "Pick Folder →",
             CloseButtonText     = "Cancel",
             XamlRoot            = Content.XamlRoot,
-            Background          = Brush("SurfaceToolbarBrush"),
+            Background          = Brush(ResourceKeys.SurfaceToolbarBrush),
         };
         var result = await nameDialog.ShowAsync();
         if (result != ContentDialogResult.Primary) return;
 
         var gameName = nameBox.Text.Trim();
         if (string.IsNullOrEmpty(gameName)) return;
-        CrashReporter.Log($"AddGame: {gameName}");
+        CrashReporter.Log($"[MainWindow.AddGameButton_Click] Adding game: {gameName}");
 
         // Pick the game folder
         var folder = await PickFolderAsync();
@@ -1485,7 +1493,7 @@ public sealed partial class MainWindow : Window
                 }
                 catch (Exception ex)
                 {
-                    CrashReporter.Log($"DragDrop addon: error processing '{file.Path}': {ex.Message}");
+                    CrashReporter.Log($"[MainWindow.Grid_Drop] DragDrop addon error processing '{file.Path}' — {ex.Message}");
                 }
                 continue;
             }
@@ -1499,7 +1507,7 @@ public sealed partial class MainWindow : Window
                 }
                 catch (Exception ex)
                 {
-                    CrashReporter.Log($"DragDrop archive: error processing '{file.Path}': {ex.Message}");
+                    CrashReporter.Log($"[MainWindow.Grid_Drop] DragDrop archive error processing '{file.Path}' — {ex.Message}");
                 }
                 continue;
             }
@@ -1508,7 +1516,7 @@ public sealed partial class MainWindow : Window
             if (!ext.Equals(".exe", StringComparison.OrdinalIgnoreCase)) continue;
 
             var exePath = file.Path;
-            CrashReporter.Log($"DragDrop: received exe '{exePath}'");
+            CrashReporter.Log($"[MainWindow.Grid_Drop] Received exe '{exePath}'");
 
             try
             {
@@ -1516,7 +1524,7 @@ public sealed partial class MainWindow : Window
             }
             catch (Exception ex)
             {
-                CrashReporter.Log($"DragDrop: error processing '{exePath}': {ex.Message}");
+                CrashReporter.Log($"[MainWindow.Grid_Drop] Error processing '{exePath}' — {ex.Message}");
             }
         }
     }
@@ -1532,14 +1540,14 @@ public sealed partial class MainWindow : Window
         // For Unity: the exe is usually in the game root next to UnityPlayer.dll
         // For others: the exe folder or its parent is the game root
         var gameRoot = InferGameRoot(exeDir);
-        CrashReporter.Log($"DragDrop: inferred game root '{gameRoot}' from exe dir '{exeDir}'");
+        CrashReporter.Log($"[MainWindow.ProcessDroppedExe] Inferred game root '{gameRoot}' from exe dir '{exeDir}'");
 
         // ── Detect engine and correct install path ────────────────────────────
         var (installPath, engine) = ViewModel.GameDetectionServiceInstance.DetectEngineAndPath(gameRoot);
 
         // ── Infer game name ───────────────────────────────────────────────────
         var gameName = InferGameName(exePath, gameRoot, engine);
-        CrashReporter.Log($"DragDrop: inferred name '{gameName}', engine={engine}");
+        CrashReporter.Log($"[MainWindow.ProcessDroppedExe] Inferred name '{gameName}', engine={engine}");
 
         // ── Check for duplicates (by install path or normalized name) ─────────
         var normName = ViewModel.GameDetectionServiceInstance.NormalizeName(gameName);
@@ -1559,7 +1567,7 @@ public sealed partial class MainWindow : Window
                 Content         = $"\"{existingCard.GameName}\" is already in your library at:\n{existingCard.InstallPath}",
                 CloseButtonText = "OK",
                 XamlRoot        = Content.XamlRoot,
-                Background      = Brush("SurfaceToolbarBrush"),
+                Background      = Brush(ResourceKeys.SurfaceToolbarBrush),
             };
             await dupDialog.ShowAsync();
             return;
@@ -1578,14 +1586,14 @@ public sealed partial class MainWindow : Window
         var confirmPanel = new StackPanel { Spacing = 8 };
         confirmPanel.Children.Add(new TextBlock
         {
-            Text = "Game name:", Foreground = Brush("TextSecondaryBrush"),
+            Text = "Game name:", Foreground = Brush(ResourceKeys.TextSecondaryBrush),
         });
         confirmPanel.Children.Add(nameBox);
         confirmPanel.Children.Add(new TextBlock
         {
             Text = $"Engine: {engineLabel}\nInstall path: {installPath}",
             TextWrapping = TextWrapping.Wrap,
-            Foreground   = Brush("TextTertiaryBrush"),
+            Foreground   = Brush(ResourceKeys.TextTertiaryBrush),
             FontSize     = 12, Margin = new Thickness(0, 6, 0, 0),
         });
 
@@ -1596,7 +1604,7 @@ public sealed partial class MainWindow : Window
             PrimaryButtonText = "Add Game",
             CloseButtonText   = "Cancel",
             XamlRoot          = Content.XamlRoot,
-            Background        = Brush("SurfaceToolbarBrush"),
+            Background        = Brush(ResourceKeys.SurfaceToolbarBrush),
         };
         var result = await confirmDialog.ShowAsync();
         if (result != ContentDialogResult.Primary) return;
@@ -1604,7 +1612,7 @@ public sealed partial class MainWindow : Window
         var finalName = nameBox.Text.Trim();
         if (string.IsNullOrEmpty(finalName)) return;
 
-        CrashReporter.Log($"DragDrop: adding game '{finalName}' at '{installPath}'");
+        CrashReporter.Log($"[MainWindow.ProcessDroppedExe] Adding game '{finalName}' at '{installPath}'");
         var game = new DetectedGame
         {
             Name = finalName, InstallPath = gameRoot, Source = "Manual", IsManuallyAdded = true
@@ -1620,9 +1628,9 @@ public sealed partial class MainWindow : Window
     private async Task ProcessDroppedArchive(string archivePath)
     {
         var archiveName = Path.GetFileName(archivePath);
-        CrashReporter.Log($"DragDrop archive: received '{archiveName}'");
+        CrashReporter.Log($"[MainWindow.ProcessDroppedArchive] Received '{archiveName}'");
 
-        var sevenZipExe = Services.ReShadeExtractor.Find7ZipExe();
+        var sevenZipExe = App.Services.GetRequiredService<ISevenZipExtractor>().Find7ZipExe();
         if (sevenZipExe == null)
         {
             var errDialog = new ContentDialog
@@ -1652,12 +1660,12 @@ public sealed partial class MainWindow : Window
                 RedirectStandardError = true,
             };
 
-            CrashReporter.Log($"DragDrop archive: extracting with {psi.FileName} {psi.Arguments}");
+            CrashReporter.Log($"[MainWindow.ProcessDroppedArchive] Extracting with {psi.FileName} {psi.Arguments}");
 
             using var proc = System.Diagnostics.Process.Start(psi);
             if (proc == null)
             {
-                CrashReporter.Log("DragDrop archive: failed to start 7z process");
+                CrashReporter.Log("[MainWindow.ProcessDroppedArchive] Failed to start 7z process");
                 return;
             }
 
@@ -1668,11 +1676,11 @@ public sealed partial class MainWindow : Window
 
             var stderr = await stderrTask;
             if (!string.IsNullOrWhiteSpace(stderr))
-                CrashReporter.Log($"DragDrop archive: 7z stderr: {stderr}");
+                CrashReporter.Log($"[MainWindow.ProcessDroppedArchive] 7z stderr: {stderr}");
 
             if (proc.ExitCode != 0)
             {
-                CrashReporter.Log($"DragDrop archive: 7z exit code {proc.ExitCode}");
+                CrashReporter.Log($"[MainWindow.ProcessDroppedArchive] 7z exit code {proc.ExitCode}");
                 var failDialog = new ContentDialog
                 {
                     Title = "Archive Extraction Failed",
@@ -1691,7 +1699,7 @@ public sealed partial class MainWindow : Window
 
             if (addonFiles.Count == 0)
             {
-                CrashReporter.Log($"DragDrop archive: no addon files found in '{archiveName}'");
+                CrashReporter.Log($"[MainWindow.ProcessDroppedArchive] No addon files found in '{archiveName}'");
                 var noAddonDialog = new ContentDialog
                 {
                     Title = "No Addon Found",
@@ -1703,7 +1711,7 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
-            CrashReporter.Log($"DragDrop archive: found {addonFiles.Count} addon file(s): [{string.Join(", ", addonFiles.Select(Path.GetFileName))}]");
+            CrashReporter.Log($"[MainWindow.ProcessDroppedArchive] Found {addonFiles.Count} addon file(s): [{string.Join(", ", addonFiles.Select(Path.GetFileName))}]");
 
             // If multiple addons found, let the user pick; otherwise use the single one
             string addonToInstall;
@@ -1752,7 +1760,7 @@ public sealed partial class MainWindow : Window
     private async Task ProcessDroppedAddon(string addonPath)
     {
         var addonFileName = Path.GetFileName(addonPath);
-        CrashReporter.Log($"DragDrop addon: received '{addonFileName}'");
+        CrashReporter.Log($"[MainWindow.ProcessDroppedAddon] Received '{addonFileName}'");
 
         // Build a list of all detected games to choose from
         var cards = ViewModel.AllCards?.ToList() ?? new();
@@ -1813,7 +1821,7 @@ public sealed partial class MainWindow : Window
             Text = $"Install {addonFileName} to a game folder.",
             TextWrapping = TextWrapping.Wrap,
             FontSize = 13,
-            Foreground = Brush("TextSecondaryBrush"),
+            Foreground = Brush(ResourceKeys.TextSecondaryBrush),
         });
         panel.Children.Add(combo);
 
@@ -1892,13 +1900,13 @@ public sealed partial class MainWindow : Window
                 .ToList();
             foreach (var f in toRemove)
             {
-                CrashReporter.Log($"DragDrop addon: removing existing '{Path.GetFileName(f)}'");
+                CrashReporter.Log($"[MainWindow.ProcessDroppedAddon] Removing existing '{Path.GetFileName(f)}'");
                 File.Delete(f);
             }
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"DragDrop addon: failed to remove existing addons: {ex.Message}");
+            CrashReporter.Log($"[MainWindow.ProcessDroppedAddon] Failed to remove existing addons — {ex.Message}");
         }
 
         // Copy the addon file to the game folder
@@ -1906,7 +1914,7 @@ public sealed partial class MainWindow : Window
         try
         {
             File.Copy(addonPath, destPath, overwrite: true);
-            CrashReporter.Log($"DragDrop addon: installed '{addonFileName}' to '{installPath}'");
+            CrashReporter.Log($"[MainWindow.ProcessDroppedAddon] Installed '{addonFileName}' to '{installPath}'");
 
             // Update card status
             targetCard.Status = GameStatus.Installed;
@@ -1925,7 +1933,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"DragDrop addon: install failed: {ex.Message}");
+            CrashReporter.Log($"[MainWindow.ProcessDroppedAddon] Install failed — {ex.Message}");
             var errDialog = new ContentDialog
             {
                 Title = "❌ Install Failed",
@@ -2150,10 +2158,10 @@ public sealed partial class MainWindow : Window
         ViewModel.SetFilterCommand.Execute(btn.Tag as string ?? "Detected");
 
         // Style buttons based on active filter set
-        var active   = ((SolidColorBrush)Application.Current.Resources["ChipActiveBrush"]).Color;
-        var inactive = ((SolidColorBrush)Application.Current.Resources["ChipDefaultBrush"]).Color;
-        var activeFg   = ((SolidColorBrush)Application.Current.Resources["TextPrimaryBrush"]).Color;
-        var inactiveFg = ((SolidColorBrush)Application.Current.Resources["ChipTextBrush"]).Color;
+        var active   = ((SolidColorBrush)Application.Current.Resources[ResourceKeys.ChipActiveBrush]).Color;
+        var inactive = ((SolidColorBrush)Application.Current.Resources[ResourceKeys.ChipDefaultBrush]).Color;
+        var activeFg   = ((SolidColorBrush)Application.Current.Resources[ResourceKeys.TextPrimaryBrush]).Color;
+        var inactiveFg = ((SolidColorBrush)Application.Current.Resources[ResourceKeys.ChipTextBrush]).Color;
 
         foreach (var b in new[] { FilterFavourites, FilterInstalled, FilterDetected, FilterUnreal, FilterUnity, FilterOther, FilterRenoDX, FilterLuma, FilterHidden })
         {
@@ -2171,8 +2179,8 @@ public sealed partial class MainWindow : Window
         // Refresh the detail panel icon to reflect the new state
         DetailFavIcon.Text = card.IsFavourite ? "⭐" : "☆";
         DetailFavIcon.Foreground = new SolidColorBrush(card.IsFavourite
-            ? ((SolidColorBrush)Application.Current.Resources["AccentAmberBrush"]).Color
-            : ((SolidColorBrush)Application.Current.Resources["TextDisabledBrush"]).Color);
+            ? ((SolidColorBrush)Application.Current.Resources[ResourceKeys.AccentAmberBrush]).Color
+            : ((SolidColorBrush)Application.Current.Resources[ResourceKeys.TextDisabledBrush]).Color);
     }
 
     // ── Card handlers ─────────────────────────────────────────────────────────────
@@ -2379,15 +2387,15 @@ public sealed partial class MainWindow : Window
         // Update the UE button styling
         if (card.UseUeExtended)
         {
-            DetailUeExtendedBtn.Background = Brush("AccentGreenBgBrush");
-            DetailUeExtendedBtn.Foreground = Brush("AccentGreenBrush");
-            DetailUeExtendedBtn.BorderBrush = Brush("AccentGreenBorderBrush");
+            DetailUeExtendedBtn.Background = Brush(ResourceKeys.AccentGreenBgBrush);
+            DetailUeExtendedBtn.Foreground = Brush(ResourceKeys.AccentGreenBrush);
+            DetailUeExtendedBtn.BorderBrush = Brush(ResourceKeys.AccentGreenBorderBrush);
         }
         else
         {
-            DetailUeExtendedBtn.Background = Brush("SurfaceOverlayBrush");
-            DetailUeExtendedBtn.Foreground = Brush("TextSecondaryBrush");
-            DetailUeExtendedBtn.BorderBrush = Brush("BorderStrongBrush");
+            DetailUeExtendedBtn.Background = Brush(ResourceKeys.SurfaceOverlayBrush);
+            DetailUeExtendedBtn.Foreground = Brush(ResourceKeys.TextSecondaryBrush);
+            DetailUeExtendedBtn.BorderBrush = Brush(ResourceKeys.BorderStrongBrush);
         }
 
         // Update tooltip
@@ -2398,7 +2406,7 @@ public sealed partial class MainWindow : Window
         if (card.UseUeExtended)
         {
             DetailRsMessage.Text = "⚡ UE-Extended enabled — check Discord to confirm this game is compatible.";
-            DetailRsMessage.Foreground = Brush("AccentPurpleBrush");
+            DetailRsMessage.Foreground = Brush(ResourceKeys.AccentPurpleBrush);
             DetailRsMessage.Visibility = Visibility.Visible;
             // Show compatibility warning dialog
             _ = ShowUeExtendedWarningAsync(card);
@@ -2406,7 +2414,7 @@ public sealed partial class MainWindow : Window
         else
         {
             DetailRsMessage.Text = "UE-Extended disabled.";
-            DetailRsMessage.Foreground = Brush("TextTertiaryBrush");
+            DetailRsMessage.Foreground = Brush(ResourceKeys.TextTertiaryBrush);
             DetailRsMessage.Visibility = Visibility.Visible;
         }
     }
@@ -2437,7 +2445,7 @@ public sealed partial class MainWindow : Window
                 },
                 PrimaryButtonText   = "OK, I understand",
                 XamlRoot            = Content.XamlRoot,
-                Background          = Brush("SurfaceOverlayBrush"),
+                Background          = Brush(ResourceKeys.SurfaceOverlayBrush),
             };
 
             await dlg.ShowAsync();
@@ -2520,7 +2528,7 @@ public sealed partial class MainWindow : Window
         if (card?.NameUrl != null)
         {
             try { await Windows.System.Launcher.LaunchUriAsync(new Uri(card.NameUrl)); }
-            catch (Exception ex) { CrashReporter.Log($"CardInfoLink_Click failed: {ex.Message}"); }
+            catch (Exception ex) { CrashReporter.Log($"[MainWindow.CardInfoLink_Click] Failed — {ex.Message}"); }
         }
     }
 
@@ -2549,9 +2557,9 @@ public sealed partial class MainWindow : Window
         var card = GetCardFromSender(sender);
         if (card == null) return;
 
-        var textColour = Brush("TextSecondaryBrush");
-        var linkColour = Brush("AccentBlueBrush");
-        var dimColour  = Brush("TextTertiaryBrush");
+        var textColour = Brush(ResourceKeys.TextSecondaryBrush);
+        var linkColour = Brush(ResourceKeys.AccentBlueBrush);
+        var dimColour  = Brush(ResourceKeys.TextTertiaryBrush);
 
         var outerPanel = new StackPanel { Spacing = 10 };
 
@@ -2587,14 +2595,14 @@ public sealed partial class MainWindow : Window
                 CornerRadius    = new CornerRadius(6),
                 Padding         = new Thickness(10, 4, 10, 4),
                 HorizontalAlignment = HorizontalAlignment.Left,
-                Background      = Brush("AccentGreenBgBrush"),
-                BorderBrush     = Brush("AccentGreenBorderBrush"),
+                Background      = Brush(ResourceKeys.AccentGreenBgBrush),
+                BorderBrush     = Brush(ResourceKeys.AccentGreenBorderBrush),
                 BorderThickness = new Thickness(1),
                 Child = new TextBlock
                 {
                     Text       = lumaLabel,
                     FontSize   = 12,
-                    Foreground = Brush("AccentGreenBrush"),
+                    Foreground = Brush(ResourceKeys.AccentGreenBrush),
                 }
             };
             outerPanel.Children.Add(lumaBadge);
@@ -2739,7 +2747,7 @@ public sealed partial class MainWindow : Window
             Content         = scrollContent,
             CloseButtonText = "Close",
             XamlRoot        = Content.XamlRoot,
-            Background      = Brush("SurfaceToolbarBrush"),
+            Background      = Brush(ResourceKeys.SurfaceToolbarBrush),
         };
         await dialog.ShowAsync();
     }
@@ -2748,7 +2756,7 @@ public sealed partial class MainWindow : Window
     private static Border MakeSeparator() => new()
     {
         Height = 1,
-        Background = (SolidColorBrush)Application.Current.Resources["BorderSubtleBrush"],
+        Background = (SolidColorBrush)Application.Current.Resources[ResourceKeys.BorderSubtleBrush],
         Margin = new Thickness(0, 2, 0, 2),
     };
 
@@ -3030,15 +3038,15 @@ public sealed partial class MainWindow : Window
         DetailLumaToggleText.Text = isLumaMode ? "Luma Enabled" : "Luma Disabled";
         if (isLumaMode)
         {
-            DetailLumaToggle.Background = Brush("AccentGreenBgBrush");
-            DetailLumaToggle.Foreground = Brush("AccentGreenBrush");
-            DetailLumaToggle.BorderBrush = Brush("AccentGreenBorderBrush");
+            DetailLumaToggle.Background = Brush(ResourceKeys.AccentGreenBgBrush);
+            DetailLumaToggle.Foreground = Brush(ResourceKeys.AccentGreenBrush);
+            DetailLumaToggle.BorderBrush = Brush(ResourceKeys.AccentGreenBorderBrush);
         }
         else
         {
-            DetailLumaToggle.Background = Brush("SurfaceOverlayBrush");
-            DetailLumaToggle.Foreground = Brush("TextTertiaryBrush");
-            DetailLumaToggle.BorderBrush = Brush("BorderStrongBrush");
+            DetailLumaToggle.Background = Brush(ResourceKeys.SurfaceOverlayBrush);
+            DetailLumaToggle.Foreground = Brush(ResourceKeys.TextTertiaryBrush);
+            DetailLumaToggle.BorderBrush = Brush(ResourceKeys.BorderStrongBrush);
         }
     }
 

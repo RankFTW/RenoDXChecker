@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Security;
 using System.Text;
@@ -9,6 +10,18 @@ namespace RenoDXCommander.Services;
 
 public class GameDetectionService : IGameDetectionService
 {
+    /// <summary>
+    /// Maximum directory depth for file system scans when searching for game executables.
+    /// Prevents scanning deeply nested folders that are unlikely to contain game binaries.
+    /// </summary>
+    private const int MaxScanDepth = 4;
+
+    /// <summary>
+    /// Caches engine detection results keyed by root install path to avoid redundant file system scans
+    /// on subsequent refreshes. Thread-safe for parallel detection across platforms.
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, (string installPath, EngineType engine)> _engineCache = new(StringComparer.OrdinalIgnoreCase);
+
     // ── Steam ─────────────────────────────────────────────────────────────────────
 
     public List<DetectedGame> FindSteamGames()
@@ -467,14 +480,14 @@ public class GameDetectionService : IGameDetectionService
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"FindXboxGames: PackageManager enumeration failed — {ex.Message}");
+            CrashReporter.Log($"[GameDetectionService.FindXboxGames] PackageManager enumeration failed — {ex.Message}");
 
             // Fallback: try the filesystem-based approach if PackageManager fails
             var fallbackGames = FindXboxGamesFallback();
             games.AddRange(fallbackGames);
         }
 
-        CrashReporter.Log($"FindXboxGames: found {games.Count} game(s)");
+        CrashReporter.Log($"[GameDetectionService.FindXboxGames] Found {games.Count} game(s)");
         return games;
     }
 
@@ -547,7 +560,7 @@ public class GameDetectionService : IGameDetectionService
         }
         catch (Exception ex) { CrashReporter.Log($"[GameDetectionService] Scan error — {ex.Message}"); }
 
-        CrashReporter.Log($"FindXboxGames fallback: searching {searchRoots.Count} root(s)");
+        CrashReporter.Log($"[GameDetectionService.FindXboxGamesFallback] Searching {searchRoots.Count} root(s)");
 
         foreach (var root in searchRoots)
         {
@@ -564,7 +577,7 @@ public class GameDetectionService : IGameDetectionService
                     var installPath = ResolveXboxGameRoot(gameDir);
 
                     bool hasExe = false;
-                    try { hasExe = HasFileShallow(installPath, "*.exe", 3); }
+                    try { hasExe = HasFileShallow(installPath, "*.exe", MaxScanDepth - 1); }
                     catch (Exception ex) { CrashReporter.Log($"[GameDetectionService] Scan error — {ex.Message}"); }
                     if (!hasExe) continue;
 
@@ -720,7 +733,7 @@ public class GameDetectionService : IGameDetectionService
                             // Only include if it has an exe (skip DLC/empty folders)
                             try
                             {
-                                if (!HasFileShallow(gameDir, "*.exe", 2)) continue;
+                                if (!HasFileShallow(gameDir, "*.exe", MaxScanDepth / 2)) continue;
                             }
                             catch { continue; }
                             var name = Path.GetFileName(gameDir);
@@ -749,7 +762,7 @@ public class GameDetectionService : IGameDetectionService
                 if (!seen.Add(gameDir)) continue;
                 try
                 {
-                    if (!HasFileShallow(gameDir, "*.exe", 2)) continue;
+                    if (!HasFileShallow(gameDir, "*.exe", MaxScanDepth / 2)) continue;
                 }
                 catch { continue; }
                 var name = Path.GetFileName(gameDir);
@@ -758,7 +771,7 @@ public class GameDetectionService : IGameDetectionService
             }
         }
 
-        CrashReporter.Log($"FindUbisoftGames: found {games.Count} game(s)");
+        CrashReporter.Log($"[GameDetectionService.FindUbisoftGames] Found {games.Count} game(s)");
         return games;
     }
 
@@ -845,7 +858,7 @@ public class GameDetectionService : IGameDetectionService
                         foreach (var gameDir in Directory.GetDirectories(gamesRoot))
                         {
                             if (!seen.Add(gameDir)) continue;
-                            try { if (!HasFileShallow(gameDir, "*.exe", 2)) continue; } catch { continue; }
+                            try { if (!HasFileShallow(gameDir, "*.exe", MaxScanDepth / 2)) continue; } catch { continue; }
                             var name = Path.GetFileName(gameDir);
                             if (!string.IsNullOrEmpty(name))
                                 games.Add(new DetectedGame { Name = name, InstallPath = gameDir, Source = "Battle.net" });
@@ -877,12 +890,12 @@ public class GameDetectionService : IGameDetectionService
                     || dirName.Equals("Battle.net", StringComparison.OrdinalIgnoreCase)
                     || dirName.Equals("Agent", StringComparison.OrdinalIgnoreCase))
                     continue;
-                try { if (!HasFileShallow(gameDir, "*.exe", 2)) continue; } catch { continue; }
+                try { if (!HasFileShallow(gameDir, "*.exe", MaxScanDepth / 2)) continue; } catch { continue; }
                 games.Add(new DetectedGame { Name = dirName, InstallPath = gameDir, Source = "Battle.net" });
             }
         }
 
-        CrashReporter.Log($"FindBattleNetGames: found {games.Count} game(s)");
+        CrashReporter.Log($"[GameDetectionService.FindBattleNetGames] Found {games.Count} game(s)");
         return games;
     }
 
@@ -987,18 +1000,29 @@ public class GameDetectionService : IGameDetectionService
                     || dirName.Equals("Launcher", StringComparison.OrdinalIgnoreCase)
                     || dirName.Equals("Social Club", StringComparison.OrdinalIgnoreCase))
                     continue;
-                try { if (!HasFileShallow(gameDir, "*.exe", 2)) continue; } catch { continue; }
+                try { if (!HasFileShallow(gameDir, "*.exe", MaxScanDepth / 2)) continue; } catch { continue; }
                 games.Add(new DetectedGame { Name = dirName, InstallPath = gameDir, Source = "Rockstar" });
             }
         }
 
-        CrashReporter.Log($"FindRockstarGames: found {games.Count} game(s)");
+        CrashReporter.Log($"[GameDetectionService.FindRockstarGames] Found {games.Count} game(s)");
         return games;
     }
 
     // ── Engine + path detection ───────────────────────────────────────────────────
 
     public (string installPath, EngineType engine) DetectEngineAndPath(string rootPath)
+    {
+        // Check cache first to avoid redundant file system scans
+        if (_engineCache.TryGetValue(rootPath, out var cached))
+            return cached;
+
+        var result = DetectEngineAndPathCore(rootPath);
+        _engineCache.TryAdd(rootPath, result);
+        return result;
+    }
+
+    private (string installPath, EngineType engine) DetectEngineAndPathCore(string rootPath)
     {
         // --- Unreal Engine (UE4/5) ---
         // Find Binaries\Win64 or Binaries\WinGDK that is NOT inside an Engine folder.
@@ -1022,7 +1046,7 @@ public class GameDetectionService : IGameDetectionService
 
         // --- Unity ---
         // UnityPlayer.dll is always next to the exe (root or 1 level deep)
-        var unityPlayer = FindFileShallow(rootPath, "UnityPlayer.dll", maxDepth: 2);
+        var unityPlayer = FindFileShallow(rootPath, "UnityPlayer.dll", maxDepth: MaxScanDepth / 2);
         if (unityPlayer != null)
             return (Path.GetDirectoryName(unityPlayer)!, EngineType.Unity);
 
@@ -1055,7 +1079,7 @@ public class GameDetectionService : IGameDetectionService
             // Check for il2cpp folder (Unity IL2CPP build)
             if (Directory.Exists(Path.Combine(root, "il2cpp"))) return true;
             // Check for GameAssembly.dll (Unity IL2CPP build marker)
-            if (FindFileShallow(root, "GameAssembly.dll", maxDepth: 2) != null) return true;
+            if (FindFileShallow(root, "GameAssembly.dll", maxDepth: MaxScanDepth / 2) != null) return true;
             // Check one level deep for these markers (game data subfolder pattern)
             foreach (var sub in Directory.GetDirectories(root))
             {
@@ -1100,7 +1124,7 @@ public class GameDetectionService : IGameDetectionService
                 bool hasShipping = false;
                 if (hasBinaries)
                 {
-                    try { hasShipping = HasFileShallow(root, "*Shipping*.exe", 4); }
+                    try { hasShipping = HasFileShallow(root, "*Shipping*.exe", MaxScanDepth); }
                     catch (Exception ex) { CrashReporter.Log($"[GameDetectionService] Scan error — {ex.Message}"); }
                 }
                 if (hasBinaries && !hasShipping) return true;
@@ -1112,7 +1136,7 @@ public class GameDetectionService : IGameDetectionService
             // the entire game folder tree for non-UE games.
             foreach (var ext in new[] { "*.u", "*.upk" })
             {
-                if (HasFileShallow(root, ext, 3)) return true;
+                if (HasFileShallow(root, ext, MaxScanDepth - 1)) return true;
             }
         }
         catch (Exception ex) { CrashReporter.Log($"[GameDetectionService] Scan error — {ex.Message}"); }
@@ -1166,7 +1190,7 @@ public class GameDetectionService : IGameDetectionService
 
     private void CollectUEBinaries(string dir, int depth, List<string> results)
     {
-        if (depth > 5) return;
+        if (depth > MaxScanDepth + 1) return;
         try
         {
             foreach (var sub in Directory.GetDirectories(dir))
@@ -1246,7 +1270,7 @@ public class GameDetectionService : IGameDetectionService
         while (queue.Count > 0)
         {
             var (dir, depth) = queue.Dequeue();
-            if (depth > 4) continue;
+            if (depth > MaxScanDepth) continue;
             try
             {
                 if (Directory.GetFiles(dir, "*.exe").Length > 0) return dir;
@@ -1320,14 +1344,14 @@ public class GameDetectionService : IGameDetectionService
             if (!isSequel) return t.mod;
         }
 
-        CrashReporter.Log($"MatchGame: no match for '{game.Name}' (norm='{name}') against {modList.Count} wiki mods");
+        CrashReporter.Log($"[GameDetectionService.MatchGame] No match for '{game.Name}' (norm='{name}') against {modList.Count} wiki mods");
         // Log close matches for diagnostics
         var closeMatches = modList
             .Where(t => t.norm.Contains(name) || name.Contains(t.norm))
             .Select(t => $"'{t.mod.Name}'→'{t.norm}'")
             .Take(5);
         if (closeMatches.Any())
-            CrashReporter.Log($"  Close matches: [{string.Join(", ", closeMatches)}]");
+            CrashReporter.Log($"[GameDetectionService.MatchGame] Close matches: [{string.Join(", ", closeMatches)}]");
         return null;
     }
 

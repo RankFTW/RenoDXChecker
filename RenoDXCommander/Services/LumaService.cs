@@ -344,7 +344,7 @@ public class LumaService : ILumaService
                 installedFiles.Add("reshade.ini");
             }
         }
-        catch (Exception ex) { CrashReporter.Log($"Luma: reshade.ini deploy failed — {ex.Message}"); }
+        catch (Exception ex) { CrashReporter.Log($"[LumaService.Install] reshade.ini deploy failed — {ex.Message}"); }
 
         // ── Deploy Lilium shader pack (Minimum mode = Lilium only) ────────────────
         progress?.Report(("Deploying shaders...", 95));
@@ -368,7 +368,7 @@ public class LumaService : ILumaService
                     installedFiles.Add(Path.GetRelativePath(gameInstallPath, marker));
             }
         }
-        catch (Exception ex) { CrashReporter.Log($"Luma: shader deploy failed — {ex.Message}"); }
+        catch (Exception ex) { CrashReporter.Log($"[LumaService.Install] Shader deploy failed — {ex.Message}"); }
 
         var record = new LumaInstalledRecord
         {
@@ -420,7 +420,7 @@ public class LumaService : ILumaService
             }
             catch (Exception ex)
             {
-                CrashReporter.Log($"Luma: failed to delete '{relPath}' — {ex.Message}");
+                CrashReporter.Log($"[LumaService.Uninstall] Failed to delete '{relPath}' — {ex.Message}");
             }
         }
 
@@ -430,7 +430,7 @@ public class LumaService : ILumaService
         {
             _shaderPackService.RemoveFromGameFolder(record.InstallPath);
         }
-        catch (Exception ex) { CrashReporter.Log($"Luma: ShaderPackService cleanup failed — {ex.Message}"); }
+        catch (Exception ex) { CrashReporter.Log($"[LumaService.Uninstall] ShaderPackService cleanup failed — {ex.Message}"); }
 
         // Clean up empty reshade-shaders directory tree if it still exists
         var rsDir = Path.Combine(record.InstallPath, LiliumShaderService.GameReShadeShaders);
@@ -494,7 +494,7 @@ public class LumaService : ILumaService
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"Luma: failed to save records — {ex.Message}");
+            CrashReporter.Log($"[LumaService.SaveAllRecords] Failed to save records — {ex.Message}");
         }
     }
 

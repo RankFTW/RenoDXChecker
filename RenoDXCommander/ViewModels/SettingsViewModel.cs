@@ -120,12 +120,27 @@ public partial class SettingsViewModel : ObservableObject
 
     public static void SaveSettingsFile(Dictionary<string, string> settings)
     {
-        try
+        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(_settingsFilePath)!);
+        var json = JsonSerializer.Serialize(settings);
+
+        // Retry with short delays to handle file contention from concurrent background tasks
+        for (int attempt = 0; attempt < 3; attempt++)
         {
-            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(_settingsFilePath)!);
-            System.IO.File.WriteAllText(_settingsFilePath, JsonSerializer.Serialize(settings));
+            try
+            {
+                System.IO.File.WriteAllText(_settingsFilePath, json);
+                return;
+            }
+            catch (System.IO.IOException) when (attempt < 2)
+            {
+                System.Threading.Thread.Sleep(50 * (attempt + 1)); // 50ms, 100ms
+            }
+            catch (Exception ex)
+            {
+                CrashReporter.Log($"[SettingsViewModel.SaveSettingsFile] Failed to save settings — {ex.Message}");
+                return;
+            }
         }
-        catch { }
     }
 
     /// <summary>

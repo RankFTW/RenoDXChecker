@@ -44,12 +44,12 @@ public class ManifestService : IManifestService
         string? json = null;
         try
         {
-            json = await FetchViaGitHubApiAsync();
-            CrashReporter.Log("Manifest fetched via GitHub API");
+            json = await FetchViaGitHubApiAsync().ConfigureAwait(false);
+            CrashReporter.Log("[ManifestService.FetchAsync] Fetched via GitHub API");
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"Manifest GitHub API failed ({ex.Message}), trying raw URL...");
+            CrashReporter.Log($"[ManifestService.FetchAsync] GitHub API failed — {ex.Message}, trying raw URL...");
         }
 
         // Fallback to raw.githubusercontent.com
@@ -57,12 +57,12 @@ public class ManifestService : IManifestService
         {
             try
             {
-                json = await _http.GetStringAsync(RawFallbackUrl);
-                CrashReporter.Log("Manifest fetched via raw fallback URL");
+                json = await _http.GetStringAsync(RawFallbackUrl).ConfigureAwait(false);
+                CrashReporter.Log("[ManifestService.FetchAsync] Fetched via raw fallback URL");
             }
             catch (Exception ex)
             {
-                CrashReporter.Log($"Manifest raw fetch also failed ({ex.Message}), trying cache...");
+                CrashReporter.Log($"[ManifestService.FetchAsync] Raw fetch also failed — {ex.Message}, trying cache...");
             }
         }
 
@@ -80,18 +80,18 @@ public class ManifestService : IManifestService
                 try
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(CachePath)!);
-                    await File.WriteAllTextAsync(CachePath, json);
+                    await File.WriteAllTextAsync(CachePath, json).ConfigureAwait(false);
                 }
                 catch (Exception ex) { CrashReporter.Log($"[ManifestService.FetchAsync] Cache write failed for '{CachePath}' — {ex.Message}"); }
             }
-            CrashReporter.Log($"Manifest fetched: v{manifest?.Version}, " +
+            CrashReporter.Log($"[ManifestService.FetchAsync] Fetched: v{manifest?.Version}, " +
                 $"{manifest?.WikiNameOverrides?.Count ?? 0} name overrides, " +
                 $"{manifest?.GameNotes?.Count ?? 0} game notes");
             return manifest;
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"Manifest deserialization failed ({ex.Message}), trying cache...");
+            CrashReporter.Log($"[ManifestService.FetchAsync] Deserialization failed — {ex.Message}, trying cache...");
             return LoadCached();
         }
     }
@@ -106,10 +106,10 @@ public class ManifestService : IManifestService
         request.Headers.Add("Accept", "application/vnd.github.v3+json");
         // User-Agent is already set on the shared HttpClient
 
-        using var response = await _http.SendAsync(request);
+        using var response = await _http.SendAsync(request).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        var apiJson = await response.Content.ReadAsStringAsync();
+        var apiJson = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
         using var doc = JsonDocument.Parse(apiJson);
         var root = doc.RootElement;
 
@@ -135,12 +135,12 @@ public class ManifestService : IManifestService
             var manifest = JsonSerializer.Deserialize<RemoteManifest>(json, JsonOptions);
             if (manifest != null)
                 Normalize(manifest);
-            CrashReporter.Log($"Manifest loaded from cache: v{manifest?.Version}");
+            CrashReporter.Log($"[ManifestService.LoadCached] Loaded from cache: v{manifest?.Version}");
             return manifest;
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"Manifest cache load failed: {ex.Message}");
+            CrashReporter.Log($"[ManifestService.LoadCached] Cache load failed — {ex.Message}");
             return null;
         }
     }
@@ -149,7 +149,7 @@ public class ManifestService : IManifestService
     /// Rebuilds dictionary properties with case-insensitive string comparers
     /// so game-name lookups are forgiving of casing differences.
     /// </summary>
-    private void Normalize(RemoteManifest m)
+    internal static void Normalize(RemoteManifest m)
     {
         if (m.WikiNameOverrides != null)
             m.WikiNameOverrides = new Dictionary<string, string>(m.WikiNameOverrides, StringComparer.OrdinalIgnoreCase);
@@ -167,5 +167,9 @@ public class ManifestService : IManifestService
             m.SnapshotOverrides = new Dictionary<string, string>(m.SnapshotOverrides, StringComparer.OrdinalIgnoreCase);
         if (m.LumaGameNotes != null)
             m.LumaGameNotes = new Dictionary<string, GameNoteEntry>(m.LumaGameNotes, StringComparer.OrdinalIgnoreCase);
+        if (m.EngineOverrides != null)
+            m.EngineOverrides = new Dictionary<string, string>(m.EngineOverrides, StringComparer.OrdinalIgnoreCase);
+        if (m.DllNameOverrides != null)
+            m.DllNameOverrides = new Dictionary<string, ManifestDllNames>(m.DllNameOverrides, StringComparer.OrdinalIgnoreCase);
     }
 }

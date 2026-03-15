@@ -45,7 +45,7 @@ public class UpdateService : IUpdateService
             var response = await _http.SendAsync(request).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
-                CrashReporter.Log($"UpdateService: GitHub API returned {response.StatusCode}");
+                CrashReporter.Log($"[UpdateService.CheckForUpdateAsync] GitHub API returned {response.StatusCode}");
                 return null;
             }
 
@@ -60,7 +60,7 @@ public class UpdateService : IUpdateService
             var remoteVersion = ParseVersion(releaseName) ?? ParseVersion(tagName);
             if (remoteVersion == null)
             {
-                CrashReporter.Log($"UpdateService: could not parse version from tag='{tagName}' name='{releaseName}'");
+                CrashReporter.Log($"[UpdateService.CheckForUpdateAsync] Could not parse version from tag='{tagName}' name='{releaseName}'");
                 return null;
             }
 
@@ -71,7 +71,7 @@ public class UpdateService : IUpdateService
             var rmt = new Version(remoteVersion.Major, remoteVersion.Minor, remoteVersion.Build);
             if (rmt <= cmp)
             {
-                CrashReporter.Log($"UpdateService: up to date (local={cmp}, remote={rmt})");
+                CrashReporter.Log($"[UpdateService.CheckForUpdateAsync] Up to date (local={cmp}, remote={rmt})");
                 return null;
             }
 
@@ -93,11 +93,11 @@ public class UpdateService : IUpdateService
 
             if (string.IsNullOrEmpty(downloadUrl))
             {
-                CrashReporter.Log($"UpdateService: update {rmt} found but no '{InstallerFileName}' asset in release");
+                CrashReporter.Log($"[UpdateService.CheckForUpdateAsync] Update {rmt} found but no '{InstallerFileName}' asset in release");
                 return null;
             }
 
-            CrashReporter.Log($"UpdateService: update available {cmp} → {rmt}");
+            CrashReporter.Log($"[UpdateService.CheckForUpdateAsync] Update available {cmp} → {rmt}");
             return new UpdateInfo
             {
                 CurrentVersion = cmp,
@@ -108,7 +108,7 @@ public class UpdateService : IUpdateService
         catch (Exception ex)
         {
             // Update check should never crash the app — swallow and log
-            CrashReporter.Log($"UpdateService: check failed — {ex.Message}");
+            CrashReporter.Log($"[UpdateService.CheckForUpdateAsync] Check failed — {ex.Message}");
             return null;
         }
     }
@@ -156,12 +156,12 @@ public class UpdateService : IUpdateService
             }
 
             progress?.Report(("Download complete.", 100));
-            CrashReporter.Log($"UpdateService: downloaded installer to {tempPath} ({totalRead:N0} bytes)");
+            CrashReporter.Log($"[UpdateService.DownloadInstallerAsync] Downloaded installer to {tempPath} ({totalRead:N0} bytes)");
             return tempPath;
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"UpdateService: download failed — {ex.Message}");
+            CrashReporter.Log($"[UpdateService.DownloadInstallerAsync] Download failed — {ex.Message}");
             progress?.Report(($"Download failed: {ex.Message}", 0));
             return null;
         }
@@ -174,7 +174,7 @@ public class UpdateService : IUpdateService
     {
         try
         {
-            CrashReporter.Log($"UpdateService: launching installer {installerPath}");
+            CrashReporter.Log($"[UpdateService.LaunchInstaller] Launching installer {installerPath}");
             Process.Start(new ProcessStartInfo
             {
                 FileName        = installerPath,
@@ -186,7 +186,7 @@ public class UpdateService : IUpdateService
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"UpdateService: failed to launch installer — {ex.Message}");
+            CrashReporter.Log($"[UpdateService.LaunchInstaller] Failed to launch installer — {ex.Message}");
         }
     }
 

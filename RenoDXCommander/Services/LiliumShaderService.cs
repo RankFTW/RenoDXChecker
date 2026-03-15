@@ -69,14 +69,14 @@ public class LiliumShaderService : ILiliumShaderService
                 var resp = await _http.SendAsync(req);
                 if (!resp.IsSuccessStatusCode)
                 {
-                    CrashReporter.Log($"LiliumShaders: GitHub API returned {resp.StatusCode}");
+                    CrashReporter.Log($"[LiliumShaderService.EnsureLatestAsync] GitHub API returned {resp.StatusCode}");
                     return;
                 }
                 json = await resp.Content.ReadAsStringAsync();
             }
             catch (Exception ex)
             {
-                CrashReporter.Log($"LiliumShaders: GitHub API request failed: {ex.Message}");
+                CrashReporter.Log($"[LiliumShaderService.EnsureLatestAsync] GitHub API request failed — {ex.Message}");
                 return;
             }
 
@@ -100,13 +100,13 @@ public class LiliumShaderService : ILiliumShaderService
             }
             catch (Exception ex)
             {
-                CrashReporter.Log($"LiliumShaders: Failed to parse GitHub response: {ex.Message}");
+                CrashReporter.Log($"[LiliumShaderService.EnsureLatestAsync] Failed to parse GitHub response — {ex.Message}");
                 return;
             }
 
             if (assetName == null || downloadUrl == null)
             {
-                CrashReporter.Log("LiliumShaders: No .7z asset found in latest release.");
+                CrashReporter.Log("[LiliumShaderService.EnsureLatestAsync] No .7z asset found in latest release");
                 return;
             }
 
@@ -115,13 +115,13 @@ public class LiliumShaderService : ILiliumShaderService
             if (string.Compare(assetName, stored, StringComparison.OrdinalIgnoreCase) <= 0
                 && ShadersAvailable)
             {
-                CrashReporter.Log($"LiliumShaders: Already up to date ({assetName}).");
+                CrashReporter.Log($"[LiliumShaderService.EnsureLatestAsync] Already up to date ({assetName})");
                 progress?.Report($"Lilium shaders up to date ({assetName})");
                 return;
             }
 
             progress?.Report($"Downloading Lilium shaders ({assetName})...");
-            CrashReporter.Log($"LiliumShaders: Downloading {assetName} from {downloadUrl}");
+            CrashReporter.Log($"[LiliumShaderService.EnsureLatestAsync] Downloading {assetName} from {downloadUrl}");
 
             // ── 4. Download the .7z into the downloads cache ─────────────────────
             Directory.CreateDirectory(AuxInstallService.DownloadCacheDir);
@@ -133,7 +133,7 @@ public class LiliumShaderService : ILiliumShaderService
                 var dlResp = await _http.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
                 if (!dlResp.IsSuccessStatusCode)
                 {
-                    CrashReporter.Log($"LiliumShaders: Download failed ({dlResp.StatusCode})");
+                    CrashReporter.Log($"[LiliumShaderService.EnsureLatestAsync] Download failed ({dlResp.StatusCode})");
                     return;
                 }
 
@@ -160,7 +160,7 @@ public class LiliumShaderService : ILiliumShaderService
             catch (Exception ex)
             {
                 if (File.Exists(tempPath)) try { File.Delete(tempPath); } catch (Exception cleanupEx) { CrashReporter.Log($"[LiliumShaderService.EnsureLatestAsync] Failed to clean up temp file '{tempPath}' — {cleanupEx.Message}"); }
-                CrashReporter.Log($"LiliumShaders: Download exception: {ex.Message}");
+                CrashReporter.Log($"[LiliumShaderService.EnsureLatestAsync] Download exception — {ex.Message}");
                 return;
             }
 
@@ -219,22 +219,22 @@ public class LiliumShaderService : ILiliumShaderService
                     await entryStream.CopyToAsync(fileStream);
                 }
 
-                CrashReporter.Log($"LiliumShaders: Extracted successfully from {assetName}.");
+                CrashReporter.Log($"[LiliumShaderService.EnsureLatestAsync] Extracted successfully from {assetName}");
             }
             catch (Exception ex)
             {
-                CrashReporter.Log($"LiliumShaders: Extraction failed: {ex.Message}");
+                CrashReporter.Log($"[LiliumShaderService.EnsureLatestAsync] Extraction failed — {ex.Message}");
                 return;
             }
 
             // ── 6. Store the version so we skip next time ─────────────────────────
             SaveStoredVersion(assetName);
             progress?.Report($"Lilium shaders updated ({assetName})");
-            CrashReporter.Log($"LiliumShaders: Done. Version saved as {assetName}.");
+            CrashReporter.Log($"[LiliumShaderService.EnsureLatestAsync] Done. Version saved as {assetName}");
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"LiliumShaders: Unexpected error: {ex.Message}");
+            CrashReporter.Log($"[LiliumShaderService.EnsureLatestAsync] Unexpected error — {ex.Message}");
         }
     }
 
@@ -275,7 +275,7 @@ public class LiliumShaderService : ILiliumShaderService
         if (Directory.Exists(rsDir))
         {
             try { Directory.Delete(rsDir, recursive: true); }
-            catch (Exception ex) { CrashReporter.Log($"LiliumShaders: Failed to remove reshade-shaders: {ex.Message}"); }
+            catch (Exception ex) { CrashReporter.Log($"[LiliumShaderService.RemoveFromGameFolder] Failed to remove reshade-shaders — {ex.Message}"); }
         }
     }
 
@@ -333,6 +333,6 @@ public class LiliumShaderService : ILiliumShaderService
             Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
             File.WriteAllText(SettingsPath, JsonSerializer.Serialize(d, new JsonSerializerOptions { WriteIndented = true }));
         }
-        catch (Exception ex) { CrashReporter.Log($"LiliumShaders: Failed to save version: {ex.Message}"); }
+        catch (Exception ex) { CrashReporter.Log($"[LiliumShaderService.SaveStoredVersion] Failed to save version — {ex.Message}"); }
     }
 }

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using RenoDXCommander.Collections;
 using RenoDXCommander.Models;
 
 namespace RenoDXCommander.ViewModels;
@@ -40,13 +41,13 @@ public partial class FilterViewModel : ObservableObject
     /// <summary>
     /// The observable collection bound to the UI. Set by MainViewModel at startup.
     /// </summary>
-    private ObservableCollection<GameCardViewModel>? _displayedGames;
+    private BatchObservableCollection<GameCardViewModel>? _displayedGames;
 
     /// <summary>
     /// Initializes the FilterViewModel with the card collection and displayed games collection.
     /// Called by MainViewModel after construction.
     /// </summary>
-    public void Initialize(ObservableCollection<GameCardViewModel> displayedGames)
+    public void Initialize(BatchObservableCollection<GameCardViewModel> displayedGames)
     {
         _displayedGames = displayedGames;
     }
@@ -96,14 +97,14 @@ public partial class FilterViewModel : ObservableObject
     {
         if (_displayedGames == null) return;
 
-        var query = SearchQuery.Trim().ToLowerInvariant();
+        var query = SearchQuery.Trim();
         var filters = _activeFilters;
         var filtered = _allCards.Where(c =>
         {
             // Search match first
             var matchSearch = string.IsNullOrEmpty(query)
-                || c.GameName.ToLowerInvariant().Contains(query)
-                || c.Maintainer.ToLowerInvariant().Contains(query);
+                || c.GameName.Contains(query, StringComparison.OrdinalIgnoreCase)
+                || c.Maintainer.Contains(query, StringComparison.OrdinalIgnoreCase);
             if (!matchSearch) return false;
 
             // Hidden tab always shows hidden games regardless of the ShowHidden toggle
@@ -170,8 +171,7 @@ public partial class FilterViewModel : ObservableObject
             return !c.IsHidden;
         }).OrderBy(c => c.GameName, StringComparer.OrdinalIgnoreCase).ToList();
 
-        _displayedGames.Clear();
-        foreach (var c in filtered) _displayedGames.Add(c);
+        _displayedGames.ReplaceAll(filtered);
         UpdateCounts();
     }
 

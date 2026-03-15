@@ -1,6 +1,6 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
 using RenoDXCommander.Models;
 using RenoDXCommander.Services;
 using RenoDXCommander.ViewModels;
@@ -23,13 +23,44 @@ public class DragDropHandler
 
     private MainViewModel ViewModel => _window.ViewModel;
 
-    private SolidColorBrush Brush(string key) =>
-        (SolidColorBrush)Application.Current.Resources[key];
+    /// <summary>
+    /// The complete set of file extensions that DragDropHandler will process.
+    /// Files with extensions not in this set are silently skipped with a log entry.
+    /// </summary>
+    public static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".exe", ".addon64", ".addon32",
+        ".zip", ".7z", ".rar", ".tar", ".gz", ".bz2", ".xz", ".tgz",
+    };
 
     private static readonly HashSet<string> ArchiveExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".zip", ".7z", ".rar", ".tar", ".gz", ".bz2", ".xz", ".tar.gz", ".tgz", ".tar.bz2", ".tar.xz",
     };
+
+    /// <summary>
+    /// Returns true if the given file path has an extension in <see cref="AllowedExtensions"/>.
+    /// Handles null, empty, and paths with Unicode or special characters gracefully.
+    /// </summary>
+    public static bool IsAllowedExtension(string? filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+            return false;
+
+        try
+        {
+            var ext = Path.GetExtension(filePath);
+            if (string.IsNullOrEmpty(ext))
+                return false;
+
+            return AllowedExtensions.Contains(ext);
+        }
+        catch (ArgumentException)
+        {
+            // Path.GetExtension can throw on paths with invalid characters
+            return false;
+        }
+    }
 
     public void Grid_DragOver(object sender, DragEventArgs e)
     {
@@ -54,6 +85,13 @@ public class DragDropHandler
 
             var ext = file.FileType?.ToLowerInvariant() ?? "";
 
+            // Early validation: skip files with disallowed extensions
+            if (!IsAllowedExtension(file.Path))
+            {
+                CrashReporter.Log($"[DragDropHandler.Grid_Drop] Skipping file with disallowed extension '{ext}' — '{file.Name}'");
+                continue;
+            }
+
             // Handle .addon64 / .addon32 files — install RenoDX addon to a game
             if (ext is ".addon64" or ".addon32")
             {
@@ -63,7 +101,7 @@ public class DragDropHandler
                 }
                 catch (Exception ex)
                 {
-                    CrashReporter.Log($"DragDrop addon: error processing '{file.Path}': {ex.Message}");
+                    CrashReporter.Log($"[DragDropHandler.Grid_Drop] DragDrop addon error processing '{file.Path}' — {ex.Message}");
                 }
                 continue;
             }
@@ -77,7 +115,7 @@ public class DragDropHandler
                 }
                 catch (Exception ex)
                 {
-                    CrashReporter.Log($"DragDrop archive: error processing '{file.Path}': {ex.Message}");
+                    CrashReporter.Log($"[DragDropHandler.Grid_Drop] DragDrop archive error processing '{file.Path}' — {ex.Message}");
                 }
                 continue;
             }
@@ -86,7 +124,7 @@ public class DragDropHandler
             if (!ext.Equals(".exe", StringComparison.OrdinalIgnoreCase)) continue;
 
             var exePath = file.Path;
-            CrashReporter.Log($"DragDrop: received exe '{exePath}'");
+            CrashReporter.Log($"[DragDropHandler.Grid_Drop] Received exe '{exePath}'");
 
             try
             {
@@ -94,7 +132,7 @@ public class DragDropHandler
             }
             catch (Exception ex)
             {
-                CrashReporter.Log($"DragDrop: error processing '{exePath}': {ex.Message}");
+                CrashReporter.Log($"[DragDropHandler.Grid_Drop] Error processing '{exePath}' — {ex.Message}");
             }
         }
     }
@@ -106,14 +144,14 @@ public class DragDropHandler
 
         // ── Determine the game root folder ────────────────────────────────────
         var gameRoot = InferGameRoot(exeDir);
-        CrashReporter.Log($"DragDrop: inferred game root '{gameRoot}' from exe dir '{exeDir}'");
+        CrashReporter.Log($"[DragDropHandler.ProcessDroppedExe] Inferred game root '{gameRoot}' from exe dir '{exeDir}'");
 
         // ── Detect engine and correct install path ────────────────────────────
         var (installPath, engine) = ViewModel.GameDetectionServiceInstance.DetectEngineAndPath(gameRoot);
 
         // ── Infer game name ───────────────────────────────────────────────────
         var gameName = InferGameName(exePath, gameRoot, engine);
-        CrashReporter.Log($"DragDrop: inferred name '{gameName}', engine={engine}");
+        CrashReporter.Log($"[DragDropHandler.ProcessDroppedExe] Inferred name '{gameName}', engine={engine}");
 
         // ── Check for duplicates (by install path or normalized name) ─────────
         var normName = ViewModel.GameDetectionServiceInstance.NormalizeName(gameName);
@@ -133,7 +171,7 @@ public class DragDropHandler
                 Content         = $"\"{existingCard.GameName}\" is already in your library at:\n{existingCard.InstallPath}",
                 CloseButtonText = "OK",
                 XamlRoot        = _window.Content.XamlRoot,
-                Background      = Brush("SurfaceToolbarBrush"),
+                Background      = UIFactory.Brush(ResourceKeys.SurfaceToolbarBrush),
             };
             await dupDialog.ShowAsync();
             return;
@@ -152,14 +190,14 @@ public class DragDropHandler
         var confirmPanel = new StackPanel { Spacing = 8 };
         confirmPanel.Children.Add(new TextBlock
         {
-            Text = "Game name:", Foreground = Brush("TextSecondaryBrush"),
+            Text = "Game name:", Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
         });
         confirmPanel.Children.Add(nameBox);
         confirmPanel.Children.Add(new TextBlock
         {
             Text = $"Engine: {engineLabel}\nInstall path: {installPath}",
             TextWrapping = TextWrapping.Wrap,
-            Foreground   = Brush("TextTertiaryBrush"),
+            Foreground   = UIFactory.Brush(ResourceKeys.TextTertiaryBrush),
             FontSize     = 12, Margin = new Thickness(0, 6, 0, 0),
         });
 
@@ -170,7 +208,7 @@ public class DragDropHandler
             PrimaryButtonText = "Add Game",
             CloseButtonText   = "Cancel",
             XamlRoot          = _window.Content.XamlRoot,
-            Background        = Brush("SurfaceToolbarBrush"),
+            Background        = UIFactory.Brush(ResourceKeys.SurfaceToolbarBrush),
         };
         var result = await confirmDialog.ShowAsync();
         if (result != ContentDialogResult.Primary) return;
@@ -178,7 +216,7 @@ public class DragDropHandler
         var finalName = nameBox.Text.Trim();
         if (string.IsNullOrEmpty(finalName)) return;
 
-        CrashReporter.Log($"DragDrop: adding game '{finalName}' at '{installPath}'");
+        CrashReporter.Log($"[DragDropHandler.ProcessDroppedExe] Adding game '{finalName}' at '{installPath}'");
         var game = new DetectedGame
         {
             Name = finalName, InstallPath = gameRoot, Source = "Manual", IsManuallyAdded = true
@@ -193,9 +231,9 @@ public class DragDropHandler
     public async Task ProcessDroppedArchive(string archivePath)
     {
         var archiveName = Path.GetFileName(archivePath);
-        CrashReporter.Log($"DragDrop archive: received '{archiveName}'");
+        CrashReporter.Log($"[DragDropHandler.ProcessDroppedArchive] Received '{archiveName}'");
 
-        var sevenZipExe = Services.ReShadeExtractor.Find7ZipExe();
+        var sevenZipExe = App.Services.GetRequiredService<ISevenZipExtractor>().Find7ZipExe();
         if (sevenZipExe == null)
         {
             var errDialog = new ContentDialog
@@ -225,12 +263,12 @@ public class DragDropHandler
                 RedirectStandardError = true,
             };
 
-            CrashReporter.Log($"DragDrop archive: extracting with {psi.FileName} {psi.Arguments}");
+            CrashReporter.Log($"[DragDropHandler.ProcessDroppedArchive] Extracting with {psi.FileName} {psi.Arguments}");
 
             using var proc = System.Diagnostics.Process.Start(psi);
             if (proc == null)
             {
-                CrashReporter.Log("DragDrop archive: failed to start 7z process");
+                CrashReporter.Log("[DragDropHandler.ProcessDroppedArchive] Failed to start 7z process");
                 return;
             }
 
@@ -241,11 +279,11 @@ public class DragDropHandler
 
             var stderr = await stderrTask;
             if (!string.IsNullOrWhiteSpace(stderr))
-                CrashReporter.Log($"DragDrop archive: 7z stderr: {stderr}");
+                CrashReporter.Log($"[DragDropHandler.ProcessDroppedArchive] 7z stderr: {stderr}");
 
             if (proc.ExitCode != 0)
             {
-                CrashReporter.Log($"DragDrop archive: 7z exit code {proc.ExitCode}");
+                CrashReporter.Log($"[DragDropHandler.ProcessDroppedArchive] 7z exit code {proc.ExitCode}");
                 var failDialog = new ContentDialog
                 {
                     Title = "Archive Extraction Failed",
@@ -264,7 +302,7 @@ public class DragDropHandler
 
             if (addonFiles.Count == 0)
             {
-                CrashReporter.Log($"DragDrop archive: no addon files found in '{archiveName}'");
+                CrashReporter.Log($"[DragDropHandler.ProcessDroppedArchive] No addon files found in '{archiveName}'");
                 var noAddonDialog = new ContentDialog
                 {
                     Title = "No Addon Found",
@@ -276,7 +314,7 @@ public class DragDropHandler
                 return;
             }
 
-            CrashReporter.Log($"DragDrop archive: found {addonFiles.Count} addon file(s): [{string.Join(", ", addonFiles.Select(Path.GetFileName))}]");
+            CrashReporter.Log($"[DragDropHandler.ProcessDroppedArchive] Found {addonFiles.Count} addon file(s): [{string.Join(", ", addonFiles.Select(Path.GetFileName))}]");
 
             // If multiple addons found, let the user pick; otherwise use the single one
             string addonToInstall;
@@ -325,7 +363,7 @@ public class DragDropHandler
     public async Task ProcessDroppedAddon(string addonPath)
     {
         var addonFileName = Path.GetFileName(addonPath);
-        CrashReporter.Log($"DragDrop addon: received '{addonFileName}'");
+        CrashReporter.Log($"[DragDropHandler.ProcessDroppedAddon] Received '{addonFileName}'");
 
         // Build a list of all detected games to choose from
         var cards = ViewModel.AllCards?.ToList() ?? new();
@@ -385,7 +423,7 @@ public class DragDropHandler
             Text = $"Install {addonFileName} to a game folder.",
             TextWrapping = TextWrapping.Wrap,
             FontSize = 13,
-            Foreground = Brush("TextSecondaryBrush"),
+            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
         });
         panel.Children.Add(combo);
 
@@ -464,13 +502,13 @@ public class DragDropHandler
                 .ToList();
             foreach (var f in toRemove)
             {
-                CrashReporter.Log($"DragDrop addon: removing existing '{Path.GetFileName(f)}'");
+                CrashReporter.Log($"[DragDropHandler.ProcessDroppedAddon] Removing existing '{Path.GetFileName(f)}'");
                 File.Delete(f);
             }
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"DragDrop addon: failed to remove existing addons: {ex.Message}");
+            CrashReporter.Log($"[DragDropHandler.ProcessDroppedAddon] Failed to remove existing addons — {ex.Message}");
         }
 
         // Copy the addon file to the game folder
@@ -478,7 +516,7 @@ public class DragDropHandler
         try
         {
             File.Copy(addonPath, destPath, overwrite: true);
-            CrashReporter.Log($"DragDrop addon: installed '{addonFileName}' to '{installPath}'");
+            CrashReporter.Log($"[DragDropHandler.ProcessDroppedAddon] Installed '{addonFileName}' to '{installPath}'");
 
             // Update card status
             targetCard.Status = GameStatus.Installed;
@@ -497,7 +535,7 @@ public class DragDropHandler
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"DragDrop addon: install failed: {ex.Message}");
+            CrashReporter.Log($"[DragDropHandler.ProcessDroppedAddon] Install failed — {ex.Message}");
             var errDialog = new ContentDialog
             {
                 Title = "❌ Install Failed",

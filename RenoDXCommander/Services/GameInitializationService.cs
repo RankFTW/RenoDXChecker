@@ -8,7 +8,7 @@ namespace RenoDXCommander.Services;
 /// Owns card building, game detection orchestration, and manifest application.
 /// Extracted from MainViewModel per Requirement 1.6.
 /// </summary>
-public class GameInitializationService
+public class GameInitializationService : IGameInitializationService
 {
     private readonly IGameDetectionService _gameDetectionService;
     private readonly IWikiService _wikiService;
@@ -50,16 +50,28 @@ public class GameInitializationService
     /// </summary>
     public List<DetectedGame> DetectAllGamesDeduped()
     {
+        // Wrap each platform scan so that a failure in one does not abort others (Requirement 7.3).
+        Task<List<DetectedGame>> SafeScan(Func<List<DetectedGame>> scan, string platform) =>
+            Task.Run(() =>
+            {
+                try { return scan(); }
+                catch (Exception ex)
+                {
+                    CrashReporter.Log($"[GameInitializationService.DetectAllGamesDeduped] {platform} scan failed — {ex.Message}");
+                    return new List<DetectedGame>();
+                }
+            });
+
         var tasks = new[]
         {
-            Task.Run(_gameDetectionService.FindSteamGames),
-            Task.Run(_gameDetectionService.FindGogGames),
-            Task.Run(_gameDetectionService.FindEpicGames),
-            Task.Run(_gameDetectionService.FindEaGames),
-            Task.Run(_gameDetectionService.FindXboxGames),
-            Task.Run(_gameDetectionService.FindUbisoftGames),
-            Task.Run(_gameDetectionService.FindBattleNetGames),
-            Task.Run(_gameDetectionService.FindRockstarGames),
+            SafeScan(_gameDetectionService.FindSteamGames, "Steam"),
+            SafeScan(_gameDetectionService.FindGogGames, "GOG"),
+            SafeScan(_gameDetectionService.FindEpicGames, "Epic"),
+            SafeScan(_gameDetectionService.FindEaGames, "EA"),
+            SafeScan(_gameDetectionService.FindXboxGames, "Xbox"),
+            SafeScan(_gameDetectionService.FindUbisoftGames, "Ubisoft"),
+            SafeScan(_gameDetectionService.FindBattleNetGames, "Battle.net"),
+            SafeScan(_gameDetectionService.FindRockstarGames, "Rockstar"),
         };
         Task.WhenAll(tasks).Wait();
 
@@ -115,8 +127,8 @@ public class GameInitializationService
     /// </summary>
     public void ApplyManifest(
         RemoteManifest? manifest,
-        GameNameService gameNameService,
-        DllOverrideService dllOverrideService,
+        IGameNameService gameNameService,
+        IDllOverrideService dllOverrideService,
         HashSet<string> manifestNativeHdrGames,
         HashSet<string> manifestBlacklist,
         HashSet<string> manifest32BitGames,
@@ -199,7 +211,7 @@ public class GameInitializationService
             dllOverrideService.PruneOptOuts(manifestKeys, normalizeForLookup);
         }
 
-        CrashReporter.Log($"ApplyManifest: v{manifest.Version}, " +
+        CrashReporter.Log($"[GameInitializationService.ApplyManifest] v{manifest.Version}, " +
             $"+{manifest.WikiNameOverrides?.Count ?? 0} name overrides, " +
             $"+{manifest.UeExtendedGames?.Count ?? 0} UE-Ext, " +
             $"+{manifest.NativeHdrGames?.Count ?? 0} NativeHDR, " +

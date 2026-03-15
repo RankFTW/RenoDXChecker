@@ -8,7 +8,7 @@ namespace RenoDXCommander.Services;
 /// Owns name mappings, game renames, wiki exclusions, and settings persistence.
 /// Extracted from MainViewModel per Requirement 1.5.
 /// </summary>
-public class GameNameService
+public class GameNameService : IGameNameService
 {
     private readonly IGameDetectionService _gameDetectionService;
     private readonly IModInstallService _installer;
@@ -70,7 +70,7 @@ public class GameNameService
     /// Returns the loaded settings dictionary for further processing by callers.
     /// </summary>
     public Dictionary<string, string> LoadNameMappings(
-        DllOverrideService dllOverrideService,
+        IDllOverrideService dllOverrideService,
         SettingsViewModel settingsViewModel,
         Action<int> setDcModeLevel,
         Action<bool> setIsGridLayout)
@@ -94,7 +94,7 @@ public class GameNameService
         try { s = SettingsViewModel.LoadSettingsFile(); }
         catch (Exception ex)
         {
-            CrashReporter.Log($"LoadNameMappings: settings file unreadable — {ex.Message}");
+            CrashReporter.Log($"[GameNameService.LoadNameMappings] Settings file unreadable — {ex.Message}");
             return new(StringComparer.OrdinalIgnoreCase);
         }
 
@@ -107,7 +107,7 @@ public class GameNameService
             }
             catch (Exception ex)
             {
-                CrashReporter.Log($"LoadNameMappings: key '{key}' failed — {ex.Message}");
+                CrashReporter.Log($"[GameNameService.LoadNameMappings] Key '{key}' failed — {ex.Message}");
             }
             return fallback;
         }
@@ -199,14 +199,14 @@ public class GameNameService
         if (s.TryGetValue("GridLayout", out var glVal))
             setIsGridLayout(glVal == "1");
 
-        CrashReporter.Log($"LoadNameMappings: loaded {_gameRenames.Count} renames, {dllOverrides.Count} DLL overrides, {_folderOverrides.Count} folder overrides");
+        CrashReporter.Log($"[GameNameService.LoadNameMappings] Loaded {_gameRenames.Count} renames, {dllOverrides.Count} DLL overrides, {_folderOverrides.Count} folder overrides");
 
         return s;
     }
 
     /// <summary>Persists all settings to disk.</summary>
     public void SaveNameMappings(
-        DllOverrideService dllOverrideService,
+        IDllOverrideService dllOverrideService,
         SettingsViewModel settingsViewModel,
         int dcModeLevel,
         bool isGridLayout,
@@ -214,32 +214,45 @@ public class GameNameService
     {
         if (isLoadingSettings) return;
 
-        try
+        // Retry with short delays to handle file contention from concurrent background tasks
+        for (int attempt = 0; attempt < 3; attempt++)
         {
-            var s = SettingsViewModel.LoadSettingsFile();
-            s["NameMappings"]    = JsonSerializer.Serialize(_nameMappings);
-            s["WikiExclusions"]  = JsonSerializer.Serialize(_wikiExclusions.ToList());
-            s["UeExtendedGames"] = JsonSerializer.Serialize(_ueExtendedGames.ToList());
-            s["DcModeLevel"]     = dcModeLevel.ToString();
-            s["PerGameDcModeOverride"]  = JsonSerializer.Serialize(_perGameDcModeOverride);
-            s["UpdateAllExcludedReShade"] = JsonSerializer.Serialize(_updateAllExcludedReShade.ToList());
-            s["UpdateAllExcludedDc"]      = JsonSerializer.Serialize(_updateAllExcludedDc.ToList());
-            s["UpdateAllExcludedRenoDx"]  = JsonSerializer.Serialize(_updateAllExcludedRenoDx.ToList());
-            s.Remove("UpdateAllExcluded");
-            s["PerGameShaderMode"]    = JsonSerializer.Serialize(_perGameShaderMode);
-            settingsViewModel.SaveSettingsToDict(s);
-            s["LumaEnabledGames"]   = JsonSerializer.Serialize(_lumaEnabledGames.ToList());
-            s["LumaDisabledGames"]  = JsonSerializer.Serialize(_lumaDisabledGames.ToList());
-            s["GameRenames"]         = JsonSerializer.Serialize(_gameRenames);
-            s["DllOverrides"]        = JsonSerializer.Serialize(dllOverrideService.GetUserOverridesForSave());
-            s["ManifestDllOptOuts"]  = JsonSerializer.Serialize(dllOverrideService.ManifestDllOverrideOptOuts.ToList());
-            s["FolderOverrides"]     = JsonSerializer.Serialize(_folderOverrides);
-            s["HiddenGames"]         = JsonSerializer.Serialize(_hiddenGames?.ToList() ?? new List<string>());
-            s["FavouriteGames"]      = JsonSerializer.Serialize(_favouriteGames?.ToList() ?? new List<string>());
-            s["GridLayout"]          = isGridLayout ? "1" : "0";
-            SettingsViewModel.SaveSettingsFile(s);
+            try
+            {
+                var s = SettingsViewModel.LoadSettingsFile();
+                s["NameMappings"]    = JsonSerializer.Serialize(_nameMappings);
+                s["WikiExclusions"]  = JsonSerializer.Serialize(_wikiExclusions.ToList());
+                s["UeExtendedGames"] = JsonSerializer.Serialize(_ueExtendedGames.ToList());
+                s["DcModeLevel"]     = dcModeLevel.ToString();
+                s["PerGameDcModeOverride"]  = JsonSerializer.Serialize(_perGameDcModeOverride);
+                s["UpdateAllExcludedReShade"] = JsonSerializer.Serialize(_updateAllExcludedReShade.ToList());
+                s["UpdateAllExcludedDc"]      = JsonSerializer.Serialize(_updateAllExcludedDc.ToList());
+                s["UpdateAllExcludedRenoDx"]  = JsonSerializer.Serialize(_updateAllExcludedRenoDx.ToList());
+                s.Remove("UpdateAllExcluded");
+                s["PerGameShaderMode"]    = JsonSerializer.Serialize(_perGameShaderMode);
+                settingsViewModel.SaveSettingsToDict(s);
+                s["LumaEnabledGames"]   = JsonSerializer.Serialize(_lumaEnabledGames.ToList());
+                s["LumaDisabledGames"]  = JsonSerializer.Serialize(_lumaDisabledGames.ToList());
+                s["GameRenames"]         = JsonSerializer.Serialize(_gameRenames);
+                s["DllOverrides"]        = JsonSerializer.Serialize(dllOverrideService.GetUserOverridesForSave());
+                s["ManifestDllOptOuts"]  = JsonSerializer.Serialize(dllOverrideService.ManifestDllOverrideOptOuts.ToList());
+                s["FolderOverrides"]     = JsonSerializer.Serialize(_folderOverrides);
+                s["HiddenGames"]         = JsonSerializer.Serialize(_hiddenGames?.ToList() ?? new List<string>());
+                s["FavouriteGames"]      = JsonSerializer.Serialize(_favouriteGames?.ToList() ?? new List<string>());
+                s["GridLayout"]          = isGridLayout ? "1" : "0";
+                SettingsViewModel.SaveSettingsFile(s);
+                return;
+            }
+            catch (IOException) when (attempt < 2)
+            {
+                Thread.Sleep(50 * (attempt + 1)); // 50ms, 100ms
+            }
+            catch (Exception ex)
+            {
+                CrashReporter.Log($"[GameNameService.SaveNameMappings] Failed to save settings — {ex.Message}");
+                return;
+            }
         }
-        catch (Exception ex) { CrashReporter.Log($"[GameNameService.SaveNameMappings] Failed to save settings — {ex.Message}"); }
     }
 
     // ── Name mapping CRUD ─────────────────────────────────────────────────────
@@ -279,7 +292,7 @@ public class GameNameService
     public void RenameGame(string oldName, string newName,
         List<GameCardViewModel> allCards,
         List<DetectedGame> manualGames,
-        DllOverrideService dllOverrideService)
+        IDllOverrideService dllOverrideService)
     {
         if (string.IsNullOrWhiteSpace(oldName) || string.IsNullOrWhiteSpace(newName)) return;
         if (oldName.Equals(newName, StringComparison.OrdinalIgnoreCase)) return;

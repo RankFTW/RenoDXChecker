@@ -6,11 +6,13 @@ namespace RenoDXCommander.Services;
 public class WikiService : IWikiService
 {
     private readonly HttpClient _http;
+    private readonly IGameDetectionService _gameDetection;
 
-    public WikiService(HttpClient http) => _http = http;
-
-    // Used for diagnostic logging — NormalizeName is an instance method now
-    private readonly GameDetectionService _gameDetection = new();
+    public WikiService(HttpClient http, IGameDetectionService gameDetection)
+    {
+        _http = http;
+        _gameDetection = gameDetection;
+    }
 
     private const string WikiUrl = "https://github.com/clshortfuse/renodx/wiki/Mods";
 
@@ -26,7 +28,7 @@ public class WikiService : IWikiService
         FetchAllAsync(IProgress<string>? progress = null)
     {
         progress?.Report("Fetching wiki...");
-        var html = await _http.GetStringAsync(WikiUrl);
+        var html = await _http.GetStringAsync(WikiUrl).ConfigureAwait(false);
         var doc  = new HtmlDocument();
         doc.LoadHtml(html);
 
@@ -79,14 +81,14 @@ public class WikiService : IWikiService
         {
             var sample = mods.Take(5).Select(m => m.Name)
                 .Concat(mods.Count > 10 ? mods.Skip(mods.Count - 3).Select(m => m.Name) : Enumerable.Empty<string>());
-            CrashReporter.Log($"Wiki parsed {mods.Count} specific mods. Sample: [{string.Join(", ", sample)}]");
+            CrashReporter.Log($"[WikiService.FetchAllAsync] Parsed {mods.Count} specific mods. Sample: [{string.Join(", ", sample)}]");
             // Log raw bytes of first 3 mod names to detect invisible Unicode
             foreach (var m in mods.Take(3))
             {
                 var bytes = System.Text.Encoding.UTF8.GetBytes(m.Name);
                 var hex = string.Join(" ", bytes.Select(b => b.ToString("X2")));
                 var norm = _gameDetection.NormalizeName(m.Name);
-                CrashReporter.Log($"  Wiki mod raw: '{m.Name}' hex=[{hex}] norm='{norm}'");
+                CrashReporter.Log($"[WikiService.FetchAllAsync] Mod raw: '{m.Name}' hex=[{hex}] norm='{norm}'");
             }
             // Also log a known game that should match — search for 'Lies of P' or similar
             var liesOfP = mods.FirstOrDefault(m => m.Name.Contains("Lies", StringComparison.OrdinalIgnoreCase));
@@ -95,15 +97,15 @@ public class WikiService : IWikiService
                 var bytes = System.Text.Encoding.UTF8.GetBytes(liesOfP.Name);
                 var hex = string.Join(" ", bytes.Select(b => b.ToString("X2")));
                 var norm = _gameDetection.NormalizeName(liesOfP.Name);
-                CrashReporter.Log($"  Wiki mod 'Lies' raw: '{liesOfP.Name}' hex=[{hex}] norm='{norm}'");
+                CrashReporter.Log($"[WikiService.FetchAllAsync] Mod 'Lies' raw: '{liesOfP.Name}' hex=[{hex}] norm='{norm}'");
             }
             else
             {
-                CrashReporter.Log($"  Wiki mod 'Lies': NOT FOUND in parsed mods");
+                CrashReporter.Log("[WikiService.FetchAllAsync] Mod 'Lies': NOT FOUND in parsed mods");
             }
             // Full normalized dump for match diagnostics
             var allNorms = mods.Select(m => _gameDetection.NormalizeName(m.Name)).OrderBy(n => n).ToList();
-            CrashReporter.Log($"Wiki normalized names ({allNorms.Count}): [{string.Join(", ", allNorms)}]");
+            CrashReporter.Log($"[WikiService.FetchAllAsync] Normalized names ({allNorms.Count}): [{string.Join(", ", allNorms)}]");
         }
 
         progress?.Report($"Found {mods.Count} mods, {genericNotes.Count} generic game notes");
@@ -119,7 +121,7 @@ public class WikiService : IWikiService
         try
         {
             var req  = new HttpRequestMessage(HttpMethod.Head, url);
-            var resp = await _http.SendAsync(req);
+            var resp = await _http.SendAsync(req).ConfigureAwait(false);
             if (!resp.IsSuccessStatusCode) return null;
             return resp.Content.Headers.LastModified?.UtcDateTime
                 ?? resp.Headers.Date?.UtcDateTime;
@@ -156,7 +158,7 @@ public class WikiService : IWikiService
         }
 
         // Log table layout for diagnostics
-        CrashReporter.Log($"ParseModTable: cols={headerTexts.Count} headers=[{string.Join("|", headerTexts)}] " +
+        CrashReporter.Log($"[WikiService.ParseModTable] cols={headerTexts.Count} headers=[{string.Join("|", headerTexts)}] " +
                           $"name={nameCol} maintainer={maintainerCol} links={linksCol} status={statusCol}");
 
         foreach (var row in rows)

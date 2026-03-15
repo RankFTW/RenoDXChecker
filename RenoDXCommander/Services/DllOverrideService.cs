@@ -7,7 +7,7 @@ namespace RenoDXCommander.Services;
 /// Owns DLL override CRUD operations and the backing data store.
 /// Extracted from MainViewModel per Requirement 1.4.
 /// </summary>
-public class DllOverrideService
+public class DllOverrideService : IDllOverrideService
 {
     private readonly IAuxInstallService _auxInstaller;
 

@@ -82,9 +82,9 @@ public class DetailPanelBuilder
         // Wiki status badge
         var hasWikiLabel = !string.IsNullOrEmpty(card.WikiStatusLabel);
         _window.DetailWikiText.Text = card.WikiStatusLabel;
-        _window.DetailWikiText.Foreground = new SolidColorBrush(ParseHexColor(card.WikiStatusBadgeForeground));
-        _window.DetailWikiBadge.Background = new SolidColorBrush(ParseHexColor(card.WikiStatusBadgeBackground));
-        _window.DetailWikiBadge.BorderBrush = new SolidColorBrush(ParseHexColor(card.WikiStatusBadgeBorderBrush));
+        _window.DetailWikiText.Foreground = UIFactory.GetBrush(card.WikiStatusBadgeForeground);
+        _window.DetailWikiBadge.Background = UIFactory.GetBrush(card.WikiStatusBadgeBackground);
+        _window.DetailWikiBadge.BorderBrush = UIFactory.GetBrush(card.WikiStatusBadgeBorderBrush);
         _window.DetailWikiBadge.BorderThickness = new Thickness(1);
         _window.DetailWikiBadge.Visibility = hasWikiLabel ? Visibility.Visible : Visibility.Collapsed;
         _window.DetailSepPlatformStatus.Visibility = hasWikiLabel ? Visibility.Visible : Visibility.Collapsed;
@@ -99,14 +99,14 @@ public class DetailPanelBuilder
                 {
                     Text = author,
                     FontSize = 11,
-                    Foreground = Brush("ChipTextBrush"),
+                    Foreground = UIFactory.Brush(ResourceKeys.ChipTextBrush),
                 };
                 var badge = new Border
                 {
                     CornerRadius = new CornerRadius(5),
                     Padding = new Thickness(6, 2, 6, 2),
-                    Background = Brush("ChipDefaultBrush"),
-                    BorderBrush = Brush("BorderDefaultBrush"),
+                    Background = UIFactory.Brush(ResourceKeys.ChipDefaultBrush),
+                    BorderBrush = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
                     BorderThickness = new Thickness(1),
                     VerticalAlignment = VerticalAlignment.Center,
                     Child = textBlock,
@@ -138,8 +138,8 @@ public class DetailPanelBuilder
         _window.DetailFavBtn.Tag = card;
         _window.DetailFavIcon.Text = card.IsFavourite ? "⭐" : "☆";
         _window.DetailFavIcon.Foreground = new SolidColorBrush(card.IsFavourite
-            ? ((SolidColorBrush)Application.Current.Resources["AccentAmberBrush"]).Color
-            : ((SolidColorBrush)Application.Current.Resources["TextDisabledBrush"]).Color);
+            ? ((SolidColorBrush)Application.Current.Resources[ResourceKeys.AccentAmberBrush]).Color
+            : ((SolidColorBrush)Application.Current.Resources[ResourceKeys.TextDisabledBrush]).Color);
 
         _window.DetailDiscussionBtn.Tag = card;
         _window.DetailDiscussionBtn.Visibility = card.NameLinkVisibility;
@@ -150,8 +150,8 @@ public class DetailPanelBuilder
         _window.DetailHideBtn.Tag = card;
         _window.DetailHideIcon.Text = card.IsHidden ? "Show" : "Hide";
         _window.DetailHideBtn.Foreground = card.IsHidden
-            ? Brush("TextTertiaryBrush")
-            : Brush("TextDisabledBrush");
+            ? UIFactory.Brush(ResourceKeys.TextTertiaryBrush)
+            : UIFactory.Brush(ResourceKeys.TextDisabledBrush);
 
         // Folder management buttons
         _window.DetailFolderBtn.Tag = card;
@@ -183,13 +183,13 @@ public class DetailPanelBuilder
         if (!isLumaMode)
         {
             _window.DetailRsStatus.Text = card.RsStatusText;
-            _window.DetailRsStatus.Foreground = new SolidColorBrush(ParseHexColor(card.RsStatusColor));
+            _window.DetailRsStatus.Foreground = UIFactory.GetBrush(card.RsStatusColor);
             _window.DetailRsInstallBtn.Tag = card;
             _window.DetailRsInstallBtn.Content = card.RsActionLabel;
             _window.DetailRsInstallBtn.IsEnabled = card.IsRsNotInstalling;
-            _window.DetailRsInstallBtn.Background = new SolidColorBrush(ParseHexColor(card.RsBtnBackground));
-            _window.DetailRsInstallBtn.Foreground = new SolidColorBrush(ParseHexColor(card.RsBtnForeground));
-            _window.DetailRsInstallBtn.BorderBrush = new SolidColorBrush(ParseHexColor(card.RsBtnBorderBrush));
+            _window.DetailRsInstallBtn.Background = UIFactory.GetBrush(card.RsBtnBackground);
+            _window.DetailRsInstallBtn.Foreground = UIFactory.GetBrush(card.RsBtnForeground);
+            _window.DetailRsInstallBtn.BorderBrush = UIFactory.GetBrush(card.RsBtnBorderBrush);
             _window.DetailRsInstallBtn.BorderThickness = new Thickness(1);
             _window.DetailRsIniBtn.Tag = card;
             _window.DetailRsIniBtn.IsEnabled = card.RsIniExists;
@@ -205,13 +205,13 @@ public class DetailPanelBuilder
         if (!isLumaMode)
         {
             _window.DetailDcStatus.Text = card.DcStatusText;
-            _window.DetailDcStatus.Foreground = new SolidColorBrush(ParseHexColor(card.DcStatusColor));
+            _window.DetailDcStatus.Foreground = UIFactory.GetBrush(card.DcStatusColor);
             _window.DetailDcInstallBtn.Tag = card;
             _window.DetailDcInstallBtn.Content = card.DcActionLabel;
             _window.DetailDcInstallBtn.IsEnabled = card.IsDcNotInstalling;
-            _window.DetailDcInstallBtn.Background = new SolidColorBrush(ParseHexColor(card.DcBtnBackground));
-            _window.DetailDcInstallBtn.Foreground = new SolidColorBrush(ParseHexColor(card.DcBtnForeground));
-            _window.DetailDcInstallBtn.BorderBrush = new SolidColorBrush(ParseHexColor(card.DcBtnBorderBrush));
+            _window.DetailDcInstallBtn.Background = UIFactory.GetBrush(card.DcBtnBackground);
+            _window.DetailDcInstallBtn.Foreground = UIFactory.GetBrush(card.DcBtnForeground);
+            _window.DetailDcInstallBtn.BorderBrush = UIFactory.GetBrush(card.DcBtnBorderBrush);
             _window.DetailDcInstallBtn.BorderThickness = new Thickness(1);
             _window.DetailDcIniBtn.Tag = card;
             _window.DetailDcIniBtn.IsEnabled = card.DcIniExists;
@@ -233,9 +233,9 @@ public class DetailPanelBuilder
                 _window.DetailRdxStatus.Text = "";
                 _window.DetailRdxInstallBtn.Content = card.ExternalLabel;
                 _window.DetailRdxInstallBtn.IsEnabled = true;
-                _window.DetailRdxInstallBtn.Background = Brush("AccentBlueBgBrush");
-                _window.DetailRdxInstallBtn.Foreground = Brush("AccentBlueBrush");
-                _window.DetailRdxInstallBtn.BorderBrush = Brush("AccentBlueBorderBrush");
+                _window.DetailRdxInstallBtn.Background = UIFactory.Brush(ResourceKeys.AccentBlueBgBrush);
+                _window.DetailRdxInstallBtn.Foreground = UIFactory.Brush(ResourceKeys.AccentBlueBrush);
+                _window.DetailRdxInstallBtn.BorderBrush = UIFactory.Brush(ResourceKeys.AccentBlueBorderBrush);
                 _window.DetailRdxInstallBtn.BorderThickness = new Thickness(1);
                 _window.DetailRdxDeleteBtn.Opacity = 0;
                 _window.DetailRdxDeleteBtn.IsHitTestVisible = false;
@@ -243,12 +243,12 @@ public class DetailPanelBuilder
             else
             {
                 _window.DetailRdxStatus.Text = card.RdxStatusText;
-                _window.DetailRdxStatus.Foreground = new SolidColorBrush(ParseHexColor(card.RdxStatusColor));
+                _window.DetailRdxStatus.Foreground = UIFactory.GetBrush(card.RdxStatusColor);
                 _window.DetailRdxInstallBtn.Content = card.InstallActionLabel;
                 _window.DetailRdxInstallBtn.IsEnabled = card.CanInstall;
-                _window.DetailRdxInstallBtn.Background = new SolidColorBrush(ParseHexColor(card.InstallBtnBackground));
-                _window.DetailRdxInstallBtn.Foreground = new SolidColorBrush(ParseHexColor(card.InstallBtnForeground));
-                _window.DetailRdxInstallBtn.BorderBrush = new SolidColorBrush(ParseHexColor(card.InstallBtnBorderBrush));
+                _window.DetailRdxInstallBtn.Background = UIFactory.GetBrush(card.InstallBtnBackground);
+                _window.DetailRdxInstallBtn.Foreground = UIFactory.GetBrush(card.InstallBtnForeground);
+                _window.DetailRdxInstallBtn.BorderBrush = UIFactory.GetBrush(card.InstallBtnBorderBrush);
                 _window.DetailRdxInstallBtn.BorderThickness = new Thickness(1);
                 _window.DetailRdxDeleteBtn.Tag = card;
                 var rdxShow = card.ReinstallRowVisibility == Visibility.Visible;
@@ -262,13 +262,13 @@ public class DetailPanelBuilder
         {
             _window.DetailLumaRow.Visibility = Visibility.Visible;
             _window.DetailLumaStatus.Text = card.LumaStatusText;
-            _window.DetailLumaStatus.Foreground = new SolidColorBrush(CardBuilder.ParseColor(card.LumaStatusColor));
+            _window.DetailLumaStatus.Foreground = UIFactory.GetBrush(card.LumaStatusColor);
             _window.DetailLumaInstallBtn.Tag = card;
             _window.DetailLumaInstallBtn.Content = card.LumaActionLabel;
             _window.DetailLumaInstallBtn.IsEnabled = card.IsLumaNotInstalling;
-            _window.DetailLumaInstallBtn.Background = new SolidColorBrush(ParseHexColor(card.LumaBtnBackground));
-            _window.DetailLumaInstallBtn.Foreground = new SolidColorBrush(ParseHexColor(card.LumaBtnForeground));
-            _window.DetailLumaInstallBtn.BorderBrush = new SolidColorBrush(ParseHexColor(card.LumaBtnBorderBrush));
+            _window.DetailLumaInstallBtn.Background = UIFactory.GetBrush(card.LumaBtnBackground);
+            _window.DetailLumaInstallBtn.Foreground = UIFactory.GetBrush(card.LumaBtnForeground);
+            _window.DetailLumaInstallBtn.BorderBrush = UIFactory.GetBrush(card.LumaBtnBorderBrush);
             _window.DetailLumaInstallBtn.BorderThickness = new Thickness(1);
             _window.DetailLumaDeleteBtn.Tag = card;
             var lumaShow = card.LumaReinstallVisibility == Visibility.Visible;
@@ -288,15 +288,15 @@ public class DetailPanelBuilder
             // Visual indicator: green when enabled, default when off
             if (card.UseUeExtended)
             {
-                _window.DetailUeExtendedBtn.Background = Brush("AccentGreenBgBrush");
-                _window.DetailUeExtendedBtn.Foreground = Brush("AccentGreenBrush");
-                _window.DetailUeExtendedBtn.BorderBrush = Brush("AccentGreenBorderBrush");
+                _window.DetailUeExtendedBtn.Background = UIFactory.Brush(ResourceKeys.AccentGreenBgBrush);
+                _window.DetailUeExtendedBtn.Foreground = UIFactory.Brush(ResourceKeys.AccentGreenBrush);
+                _window.DetailUeExtendedBtn.BorderBrush = UIFactory.Brush(ResourceKeys.AccentGreenBorderBrush);
             }
             else
             {
-                _window.DetailUeExtendedBtn.Background = Brush("SurfaceOverlayBrush");
-                _window.DetailUeExtendedBtn.Foreground = Brush("TextSecondaryBrush");
-                _window.DetailUeExtendedBtn.BorderBrush = Brush("BorderStrongBrush");
+                _window.DetailUeExtendedBtn.Background = UIFactory.Brush(ResourceKeys.SurfaceOverlayBrush);
+                _window.DetailUeExtendedBtn.Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush);
+                _window.DetailUeExtendedBtn.BorderBrush = UIFactory.Brush(ResourceKeys.BorderStrongBrush);
             }
         }
         else
@@ -373,7 +373,7 @@ public class DetailPanelBuilder
             Text = "Overrides",
             FontSize = 13,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Foreground = Brush("TextPrimaryBrush"),
+            Foreground = UIFactory.Brush(ResourceKeys.TextPrimaryBrush),
         });
 
         // ── Game name + Wiki name ────────────────────────────────────────────────
@@ -399,9 +399,9 @@ public class DetailPanelBuilder
             FontSize = 12,
             VerticalAlignment = VerticalAlignment.Bottom,
             Padding = new Thickness(10, 6, 10, 6),
-            Background = Brush("SurfaceOverlayBrush"),
-            Foreground = Brush("TextSecondaryBrush"),
-            BorderBrush = Brush("BorderDefaultBrush"),
+            Background = UIFactory.Brush(ResourceKeys.SurfaceOverlayBrush),
+            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
+            BorderBrush = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
         };
         ToolTipService.SetToolTip(resetBtn,
             "Reset game name back to auto-detected and clear wiki name mapping.");
@@ -422,7 +422,7 @@ public class DetailPanelBuilder
         nameGrid.Children.Add(wikiBox);
         nameGrid.Children.Add(resetBtn);
         _window.OverridesPanel.Children.Add(nameGrid);
-        _window.OverridesPanel.Children.Add(MakeSeparator());
+        _window.OverridesPanel.Children.Add(UIFactory.MakeSeparator());
 
         // ── Per-game DC Mode + Shader mode (side by side) ─────────────────────────
         int? currentDcMode = _window.ViewModel.GetPerGameDcModeOverride(gameName);
@@ -467,7 +467,7 @@ public class DetailPanelBuilder
         modeGrid.Children.Add(dcModeCombo);
         modeGrid.Children.Add(shaderModeCombo);
         _window.OverridesPanel.Children.Add(modeGrid);
-        _window.OverridesPanel.Children.Add(MakeSeparator());
+        _window.OverridesPanel.Children.Add(UIFactory.MakeSeparator());
 
         // ── DLL naming override (grouped in a border) ────────────────────────────
         bool isDllOverride = _window.ViewModel.HasDllOverride(gameName);
@@ -483,7 +483,7 @@ public class DetailPanelBuilder
             IsEnabled = !isLumaMode,
             OnContent = "Custom filenames enabled",
             OffContent = "Using default filenames",
-            Foreground = Brush("TextSecondaryBrush"),
+            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
             FontSize = 12,
         };
         ToolTipService.SetToolTip(dllOverrideToggle,
@@ -548,21 +548,21 @@ public class DetailPanelBuilder
         var dllGroupBorder = new Border
         {
             Child = dllGroupPanel,
-            Background = Brush("SurfaceOverlayBrush"),
-            BorderBrush = Brush("BorderSubtleBrush"),
+            Background = UIFactory.Brush(ResourceKeys.SurfaceOverlayBrush),
+            BorderBrush = UIFactory.Brush(ResourceKeys.BorderSubtleBrush),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(12, 10, 12, 12),
         };
         _window.OverridesPanel.Children.Add(dllGroupBorder);
-        _window.OverridesPanel.Children.Add(MakeSeparator());
+        _window.OverridesPanel.Children.Add(UIFactory.MakeSeparator());
 
         // ── Global update inclusion (3 ToggleSwitches) ───────────────────────────
         _window.OverridesPanel.Children.Add(new TextBlock
         {
             Text = "Global update inclusion",
             FontSize = 12,
-            Foreground = Brush("TextSecondaryBrush"),
+            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
             Margin = new Thickness(0, 0, 0, 8),
         });
 
@@ -572,7 +572,7 @@ public class DetailPanelBuilder
             IsOn = !_window.ViewModel.IsUpdateAllExcludedReShade(gameName),
             OnContent = "Yes",
             OffContent = "No",
-            Foreground = Brush("TextSecondaryBrush"),
+            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
             FontSize = 11,
             MinWidth = 0,
         };
@@ -582,7 +582,7 @@ public class DetailPanelBuilder
             IsOn = !_window.ViewModel.IsUpdateAllExcludedDc(gameName),
             OnContent = "Yes",
             OffContent = "No",
-            Foreground = Brush("TextSecondaryBrush"),
+            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
             FontSize = 11,
             MinWidth = 0,
         };
@@ -592,7 +592,7 @@ public class DetailPanelBuilder
             IsOn = !_window.ViewModel.IsUpdateAllExcludedRenoDx(gameName),
             OnContent = "Yes",
             OffContent = "No",
-            Foreground = Brush("TextSecondaryBrush"),
+            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
             FontSize = 11,
             MinWidth = 0,
         };
@@ -600,7 +600,7 @@ public class DetailPanelBuilder
         var rsBorder = new Border
         {
             Child = rsToggle,
-            BorderBrush = Brush("BorderDefaultBrush"),
+            BorderBrush = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(8, 6, 8, 6),
@@ -608,7 +608,7 @@ public class DetailPanelBuilder
         var dcBorder = new Border
         {
             Child = dcToggle,
-            BorderBrush = Brush("BorderDefaultBrush"),
+            BorderBrush = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(8, 6, 8, 6),
@@ -616,7 +616,7 @@ public class DetailPanelBuilder
         var rdxBorder = new Border
         {
             Child = rdxToggle,
-            BorderBrush = Brush("BorderDefaultBrush"),
+            BorderBrush = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(8, 6, 8, 6),
@@ -631,7 +631,7 @@ public class DetailPanelBuilder
         toggleRow.Children.Add(dcBorder);
         toggleRow.Children.Add(rdxBorder);
         _window.OverridesPanel.Children.Add(toggleRow);
-        _window.OverridesPanel.Children.Add(MakeSeparator());
+        _window.OverridesPanel.Children.Add(UIFactory.MakeSeparator());
 
         // ── Wiki exclusion ────────────────────────────────────────────────────────
         var wikiExcludeToggle = new ToggleSwitch
@@ -640,14 +640,14 @@ public class DetailPanelBuilder
             IsOn = _window.ViewModel.IsWikiExcluded(gameName),
             OnContent = "Excluded from wiki lookups",
             OffContent = "Included in wiki lookups",
-            Foreground = Brush("TextSecondaryBrush"),
+            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
             FontSize = 12,
         };
         ToolTipService.SetToolTip(wikiExcludeToggle,
             "When enabled, this game will not be looked up on the RenoDX wiki. " +
             "Useful for games that share a name with an unrelated wiki entry.");
         _window.OverridesPanel.Children.Add(wikiExcludeToggle);
-        _window.OverridesPanel.Children.Add(MakeSeparator());
+        _window.OverridesPanel.Children.Add(UIFactory.MakeSeparator());
 
         // ── Button row (Reset + Save) ───────────────────────────────────────────
         var resetOverridesBtn = new Button
@@ -655,9 +655,9 @@ public class DetailPanelBuilder
             Content = "Reset Overrides",
             FontSize = 12,
             Padding = new Thickness(16, 8, 16, 8),
-            Background = Brush("SurfaceOverlayBrush"),
-            Foreground = Brush("TextSecondaryBrush"),
-            BorderBrush = Brush("BorderDefaultBrush"),
+            Background = UIFactory.Brush(ResourceKeys.SurfaceOverlayBrush),
+            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
+            BorderBrush = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
         };
@@ -679,9 +679,9 @@ public class DetailPanelBuilder
             Content = "Save Overrides",
             FontSize = 12,
             Padding = new Thickness(16, 8, 16, 8),
-            Background = Brush("AccentBlueBgBrush"),
-            Foreground = Brush("AccentBlueBrush"),
-            BorderBrush = Brush("AccentBlueBorderBrush"),
+            Background = UIFactory.Brush(ResourceKeys.AccentBlueBgBrush),
+            Foreground = UIFactory.Brush(ResourceKeys.AccentBlueBrush),
+            BorderBrush = UIFactory.Brush(ResourceKeys.AccentBlueBorderBrush),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
         };
@@ -690,7 +690,7 @@ public class DetailPanelBuilder
         {
             Text = "You must press Save for changes to apply.",
             FontSize = 11,
-            Foreground = Brush("TextSecondaryBrush"),
+            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
@@ -790,7 +790,7 @@ public class DetailPanelBuilder
             else if (!string.IsNullOrEmpty(det) && string.IsNullOrEmpty(key))
                 _window.ViewModel.RemoveNameMapping(det);
 
-            CrashReporter.Log($"Compact overrides saved for: {det}");
+            CrashReporter.Log($"[DetailPanelBuilder.BuildOverridesPanel] Compact overrides saved for: {det}");
 
             // Re-select the game card after the filter refresh so the user
             // doesn't lose their selection when saving overrides.
@@ -800,30 +800,4 @@ public class DetailPanelBuilder
     }
 
 
-    private static SolidColorBrush Brush(string key) =>
-        (SolidColorBrush)Application.Current.Resources[key];
-
-    private static Border MakeSeparator() => new()
-    {
-        Height = 1,
-        Background = (SolidColorBrush)Application.Current.Resources["BorderSubtleBrush"],
-        Margin = new Thickness(0, 2, 0, 2),
-    };
-
-    private static Windows.UI.Color ParseHexColor(string hex)
-    {
-        hex = hex.TrimStart('#');
-        if (hex.Length == 6)
-            return Windows.UI.Color.FromArgb(255,
-                byte.Parse(hex[..2], System.Globalization.NumberStyles.HexNumber),
-                byte.Parse(hex[2..4], System.Globalization.NumberStyles.HexNumber),
-                byte.Parse(hex[4..6], System.Globalization.NumberStyles.HexNumber));
-        if (hex.Length == 8)
-            return Windows.UI.Color.FromArgb(
-                byte.Parse(hex[..2], System.Globalization.NumberStyles.HexNumber),
-                byte.Parse(hex[2..4], System.Globalization.NumberStyles.HexNumber),
-                byte.Parse(hex[4..6], System.Globalization.NumberStyles.HexNumber),
-                byte.Parse(hex[6..8], System.Globalization.NumberStyles.HexNumber));
-        return Windows.UI.Color.FromArgb(255, 128, 128, 128);
-    }
 }

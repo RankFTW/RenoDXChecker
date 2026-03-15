@@ -116,7 +116,7 @@ public partial class GameCardViewModel
     // ── Targeted notification: RsIsInstalling changed ─────────────────────────────
     private void NotifyRsIsInstallingDependents()
     {
-        OnPropertyChanged(nameof(RsStatusDot));
+        // RsStatusDot removed — it depends on RsStatus, not RsIsInstalling
         OnPropertyChanged(nameof(RsActionLabel));
         OnPropertyChanged(nameof(RsProgressVisibility));
         OnPropertyChanged(nameof(IsRsNotInstalling));

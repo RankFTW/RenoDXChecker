@@ -33,8 +33,8 @@ public class CardBuilder
             Width = 280,
             CornerRadius = new CornerRadius(10),
             BorderThickness = new Thickness(1),
-            Background = new SolidColorBrush(ParseColor(card.CardBackground)),
-            BorderBrush = new SolidColorBrush(ParseColor(card.CardBorderBrush)),
+            Background = UIFactory.GetBrush(card.CardBackground),
+            BorderBrush = UIFactory.GetBrush(card.CardBorderBrush),
             Padding = new Thickness(14, 12, 14, 12),
             Tag = card,
         };
@@ -80,7 +80,7 @@ public class CardBuilder
             Text = gameName.Length > 28 ? gameName[..25] + "…" : gameName,
             FontSize = 13,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Foreground = Brush("TextPrimaryBrush"),
+            Foreground = UIFactory.Brush(ResourceKeys.TextPrimaryBrush),
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
             MaxLines = 1,
@@ -114,7 +114,7 @@ public class CardBuilder
             Padding = new Thickness(4, 0, 4, 0),
             MinWidth = 0, MinHeight = 0,
             Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0)),
-            Foreground = new SolidColorBrush(ParseColor("#6B7A8E")),
+            Foreground = UIFactory.GetBrush("#6B7A8E"),
             BorderThickness = new Thickness(0),
             VerticalAlignment = VerticalAlignment.Center,
         };
@@ -131,9 +131,9 @@ public class CardBuilder
 
         var dotsPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
 
-        var rdxDotPanel = MakeStatusDot("RDX", card.CardRdxStatusDot);
-        var rsDotPanel = MakeStatusDot("RS", card.CardRsStatusDot);
-        var dcDotPanel = MakeStatusDot("DC", card.CardDcStatusDot);
+        var rdxDotPanel = UIFactory.MakeStatusDot("RDX", card.CardRdxStatusDot);
+        var rsDotPanel = UIFactory.MakeStatusDot("RS", card.CardRsStatusDot);
+        var dcDotPanel = UIFactory.MakeStatusDot("DC", card.CardDcStatusDot);
         dotsPanel.Children.Add(rdxDotPanel);
         dotsPanel.Children.Add(rsDotPanel);
         dotsPanel.Children.Add(dcDotPanel);
@@ -141,7 +141,7 @@ public class CardBuilder
         StackPanel? lumaDotPanel = null;
         if (card.CardLumaVisible)
         {
-            lumaDotPanel = MakeStatusDot("Luma", card.CardLumaStatusDot);
+            lumaDotPanel = UIFactory.MakeStatusDot("Luma", card.CardLumaStatusDot);
             dotsPanel.Children.Add(lumaDotPanel);
         }
 
@@ -174,8 +174,8 @@ public class CardBuilder
 
         // Apply dark background to the flyout presenter via its style
         var flyoutPresenterStyle = new Style(typeof(FlyoutPresenter));
-        flyoutPresenterStyle.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(ParseColor("#0C1018"))));
-        flyoutPresenterStyle.Setters.Add(new Setter(Control.BorderBrushProperty, new SolidColorBrush(ParseColor("#2A4468"))));
+        flyoutPresenterStyle.Setters.Add(new Setter(Control.BackgroundProperty, UIFactory.GetBrush("#0C1018")));
+        flyoutPresenterStyle.Setters.Add(new Setter(Control.BorderBrushProperty, UIFactory.GetBrush("#2A4468")));
         flyoutPresenterStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(12)));
         installFlyout.FlyoutPresenterStyle = flyoutPresenterStyle;
 
@@ -187,9 +187,9 @@ public class CardBuilder
             FontSize = 12,
             Padding = new Thickness(8, 5, 8, 5),
             IsEnabled = card.CanCardInstall,
-            Background = new SolidColorBrush(ParseColor("#182840")),
-            Foreground = new SolidColorBrush(ParseColor("#7AACDD")),
-            BorderBrush = new SolidColorBrush(ParseColor("#2A4468")),
+            Background = UIFactory.GetBrush("#182840"),
+            Foreground = UIFactory.GetBrush("#7AACDD"),
+            BorderBrush = UIFactory.GetBrush("#2A4468"),
             CornerRadius = new CornerRadius(6),
             Flyout = installFlyout,
         };
@@ -214,9 +214,9 @@ public class CardBuilder
                     FontSize = 11,
                     Padding = new Thickness(6, 2, 6, 2),
                     MinWidth = 0, MinHeight = 0,
-                    Background = new SolidColorBrush(ParseColor("#1E242C")),
-                    Foreground = new SolidColorBrush(ParseColor("#6B7A8E")),
-                    BorderBrush = new SolidColorBrush(ParseColor("#283240")),
+                    Background = UIFactory.GetBrush("#1E242C"),
+                    Foreground = UIFactory.GetBrush("#6B7A8E"),
+                    BorderBrush = UIFactory.GetBrush("#283240"),
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(4),
                 };
@@ -233,9 +233,9 @@ public class CardBuilder
                     FontSize = 11,
                     Padding = new Thickness(6, 2, 6, 2),
                     MinWidth = 0, MinHeight = 0,
-                    Background = new SolidColorBrush(ParseColor("#1E242C")),
-                    Foreground = new SolidColorBrush(ParseColor("#6B7A8E")),
-                    BorderBrush = new SolidColorBrush(ParseColor("#283240")),
+                    Background = UIFactory.GetBrush("#1E242C"),
+                    Foreground = UIFactory.GetBrush("#6B7A8E"),
+                    BorderBrush = UIFactory.GetBrush("#283240"),
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(4),
                 };
@@ -256,7 +256,7 @@ public class CardBuilder
             Padding = new Thickness(4, 2, 4, 2),
             MinWidth = 0, MinHeight = 0,
             Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0)),
-            Foreground = new SolidColorBrush(ParseColor("#6B7A8E")),
+            Foreground = UIFactory.GetBrush("#6B7A8E"),
             BorderThickness = new Thickness(0),
             HorizontalAlignment = HorizontalAlignment.Right,
         };
@@ -283,10 +283,10 @@ public class CardBuilder
                     switch (e.PropertyName)
                     {
                         case nameof(c.CardBackground):
-                            border.Background = new SolidColorBrush(ParseColor(c.CardBackground));
+                            border.Background = UIFactory.GetBrush(c.CardBackground);
                             break;
                         case nameof(c.CardBorderBrush):
-                            border.BorderBrush = new SolidColorBrush(ParseColor(c.CardBorderBrush));
+                            border.BorderBrush = UIFactory.GetBrush(c.CardBorderBrush);
                             break;
                         case nameof(c.CardPrimaryActionLabel):
                             installBtn.Content = c.CardPrimaryActionLabel;
@@ -299,19 +299,19 @@ public class CardBuilder
                             break;
                         case nameof(c.CardRdxStatusDot):
                             if (rdxDotPanel.Children[0] is Microsoft.UI.Xaml.Shapes.Ellipse rdxEllipse)
-                                rdxEllipse.Fill = new SolidColorBrush(ParseColor(c.CardRdxStatusDot));
+                                rdxEllipse.Fill = UIFactory.GetBrush(c.CardRdxStatusDot);
                             break;
                         case nameof(c.CardRsStatusDot):
                             if (rsDotPanel.Children[0] is Microsoft.UI.Xaml.Shapes.Ellipse rsEllipse)
-                                rsEllipse.Fill = new SolidColorBrush(ParseColor(c.CardRsStatusDot));
+                                rsEllipse.Fill = UIFactory.GetBrush(c.CardRsStatusDot);
                             break;
                         case nameof(c.CardDcStatusDot):
                             if (dcDotPanel.Children[0] is Microsoft.UI.Xaml.Shapes.Ellipse dcEllipse)
-                                dcEllipse.Fill = new SolidColorBrush(ParseColor(c.CardDcStatusDot));
+                                dcEllipse.Fill = UIFactory.GetBrush(c.CardDcStatusDot);
                             break;
                         case nameof(c.CardLumaStatusDot):
                             if (lumaDotPanel?.Children[0] is Microsoft.UI.Xaml.Shapes.Ellipse lumaEllipse)
-                                lumaEllipse.Fill = new SolidColorBrush(ParseColor(c.CardLumaStatusDot));
+                                lumaEllipse.Fill = UIFactory.GetBrush(c.CardLumaStatusDot);
                             break;
                         case nameof(c.CardLumaVisible):
                             bool effectiveLuma = c.LumaFeatureEnabled && c.IsLumaMode;
@@ -322,7 +322,7 @@ public class CardBuilder
                             // Add/remove Luma dot
                             if (c.CardLumaVisible && lumaDotPanel == null)
                             {
-                                lumaDotPanel = MakeStatusDot("Luma", c.CardLumaStatusDot);
+                                lumaDotPanel = UIFactory.MakeStatusDot("Luma", c.CardLumaStatusDot);
                                 statusRow.Children.Add(lumaDotPanel);
                             }
                             else if (!c.CardLumaVisible && lumaDotPanel != null)
@@ -338,26 +338,6 @@ public class CardBuilder
         };
 
         return border;
-    }
-
-    /// <summary>Creates a small status dot + label pair for the card grid.</summary>
-    public static StackPanel MakeStatusDot(string label, string colorHex)
-    {
-        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
-        panel.Children.Add(new Microsoft.UI.Xaml.Shapes.Ellipse
-        {
-            Width = 8, Height = 8,
-            Fill = new SolidColorBrush(ParseColor(colorHex)),
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-        panel.Children.Add(new TextBlock
-        {
-            Text = label,
-            FontSize = 11,
-            Foreground = new SolidColorBrush(ParseColor("#A0AABB")),
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-        return panel;
     }
 
     /// <summary>
@@ -378,7 +358,7 @@ public class CardBuilder
             Text = "Components",
             FontSize = 13,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(ParseColor("#A0AABB")),
+            Foreground = UIFactory.GetBrush("#A0AABB"),
             VerticalAlignment = VerticalAlignment.Center,
         };
         Grid.SetColumn(headerLabel, 0);
@@ -391,9 +371,9 @@ public class CardBuilder
             FontSize = 11,
             Padding = new Thickness(10, 4, 10, 4),
             IsEnabled = card.CanCardInstall,
-            Background = new SolidColorBrush(ParseColor("#182840")),
-            Foreground = new SolidColorBrush(ParseColor("#7AACDD")),
-            BorderBrush = new SolidColorBrush(ParseColor("#2A4468")),
+            Background = UIFactory.GetBrush("#182840"),
+            Foreground = UIFactory.GetBrush("#7AACDD"),
+            BorderBrush = UIFactory.GetBrush("#2A4468"),
             CornerRadius = new CornerRadius(6),
         };
         installAllBtn.Click += _window.CardInstallButton_Click;
@@ -401,7 +381,7 @@ public class CardBuilder
         headerRow.Children.Add(installAllBtn);
 
         panel.Children.Add(headerRow);
-        panel.Children.Add(MakeSeparator());
+        panel.Children.Add(UIFactory.MakeSeparator());
 
         // ── Component rows ──
 
@@ -447,7 +427,7 @@ public class CardBuilder
             {
                 Text = "RenoDX",
                 FontSize = 12,
-                Foreground = new SolidColorBrush(ParseColor("#A0AABB")),
+                Foreground = UIFactory.GetBrush("#A0AABB"),
                 VerticalAlignment = VerticalAlignment.Center,
             };
             Grid.SetColumn(extName, 0);
@@ -461,9 +441,9 @@ public class CardBuilder
                 Padding = new Thickness(8, 3, 8, 3),
                 MinWidth = 0,
                 HorizontalAlignment = HorizontalAlignment.Stretch,
-                Background = new SolidColorBrush(ParseColor("#1A2040")),
-                Foreground = new SolidColorBrush(ParseColor("#7AACDD")),
-                BorderBrush = new SolidColorBrush(ParseColor("#2A4468")),
+                Background = UIFactory.GetBrush("#1A2040"),
+                Foreground = UIFactory.GetBrush("#7AACDD"),
+                BorderBrush = UIFactory.GetBrush("#2A4468"),
                 CornerRadius = new CornerRadius(6),
             };
             extBtn.Click += async (s, ev) =>
@@ -560,7 +540,7 @@ public class CardBuilder
         {
             Text = componentName,
             FontSize = 12,
-            Foreground = new SolidColorBrush(ParseColor("#A0AABB")),
+            Foreground = UIFactory.GetBrush("#A0AABB"),
             VerticalAlignment = VerticalAlignment.Center,
         };
         Grid.SetColumn(nameText, 0);
@@ -571,7 +551,7 @@ public class CardBuilder
         {
             Text = statusText,
             FontSize = 11,
-            Foreground = new SolidColorBrush(ParseColor(statusColor)),
+            Foreground = UIFactory.GetBrush(statusColor),
             VerticalAlignment = VerticalAlignment.Center,
             Tag = "StatusText",
         };
@@ -588,9 +568,9 @@ public class CardBuilder
             MinWidth = 0,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             IsEnabled = installEnabled,
-            Background = new SolidColorBrush(ParseColor(btnBackground ?? "#182840")),
-            Foreground = new SolidColorBrush(ParseColor(btnForeground ?? "#7AACDD")),
-            BorderBrush = new SolidColorBrush(ParseColor(btnBorderBrush ?? "#2A4468")),
+            Background = UIFactory.GetBrush(btnBackground ?? "#182840"),
+            Foreground = UIFactory.GetBrush(btnForeground ?? "#7AACDD"),
+            BorderBrush = UIFactory.GetBrush(btnBorderBrush ?? "#2A4468"),
             CornerRadius = new CornerRadius(6),
         };
         // Store component tag for the click handler to identify which component
@@ -611,9 +591,9 @@ public class CardBuilder
             Margin = new Thickness(4, 0, 0, 0),
             Opacity = copyVisible ? 1 : 0,
             IsHitTestVisible = copyVisible,
-            Background = new SolidColorBrush(ParseColor("#1A2030")),
-            Foreground = new SolidColorBrush(ParseColor("#6B7A8E")),
-            BorderBrush = new SolidColorBrush(ParseColor("#283240")),
+            Background = UIFactory.GetBrush("#1A2030"),
+            Foreground = UIFactory.GetBrush("#6B7A8E"),
+            BorderBrush = UIFactory.GetBrush("#283240"),
             CornerRadius = new CornerRadius(4),
         };
         copyBtn.DataContext = componentTag;
@@ -637,9 +617,9 @@ public class CardBuilder
             Margin = new Thickness(4, 0, 0, 0),
             Opacity = isInstalled ? 1 : 0,
             IsHitTestVisible = isInstalled,
-            Background = new SolidColorBrush(ParseColor("#301820")),
-            Foreground = new SolidColorBrush(ParseColor("#E06060")),
-            BorderBrush = new SolidColorBrush(ParseColor("#502838")),
+            Background = UIFactory.GetBrush("#301820"),
+            Foreground = UIFactory.GetBrush("#E06060"),
+            BorderBrush = UIFactory.GetBrush("#502838"),
             CornerRadius = new CornerRadius(4),
         };
         uninstallBtn.DataContext = componentTag;
@@ -662,7 +642,7 @@ public class CardBuilder
             if (child is TextBlock tb && tb.Tag as string == "StatusText")
             {
                 tb.Text = statusText;
-                tb.Foreground = new SolidColorBrush(ParseColor(statusColor));
+                tb.Foreground = UIFactory.GetBrush(statusColor);
             }
             else if (child is Button btn)
             {
@@ -672,11 +652,11 @@ public class CardBuilder
                     btn.Content = actionLabel;
                     btn.IsEnabled = installEnabled;
                     if (btnBackground != null)
-                        btn.Background = new SolidColorBrush(ParseColor(btnBackground));
+                        btn.Background = UIFactory.GetBrush(btnBackground);
                     if (btnForeground != null)
-                        btn.Foreground = new SolidColorBrush(ParseColor(btnForeground));
+                        btn.Foreground = UIFactory.GetBrush(btnForeground);
                     if (btnBorderBrush != null)
-                        btn.BorderBrush = new SolidColorBrush(ParseColor(btnBorderBrush));
+                        btn.BorderBrush = UIFactory.GetBrush(btnBorderBrush);
                 }
                 else if (col == 3) // copy config button
                 {
@@ -692,28 +672,4 @@ public class CardBuilder
         }
     }
 
-    // ── Shared helpers ──
-
-    private static SolidColorBrush Brush(string key) =>
-        (SolidColorBrush)Application.Current.Resources[key];
-
-    private static Border MakeSeparator() => new()
-    {
-        Height = 1,
-        Background = (SolidColorBrush)Application.Current.Resources["BorderSubtleBrush"],
-        Margin = new Thickness(0, 2, 0, 2),
-    };
-
-    /// <summary>Parses a hex colour string like "#1C2848" into a Windows.UI.Color.</summary>
-    internal static Windows.UI.Color ParseColor(string hex)
-    {
-        hex = hex.TrimStart('#');
-        byte a = 255;
-        int offset = 0;
-        if (hex.Length == 8) { a = Convert.ToByte(hex[..2], 16); offset = 2; }
-        byte r = Convert.ToByte(hex.Substring(offset, 2), 16);
-        byte g = Convert.ToByte(hex.Substring(offset + 2, 2), 16);
-        byte b = Convert.ToByte(hex.Substring(offset + 4, 2), 16);
-        return Windows.UI.Color.FromArgb(a, r, g, b);
-    }
 }

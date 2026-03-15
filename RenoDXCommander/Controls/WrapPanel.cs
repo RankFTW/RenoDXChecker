@@ -9,14 +9,41 @@ public class WrapPanel : Panel
     public double HorizontalSpacing { get; set; } = 8;
     public double VerticalSpacing { get; set; } = 4;
 
+    // Pre-allocated arrays reused across layout passes — resized only when child count changes
+    private (int start, double rowHeight)[] _rowStarts = [];
+    private UIElement[] _visibleChildren = [];
+    private int _lastChildCount;
+
+    private void EnsureCapacity(int childCount)
+    {
+        if (childCount != _lastChildCount)
+        {
+            _lastChildCount = childCount;
+            if (_visibleChildren.Length < childCount)
+            {
+                _visibleChildren = new UIElement[childCount];
+            }
+            if (_rowStarts.Length < childCount)
+            {
+                _rowStarts = new (int, double)[childCount];
+            }
+        }
+    }
+
     protected override Size MeasureOverride(Size availableSize)
     {
+        int childCount = Children.Count;
         double x = 0, rowHeight = 0, totalHeight = 0, maxWidth = 0;
-        foreach (UIElement child in Children)
+        for (int i = 0; i < childCount; i++)
         {
+            UIElement child = Children[i];
             if (child.Visibility == Visibility.Collapsed) continue;
             child.Measure(availableSize);
             var desired = child.DesiredSize;
+
+            // Skip zero-size children to avoid invalid layout
+            if (desired.Width <= 0 && desired.Height <= 0) continue;
+
             if (x > 0 && x + desired.Width > availableSize.Width)
             {
                 maxWidth = Math.Max(maxWidth, x - HorizontalSpacing);
@@ -33,43 +60,51 @@ public class WrapPanel : Panel
 
     protected override Size ArrangeOverride(Size finalSize)
     {
-        // First pass: compute row heights
-        var rowStarts = new List<(int start, double rowHeight)>();
+        int childCount = Children.Count;
+        EnsureCapacity(childCount);
+
+        // First pass: compute row heights using pre-allocated arrays
+        int rowCount = 0;
+        int visibleCount = 0;
         double x = 0, rowHeight = 0;
-        int rowStart = 0, idx = 0;
-        var visible = new List<(UIElement el, int index)>();
-        foreach (UIElement child in Children)
+        int rowStart = 0;
+        for (int i = 0; i < childCount; i++)
         {
+            UIElement child = Children[i];
             if (child.Visibility == Visibility.Collapsed) continue;
             var desired = child.DesiredSize;
+
+            // Skip zero-size children
+            if (desired.Width <= 0 && desired.Height <= 0) continue;
+
             if (x > 0 && x + desired.Width > finalSize.Width)
             {
-                rowStarts.Add((rowStart, rowHeight));
-                rowStart = visible.Count;
+                _rowStarts[rowCount++] = (rowStart, rowHeight);
+                rowStart = visibleCount;
                 x = 0; rowHeight = 0;
             }
-            visible.Add((child, visible.Count));
+            _visibleChildren[visibleCount++] = child;
             x += desired.Width + HorizontalSpacing;
             rowHeight = Math.Max(rowHeight, desired.Height);
         }
-        if (visible.Count > rowStart)
-            rowStarts.Add((rowStart, rowHeight));
+        if (visibleCount > rowStart)
+            _rowStarts[rowCount++] = (rowStart, rowHeight);
 
         // Second pass: arrange with row height for stretch
         x = 0; double y = 0; int rowIdx = 0;
-        int nextRowStart = rowStarts.Count > 1 ? rowStarts[1].start : int.MaxValue;
-        double currentRowHeight = rowStarts.Count > 0 ? rowStarts[0].rowHeight : 0;
-        for (int i = 0; i < visible.Count; i++)
+        int nextRowStart = rowCount > 1 ? _rowStarts[1].start : int.MaxValue;
+        double currentRowHeight = rowCount > 0 ? _rowStarts[0].rowHeight : 0;
+        for (int i = 0; i < visibleCount; i++)
         {
             if (i >= nextRowStart)
             {
                 rowIdx++;
                 y += currentRowHeight + VerticalSpacing;
                 x = 0;
-                currentRowHeight = rowStarts[rowIdx].rowHeight;
-                nextRowStart = rowIdx + 1 < rowStarts.Count ? rowStarts[rowIdx + 1].start : int.MaxValue;
+                currentRowHeight = _rowStarts[rowIdx].rowHeight;
+                nextRowStart = rowIdx + 1 < rowCount ? _rowStarts[rowIdx + 1].start : int.MaxValue;
             }
-            var child = visible[i].el;
+            var child = _visibleChildren[i];
             var desired = child.DesiredSize;
             if (x > 0 && x + desired.Width > finalSize.Width)
             {

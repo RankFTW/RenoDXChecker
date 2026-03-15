@@ -18,9 +18,16 @@
     <ApplicationIcon>icon.ico</ApplicationIcon>
     <AssemblyName>RenoDXCommander</AssemblyName>
     <AssemblyTitle>RenoDXCommander</AssemblyTitle>
-    <AssemblyVersion>1.4.6.0</AssemblyVersion>
-    <FileVersion>1.4.6.0</FileVersion>
+    <AssemblyVersion>1.4.7.0</AssemblyVersion>
+    <FileVersion>1.4.7.0</FileVersion>
   </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>RenoDXCommander.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
   <ItemGroup>
     <Content Remove="Assets\manifest.json" />
     <!-- Exclude backup files from XAML compilation -->

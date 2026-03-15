@@ -8,7 +8,7 @@ namespace RenoDXCommander.Services;
 /// CheckForUpdatesAsync, CheckAuxUpdate.
 /// Extracted from MainViewModel per Requirement 1.3.
 /// </summary>
-public class UpdateOrchestrationService
+public class UpdateOrchestrationService : IUpdateOrchestrationService
 {
     private readonly IModInstallService _installer;
     private readonly IAuxInstallService _auxInstaller;
@@ -33,7 +33,7 @@ public class UpdateOrchestrationService
 
     public async Task UpdateAllRenoDxAsync(
         IReadOnlyList<GameCardViewModel> allCards,
-        DllOverrideService dllOverrideService,
+        IDllOverrideService dllOverrideService,
         Microsoft.UI.Dispatching.DispatcherQueue? dispatcherQueue,
         Action saveLibrary,
         Action notifyUpdateState)
@@ -61,7 +61,7 @@ public class UpdateOrchestrationService
                     card.ActionMessage   = p.msg;
                     card.InstallProgress = p.pct;
                 });
-                var record = await _installer.InstallAsync(card.Mod!, card.InstallPath, progress, card.GameName);
+                var record = await _installer.InstallAsync(card.Mod!, card.InstallPath, progress, card.GameName).ConfigureAwait(false);
                 dispatcherQueue?.TryEnqueue(() =>
                 {
                     card.InstalledRecord        = record;
@@ -89,7 +89,7 @@ public class UpdateOrchestrationService
 
     public async Task UpdateAllReShadeAsync(
         IReadOnlyList<GameCardViewModel> allCards,
-        DllOverrideService dllOverrideService,
+        IDllOverrideService dllOverrideService,
         int dcModeLevel,
         Microsoft.UI.Dispatching.DispatcherQueue? dispatcherQueue,
         Action notifyUpdateState)
@@ -111,7 +111,7 @@ public class UpdateOrchestrationService
                     var fileType = AuxInstallService.IdentifyDxgiFile(dxgiPath);
                     if (fileType == AuxInstallService.DxgiFileType.Unknown)
                     {
-                        CrashReporter.Log($"UpdateAllReShade: skipping {card.GameName} — foreign dxgi.dll detected");
+                        CrashReporter.Log($"[UpdateOrchestrationService.UpdateAllReShade] Skipping {card.GameName} — foreign dxgi.dll detected");
                         dispatcherQueue?.TryEnqueue(() =>
                         {
                             card.RsActionMessage = "⚠ Skipped — unknown dxgi.dll";
@@ -141,7 +141,7 @@ public class UpdateOrchestrationService
                     shaderModeOverride: card.ShaderModeOverride,
                     use32Bit:       card.Is32Bit,
                     filenameOverride: rsOverride,
-                    progress:       progress);
+                    progress:       progress).ConfigureAwait(false);
                 dispatcherQueue?.TryEnqueue(() =>
                 {
                     card.RsRecord           = record;
@@ -165,7 +165,7 @@ public class UpdateOrchestrationService
 
     public async Task UpdateAllDcAsync(
         IReadOnlyList<GameCardViewModel> allCards,
-        DllOverrideService dllOverrideService,
+        IDllOverrideService dllOverrideService,
         int dcModeLevel,
         Microsoft.UI.Dispatching.DispatcherQueue? dispatcherQueue,
         Action notifyUpdateState)
@@ -186,7 +186,7 @@ public class UpdateOrchestrationService
                     var fileType = AuxInstallService.IdentifyDxgiFile(dxgiPath);
                     if (fileType == AuxInstallService.DxgiFileType.Unknown)
                     {
-                        CrashReporter.Log($"UpdateAllDc: skipping {card.GameName} — foreign dxgi.dll detected");
+                        CrashReporter.Log($"[UpdateOrchestrationService.UpdateAllDc] Skipping {card.GameName} — foreign dxgi.dll detected");
                         dispatcherQueue?.TryEnqueue(() =>
                         {
                             card.DcActionMessage = "⚠ Skipped — unknown dxgi.dll";
@@ -204,7 +204,7 @@ public class UpdateOrchestrationService
                     var fileType = AuxInstallService.IdentifyWinmmFile(winmmPath);
                     if (fileType == AuxInstallService.WinmmFileType.Unknown)
                     {
-                        CrashReporter.Log($"UpdateAllDc: skipping {card.GameName} — foreign winmm.dll detected");
+                        CrashReporter.Log($"[UpdateOrchestrationService.UpdateAllDc] Skipping {card.GameName} — foreign winmm.dll detected");
                         dispatcherQueue?.TryEnqueue(() =>
                         {
                             card.DcActionMessage = "⚠ Skipped — unknown winmm.dll";
@@ -233,7 +233,7 @@ public class UpdateOrchestrationService
                     shaderModeOverride: card.ShaderModeOverride,
                     use32Bit:         card.Is32Bit,
                     filenameOverride: dcOverride,
-                    progress:         progress);
+                    progress:         progress).ConfigureAwait(false);
                 dispatcherQueue?.TryEnqueue(() =>
                 {
                     card.DcRecord           = record;
@@ -262,7 +262,7 @@ public class UpdateOrchestrationService
         Microsoft.UI.Dispatching.DispatcherQueue? dispatcherQueue,
         Action notifyUpdateState)
     {
-        CrashReporter.Log($"CheckForUpdatesAsync: {cards.Count} total cards");
+        CrashReporter.Log($"[UpdateOrchestrationService.CheckForUpdatesAsync] {cards.Count} total cards");
 
         var installed = cards
             .Where(c => c.Status == GameStatus.Installed
@@ -271,7 +271,7 @@ public class UpdateOrchestrationService
                      && c.InstalledRecord?.SnapshotUrl != null)
             .ToList();
 
-        CrashReporter.Log($"CheckForUpdatesAsync: {installed.Count} RenoDX mods to check");
+        CrashReporter.Log($"[UpdateOrchestrationService.CheckForUpdatesAsync] {installed.Count} RenoDX mods to check");
 
         var tasks = installed.Select(async card =>
         {
@@ -279,28 +279,28 @@ public class UpdateOrchestrationService
             bool updateAvailable;
             try
             {
-                updateAvailable = await _installer.CheckForUpdateAsync(record);
+                updateAvailable = await _installer.CheckForUpdateAsync(record).ConfigureAwait(false);
             }
             catch (Exception ex) { CrashReporter.Log($"[UpdateOrchestrationService.CheckForUpdatesAsync] Update check failed for '{card.GameName}' — {ex.Message}"); return; }
 
             if (updateAvailable)
             {
                 try { _installer.SaveRecordPublic(record); }
-                catch (Exception ex) { CrashReporter.Log($"UpdateCheck: failed to save record for {card.GameName}: {ex.Message}"); }
+                catch (Exception ex) { CrashReporter.Log($"[UpdateOrchestrationService.CheckForUpdatesAsync] Failed to save record for '{card.GameName}' — {ex.Message}"); }
                 dispatcherQueue?.TryEnqueue(() => { card.Status = GameStatus.UpdateAvailable; });
             }
         });
 
-        await Task.WhenAll(tasks);
-        CrashReporter.Log("CheckForUpdatesAsync: RenoDX mod checks complete");
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+        CrashReporter.Log("[UpdateOrchestrationService.CheckForUpdatesAsync] RenoDX mod checks complete");
 
         var auxInstalled = cards
             .Where(c => c.DcStatus == GameStatus.Installed || c.RsStatus == GameStatus.Installed)
             .ToList();
 
-        CrashReporter.Log($"CheckForUpdatesAsync: {auxInstalled.Count} aux (DC/RS) cards to check");
+        CrashReporter.Log($"[UpdateOrchestrationService.CheckForUpdatesAsync] {auxInstalled.Count} aux (DC/RS) cards to check");
         foreach (var c in auxInstalled)
-            CrashReporter.Log($"  Aux check: {c.GameName} DC={c.DcStatus} DcRec={c.DcRecord != null} RS={c.RsStatus} RsRec={c.RsRecord != null} RsBlocked={c.RsBlockedByDcMode}");
+            CrashReporter.Log($"[UpdateOrchestrationService.CheckForUpdatesAsync] Aux check: {c.GameName} DC={c.DcStatus} DcRec={c.DcRecord != null} RS={c.RsStatus} RsRec={c.RsRecord != null} RsBlocked={c.RsBlockedByDcMode}");
 
         var auxTasks = auxInstalled.SelectMany(card => new[]
         {
@@ -308,8 +308,8 @@ public class UpdateOrchestrationService
             card.RsRecord != null && !card.RsBlockedByDcMode ? CheckAuxUpdate(card, card.RsRecord, isRs: true, dispatcherQueue) : Task.CompletedTask,
         });
 
-        await Task.WhenAll(auxTasks);
-        CrashReporter.Log("CheckForUpdatesAsync: all checks complete");
+        await Task.WhenAll(auxTasks).ConfigureAwait(false);
+        CrashReporter.Log("[UpdateOrchestrationService.CheckForUpdatesAsync] All checks complete");
 
         dispatcherQueue?.TryEnqueue(() => notifyUpdateState());
     }
@@ -326,7 +326,7 @@ public class UpdateOrchestrationService
             }
             else
             {
-                upd = await _auxInstaller.CheckForUpdateAsync(record);
+                upd = await _auxInstaller.CheckForUpdateAsync(record).ConfigureAwait(false);
             }
             if (upd)
                 dispatcherQueue?.TryEnqueue(() =>
