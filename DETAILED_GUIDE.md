@@ -52,7 +52,7 @@ Click **Settings** in the toolbar to open the Settings page. Click **← Back to
 | **Shader Deploy Mode** | Shader mode selector (Off / Minimum / All / User) with inline explanation, plus Deploy Shaders to All button |
 | **Preferences** | Skip Update Check toggle, Verbose Logging toggle — each with inline description |
 | **Full Refresh** | Clears all caches and re-scans everything from disk |
-| **Crash & Error Logs** | Open Logs Folder and Open Downloads Cache buttons, with paths shown inline |
+| **Crash & Error Logs** | Open Logs Folder and Open Downloads Cache buttons, with paths shown inline. A new session log is created on every launch (max 10 kept). |
 | **About** | Version, author, disclaimer |
 | **Credits** | Third-party components with licences and links |
 | **Links** | External links to RenoDX, ReShade, Display Commander, Luma, Discord channels, etc. |
@@ -205,9 +205,12 @@ The Overrides section appears below Components in the detail panel.
 | **Wiki mod name** | Match to a different wiki entry. Also applies to Luma matching. |
 | **↩ Reset** | Restore original name and clear wiki mapping |
 | **DLL naming override** | Custom filenames for ReShade and DC. Existing installs are renamed in place. Takes priority over any manifest-defined DLL names. |
-| **Exclude from Update All** | Skip during bulk updates |
+| **Global update inclusion** | Three toggle switches (ReShade, DC, RenoDX) controlling whether the game is included in bulk updates for each component. All default to On. |
 | **DC Mode** | Follow Global / Force Off / Force Mode 1 / Force Mode 2 |
 | **Shader Mode** | Global / Off / Minimum / All / User. Per-game shader mode only applies when DC Mode is OFF. |
+| **Wiki exclusion** | Exclude the game from wiki lookups |
+| **Reset Overrides** | Reset all override settings back to defaults |
+| **Save Overrides** | Apply changes and refresh status |
 | **Save Overrides** | Apply changes and refresh status |
 
 ---
@@ -253,7 +256,7 @@ Cached locally for offline use after first fetch.
 
 ## Update All
 
-The Deploy... flyout provides three Update All actions for ReShade, Display Commander, and RenoDX across all eligible games. Games with overrides or foreign DLLs are skipped. Updates are flagged by comparing stored file sizes against remote sources.
+The Deploy... flyout provides three Update All actions for ReShade, Display Commander, and RenoDX across all eligible games. Each component respects its own per-game inclusion toggle — a game excluded from ReShade updates can still receive DC and RenoDX updates. Games with DLL overrides or foreign DLLs are also skipped. Updates are flagged by comparing stored file sizes against remote sources.
 
 ---
 
@@ -276,7 +279,7 @@ Everything under `%LOCALAPPDATA%\RenoDXCommander\`:
 | `downloads\` | Cached downloads |
 | `inis\` | Preset config files |
 | `reshade\` | Staged shader packs and custom shaders |
-| `logs\` | Crash reports and verbose logs |
+| `logs\` | Session logs and crash reports |
 
 ---
 

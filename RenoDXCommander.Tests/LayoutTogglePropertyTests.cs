@@ -16,7 +16,7 @@ public class LayoutTogglePropertyTests
     [Property(MaxTest = 100)]
     public bool ToggleIsGridLayout_Twice_ReturnsToOriginal(bool initial)
     {
-        var vm = new MainViewModel();
+        var vm = TestHelpers.CreateMainViewModel();
         vm.IsGridLayout = initial;
 
         // Toggle twice
@@ -31,7 +31,7 @@ public class LayoutTogglePropertyTests
     [Property(MaxTest = 100)]
     public bool ToggleIsGridLayout_Once_FlipsValue(bool initial)
     {
-        var vm = new MainViewModel();
+        var vm = TestHelpers.CreateMainViewModel();
         vm.IsGridLayout = initial;
 
         vm.IsGridLayout = !vm.IsGridLayout;
@@ -44,7 +44,7 @@ public class LayoutTogglePropertyTests
     [Property(MaxTest = 100)]
     public bool ToggleIsGridLayout_ComputedProperties_AreConsistent(bool value)
     {
-        var vm = new MainViewModel();
+        var vm = TestHelpers.CreateMainViewModel();
         vm.IsGridLayout = value;
 
         var detailVisible = vm.DetailPanelVisibility == Microsoft.UI.Xaml.Visibility.Visible;
@@ -85,7 +85,7 @@ public class LayoutTogglePropertyTests
     {
         // Verify that setting IsGridLayout on a ViewModel and reading it back
         // produces the same value — the property setter/getter round-trips.
-        var vm = new MainViewModel();
+        var vm = TestHelpers.CreateMainViewModel();
         vm.IsGridLayout = value;
 
         return vm.IsGridLayout == value;
@@ -105,7 +105,7 @@ public class LayoutTogglePropertyTests
             Arb.From(Arb.Default.Bool().Generator),
             (string filterMode, string searchQuery, bool initialLayout) =>
             {
-                var vm = new MainViewModel();
+                var vm = TestHelpers.CreateMainViewModel();
 
                 // Set initial state
                 vm.IsGridLayout = initialLayout;
@@ -138,7 +138,7 @@ public class LayoutTogglePropertyTests
     [Property(MaxTest = 100)]
     public bool ToggleIsGridLayout_WithNullSelection_PreservesState(bool initialLayout)
     {
-        var vm = new MainViewModel();
+        var vm = TestHelpers.CreateMainViewModel();
         vm.IsGridLayout = initialLayout;
         vm.SelectedGame = null;
         vm.SearchQuery = "some search";

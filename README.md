@@ -32,7 +32,7 @@ Requires Windows 10/11 (x64) and [.NET 8 Desktop Runtime](https://dotnet.microso
 - **Version display** — installed ReShade and Display Commander version numbers shown directly on the component row
 - **DC Mode** (3 levels) — controls how Display Commander loads alongside ReShade for better compatibility
 - **Shader pack management** — 7 HDR shader packs with four deploy modes (Off, Minimum, All, User)
-- **Per-game overrides** — DLL naming, shader mode, DC mode, wiki name mapping, Update All exclusion
+- **Per-game overrides** — DLL naming, shader mode, DC mode, wiki name mapping, per-component Update All inclusion, reset overrides
 - **Drag-and-drop** — drop a game `.exe` to add it, or drop an `.addon64`/`.addon32` to install it
 - **Remote manifest** — game-specific overrides updated server-side without app releases, including engine overrides and DLL name overrides
 - **UE-Extended & Native HDR** — automatic detection and addon assignment for Unreal Engine games

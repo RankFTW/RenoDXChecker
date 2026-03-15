@@ -1,3 +1,57 @@
+## v1.4.6
+
+### New Features
+
+**Per-component Update All toggles**
+- The single "Exclude from Update All" toggle in the Overrides section has been replaced with three separate toggle switches for ReShade, Display Commander, and RenoDX.
+- Each toggle independently controls whether the game is included in bulk updates for that component. All three default to On (included).
+- Toggles are displayed horizontally under a "Global update inclusion" header, each in its own bordered card for clarity.
+- Legacy settings are automatically migrated — if you previously excluded a game from Update All, all three toggles will start excluded.
+- Applies to both Detail View and Grid View overrides.
+
+**Reset Overrides button**
+- A new "Reset Overrides" button in the Overrides section resets all per-game settings back to their defaults in one click: game name, wiki name, DC mode, shader mode, DLL override, all three update toggles, and wiki exclusion.
+- Positioned on the left side opposite the Save Overrides button.
+
+**Per-session logging**
+- A new session log file is created every time RDXC starts, named with a timestamp (e.g. `session_2025-03-14_12-30-00.txt`).
+- All activity is logged to the session file automatically — no need to enable Verbose Logging first.
+- Old session logs are automatically pruned to keep a maximum of 10 on disk.
+
+**DLL override dropdown suggestions**
+- The ReShade and DC filename text boxes in the DLL naming override section are now dropdown combo boxes with a clickable arrow that shows a predefined list of common DLL names: `dxgi.dll`, `d3d11.dll`, `dinput8.dll`, `version.dll`, `winmm.dll`, `d3d12.dll`, `xinput1_3.dll`, `msvcp140.dll`, `bink2w64.dll`, `d3d9.dll`.
+- Select a DLL from the dropdown or type any custom filename directly.
+- Applies to both Detail View and Grid View overrides.
+
+**Mod author badges in Detail View**
+- Named mods from the RenoDX wiki now display the mod author as a bordered badge on the detail panel info line, right-aligned next to the existing platform and status badges.
+- Multiple authors (e.g. "oopydoopy & Voosh") each get their own badge.
+- Generic Unreal Engine mods show "ShortFuse", UE-Extended mods show "Marat", and generic Unity mods show "Voosh".
+
+**Update-available version display**
+- The purple update indicator next to ReShade and Display Commander buttons now shows the currently installed version number (e.g. `6.7.3`) instead of just "Update", so you can see which version you're running before updating.
+- The text remains purple to indicate an update is available, and switches to the new version number in green once updated.
+
+### Bug Fixes
+
+**ReShade not detected under non-standard filenames**
+- ReShade installations using non-standard DLL filenames (e.g. `d3d11.dll`, `dinput8.dll`, `version.dll`) were not detected by RDXC, showing the game as "Not Installed" and allowing a second ReShade DLL to be installed alongside the existing one. RDXC now scans all DLL files in the game folder using binary signature detection (`IsReShadeFileStrict`) as a fallback when the standard filename checks don't find ReShade.
+
+**Old ReShade DLL not removed on reinstall with non-standard filename**
+- Clicking "Reinstall ReShade" on a game where ReShade was detected under a non-standard filename (e.g. `d3d11.dll`) installed a fresh `dxgi.dll` without removing the existing non-standard DLL, leaving two ReShade DLLs in the game folder. The reinstall flow now looks up the existing install record and deletes the old DLL when it differs from the new destination filename.
+
+### Changes
+
+**Overrides save reminder**
+- A hint message "You must press Save for changes to apply." is now displayed between the Reset Overrides and Save Overrides buttons in the Detail View overrides panel.
+
+**Code refactor**
+- ViewModel partial classes reorganised and split into dedicated files for ReShade, Display Commander, RenoDX, Luma, and UI concerns.
+- DetailPanelBuilder and CardBuilder extracted from MainWindow code-behind to reduce file size.
+- DragDropHandler extracted into its own class.
+
+---
+
 ## v1.4.5
 
 ### New Features

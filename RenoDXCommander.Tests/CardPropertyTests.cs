@@ -408,18 +408,24 @@ public class CardPropertyTests
             });
     }
 
-    // Feature: multi-card-layout, Property 9: Override changes reflect in card computed properties
-    // Validates: Requirements 4.4
+    // Feature: separate-override-toggles, Property 1: Per-component exclusion independence
+    // Validates: Requirements 1.2
     [Property(MaxTest = 100)]
-    public Property OverrideRoundTrip_ExcludeFromUpdateAll()
+    public Property OverrideRoundTrip_ExcludeFromUpdateAllPerComponent()
     {
         return Prop.ForAll(
             Arb.From(Arb.Default.Bool().Generator),
-            (bool value) =>
+            Arb.From(Arb.Default.Bool().Generator),
+            Arb.From(Arb.Default.Bool().Generator),
+            (bool rs, bool dc, bool rdx) =>
             {
                 var card = new GameCardViewModel();
-                card.ExcludeFromUpdateAll = value;
-                return card.ExcludeFromUpdateAll == value;
+                card.ExcludeFromUpdateAllReShade = rs;
+                card.ExcludeFromUpdateAllDc = dc;
+                card.ExcludeFromUpdateAllRenoDx = rdx;
+                return card.ExcludeFromUpdateAllReShade == rs
+                    && card.ExcludeFromUpdateAllDc == dc
+                    && card.ExcludeFromUpdateAllRenoDx == rdx;
             });
     }
 }

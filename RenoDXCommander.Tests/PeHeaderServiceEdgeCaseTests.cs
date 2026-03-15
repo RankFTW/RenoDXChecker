@@ -9,6 +9,7 @@ namespace RenoDXCommander.Tests;
 /// </summary>
 public class PeHeaderServiceEdgeCaseTests : IDisposable
 {
+    private readonly PeHeaderService _sut = new();
     private readonly List<string> _tempFiles = new();
     private readonly List<string> _tempDirs = new();
 
@@ -75,7 +76,7 @@ public class PeHeaderServiceEdgeCaseTests : IDisposable
     {
         var fakePath = Path.Combine(Path.GetTempPath(), $"nonexistent_{Guid.NewGuid():N}.exe");
 
-        var result = PeHeaderService.DetectArchitecture(fakePath);
+        var result = _sut.DetectArchitecture(fakePath);
 
         Assert.Equal(MachineType.Native, result);
     }
@@ -85,7 +86,7 @@ public class PeHeaderServiceEdgeCaseTests : IDisposable
     {
         var path = WriteTempFile(Array.Empty<byte>());
 
-        var result = PeHeaderService.DetectArchitecture(path);
+        var result = _sut.DetectArchitecture(path);
 
         Assert.Equal(MachineType.Native, result);
     }
@@ -95,7 +96,7 @@ public class PeHeaderServiceEdgeCaseTests : IDisposable
     {
         var dir = CreateTempDir();
 
-        var result = PeHeaderService.FindGameExe(dir);
+        var result = _sut.FindGameExe(dir);
 
         Assert.Null(result);
     }
@@ -105,7 +106,7 @@ public class PeHeaderServiceEdgeCaseTests : IDisposable
     {
         var fakeDir = Path.Combine(Path.GetTempPath(), $"nonexistent_dir_{Guid.NewGuid():N}");
 
-        var result = PeHeaderService.FindGameExe(fakeDir);
+        var result = _sut.FindGameExe(fakeDir);
 
         Assert.Null(result);
     }
@@ -116,7 +117,7 @@ public class PeHeaderServiceEdgeCaseTests : IDisposable
         var peBytes = BuildPeBytes((ushort)MachineType.I386);
         var path = WriteTempFile(peBytes);
 
-        var result = PeHeaderService.DetectArchitecture(path);
+        var result = _sut.DetectArchitecture(path);
 
         Assert.Equal(MachineType.I386, result);
     }
@@ -127,7 +128,7 @@ public class PeHeaderServiceEdgeCaseTests : IDisposable
         var peBytes = BuildPeBytes((ushort)MachineType.x64);
         var path = WriteTempFile(peBytes);
 
-        var result = PeHeaderService.DetectArchitecture(path);
+        var result = _sut.DetectArchitecture(path);
 
         Assert.Equal(MachineType.x64, result);
     }

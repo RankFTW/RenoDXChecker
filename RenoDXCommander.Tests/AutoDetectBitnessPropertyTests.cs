@@ -14,6 +14,7 @@ namespace RenoDXCommander.Tests;
 /// </summary>
 public class AutoDetectBitnessPropertyTests : IDisposable
 {
+    private readonly PeHeaderService _peHeaderService = new();
     private readonly List<string> _tempFiles = new();
     private readonly List<string> _tempDirs = new();
 
@@ -119,7 +120,7 @@ public class AutoDetectBitnessPropertyTests : IDisposable
                 byte[] peBytes = BuildPeBytes(machineValue, peOffset, padding);
                 string tempPath = WriteTempFile(peBytes);
 
-                MachineType result = PeHeaderService.DetectArchitecture(tempPath);
+                MachineType result = _peHeaderService.DetectArchitecture(tempPath);
                 MachineType expected = (MachineType)machineValue;
 
                 return (result == expected)
@@ -151,7 +152,7 @@ public class AutoDetectBitnessPropertyTests : IDisposable
             bytes =>
             {
                 string tempPath = WriteTempFile(bytes);
-                MachineType result = PeHeaderService.DetectArchitecture(tempPath);
+                MachineType result = _peHeaderService.DetectArchitecture(tempPath);
 
                 return (result == MachineType.Native)
                     .Label($"Expected Native but got {result} for {bytes.Length}-byte input (first bytes: 0x{(bytes.Length > 0 ? bytes[0].ToString("X2") : "??")} 0x{(bytes.Length > 1 ? bytes[1].ToString("X2") : "??")})");
@@ -228,7 +229,7 @@ public class AutoDetectBitnessPropertyTests : IDisposable
                 }
 
                 // Act
-                string? result = PeHeaderService.FindGameExe(tempDir);
+                string? result = _peHeaderService.FindGameExe(tempDir);
 
                 // Assert: result should be the largest exe
                 return (result != null &&

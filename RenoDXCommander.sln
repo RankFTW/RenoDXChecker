@@ -2,7 +2,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
 VisualStudioVersion = 18.3.11512.155 d18.3
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RenoDXCommander", "RenoDXChecker\RenoDXChecker.csproj", "{B1C2D3E4-F5A6-7890-BCDE-F12345678901}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RenoDXCommander", "RenoDXCommander\RenoDXCommander.csproj", "{B1C2D3E4-F5A6-7890-BCDE-F12345678901}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RenoDXCommander.Tests", "RenoDXCommander.Tests\RenoDXCommander.Tests.csproj", "{A1B2C3D4-E5F6-7890-ABCD-E12345678902}"
 EndProject
