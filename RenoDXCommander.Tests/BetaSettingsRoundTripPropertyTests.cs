@@ -9,6 +9,7 @@ namespace RenoDXCommander.Tests;
 /// Property-based and unit tests for BetaOptIn setting persistence round-trip.
 /// Uses FsCheck with xUnit. Each property runs a minimum of 100 iterations.
 /// </summary>
+[Collection("StaticShaderMode")]
 public class BetaSettingsRoundTripPropertyTests
 {
     // Feature: beta-opt-in, Property 1: BetaOptIn setting round-trip

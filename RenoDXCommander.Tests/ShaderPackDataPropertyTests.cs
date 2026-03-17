@@ -13,12 +13,12 @@ public class ShaderPackDataPropertyTests
 {
     private readonly ShaderPackService _service = new(new HttpClient());
 
-    /// <summary>All 44 expected pack Ids after adding ReShade installer packs.</summary>
+    /// <summary>All 42 expected pack Ids after adding ReShade installer packs.</summary>
     private static readonly string[] ExpectedPackIds =
     {
-        "Lilium", "PumboAutoHDR", "SmolbbsoopShaders", "MaxG2DSimpleHDR",
-        "ClshortfuseShaders", "PotatoFX", "PotatoFXUpstream", "CrosireSlim", "SweetFX",
-        "CrosireLegacy", "OtisFX", "Depth3D", "FXShaders",
+        "Lilium", "CrosireMaster", "PumboAutoHDR", "SmolbbsoopShaders", "MaxG2DSimpleHDR",
+        "ClshortfuseShaders", "PotatoFX", "SweetFX",
+        "OtisFX", "Depth3D", "FXShaders",
         "DaodanShaders", "BrussellShaders", "FubaxShaders", "qUINT",
         "AlucardDH", "WarpFX", "Prod80", "CorgiFX",
         "InsaneShaders", "CobraFX", "AstrayFX", "CRTRoyale",
@@ -146,9 +146,9 @@ public class ShaderPackDataPropertyTests
         {
             var available = _service.AvailablePacks;
 
-            // Total count must be exactly 44
-            if (available.Count != 44)
-                return false.Label($"AvailablePacks.Count is {available.Count}, expected 44");
+            // Total count must be exactly 42
+            if (available.Count != 42)
+                return false.Label($"AvailablePacks.Count is {available.Count}, expected 42");
 
             // The randomly chosen expected Id must be present
             var ids = available.Select(p => p.Id).ToList();
@@ -250,15 +250,17 @@ public class ShaderPackDataPropertyTests
             switch (mode)
             {
                 case ShaderPackService.DeployMode.All:
-                    if (count != 44)
-                        return false.Label($"All mode returned {count} packs, expected 44");
+                    if (count != 42)
+                        return false.Label($"All mode returned {count} packs, expected 42");
                     break;
 
                 case ShaderPackService.DeployMode.Minimum:
-                    if (count != 1)
-                        return false.Label($"Minimum mode returned {count} packs, expected 1");
+                    if (count != 2)
+                        return false.Label($"Minimum mode returned {count} packs, expected 2");
                     if (!ids.Contains("Lilium"))
                         return false.Label("Minimum mode did not include Lilium");
+                    if (!ids.Contains("CrosireMaster"))
+                        return false.Label("Minimum mode did not include CrosireMaster");
                     break;
 
                 case ShaderPackService.DeployMode.Off:

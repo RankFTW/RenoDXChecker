@@ -19,6 +19,7 @@ namespace RenoDXCommander.Tests;
 /// EXPECTED OUTCOME on UNFIXED code: All tests PASS.
 /// After the fix is applied: All tests MUST still PASS (no regressions).
 /// </summary>
+[Collection("StaticShaderMode")]
 public class ReShadeDetectionPreservationTests : IDisposable
 {
     /// <summary>

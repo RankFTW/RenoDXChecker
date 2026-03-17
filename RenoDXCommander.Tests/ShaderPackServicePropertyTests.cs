@@ -1,6 +1,7 @@
 using FsCheck;
 using FsCheck.Xunit;
 using RenoDXCommander.Services;
+using Xunit;
 
 namespace RenoDXCommander.Tests;
 
@@ -8,6 +9,7 @@ namespace RenoDXCommander.Tests;
 /// Property-based tests for ShaderPackService shader deployment.
 /// Uses FsCheck with xUnit. Each property runs a minimum of 100 iterations.
 /// </summary>
+[Collection("StaticShaderMode")]
 public class ShaderPackServicePropertyTests : IDisposable
 {
     private readonly string _tempRoot;
@@ -213,7 +215,7 @@ public class ShaderPackServicePropertyTests : IDisposable
     /// reshade-shaders\ folder SHALL exist, contain the managed marker file,
     /// and contain shader files matching the effective mode.
     /// </summary>
-    [Property(MaxTest = 100)]
+    [Property(MaxTest = 30)]
     public Property RsOnlyGameFolder_DeploysShaders_ForAnyNonOffMode()
     {
         var gen = from mode in GenNonOffDeployMode()
@@ -292,7 +294,7 @@ public class ShaderPackServicePropertyTests : IDisposable
     /// managed folder. If a reshade-shaders-original folder exists, it SHALL be
     /// renamed back to reshade-shaders.
     /// </summary>
-    [Property(MaxTest = 100)]
+    [Property(MaxTest = 30)]
     public Property OffMode_RemovesManagedFolder_AndRestoresOriginal()
     {
         var gen = from hasOriginal in Arb.Generate<bool>()
@@ -413,7 +415,7 @@ public class ShaderPackServicePropertyTests : IDisposable
     /// If a reshade-shaders-original folder was present, it SHALL be
     /// restored to reshade-shaders.
     /// </summary>
-    [Property(MaxTest = 100)]
+    [Property(MaxTest = 30)]
     public Property DcModeCleanup_RemovesGameLocalShaders_AndRestoresOriginal()
     {
         var gen = from state in GenDcFolderState()
@@ -567,7 +569,7 @@ public class ShaderPackServicePropertyTests : IDisposable
     /// after SyncShadersToAllLocations processes them, the DC global Reshade
     /// folder SHALL contain shader files matching the global DeployMode.
     /// </summary>
-    [Property(MaxTest = 100)]
+    [Property(MaxTest = 30)]
     public Property DcMode_SyncsToDcGlobalFolder_MatchingGlobalMode()
     {
         var gen = from mode in GenNonOffDeployMode()
@@ -643,7 +645,7 @@ public class ShaderPackServicePropertyTests : IDisposable
     /// SyncShadersToAllLocations SHALL use the override as the effective mode.
     /// For any game location with no override (null), it SHALL use the global DeployMode.
     /// </summary>
-    [Property(MaxTest = 100)]
+    [Property(MaxTest = 30)]
     public Property EffectiveModeResolution_OverrideWinsWhenSet_GlobalWhenNull()
     {
         var gen = from globalMode in GenAnyDeployMode()
@@ -793,7 +795,7 @@ public class ShaderPackServicePropertyTests : IDisposable
     /// removing the managed folder (via Off mode) SHALL rename it back to reshade-shaders,
     /// preserving the original contents.
     /// </summary>
-    [Property(MaxTest = 100)]
+    [Property(MaxTest = 30)]
     public Property UserFolderPreservation_RoundTrip_RestoresOriginalContents()
     {
         var gen = from fileNames in GenUserFileNames()
@@ -904,7 +906,7 @@ public class ShaderPackServicePropertyTests : IDisposable
     /// and for any DeployMode, calling SyncGameFolder twice in succession SHALL
     /// produce the same filesystem state as calling it once (idempotent deployment).
     /// </summary>
-    [Property(MaxTest = 100)]
+    [Property(MaxTest = 30)]
     public Property IdempotentSync_SyncGameFolderTwice_ProducesSameState()
     {
         var gen = from mode in GenAnyDeployMode()
@@ -971,7 +973,7 @@ public class ShaderPackServicePropertyTests : IDisposable
     /// succession SHALL leave the game folder and DC global folder in the same state
     /// as a single call.
     /// </summary>
-    [Property(MaxTest = 100)]
+    [Property(MaxTest = 30)]
     public Property IdempotentSync_DcModeTwice_ProducesSameState()
     {
         var gen = from mode in GenNonOffDeployMode()

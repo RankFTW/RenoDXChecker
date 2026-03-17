@@ -63,7 +63,6 @@
                         <Button.Flyout>
                             <MenuFlyout Placement="Bottom">
                                 <MenuFlyoutItem Text="Deploy DC Mode to All" Click="DeployDcModeButton_Click"/>
-                                <MenuFlyoutItem Text="Deploy Shaders to All" Click="DeployShadersButton_Click"/>
                                 <MenuFlyoutSeparator/>
                                 <MenuFlyoutItem Text="Update All RenoDX" Click="UpdateAllRenoDx_Click"/>
                                 <MenuFlyoutItem Text="Update All ReShade" Click="UpdateAllReShade_Click"/>
@@ -685,25 +684,15 @@
                                 <TextBlock Text="Shader Deploy Mode" FontSize="13" FontWeight="SemiBold"
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
                                 <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource InlineDescriptionBrush}" LineHeight="18"
-                                           Text="Controls which shader packs are deployed to game folders. Off = no shaders. Minimum = Lilium HDR only. All = all available packs. User = custom user-defined folder."/>
-                                <Button x:Name="ShadersModeBtn"
-                                        Content="{x:Bind ViewModel.ShadersBtnLabel, Mode=OneWay}"
-                                        Click="ShadersModeButton_Click"
-                                        Background="{x:Bind ViewModel.ShadersBtnBackground, Mode=OneWay}"
-                                        Foreground="{x:Bind ViewModel.ShadersBtnForeground, Mode=OneWay}"
-                                        BorderBrush="{x:Bind ViewModel.ShadersBtnBorder, Mode=OneWay}"
-                                        BorderThickness="1" CornerRadius="8" Padding="12,7" FontSize="12"
-                                        HorizontalAlignment="Stretch"
-                                        ToolTipService.ToolTip="Click to cycle shader deploy mode: Off → Minimum → All → User → Off"/>
-                                <Button x:Name="DeployShadersBtn" Content="Deploy Shaders to All"
-                                        Click="DeployShadersButton_Click"
+                                           Text="Opens a popup to select which shader packs to deploy. Chosen packs are deployed to all eligible games."/>
+                                <Button x:Name="ChooseShadersBtn"
+                                        Content="Choose Shaders"
+                                        Click="ChooseShadersButton_Click"
                                         Background="{StaticResource AccentBlueBgBrush}" Foreground="{StaticResource AccentBlueBrush}"
                                         BorderBrush="{StaticResource AccentBlueBorderBrush}" BorderThickness="1"
                                         CornerRadius="8" Padding="12,7" FontSize="12"
                                         HorizontalAlignment="Stretch"
-                                        ToolTipService.ToolTip="Deploy current shader mode to all installed games"/>
-                                <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource InlineDescriptionBrush}"
-                                           Text="Deploys the selected shader packs to all games that have ReShade installed."/>
+                                        ToolTipService.ToolTip="Open shader pack selection popup"/>
                             </StackPanel>
                         </Border>
 

@@ -9,6 +9,7 @@ namespace RenoDXCommander.Tests;
 /// Property-based tests for the multi-card-layout feature's ViewModel logic.
 /// Uses FsCheck with xUnit. Each property runs a minimum of 100 iterations.
 /// </summary>
+[Collection("StaticShaderMode")]
 public class LayoutTogglePropertyTests
 {
     // Feature: multi-card-layout, Property 1: Layout toggle involution

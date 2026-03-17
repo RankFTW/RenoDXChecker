@@ -10,6 +10,7 @@ namespace RenoDXCommander.Tests;
 /// Covers enum ordinals, version display, available packs,
 /// settings defaults, and unknown pack ID handling.
 /// </summary>
+[Collection("StaticShaderMode")]
 public class SelectShaderModeUnitTests
 {
     /// <summary>
@@ -43,7 +44,7 @@ public class SelectShaderModeUnitTests
         var service = new ShaderPackService(new HttpClient());
         var packs = service.AvailablePacks;
 
-        Assert.Equal(44, packs.Count);
+        Assert.Equal(42, packs.Count);
         Assert.All(packs, p =>
         {
             Assert.False(string.IsNullOrWhiteSpace(p.Id));

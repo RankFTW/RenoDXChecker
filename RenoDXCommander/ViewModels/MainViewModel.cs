@@ -69,23 +69,6 @@ public partial class MainViewModel : ObservableObject
         get => _settingsViewModel.LastSeenVersion;
         set => _settingsViewModel.LastSeenVersion = value;
     }
-    public string ShadersBtnLabel => _settingsViewModel.ShadersBtnLabel;
-    public string ShadersBtnBackground => _settingsViewModel.ShadersBtnBackground;
-    public string ShadersBtnForeground => _settingsViewModel.ShadersBtnForeground;
-    public string ShadersBtnBorder => _settingsViewModel.ShadersBtnBorder;
-
-    /// <summary>
-    /// Forwards PropertyChanged from SettingsViewModel for shader button bindings
-    /// so the UI updates when the shader mode cycles.
-    /// </summary>
-    private void OnSettingsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName is nameof(ShadersBtnLabel) or nameof(ShadersBtnBackground)
-            or nameof(ShadersBtnForeground) or nameof(ShadersBtnBorder))
-        {
-            OnPropertyChanged(e.PropertyName);
-        }
-    }
     public ShaderDeployMode CurrentShaderMode => _settingsViewModel.CurrentShaderMode;
 
     [ObservableProperty] private int _dcModeLevel;
@@ -166,9 +149,6 @@ public partial class MainViewModel : ObservableObject
         get => _settingsViewModel.IsLoadingSettings;
         set => _settingsViewModel.IsLoadingSettings = value;
     }
-
-    /// <summary>Cycles Off → Minimum → All → User → Off and returns new mode. Delegates to SettingsViewModel.</summary>
-    public ShaderDeployMode CycleShaderDeployMode() => _settingsViewModel.CycleShaderDeployMode();
 
     /// <summary>
     /// Deploys shaders to all installed game locations.
@@ -401,8 +381,6 @@ public partial class MainViewModel : ObservableObject
         _gameInitializationService = gameInitializationService;
         // Wire up SettingsChanged so property changes trigger a full save
         _settingsViewModel.SettingsChanged = () => SaveNameMappings();
-        // Forward SettingsViewModel property changes so shader button bindings update
-        _settingsViewModel.PropertyChanged += OnSettingsPropertyChanged;
         // Wire up DllOverrideService changes to trigger save
         _dllOverrideService.OverridesChanged = () => SaveNameMappings();
         // Initialize FilterViewModel with the DisplayedGames collection

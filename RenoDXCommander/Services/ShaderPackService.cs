@@ -72,6 +72,26 @@ public class ShaderPackService : IShaderPackService
 
     private enum SourceKind { GhRelease, DirectUrl }
 
+    /// <summary>
+    /// UI grouping for the shader picker dialog.
+    /// Essential — always deployed, shown at the top.
+    /// Recommended — suggested packs shown in the second group.
+    /// Extra — everything else.
+    /// </summary>
+    public enum PackCategory { Essential, Recommended, Extra }
+
+    /// <summary>
+    /// Shader files that fail to compile and should never be extracted or deployed.
+    /// Matched against the filename (leaf) of each archive entry, case-insensitive.
+    /// </summary>
+    private static readonly HashSet<string> ExcludedShaderFiles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "BX_XIV_ChromakeyPlus.fx",
+        "GrainSpread.fx",
+        "NTSCCustom.fx",
+        "NTSC_XOT.fx",
+    };
+
     private record ShaderPack(
         string Id,           // unique key — used in settings.json and cache filenames
         string DisplayName,  // shown in progress messages and logs
@@ -79,7 +99,8 @@ public class ShaderPackService : IShaderPackService
         string Url,          // API url (GhRelease) or direct download url (DirectUrl)
         bool IsMinimum,    // included when DeployMode == Minimum
         string? AssetExt = null,  // GhRelease: required file extension of the release asset
-        string? Description = null // short description shown in the shader picker dialog
+        string? Description = null, // short description shown in the shader picker dialog
+        PackCategory Category = PackCategory.Extra // UI grouping
     );
 
     // Packs in order of download. IsMinimum=true → included in Minimum mode.
@@ -92,7 +113,17 @@ public class ShaderPackService : IShaderPackService
             Url         : "https://api.github.com/repos/EndlesslyFlowering/ReShade_HDR_shaders/releases/latest",
             IsMinimum   : true,
             AssetExt    : ".7z",
-            Description : "HDR tone mapping and inverse tone mapping shaders"
+            Description : "HDR tone mapping and inverse tone mapping shaders",
+            Category    : PackCategory.Essential
+        ),
+        new(
+            Id          : "CrosireMaster",
+            DisplayName : "crosire reshade-shaders (master)",
+            Kind        : SourceKind.DirectUrl,
+            Url         : "https://github.com/crosire/reshade-shaders/archive/refs/heads/master.zip",
+            IsMinimum   : true,
+            Description : "Official ReShade standard effects — full master branch",
+            Category    : PackCategory.Recommended
         ),
         new(
             Id          : "PumboAutoHDR",
@@ -101,7 +132,8 @@ public class ShaderPackService : IShaderPackService
             Url         : "https://api.github.com/repos/Filoppi/PumboAutoHDR/releases/latest",
             IsMinimum   : false,
             AssetExt    : ".zip",
-            Description : "Automatic HDR conversion for SDR games"
+            Description : "Automatic HDR conversion for SDR games",
+            Category    : PackCategory.Recommended
         ),
         new(
             Id          : "SmolbbsoopShaders",
@@ -109,7 +141,8 @@ public class ShaderPackService : IShaderPackService
             Kind        : SourceKind.DirectUrl,
             Url         : "https://github.com/smolbbsoop/smolbbsoopshaders/archive/refs/heads/main.zip",
             IsMinimum   : false,
-            Description : "HDR utility shaders and effects"
+            Description : "HDR utility shaders and effects",
+            Category    : PackCategory.Recommended
         ),
         new(
             Id          : "MaxG2DSimpleHDR",
@@ -117,7 +150,8 @@ public class ShaderPackService : IShaderPackService
             Kind        : SourceKind.DirectUrl,
             Url         : "https://github.com/MaxG2D/ReshadeSimpleHDRShaders/archive/refs/heads/main.zip",
             IsMinimum   : false,
-            Description : "Simple HDR bloom, lens flare, and tone mapping"
+            Description : "Simple HDR bloom, lens flare, and tone mapping",
+            Category    : PackCategory.Recommended
         ),
         new(
             Id          : "ClshortfuseShaders",
@@ -125,7 +159,8 @@ public class ShaderPackService : IShaderPackService
             Kind        : SourceKind.DirectUrl,
             Url         : "https://github.com/clshortfuse/reshade-shaders/archive/refs/heads/main.zip",
             IsMinimum   : false,
-            Description : "HDR and color correction shaders for RenoDX"
+            Description : "HDR and color correction shaders for RenoDX",
+            Category    : PackCategory.Recommended
         ),
         new(
             Id          : "PotatoFX",
@@ -133,45 +168,22 @@ public class ShaderPackService : IShaderPackService
             Kind        : SourceKind.DirectUrl,
             Url         : "https://github.com/CreepySasquatch/potatoFX/archive/refs/heads/main.zip",
             IsMinimum   : false,
-            Description : "Lightweight post-processing effects for low-end hardware"
-        ),
-        new(
-            Id          : "PotatoFXUpstream",
-            DisplayName : "potatoFX (GimleLarpes upstream)",
-            Kind        : SourceKind.DirectUrl,
-            Url         : "https://github.com/GimleLarpes/potatoFX/archive/refs/heads/master.zip",
-            IsMinimum   : false,
-            Description : "Official upstream potatoFX — lightweight post-processing effects"
-        ),
-        new(
-            Id          : "CrosireSlim",
-            DisplayName : "crosire reshade-shaders (slim)",
-            Kind        : SourceKind.DirectUrl,
-            Url         : "https://github.com/crosire/reshade-shaders/archive/refs/heads/slim.zip",
-            IsMinimum   : false,
-            Description : "Official ReShade standard effects — curated slim branch"
+            Description : "Lightweight post-processing effects for low-end hardware",
+            Category    : PackCategory.Recommended
         ),
         new(
             Id          : "SweetFX",
             DisplayName : "SweetFX by CeeJay.dk",
             Kind        : SourceKind.DirectUrl,
-            Url         : "https://github.com/CeeJayDK/SweetFX/archive/master.zip",
+            Url         : "https://github.com/CeeJayDK/SweetFX/archive/refs/heads/master.zip",
             IsMinimum   : false,
             Description : "Classic color grading, sharpening, and bloom effects"
-        ),
-        new(
-            Id          : "CrosireLegacy",
-            DisplayName : "crosire reshade-shaders (legacy)",
-            Kind        : SourceKind.DirectUrl,
-            Url         : "https://github.com/crosire/reshade-shaders/archive/legacy.zip",
-            IsMinimum   : false,
-            Description : "Official ReShade legacy effects collection"
         ),
         new(
             Id          : "OtisFX",
             DisplayName : "OtisFX by Otis_Inf",
             Kind        : SourceKind.DirectUrl,
-            Url         : "https://github.com/FransBouma/OtisFX/archive/master.zip",
+            Url         : "https://github.com/FransBouma/OtisFX/archive/refs/heads/master.zip",
             IsMinimum   : false,
             Description : "Cinematic depth of field, light rays, and camera effects"
         ),
@@ -179,23 +191,15 @@ public class ShaderPackService : IShaderPackService
             Id          : "Depth3D",
             DisplayName : "Depth3D by BlueSkyDefender",
             Kind        : SourceKind.DirectUrl,
-            Url         : "https://github.com/BlueSkyDefender/Depth3D/archive/master.zip",
+            Url         : "https://github.com/BlueSkyDefender/Depth3D/archive/refs/heads/master.zip",
             IsMinimum   : false,
             Description : "Stereoscopic 3D and depth-based visual effects"
-        ),
-        new(
-            Id          : "FXShaders",
-            DisplayName : "FXShaders by luluco250",
-            Kind        : SourceKind.DirectUrl,
-            Url         : "https://github.com/luluco250/FXShaders/archive/master.zip",
-            IsMinimum   : false,
-            Description : "Bloom, ambient light, and color manipulation effects"
         ),
         new(
             Id          : "DaodanShaders",
             DisplayName : "reshade-shaders by Daodan",
             Kind        : SourceKind.DirectUrl,
-            Url         : "https://github.com/Daodan317081/reshade-shaders/archive/master.zip",
+            Url         : "https://github.com/Daodan317081/reshade-shaders/archive/refs/heads/master.zip",
             IsMinimum   : false,
             Description : "Comic, crosshatch, and artistic style effects"
         ),
@@ -203,7 +207,7 @@ public class ShaderPackService : IShaderPackService
             Id          : "BrussellShaders",
             DisplayName : "Shaders by brussell",
             Kind        : SourceKind.DirectUrl,
-            Url         : "https://github.com/brussell1/Shaders/archive/master.zip",
+            Url         : "https://github.com/brussell1/Shaders/archive/refs/heads/master.zip",
             IsMinimum   : false,
             Description : "Halftone, sketch, and stylized rendering effects"
         ),
@@ -211,7 +215,7 @@ public class ShaderPackService : IShaderPackService
             Id          : "FubaxShaders",
             DisplayName : "fubax-shaders by Fubaxiusz",
             Kind        : SourceKind.DirectUrl,
-            Url         : "https://github.com/Fubaxiusz/fubax-shaders/archive/master.zip",
+            Url         : "https://github.com/Fubaxiusz/fubax-shaders/archive/refs/heads/master.zip",
             IsMinimum   : false,
             Description : "VR-friendly lens distortion and chromatic aberration"
         ),
@@ -219,7 +223,7 @@ public class ShaderPackService : IShaderPackService
             Id          : "qUINT",
             DisplayName : "qUINT by Marty McFly",
             Kind        : SourceKind.DirectUrl,
-            Url         : "https://github.com/martymcmodding/qUINT/archive/master.zip",
+            Url         : "https://github.com/martymcmodding/qUINT/archive/refs/heads/master.zip",
             IsMinimum   : false,
             Description : "MXAO, ADOF, lightroom, and screen-space reflections"
         ),
@@ -235,7 +239,7 @@ public class ShaderPackService : IShaderPackService
             Id          : "WarpFX",
             DisplayName : "Warp-FX by Radegast",
             Kind        : SourceKind.DirectUrl,
-            Url         : "https://github.com/Radegast-FFXIV/Warp-FX/archive/master.zip",
+            Url         : "https://github.com/Radegast-FFXIV/Warp-FX/archive/refs/heads/master.zip",
             IsMinimum   : false,
             Description : "Screen warp, swirl, and distortion effects"
         ),
@@ -243,7 +247,7 @@ public class ShaderPackService : IShaderPackService
             Id          : "Prod80",
             DisplayName : "Color effects by prod80",
             Kind        : SourceKind.DirectUrl,
-            Url         : "https://github.com/prod80/prod80-ReShade-Repository/archive/master.zip",
+            Url         : "https://github.com/prod80/prod80-ReShade-Repository/archive/refs/heads/master.zip",
             IsMinimum   : false,
             Description : "Professional color grading, curves, and tone tools"
         ),
@@ -251,7 +255,7 @@ public class ShaderPackService : IShaderPackService
             Id          : "CorgiFX",
             DisplayName : "CorgiFX by originalnicodr",
             Kind        : SourceKind.DirectUrl,
-            Url         : "https://github.com/originalnicodr/CorgiFX/archive/master.zip",
+            Url         : "https://github.com/originalnicodr/CorgiFX/archive/refs/heads/master.zip",
             IsMinimum   : false,
             Description : "Screenshot and virtual photography tools"
         ),
@@ -259,7 +263,7 @@ public class ShaderPackService : IShaderPackService
             Id          : "InsaneShaders",
             DisplayName : "Insane-Shaders by Lord of Lunacy",
             Kind        : SourceKind.DirectUrl,
-            Url         : "https://github.com/LordOfLunacy/Insane-Shaders/archive/master.zip",
+            Url         : "https://github.com/LordOfLunacy/Insane-Shaders/archive/refs/heads/master.zip",
             IsMinimum   : false,
             Description : "Advanced dithering, fog removal, and edge detection"
         ),
@@ -275,7 +279,7 @@ public class ShaderPackService : IShaderPackService
             Id          : "AstrayFX",
             DisplayName : "AstrayFX by BlueSkyDefender",
             Kind        : SourceKind.DirectUrl,
-            Url         : "https://github.com/BlueSkyDefender/AstrayFX/archive/master.zip",
+            Url         : "https://github.com/BlueSkyDefender/AstrayFX/archive/refs/heads/master.zip",
             IsMinimum   : false,
             Description : "Depth-based fog, haze, and atmospheric effects"
         ),
@@ -291,7 +295,7 @@ public class ShaderPackService : IShaderPackService
             Id          : "RSRetroArch",
             DisplayName : "RSRetroArch by Matsilagi",
             Kind        : SourceKind.DirectUrl,
-            Url         : "https://github.com/Matsilagi/RSRetroArch/archive/main.zip",
+            Url         : "https://github.com/Matsilagi/RSRetroArch/archive/refs/heads/main.zip",
             IsMinimum   : false,
             Description : "RetroArch shader ports — CRT, LCD, and retro filters"
         ),
@@ -323,7 +327,7 @@ public class ShaderPackService : IShaderPackService
             Id          : "iMMERSE",
             DisplayName : "iMMERSE by Marty McFly",
             Kind        : SourceKind.DirectUrl,
-            Url         : "https://github.com/martymcmodding/iMMERSE/archive/main.zip",
+            Url         : "https://github.com/martymcmodding/iMMERSE/archive/refs/heads/main.zip",
             IsMinimum   : false,
             Description : "Next-gen RTGI, MXAO, and anti-aliasing suite"
         ),
@@ -363,7 +367,7 @@ public class ShaderPackService : IShaderPackService
             Id          : "AnnReShade",
             DisplayName : "Ann-ReShade by Anastasia Bouwsma",
             Kind        : SourceKind.DirectUrl,
-            Url         : "https://github.com/AnastasiaGals/Ann-ReShade/archive/master.zip",
+            Url         : "https://github.com/AnastasiaGals/Ann-ReShade/archive/refs/heads/main.zip",
             IsMinimum   : false,
             Description : "Soft bloom, color grading, and ambient light presets"
         ),
@@ -371,7 +375,7 @@ public class ShaderPackService : IShaderPackService
             Id          : "ZenteonFX",
             DisplayName : "ZenteonFX Shaders by Zenteon",
             Kind        : SourceKind.DirectUrl,
-            Url         : "https://github.com/Zenteon/ZenteonFX/archive/refs/heads/master.zip",
+            Url         : "https://github.com/Zenteon/ZenteonFX/archive/refs/heads/main.zip",
             IsMinimum   : false,
             Description : "Global illumination, SSR, and path tracing effects"
         ),
@@ -432,10 +436,18 @@ public class ShaderPackService : IShaderPackService
             Description : "Screen cropping, scaling, and aspect ratio tools"
         ),
         new(
+            Id          : "FXShaders",
+            DisplayName : "FXShaders by luluco250",
+            Kind        : SourceKind.DirectUrl,
+            Url         : "https://github.com/luluco250/FXShaders/archive/refs/heads/master.zip",
+            IsMinimum   : false,
+            Description : "Bloom, grain, dithering, and utility shader library"
+        ),
+        new(
             Id          : "LumeniteFX",
             DisplayName : "LumeniteFX by Kaido",
             Kind        : SourceKind.DirectUrl,
-            Url         : "https://github.com/umar-afzaal/LumeniteFX/archive/refs/heads/master.zip",
+            Url         : "https://github.com/umar-afzaal/LumeniteFX/archive/refs/heads/mainline.zip",
             IsMinimum   : false,
             Description : "Lighting, bloom, and atmospheric glow effects"
         ),
@@ -583,13 +595,28 @@ public class ShaderPackService : IShaderPackService
 
                 if (rootDir == null || string.IsNullOrEmpty(relInRoot)) continue;
 
-                var relPath = relInRoot.Replace('/', Path.DirectorySeparatorChar);
+                // Skip shaders that are known to fail compilation
+                var fileName = Path.GetFileName(relInRoot);
+                if (rootDir == ShadersDir && ExcludedShaderFiles.Contains(fileName)) continue;
+
+                // Place each pack's files into a subdirectory named after the pack ID
+                var relPath = Path.Combine(pack.Id, relInRoot.Replace('/', Path.DirectorySeparatorChar));
                 var destPath = Path.Combine(rootDir, relPath);
                 Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
 
                 using var entryStream = entry.OpenEntryStream();
                 using var fileStream = File.Create(destPath);
                 await entryStream.CopyToAsync(fileStream);
+            }
+
+            // Copy ReShade framework headers to the staging root so all packs can find them
+            foreach (var header in ReShadeHeaders)
+            {
+                var packHeader = Path.Combine(ShadersDir, pack.Id, header);
+                var rootHeader = Path.Combine(ShadersDir, header);
+                if (File.Exists(packHeader))
+                    try { File.Copy(packHeader, rootHeader, overwrite: true); }
+                    catch (Exception ex) { CrashReporter.Log($"[ShaderPackService.EnsurePackAsync] Failed to copy header '{header}' to root — {ex.Message}"); }
             }
 
             // Record which files this pack contributed so we can verify presence later
@@ -662,9 +689,12 @@ public class ShaderPackService : IShaderPackService
                     if (key.StartsWith(token, StringComparison.OrdinalIgnoreCase)) { rootDir = dir; relInRoot = key.Substring(token.Length); break; }
                 }
                 if (rootDir == null || string.IsNullOrEmpty(relInRoot)) continue;
-                // Store as relative path from RsStagingDir
+                // Skip excluded shaders so they are never recorded or deployed
+                var recFileName = Path.GetFileName(relInRoot);
+                if (rootDir == ShadersDir && ExcludedShaderFiles.Contains(recFileName)) continue;
+                // Store as relative path from RsStagingDir, with pack subdirectory
                 var subDir = rootDir == ShadersDir ? "Shaders" : "Textures";
-                files.Add(Path.Combine(subDir, relInRoot.Replace('/', Path.DirectorySeparatorChar)));
+                files.Add(Path.Combine(subDir, packId, relInRoot.Replace('/', Path.DirectorySeparatorChar)));
             }
 
             Dictionary<string, string> d = new();
@@ -752,8 +782,8 @@ public class ShaderPackService : IShaderPackService
     /// <summary>
     /// Exposes pack metadata for the picker UI — returns every known pack's Id and DisplayName.
     /// </summary>
-    public IReadOnlyList<(string Id, string DisplayName)> AvailablePacks { get; } =
-        Packs.Select(p => (p.Id, p.DisplayName)).ToList().AsReadOnly();
+    public IReadOnlyList<(string Id, string DisplayName, PackCategory Category)> AvailablePacks { get; } =
+        Packs.Select(p => (p.Id, p.DisplayName, p.Category)).ToList().AsReadOnly();
 
     /// <summary>
     /// Returns the short description for a pack, or null if none is set.
@@ -821,6 +851,7 @@ public class ShaderPackService : IShaderPackService
 
         if (hasRecords)
         {
+            EnsureReShadeHeaders(shadersFiles);
             DeployFileListIfAbsent(ShadersDir, destShadersDir, shadersFiles);
             DeployFileListIfAbsent(TexturesDir, destTexturesDir, texturesFiles);
         }
@@ -865,6 +896,7 @@ public class ShaderPackService : IShaderPackService
 
         if (hasRecords)
         {
+            EnsureReShadeHeaders(shadersFiles);
             DeployFileListIfAbsent(ShadersDir, destShadersDir, shadersFiles);
             DeployFileListIfAbsent(TexturesDir, destTexturesDir, texturesFiles);
         }
@@ -872,6 +904,26 @@ public class ShaderPackService : IShaderPackService
         {
             // No per-pack records yet — nothing to deploy for Select mode
             // (unlike mode-based overload, we don't fall back to full staging copy)
+        }
+    }
+
+    /// <summary>
+    /// ReShade framework headers that all shader packs depend on.
+    /// These must always be deployed alongside any pack so that shaders can compile.
+    /// </summary>
+    private static readonly string[] ReShadeHeaders = { "ReShade.fxh", "ReShadeUI.fxh" };
+
+    /// <summary>
+    /// Ensures the ReShade framework headers (reshade.fxh, reshadeui.fxh) are included
+    /// in the deploy list whenever any shader pack files are being deployed.
+    /// These headers live in the staging Shaders folder but aren't tracked per-pack.
+    /// </summary>
+    private static void EnsureReShadeHeaders(List<string> shadersFiles)
+    {
+        foreach (var header in ReShadeHeaders)
+        {
+            if (!shadersFiles.Contains(header, StringComparer.OrdinalIgnoreCase))
+                shadersFiles.Add(header);
         }
     }
 

@@ -8,7 +8,7 @@ public interface IShaderPackService
     /// <summary>
     /// Exposes pack metadata for the picker UI — returns every known pack's Id and DisplayName.
     /// </summary>
-    IReadOnlyList<(string Id, string DisplayName)> AvailablePacks { get; }
+    IReadOnlyList<(string Id, string DisplayName, ShaderPackService.PackCategory Category)> AvailablePacks { get; }
 
     /// <summary>
     /// Returns the short description for a pack, or null if none is set.

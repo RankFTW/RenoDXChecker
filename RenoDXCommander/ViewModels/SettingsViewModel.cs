@@ -42,64 +42,7 @@ public partial class SettingsViewModel : ObservableObject
     {
         ShaderPackService.CurrentMode = value;
         SettingsChanged?.Invoke();
-        // Notify computed button properties
-        OnPropertyChanged(nameof(ShadersBtnLabel));
-        OnPropertyChanged(nameof(ShadersBtnBackground));
-        OnPropertyChanged(nameof(ShadersBtnForeground));
-        OnPropertyChanged(nameof(ShadersBtnBorder));
     }
-
-    /// <summary>Cycles Off → Minimum → All → User → Select → Off and returns new mode.</summary>
-    public ShaderDeployMode CycleShaderDeployMode()
-    {
-        ShaderDeployMode = ShaderDeployMode switch
-        {
-            ShaderDeployMode.Off     => ShaderDeployMode.Minimum,
-            ShaderDeployMode.Minimum => ShaderDeployMode.All,
-            ShaderDeployMode.All     => ShaderDeployMode.User,
-            ShaderDeployMode.User    => ShaderDeployMode.Select,
-            _                        => ShaderDeployMode.Off,
-        };
-        return ShaderDeployMode;
-    }
-
-    // Shaders button label / colours — shown in the header bar
-    public string ShadersBtnLabel => ShaderDeployMode switch
-    {
-        ShaderDeployMode.Off     => "Shaders: Off",
-        ShaderDeployMode.Minimum => "Shaders: Minimum",
-        ShaderDeployMode.All     => "Shaders: All",
-        ShaderDeployMode.User    => "Shaders: User",
-        ShaderDeployMode.Select  => "Shaders: Select",
-        _                        => "Shaders",
-    };
-    public string ShadersBtnBackground => ShaderDeployMode switch
-    {
-        ShaderDeployMode.Off     => "#1E242C",
-        ShaderDeployMode.Minimum => "#201838",
-        ShaderDeployMode.All     => "#201838",
-        ShaderDeployMode.User    => "#122830",
-        ShaderDeployMode.Select  => "#2A1830",
-        _                        => "#1E242C",
-    };
-    public string ShadersBtnForeground => ShaderDeployMode switch
-    {
-        ShaderDeployMode.Off     => "#6B7A8E",
-        ShaderDeployMode.Minimum => "#B898E8",
-        ShaderDeployMode.All     => "#B898E8",
-        ShaderDeployMode.User    => "#4DC9E6",
-        ShaderDeployMode.Select  => "#E898C8",
-        _                        => "#6B7A8E",
-    };
-    public string ShadersBtnBorder => ShaderDeployMode switch
-    {
-        ShaderDeployMode.Off     => "#283240",
-        ShaderDeployMode.Minimum => "#3A2860",
-        ShaderDeployMode.All     => "#3A2860",
-        ShaderDeployMode.User    => "#1E4858",
-        ShaderDeployMode.Select  => "#4A2858",
-        _                        => "#283240",
-    };
 
     /// <summary>The current ShaderDeployMode for AuxInstallService calls.</summary>
     public ShaderDeployMode CurrentShaderMode => ShaderDeployMode;
@@ -188,6 +131,15 @@ public partial class SettingsViewModel : ObservableObject
         else
         {
             SelectedShaderPacks = new();
+        }
+
+        // Migration: old deploy modes (Off, Minimum, All, User) are no longer
+        // exposed in the UI.  Clear any stale selection and normalise to Select
+        // so the popup-based flow takes over.
+        if (ShaderDeployMode != ShaderDeployMode.Select)
+        {
+            SelectedShaderPacks = new List<string>();
+            ShaderDeployMode = ShaderDeployMode.Select;
         }
     }
 

@@ -19,6 +19,7 @@ namespace RenoDXCommander.Tests;
 /// EXPECTED OUTCOME on UNFIXED code: Tests FAIL (confirms the bug exists).
 /// After the fix is applied, these same tests should PASS.
 /// </summary>
+[Collection("StaticShaderMode")]
 public class ReShadeDetectionExplorationTests : IDisposable
 {
     // Non-standard filenames that ReShade can be installed as

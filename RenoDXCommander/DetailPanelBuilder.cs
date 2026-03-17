@@ -487,11 +487,9 @@ public class DetailPanelBuilder
             "DC Mode 1 = force dxgi.dll proxy. DC Mode 2 = force winmm.dll proxy.");
 
         string currentShaderMode = _window.ViewModel.GetPerGameShaderMode(gameName);
-        var globalShaderLabel = _window.ViewModel.ShaderDeployMode.ToString();
-        var shaderModeValues = new[] { "Global", "Off", "Minimum", "All", "User", "Select" };
-        var shaderModeDisplay = new[] { $"Global ({globalShaderLabel})", "Off", "Minimum", "All", "User", "Select" };
-        int shaderSelectedIdx = Array.IndexOf(shaderModeValues, currentShaderMode);
-        if (shaderSelectedIdx < 0) shaderSelectedIdx = 0;
+        var shaderModeValues = new[] { "Global", "Select" };
+        var shaderModeDisplay = new[] { "Global", "Select" };
+        int shaderSelectedIdx = currentShaderMode == "Select" ? 1 : 0;
         var shaderModeCombo = new ComboBox
         {
             ItemsSource = shaderModeDisplay,
@@ -501,7 +499,7 @@ public class DetailPanelBuilder
             Header = "Shader Mode",
         };
         ToolTipService.SetToolTip(shaderModeCombo,
-            "Global = follow the Settings toggle. Off = no shaders. Minimum = Lilium only. All = all packs. User = custom folder only. Select = pick specific packs.\n" +
+            "Global = use the global shader selection. Select = pick specific shader packs for this game.\n" +
             "Note: Per-game shader mode only applies when ReShade is used standalone (DC Mode OFF). " +
             "When DC Mode is ON, all DC-mode games share the DC global shader folder.");
 
@@ -512,25 +510,25 @@ public class DetailPanelBuilder
             var idx = shaderModeCombo.SelectedIndex;
             if (idx >= 0 && idx < shaderModeValues.Length && shaderModeValues[idx] == "Select")
             {
-                // Trigger the per-game shader selection picker
-                if (_window.ViewModel.ShowPerGameShaderSelectionPicker != null)
+                // Pre-populate with existing per-game selection, or fall back to global
+                List<string>? current = _window.ViewModel.GameNameServiceInstance.PerGameShaderSelection.TryGetValue(gameName, out var existing)
+                    ? existing
+                    : _window.ViewModel.Settings.SelectedShaderPacks;
+                var result = await ShaderPopupHelper.ShowAsync(
+                    _window.Content.XamlRoot,
+                    _window.ViewModel.ShaderPackServiceInstance,
+                    current,
+                    ShaderPopupHelper.PopupContext.PerGame);
+                if (result != null)
                 {
-                    // Pre-populate with existing per-game selection, or fall back to global
-                    List<string>? current = _window.ViewModel.GameNameServiceInstance.PerGameShaderSelection.TryGetValue(gameName, out var existing)
-                        ? existing
-                        : _window.ViewModel.Settings.SelectedShaderPacks;
-                    var result = await _window.ViewModel.ShowPerGameShaderSelectionPicker(gameName, current);
-                    if (result != null)
-                    {
-                        // Store the per-game selection
-                        _window.ViewModel.GameNameServiceInstance.PerGameShaderSelection[gameName] = result;
-                        previousShaderIdx = idx;
-                    }
-                    else
-                    {
-                        // User cancelled — revert ComboBox to previous value
-                        shaderModeCombo.SelectedIndex = previousShaderIdx;
-                    }
+                    // Store the per-game selection
+                    _window.ViewModel.GameNameServiceInstance.PerGameShaderSelection[gameName] = result;
+                    previousShaderIdx = idx;
+                }
+                else
+                {
+                    // User cancelled — revert ComboBox to previous value
+                    shaderModeCombo.SelectedIndex = previousShaderIdx;
                 }
             }
             else
@@ -849,14 +847,26 @@ public class DetailPanelBuilder
             if (!string.IsNullOrEmpty(det) && nowRdxExcluded != _window.ViewModel.IsUpdateAllExcludedRenoDx(det))
                 _window.ViewModel.ToggleUpdateAllExclusionRenoDx(det);
 
-            // Shader mode
+            // Shader mode — always persist the mode and deploy on save (Req 7.1, 7.2, 7.3)
             var shaderModeIdx = shaderModeCombo.SelectedIndex;
             var newShaderMode = shaderModeIdx >= 0 && shaderModeIdx < shaderModeValues.Length
                 ? shaderModeValues[shaderModeIdx] : "Global";
-            if (!string.IsNullOrEmpty(det) && newShaderMode != _window.ViewModel.GetPerGameShaderMode(det))
+            if (!string.IsNullOrEmpty(det))
             {
-                _window.ViewModel.SetPerGameShaderMode(det, newShaderMode);
-                _window.ViewModel.DeployShadersForCard(det);
+                if (newShaderMode != _window.ViewModel.GetPerGameShaderMode(det))
+                    _window.ViewModel.SetPerGameShaderMode(det, newShaderMode);
+
+                if (newShaderMode == "Select")
+                {
+                    // Deploy using the per-game selection stored in PerGameShaderSelection
+                    _window.ViewModel.DeployShadersForCard(det);
+                }
+                else
+                {
+                    // "Global": ensure per-game entry is removed, then deploy with global selection
+                    _window.ViewModel.GameNameServiceInstance.PerGameShaderSelection.Remove(det);
+                    _window.ViewModel.DeployShadersForCard(det);
+                }
             }
 
             // Rendering path (dual-API games)

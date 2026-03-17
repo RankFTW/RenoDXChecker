@@ -51,3 +51,4 @@ public class ShaderPackDeployPropertyTests : IDisposable
             .Select(chars => new string(chars)));
         return Gen.Choose(0, 10).SelectMany(c => Gen.ListOf(c, id).Select(l => l.ToList()));
     }
+}

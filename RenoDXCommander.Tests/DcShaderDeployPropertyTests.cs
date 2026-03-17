@@ -13,6 +13,7 @@ namespace RenoDXCommander.Tests;
 ///
 /// EXPECTED OUTCOME on FIXED code: All tests PASS.
 /// </summary>
+[Collection("StaticShaderMode")]
 public class DcShaderDeployPropertyTests : IDisposable
 {
     private readonly string _tempRoot;
@@ -132,8 +133,8 @@ public class DcShaderDeployPropertyTests : IDisposable
         public bool RemoveFromGameFolderCalled { get; private set; }
         public string? RemoveFromGameFolderDir { get; private set; }
 
-        public IReadOnlyList<(string Id, string DisplayName)> AvailablePacks { get; } =
-            new List<(string, string)>();
+        public IReadOnlyList<(string Id, string DisplayName, ShaderPackService.PackCategory Category)> AvailablePacks { get; } =
+            new List<(string, string, ShaderPackService.PackCategory)>();
 
         public string? GetPackDescription(string packId) => null;
 

@@ -79,8 +79,10 @@ public sealed partial class MainWindow : Window
         ViewModel.SetDispatcher(DispatcherQueue);
         ViewModel.ConfirmForeignDxgiOverwrite = ShowForeignDxgiConfirmDialogAsync;
         ViewModel.ConfirmForeignWinmmOverwrite = ShowForeignWinmmConfirmDialogAsync;
-        ViewModel.ShowShaderSelectionPicker = ShowShaderPickerDialogAsync;
-        ViewModel.ShowPerGameShaderSelectionPicker = async (gameName, current) => await ShowShaderPickerDialogAsync(current);
+        ViewModel.ShowShaderSelectionPicker = async (current) =>
+            await ShaderPopupHelper.ShowAsync(Content.XamlRoot, ViewModel.ShaderPackServiceInstance, current, ShaderPopupHelper.PopupContext.Global);
+        ViewModel.ShowPerGameShaderSelectionPicker = async (gameName, current) =>
+            await ShaderPopupHelper.ShowAsync(Content.XamlRoot, ViewModel.ShaderPackServiceInstance, current, ShaderPopupHelper.PopupContext.PerGame);
         ViewModel.PropertyChanged += OnViewModelChanged;
         GameList.ItemsSource = ViewModel.DisplayedGames;
         // Apply initial visibility
@@ -2350,129 +2352,20 @@ public sealed partial class MainWindow : Window
 
     // ── Shaders mode cycle handler ──────────────────────────────────────────
 
-    private async void ShadersModeButton_Click(object sender, RoutedEventArgs e)
+    private async void ChooseShadersButton_Click(object sender, RoutedEventArgs e)
     {
-        // If already in Select mode, re-open the picker instead of cycling
-        if (ViewModel.ShaderDeployMode == ShaderPackService.DeployMode.Select)
+        var result = await ShaderPopupHelper.ShowAsync(
+            Content.XamlRoot,
+            ViewModel.ShaderPackServiceInstance,
+            ViewModel.Settings.SelectedShaderPacks,
+            ShaderPopupHelper.PopupContext.Global);
+
+        if (result != null)
         {
-            var result = await ShowShaderPickerDialogAsync(ViewModel.Settings.SelectedShaderPacks);
-            if (result != null)
-            {
-                ViewModel.Settings.SelectedShaderPacks = result;
-                ViewModel.DeployAllShaders();
-            }
-            ViewModel.CycleShaderDeployMode(); // Select → Off
-            return;
-        }
-
-        var newMode = ViewModel.CycleShaderDeployMode();
-
-        // When cycling into Select mode, immediately show the picker
-        if (newMode == ShaderPackService.DeployMode.Select)
-        {
-            var result = await ShowShaderPickerDialogAsync(ViewModel.Settings.SelectedShaderPacks);
-            if (result != null)
-            {
-                ViewModel.Settings.SelectedShaderPacks = result;
-                ViewModel.DeployAllShaders();
-            }
-            else
-            {
-                // User cancelled — revert to previous mode (cycle back)
-                ViewModel.CycleShaderDeployMode(); // Select → Off
-            }
-        }
-    }
-
-    /// <summary>
-    /// Shows a modal ContentDialog with checkboxes for each shader pack.
-    /// Pre-populated from <paramref name="currentSelection"/>.
-    /// Returns the confirmed selection, or null if the user cancelled.
-    /// </summary>
-    private async Task<List<string>?> ShowShaderPickerDialogAsync(List<string>? currentSelection)
-    {
-        var packs = ViewModel.ShaderPackServiceInstance.AvailablePacks;
-        var selected = new HashSet<string>(currentSelection ?? [], StringComparer.OrdinalIgnoreCase);
-
-        var panel = new StackPanel { Spacing = 4 };
-        var checkBoxes = new List<(string Id, CheckBox Box)>();
-
-        foreach (var (id, displayName) in packs)
-        {
-            var description = ViewModel.ShaderPackServiceInstance.GetPackDescription(id);
-
-            // Build a two-line content block: name + description
-            var contentPanel = new StackPanel { Spacing = 0 };
-            contentPanel.Children.Add(new TextBlock
-            {
-                Text       = displayName,
-                FontSize   = 13,
-                Foreground = Brush(ResourceKeys.TextPrimaryBrush),
-            });
-            if (!string.IsNullOrEmpty(description))
-            {
-                contentPanel.Children.Add(new TextBlock
-                {
-                    Text       = description,
-                    FontSize   = 11,
-                    Opacity    = 0.6,
-                    Foreground = Brush(ResourceKeys.TextPrimaryBrush),
-                });
-            }
-
-            var cb = new CheckBox
-            {
-                Content    = contentPanel,
-                IsChecked  = selected.Contains(id),
-            };
-            checkBoxes.Add((id, cb));
-            panel.Children.Add(cb);
-        }
-
-        var scrollViewer = new ScrollViewer
-        {
-            Content           = panel,
-            MaxHeight         = 500,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-        };
-
-        var dlg = new ContentDialog
-        {
-            Title             = "Select Shader Packs",
-            Content           = scrollViewer,
-            PrimaryButtonText = "OK",
-            CloseButtonText   = "Cancel",
-            XamlRoot          = Content.XamlRoot,
-            Background        = Brush(ResourceKeys.SurfaceOverlayBrush),
-            MinWidth          = 650,
-        };
-
-        var dialogResult = await dlg.ShowAsync();
-        if (dialogResult != ContentDialogResult.Primary)
-            return null; // cancelled — caller should revert
-
-        // Build the confirmed selection from ticked checkboxes
-        var confirmed = new List<string>();
-        foreach (var (id, box) in checkBoxes)
-        {
-            if (box.IsChecked == true)
-                confirmed.Add(id);
-        }
-        return confirmed;
-    }
-
-    private async void DeployShadersButton_Click(object sender, RoutedEventArgs e)
-    {
-        var dlg = new ContentDialog
-        {
-            Title             = "Deploy Shaders",
-            Content           = "Deploy the current shader mode to all installed games?",
-            PrimaryButtonText = "Continue",
-            CloseButtonText   = "Cancel",
-            XamlRoot          = Content.XamlRoot,
-        };
-        if (await dlg.ShowAsync() == ContentDialogResult.Primary)
+            ViewModel.Settings.SelectedShaderPacks = result;
+            ViewModel.Settings.ShaderDeployMode = ShaderPackService.DeployMode.Select;
             ViewModel.DeployAllShaders();
+        }
     }
 
     private void DcModeButton_Click(object sender, RoutedEventArgs e)

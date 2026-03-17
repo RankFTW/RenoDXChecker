@@ -66,8 +66,8 @@ public class ShaderPackDataUnitTests
     [Fact]
     public void PackCount_IsExactly43()
     {
-        Assert.Equal(44, GetPacksArray().Length);
-        Assert.Equal(44, _service.AvailablePacks.Count);
+        Assert.Equal(42, GetPacksArray().Length);
+        Assert.Equal(42, _service.AvailablePacks.Count);
     }
 
     /// <summary>
@@ -97,33 +97,6 @@ public class ShaderPackDataUnitTests
     }
 
     /// <summary>
-    /// Verify PotatoFXUpstream URL points to GimleLarpes upstream.
-    /// </summary>
-    [Fact]
-    public void PotatoFXUpstream_UrlPointsToGimleLarpes()
-    {
-        var url = GetPackProperty("PotatoFXUpstream", "Url");
-        Assert.Equal(
-            "https://github.com/GimleLarpes/potatoFX/archive/refs/heads/master.zip",
-            url);
-    }
-
-    /// <summary>
-    /// Verify CrosireSlim and CrosireLegacy point to different branches (slim vs legacy).
-    /// _Requirements: 1.1, 1.2_
-    /// </summary>
-    [Fact]
-    public void CrosireSlimAndLegacy_PointToDifferentBranches()
-    {
-        var slimUrl = GetPackProperty("CrosireSlim", "Url");
-        var legacyUrl = GetPackProperty("CrosireLegacy", "Url");
-
-        Assert.NotEqual(slimUrl, legacyUrl);
-        Assert.Contains("/slim", slimUrl);
-        Assert.Contains("/legacy", legacyUrl);
-    }
-
-    /// <summary>
     /// Verify ClshortfuseShaders is still present (RDXC-only pack, not in ReShade installer).
     /// _Requirements: 1.4_
     /// </summary>
@@ -135,7 +108,7 @@ public class ShaderPackDataUnitTests
     }
 
     /// <summary>
-    /// Verify PacksForMode(Minimum) returns exactly 1 pack (Lilium).
+    /// Verify PacksForMode(Minimum) returns exactly 2 packs (Lilium + CrosireMaster).
     /// _Requirements: 1.3, 5.2_
     /// </summary>
     [Fact]
@@ -143,8 +116,9 @@ public class ShaderPackDataUnitTests
     {
         var ids = InvokePacksForModeIds(ShaderPackService.DeployMode.Minimum);
 
-        Assert.Single(ids);
-        Assert.Equal("Lilium", ids[0]);
+        Assert.Equal(2, ids.Count);
+        Assert.Contains("Lilium", ids);
+        Assert.Contains("CrosireMaster", ids);
     }
 
     /// <summary>
