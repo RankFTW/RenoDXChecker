@@ -48,7 +48,7 @@
     <Content Include="ReShade.ini">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Content Include="reshade.vulkan.ini">
+    <Content Include="ReShade.Vulkan.ini">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
     <Content Include="ReShade64.json">
