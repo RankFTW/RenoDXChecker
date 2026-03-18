@@ -170,10 +170,7 @@ public class GameNameService : IGameNameService
         if (pgsmDict != null)
         {
             foreach (var kv in pgsmDict)
-            {
-                if (kv.Value == "Select")
-                    _perGameShaderMode[kv.Key] = kv.Value;
-            }
+                _perGameShaderMode[kv.Key] = kv.Value;
         }
 
         var pgssDict = Load<Dictionary<string, List<string>>?>("PerGameShaderSelection", null);

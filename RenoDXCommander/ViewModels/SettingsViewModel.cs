@@ -132,6 +132,7 @@ public partial class SettingsViewModel : ObservableObject
         s["BetaOptIn"]         = BetaOptIn ? "true" : "false";
         s["VerboseLogging"]    = VerboseLogging ? "true" : "false";
         s["LastSeenVersion"]   = LastSeenVersion;
+        s["ShaderDeployMode"]  = SelectedShaderPacks.Count > 0 ? "Select" : "Off";
         s["SelectedShaderPacks"] = JsonSerializer.Serialize(SelectedShaderPacks);
     }
 

@@ -2573,6 +2573,7 @@ public sealed partial class MainWindow : Window
         if (result != null)
         {
             ViewModel.Settings.SelectedShaderPacks = result;
+            ViewModel.SaveSettingsPublic();
             ViewModel.DeployAllShaders();
         }
     }
