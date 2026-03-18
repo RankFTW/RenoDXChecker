@@ -1,0 +1,291 @@
+using System.Reflection;
+using RenoDXCommander.Models;
+using RenoDXCommander.Services;
+using RenoDXCommander.ViewModels;
+using Xunit;
+
+namespace RenoDXCommander.Tests;
+
+/// <summary>
+/// Unit tests verifying that <c>UninstallReShade</c> always calls
+/// <c>RemoveFromGameFolder</c> regardless of DC installation status.
+///
+/// **Validates: Requirements 6.1, 6.3**
+/// </summary>
+public class UninstallReShadeShaderRemovalTests : IDisposable
+{
+    private readonly string _tempRoot;
+
+    public UninstallReShadeShaderRemovalTests()
+    {
+        _tempRoot = Path.Combine(Path.GetTempPath(), "RdxcRsUninstall_" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(_tempRoot);
+    }
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_tempRoot, recursive: true); } catch { }
+    }
+
+    /// <summary>
+    /// Creates a MainViewModel wired to the given tracking shader service,
+    /// and injects the provided cards into the private <c>_allCards</c> field.
+    /// </summary>
+    private MainViewModel CreateViewModelWithCards(
+        TrackingShaderPackService tracker,
+        List<GameCardViewModel> cards)
+    {
+        var auxInstaller = new StubAuxInstallService();
+        var gameDetection = new StubGameDetectionService();
+        var installer = new StubModInstallService();
+        var lumaService = new StubLumaService();
+        var settingsVm = new SettingsViewModel();
+        var filterVm = new FilterViewModel();
+        var updateOrch = new UpdateOrchestrationService(installer, auxInstaller);
+        var dllOverride = new DllOverrideService(auxInstaller);
+        var gameName = new GameNameService(gameDetection, installer, auxInstaller, lumaService);
+        var rsUpdate = new StubReShadeUpdateService();
+        var gameInit = new GameInitializationService(
+            gameDetection, new StubWikiService(), new StubManifestService(),
+            installer, auxInstaller, new StubGameLibraryService(),
+            new StubPeHeaderService(), lumaService, rsUpdate, tracker);
+
+        var vm = new MainViewModel(
+            new HttpClient(),
+            installer,
+            auxInstaller,
+            new StubWikiService(),
+            new StubManifestService(),
+            new StubGameLibraryService(),
+            gameDetection,
+            new StubPeHeaderService(),
+            new StubUpdateService(),
+            tracker,
+            lumaService,
+            rsUpdate,
+            settingsVm,
+            filterVm,
+            updateOrch,
+            dllOverride,
+            gameName,
+            gameInit);
+
+        // Inject cards via reflection
+        var field = typeof(MainViewModel).GetField("_allCards", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        field.SetValue(vm, cards);
+
+        return vm;
+    }
+
+    /// <summary>
+    /// Creates a game card with the given DC/RS status and a real temp directory.
+    /// </summary>
+    private GameCardViewModel CreateCard(
+        string name,
+        GameStatus dcStatus = GameStatus.NotInstalled,
+        GameStatus rsStatus = GameStatus.Installed)
+    {
+        var dir = Path.Combine(_tempRoot, name);
+        Directory.CreateDirectory(dir);
+
+        var card = new GameCardViewModel
+        {
+            GameName = name,
+            InstallPath = dir,
+            DcStatus = dcStatus,
+            RsStatus = rsStatus,
+            RsRecord = new AuxInstalledRecord
+            {
+                GameName = name,
+                InstallPath = dir,
+                InstalledAs = "ReShade64.dll",
+                AddonType = "ReShade"
+            },
+        };
+
+        return card;
+    }
+
+    // ── Test cases ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// DC installed + RS installed → UninstallReShade → RemoveFromGameFolder called.
+    ///
+    /// **Validates: Requirements 6.1, 6.3**
+    /// </summary>
+    [Fact]
+    public void UninstallReShade_DcInstalled_RemoveFromGameFolderCalled()
+    {
+        var tracker = new TrackingShaderPackService();
+        var card = CreateCard("GameWithDc", dcStatus: GameStatus.Installed, rsStatus: GameStatus.Installed);
+        var vm = CreateViewModelWithCards(tracker, new List<GameCardViewModel> { card });
+
+        vm.UninstallReShade(card);
+
+        Assert.True(tracker.RemoveFromGameFolderCalled,
+            "RemoveFromGameFolder must be called even when DC is installed");
+        Assert.Contains(card.InstallPath, tracker.RemoveFromGameFolderPaths);
+    }
+
+    /// <summary>
+    /// DC not installed + RS installed → UninstallReShade → RemoveFromGameFolder called.
+    ///
+    /// **Validates: Requirements 6.1, 6.3**
+    /// </summary>
+    [Fact]
+    public void UninstallReShade_DcNotInstalled_RemoveFromGameFolderCalled()
+    {
+        var tracker = new TrackingShaderPackService();
+        var card = CreateCard("GameNoDc", dcStatus: GameStatus.NotInstalled, rsStatus: GameStatus.Installed);
+        var vm = CreateViewModelWithCards(tracker, new List<GameCardViewModel> { card });
+
+        vm.UninstallReShade(card);
+
+        Assert.True(tracker.RemoveFromGameFolderCalled,
+            "RemoveFromGameFolder must be called when DC is not installed");
+        Assert.Contains(card.InstallPath, tracker.RemoveFromGameFolderPaths);
+    }
+
+    /// <summary>
+    /// DC update available + RS installed → UninstallReShade → RemoveFromGameFolder called.
+    ///
+    /// **Validates: Requirements 6.1, 6.3**
+    /// </summary>
+    [Fact]
+    public void UninstallReShade_DcUpdateAvailable_RemoveFromGameFolderCalled()
+    {
+        var tracker = new TrackingShaderPackService();
+        var card = CreateCard("GameDcUpdate", dcStatus: GameStatus.UpdateAvailable, rsStatus: GameStatus.Installed);
+        var vm = CreateViewModelWithCards(tracker, new List<GameCardViewModel> { card });
+
+        vm.UninstallReShade(card);
+
+        Assert.True(tracker.RemoveFromGameFolderCalled,
+            "RemoveFromGameFolder must be called even when DC has an update available");
+        Assert.Contains(card.InstallPath, tracker.RemoveFromGameFolderPaths);
+    }
+
+    // ── Tracking IShaderPackService ──────────────────────────────────────────
+
+    private class TrackingShaderPackService : IShaderPackService
+    {
+        public bool RemoveFromGameFolderCalled { get; private set; }
+        public List<string> RemoveFromGameFolderPaths { get; } = new();
+
+        public IReadOnlyList<(string Id, string DisplayName, ShaderPackService.PackCategory Category)> AvailablePacks { get; } =
+            new List<(string, string, ShaderPackService.PackCategory)>();
+
+        public string? GetPackDescription(string packId) => null;
+        public Task EnsureLatestAsync(IProgress<string>? progress = null) => Task.CompletedTask;
+        public void DeployToDcFolder(ShaderPackService.DeployMode? mode = null) { }
+        public void DeployToGameFolder(string gameDir, ShaderPackService.DeployMode? mode = null) { }
+
+        public void RemoveFromGameFolder(string gameDir)
+        {
+            RemoveFromGameFolderCalled = true;
+            RemoveFromGameFolderPaths.Add(gameDir);
+        }
+
+        public bool IsManagedByRdxc(string gameDir) => false;
+        public void RestoreOriginalIfPresent(string gameDir) { }
+        public void SyncDcFolder(ShaderPackService.DeployMode m, IEnumerable<string>? selectedPackIds = null) { }
+        public void SyncGameFolder(string gameDir, ShaderPackService.DeployMode m, IEnumerable<string>? selectedPackIds = null) { }
+
+        public void SyncShadersToAllLocations(
+            IEnumerable<(string installPath, bool dcInstalled, bool rsInstalled, bool dcMode, string? shaderModeOverride)> locations,
+            ShaderPackService.DeployMode? mode = null,
+            IEnumerable<string>? selectedPackIds = null) { }
+    }
+
+    // ── Minimal stubs (same pattern as DcModeSwitchNoShaderTests) ────────────
+
+    private class StubModInstallService : IModInstallService
+    {
+        public event Action<InstalledModRecord>? InstallCompleted;
+        public Task<InstalledModRecord> InstallAsync(GameMod mod, string gameInstallPath, IProgress<(string, double)>? progress = null, string? gameName = null) => Task.FromResult(new InstalledModRecord());
+        public Task<bool> CheckForUpdateAsync(InstalledModRecord record) => Task.FromResult(false);
+        public void Uninstall(InstalledModRecord record) { }
+        public List<InstalledModRecord> LoadAll() => new();
+        public InstalledModRecord? FindRecord(string gameName, string? installPath = null) => null;
+        public void SaveRecordPublic(InstalledModRecord record) { }
+        public void RemoveRecord(InstalledModRecord record) { }
+    }
+
+    private class StubAuxInstallService : IAuxInstallService
+    {
+        public Task<AuxInstalledRecord> InstallDcAsync(string gameName, string installPath, int dcModeLevel, AuxInstalledRecord? existingDcRecord = null, AuxInstalledRecord? existingRsRecord = null, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null) => Task.FromResult(new AuxInstalledRecord());
+        public Task<AuxInstalledRecord> InstallReShadeAsync(string gameName, string installPath, bool dcMode, bool dcIsInstalled = false, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null) => Task.FromResult(new AuxInstalledRecord());
+        public Task<bool> CheckForUpdateAsync(AuxInstalledRecord record) => Task.FromResult(false);
+        public void Uninstall(AuxInstalledRecord record) { }
+        public void UninstallDllOnly(AuxInstalledRecord record) { }
+        public List<AuxInstalledRecord> LoadAll() => new();
+        public AuxInstalledRecord? FindRecord(string gameName, string installPath, string addonType) => null;
+        public void SaveAuxRecord(AuxInstalledRecord record) { }
+        public void RemoveRecord(AuxInstalledRecord record) { }
+    }
+
+    private class StubWikiService : IWikiService
+    {
+        public Task<(List<GameMod> Mods, Dictionary<string, string> GenericNotes)> FetchAllAsync(IProgress<string>? progress = null) => Task.FromResult((new List<GameMod>(), new Dictionary<string, string>()));
+        public Task<DateTime?> GetSnapshotLastModifiedAsync(string url) => Task.FromResult<DateTime?>(null);
+    }
+
+    private class StubManifestService : IManifestService
+    {
+        public Task<RemoteManifest?> FetchAsync() => Task.FromResult<RemoteManifest?>(null);
+        public RemoteManifest? LoadCached() => null;
+    }
+
+    private class StubGameLibraryService : IGameLibraryService
+    {
+        public SavedGameLibrary? Load() => null;
+        public void Save(List<DetectedGame> games, Dictionary<string, bool> addonCache, HashSet<string> hiddenGames, HashSet<string> favouriteGames, List<DetectedGame> manualGames, Dictionary<string, string>? engineTypeCache = null, Dictionary<string, string>? resolvedPathCache = null, Dictionary<string, string>? addonFileCache = null, Dictionary<string, MachineType>? bitnessCache = null) { }
+        public List<DetectedGame> ToDetectedGames(SavedGameLibrary lib) => new();
+        public List<DetectedGame> ToManualGames(SavedGameLibrary lib) => new();
+    }
+
+    private class StubGameDetectionService : IGameDetectionService
+    {
+        public List<DetectedGame> FindSteamGames() => new();
+        public List<DetectedGame> FindGogGames() => new();
+        public List<DetectedGame> FindEpicGames() => new();
+        public List<DetectedGame> FindEaGames() => new();
+        public List<DetectedGame> FindXboxGames() => new();
+        public List<DetectedGame> FindUbisoftGames() => new();
+        public List<DetectedGame> FindBattleNetGames() => new();
+        public List<DetectedGame> FindRockstarGames() => new();
+        public (string installPath, EngineType engine) DetectEngineAndPath(string rootPath) => (rootPath, EngineType.Unknown);
+        public GameMod? MatchGame(DetectedGame game, IEnumerable<GameMod> mods, Dictionary<string, string>? nameMappings = null) => null;
+        public string NormalizeName(string name) => name.ToLowerInvariant();
+    }
+
+    private class StubPeHeaderService : IPeHeaderService
+    {
+        public MachineType DetectArchitecture(string exePath) => MachineType.Native;
+        public string? FindGameExe(string installPath) => null;
+        public MachineType DetectGameArchitecture(string installPath) => MachineType.Native;
+    }
+
+    private class StubUpdateService : IUpdateService
+    {
+        public Version CurrentVersion => new(1, 0, 0);
+        public Task<UpdateInfo?> CheckForUpdateAsync(bool betaOptIn = false) => Task.FromResult<UpdateInfo?>(null);
+        public Task<string?> DownloadInstallerAsync(string downloadUrl, IProgress<(string, double)>? progress = null) => Task.FromResult<string?>(null);
+        public void LaunchInstallerAndExit(string installerPath, Action closeApp) { }
+    }
+
+    private class StubLumaService : ILumaService
+    {
+        public Task<List<LumaMod>> FetchCompletedModsAsync(IProgress<string>? progress = null) => Task.FromResult(new List<LumaMod>());
+        public Task<LumaInstalledRecord> InstallAsync(LumaMod mod, string gameInstallPath, IProgress<(string, double)>? progress = null) => Task.FromResult(new LumaInstalledRecord());
+        public void Uninstall(LumaInstalledRecord record) { }
+        public void SaveLumaRecord(LumaInstalledRecord record) { }
+        public void RemoveLumaRecord(string gameName, string installPath) { }
+    }
+
+    private class StubReShadeUpdateService : IReShadeUpdateService
+    {
+        public Task<(string version, string url)?> CheckLatestVersionAsync() => Task.FromResult<(string, string)?>(null);
+        public Task<bool> EnsureLatestAsync(IProgress<(string, double)>? progress = null) => Task.FromResult(false);
+    }
+}

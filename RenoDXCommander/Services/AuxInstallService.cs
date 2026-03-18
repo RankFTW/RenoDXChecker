@@ -549,16 +549,7 @@ public class AuxInstallService : IAuxInstallService
     private readonly HttpClient _http;
     private readonly IShaderPackService _shaderPackService;
 
-    public AuxInstallService(HttpClient http)
-    {
-        _http = http;
-        _shaderPackService = new ShaderPackService(http);
-    }
-
-    /// <summary>
-    /// Internal constructor for testing — allows injecting a custom <see cref="IShaderPackService"/>.
-    /// </summary>
-    internal AuxInstallService(HttpClient http, IShaderPackService shaderPackService)
+    public AuxInstallService(HttpClient http, IShaderPackService shaderPackService)
     {
         _http = http;
         _shaderPackService = shaderPackService;
@@ -575,6 +566,7 @@ public class AuxInstallService : IAuxInstallService
         string? shaderModeOverride = null,
         bool use32Bit = false,
         string? filenameOverride = null,
+        IEnumerable<string>? selectedPackIds = null,
         IProgress<(string message, double percent)>? progress = null)
     {
         Directory.CreateDirectory(DownloadCacheDir);
@@ -703,18 +695,12 @@ public class AuxInstallService : IAuxInstallService
         CopyRsPresetIniIfPresent(installPath);
 
         // ── Shader deployment ─────────────────────────────────────────────────────
-        // DC installation: remove the local reshade-shaders folder (ReShade will use
-        // the DC global Reshade path instead). If the folder was user-owned, it gets
-        // renamed to reshade-shaders-original and is NOT deleted.
+        // Deploy shaders locally to the game folder. DC installation no longer
+        // routes shaders to the DC global AppData folder.
+        // NOTE: selectedPackIds must be passed by the caller (ViewModel) for Select
+        // mode to work correctly. Without them, Select mode is treated as Off.
         var effectiveShaderMode = ResolveShaderMode(shaderModeOverride);
-        // DC always takes over shader management — remove local game folder
-        _shaderPackService.RemoveFromGameFolder(installPath);
-
-        // Sync shaders to the DC global folder (prune + deploy for mode changes).
-        // Off mode triggers removal inside SyncDcFolder.
-        // IMPORTANT: Always use the global shader mode for the DC folder — it is shared
-        // across all DC-mode games, so a per-game override must not alter it.
-        _shaderPackService.SyncDcFolder(ShaderPackService.CurrentMode);
+        _shaderPackService.SyncGameFolder(installPath, effectiveShaderMode, selectedPackIds);
 
         var record = new AuxInstalledRecord
         {
@@ -745,6 +731,7 @@ public class AuxInstallService : IAuxInstallService
         string? shaderModeOverride = null,
         bool use32Bit = false,
         string? filenameOverride = null,
+        IEnumerable<string>? selectedPackIds = null,
         IProgress<(string message, double percent)>? progress = null)
     {
         Directory.CreateDirectory(DownloadCacheDir);
@@ -811,17 +798,12 @@ public class AuxInstallService : IAuxInstallService
         progress?.Report(("ReShade installed!", 100));
 
         // ── Shader deployment ─────────────────────────────────────────────────────
-        // DC Mode ON  → shaders go to DC global path.
-        // DC Mode OFF + DC NOT installed → sync reshade-shaders folder to game dir.
-        // DC Mode OFF + DC IS  installed → DC already handles shaders; skip.
-        // Uses Sync (prune + deploy) so switching shader modes properly removes
-        // files from the previous mode. Off mode triggers removal inside Sync.
+        // Always deploy shaders locally to the game folder, regardless of DC mode
+        // or DC installation status. Uses Sync (prune + deploy) so switching shader
+        // modes properly removes files from the previous mode. Off mode triggers
+        // removal inside Sync.
         var effectiveShaderMode = ResolveShaderMode(shaderModeOverride);
-        if (dcMode || dcIsInstalled)
-            // DC folder is shared across all DC-mode games — always use global mode.
-            _shaderPackService.SyncDcFolder(ShaderPackService.CurrentMode);
-        else if (!dcIsInstalled)
-            _shaderPackService.SyncGameFolder(installPath, effectiveShaderMode);
+        _shaderPackService.SyncGameFolder(installPath, effectiveShaderMode, selectedPackIds);
 
         var record = new AuxInstalledRecord
         {
@@ -1029,6 +1011,20 @@ public class AuxInstallService : IAuxInstallService
         // when we deployed ours, restore it now that RS/DC has been uninstalled.
         if (!string.IsNullOrEmpty(record.InstallPath))
             _shaderPackService.RestoreOriginalIfPresent(record.InstallPath);
+    }
+
+    /// <inheritdoc />
+    public void UninstallDllOnly(AuxInstalledRecord record)
+    {
+        var path = Path.Combine(record.InstallPath, record.InstalledAs);
+        if (File.Exists(path)) File.Delete(path);
+        RemoveRecord(record);
+
+        // Restore any foreign DLL that was backed up when RDXC took over this slot.
+        RestoreForeignDll(path);
+
+        // NOTE: intentionally does NOT call RestoreOriginalIfPresent —
+        // this variant is used by DC mode switching where shaders must stay untouched.
     }
 
     // ── DB ────────────────────────────────────────────────────────────────────────

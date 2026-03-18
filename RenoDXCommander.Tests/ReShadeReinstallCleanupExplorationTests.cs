@@ -34,7 +34,7 @@ public class ReShadeReinstallCleanupExplorationTests : IDisposable
     {
         _tempRoot = Path.Combine(Path.GetTempPath(), "RdxcReinstall_" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(_tempRoot);
-        _service = new AuxInstallService(new HttpClient());
+        _service = new AuxInstallService(new HttpClient(), new TestHelpers.StubShaderPackService());
     }
 
     public void Dispose()

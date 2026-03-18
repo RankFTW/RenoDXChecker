@@ -161,17 +161,14 @@ public partial class MainViewModel : ObservableObject
             try
             {
                 var globalMode = ShaderDeployMode;
-                bool dcSynced = false;
 
                 foreach (var card in _allCards)
                 {
                     if (string.IsNullOrEmpty(card.InstallPath)) continue;
 
-                    bool dcInstalled = card.DcStatus == GameStatus.Installed || card.DcStatus == GameStatus.UpdateAvailable;
                     bool rsInstalled = card.RequiresVulkanInstall
                         ? VulkanFootprintService.Exists(card.InstallPath)
                         : card.RsStatus == GameStatus.Installed || card.RsStatus == GameStatus.UpdateAvailable;
-                    bool dcMode = (card.PerGameDcMode ?? DcModeLevel) > 0;
 
                     // Resolve effective mode: per-game override wins, otherwise global
                     var effectiveMode = card.ShaderModeOverride != null
@@ -188,19 +185,7 @@ public partial class MainViewModel : ObservableObject
                             : _settingsViewModel.SelectedShaderPacks;
                     }
 
-                    if (dcInstalled)
-                    {
-                        if (!dcSynced)
-                        {
-                            // DC folder is shared — always use global mode and global selection
-                            IEnumerable<string>? dcSelection = globalMode == ShaderDeployMode.Select
-                                ? _settingsViewModel.SelectedShaderPacks
-                                : null;
-                            _shaderPackService.SyncDcFolder(globalMode, dcSelection);
-                            dcSynced = true;
-                        }
-                    }
-                    else if (rsInstalled)
+                    if (rsInstalled)
                     {
                         _shaderPackService.SyncGameFolder(card.InstallPath, effectiveMode, effectiveSelection);
                     }
@@ -225,11 +210,9 @@ public partial class MainViewModel : ObservableObject
         {
             try
             {
-                bool dcInstalled = card.DcStatus == GameStatus.Installed || card.DcStatus == GameStatus.UpdateAvailable;
                 bool rsInstalled = card.RequiresVulkanInstall
                     ? VulkanFootprintService.Exists(card.InstallPath)
                     : card.RsStatus == GameStatus.Installed || card.RsStatus == GameStatus.UpdateAvailable;
-                bool dcMode      = (card.PerGameDcMode ?? DcModeLevel) > 0;
 
                 // Resolve effective mode: per-game override wins, otherwise global
                 var effectiveMode = card.ShaderModeOverride != null
@@ -246,16 +229,7 @@ public partial class MainViewModel : ObservableObject
                         : _settingsViewModel.SelectedShaderPacks;
                 }
 
-                if (dcInstalled)
-                {
-                    // DC folder is shared across all DC-mode games — always use
-                    // the global mode, never a per-game override.
-                    IEnumerable<string>? dcSelection = ShaderDeployMode == ShaderDeployMode.Select
-                        ? _settingsViewModel.SelectedShaderPacks
-                        : null;
-                    _shaderPackService.SyncDcFolder(ShaderDeployMode, dcSelection);
-                }
-                else if (rsInstalled)
+                if (rsInstalled)
                 {
                     _shaderPackService.SyncGameFolder(card.InstallPath, effectiveMode, effectiveSelection);
                 }
@@ -263,6 +237,26 @@ public partial class MainViewModel : ObservableObject
             catch (Exception ex)
             { CrashReporter.Log($"[MainViewModel.DeployShadersForCard] Failed for '{gameName}' — {ex.Message}"); }
         });
+    }
+
+    /// <summary>
+    /// Resolves the effective shader pack selection for a game, matching the same
+    /// logic used by DeployAllShaders / DeployShadersForCard. Returns the pack IDs
+    /// to pass to SyncGameFolder when the effective mode is Select, or null otherwise.
+    /// </summary>
+    private IEnumerable<string>? ResolveShaderSelection(string gameName, string? shaderModeOverride)
+    {
+        var effectiveMode = shaderModeOverride != null
+            && Enum.TryParse<ShaderPackService.DeployMode>(shaderModeOverride, true, out var overrideMode)
+            ? overrideMode
+            : ShaderDeployMode;
+
+        if (effectiveMode != ShaderDeployMode.Select)
+            return null;
+
+        return _gameNameService.PerGameShaderSelection.TryGetValue(gameName, out var perGameSel)
+            ? perGameSel
+            : _settingsViewModel.SelectedShaderPacks;
     }
     private List<GameMod> _allMods = new();
     private Dictionary<string, string> _genericNotes = new(StringComparer.OrdinalIgnoreCase);
@@ -563,13 +557,14 @@ public partial class MainViewModel : ObservableObject
             // Update RS blocked flag
             card.RsBlockedByDcMode = effectiveLevel > 0;
 
-            // ── Uninstall RDXC-installed ReShade when DC mode is active ──
+            // ── Uninstall RDXC-installed ReShade DLL when DC mode is active ──
             // DC Mode reads ReShade from the DC AppData folder instead of game folders.
+            // Use UninstallDllOnly to avoid touching shader folders (Requirement 5.1, 5.3).
             if (effectiveLevel > 0 && card.RsRecord != null)
             {
                 try
                 {
-                    _auxInstaller.Uninstall(card.RsRecord);
+                    _auxInstaller.UninstallDllOnly(card.RsRecord);
                     CrashReporter.Log($"[MainViewModel.ApplyDcModeSwitch] Uninstalled ReShade from {card.GameName}");
                 }
                 catch (Exception ex)
@@ -628,12 +623,13 @@ public partial class MainViewModel : ObservableObject
         // Update RS blocked flag
         card.RsBlockedByDcMode = effectiveLevel > 0;
 
-        // Uninstall RDXC-installed ReShade when DC mode is active for this game
+        // Uninstall RDXC-installed ReShade DLL when DC mode is active for this game.
+        // Use UninstallDllOnly to avoid touching shader folders (Requirement 5.2, 5.4).
         if (effectiveLevel > 0 && card.RsRecord != null)
         {
             try
             {
-                _auxInstaller.Uninstall(card.RsRecord);
+                _auxInstaller.UninstallDllOnly(card.RsRecord);
                 CrashReporter.Log($"[MainViewModel.ApplyDcModeSwitchForCard] Uninstalled ReShade from {card.GameName}");
             }
             catch (Exception ex)
@@ -2378,6 +2374,7 @@ public partial class MainViewModel : ObservableObject
                 filenameOverride: card.DllOverrideEnabled
                     ? (GetDllOverride(card.GameName)?.DcFileName)
                     : (GetManifestDllNames(card.GameName)?.Dc is { Length: > 0 } mDc ? mDc : null),
+                selectedPackIds:  ResolveShaderSelection(card.GameName, card.ShaderModeOverride),
                 progress:         progress);
 
             // DC manages shaders globally — remove the per-game Vulkan footprint so
@@ -2503,6 +2500,7 @@ public partial class MainViewModel : ObservableObject
                 filenameOverride: card.DllOverrideEnabled
                     ? (GetDllOverride(card.GameName)?.ReShadeFileName)
                     : (GetManifestDllNames(card.GameName)?.ReShade is { Length: > 0 } mRs ? mRs : null),
+                selectedPackIds: ResolveShaderSelection(card.GameName, card.ShaderModeOverride),
                 progress:       progress);
             DispatcherQueue?.TryEnqueue(() =>
             {
@@ -2568,6 +2566,14 @@ public partial class MainViewModel : ObservableObject
             // 5b. Create Vulkan footprint file so RDXC can detect this game later
             VulkanFootprintService.Create(card.InstallPath);
 
+            // 5c. Deploy shaders locally to the game folder
+            var effectiveShaderMode = card.ShaderModeOverride != null
+                && Enum.TryParse<ShaderPackService.DeployMode>(card.ShaderModeOverride, true, out var overrideMode)
+                ? overrideMode
+                : ShaderDeployMode;
+            _shaderPackService.SyncGameFolder(card.InstallPath, effectiveShaderMode,
+                ResolveShaderSelection(card.GameName, card.ShaderModeOverride));
+
             // 6. Mark warning as shown for this session
             _vulkanLayerWarningShownThisSession = true;
 
@@ -2598,11 +2604,8 @@ public partial class MainViewModel : ObservableObject
         try
         {
             // Remove the RDXC-managed reshade-shaders folder BEFORE calling Uninstall.
-            if (card.DcStatus != GameStatus.Installed && card.DcStatus != GameStatus.UpdateAvailable)
-            {
-                if (!string.IsNullOrEmpty(card.InstallPath))
-                    _shaderPackService.RemoveFromGameFolder(card.InstallPath);
-            }
+            if (!string.IsNullOrEmpty(card.InstallPath))
+                _shaderPackService.RemoveFromGameFolder(card.InstallPath);
 
             _auxInstaller.Uninstall(card.RsRecord);
             card.RsRecord           = null;
@@ -2940,6 +2943,10 @@ public partial class MainViewModel : ObservableObject
         CrashReporter.Log($"[MainViewModel.InitializeAsync] Started (forceRescan={forceRescan})");
         try
         {
+            // One-time migration: rename legacy DC AppData shader folders to .old
+            // so Display Commander does not load stale global shaders. (Req 2.1, 2.2)
+            ShaderPackService.MigrateLegacyDcShaders();
+
             var savedLib = _gameLibraryService.Load();
             List<DetectedGame> detectedGames;
             Dictionary<string, bool> addonCache;
@@ -3137,17 +3144,14 @@ public partial class MainViewModel : ObservableObject
                 try
                 {
                     var globalMode = ShaderDeployMode;
-                    bool dcSynced = false;
 
                     foreach (var card in _allCards)
                     {
                         if (string.IsNullOrEmpty(card.InstallPath)) continue;
 
-                        bool dcInstalled = card.DcStatus == GameStatus.Installed || card.DcStatus == GameStatus.UpdateAvailable;
                         bool rsInstalled = card.RequiresVulkanInstall
                             ? VulkanFootprintService.Exists(card.InstallPath)
                             : card.RsStatus == GameStatus.Installed || card.RsStatus == GameStatus.UpdateAvailable;
-                        bool dcMode = (card.PerGameDcMode ?? DcModeLevel) > 0;
 
                         // Resolve effective mode: per-game override wins, otherwise global
                         var effectiveMode = card.ShaderModeOverride != null
@@ -3164,19 +3168,7 @@ public partial class MainViewModel : ObservableObject
                                 : _settingsViewModel.SelectedShaderPacks;
                         }
 
-                        if (dcInstalled && dcMode)
-                        {
-                            if (!dcSynced)
-                            {
-                                // DC folder is shared — always use global mode and global selection
-                                IEnumerable<string>? dcSelection = globalMode == ShaderDeployMode.Select
-                                    ? _settingsViewModel.SelectedShaderPacks
-                                    : null;
-                                _shaderPackService.SyncDcFolder(globalMode, dcSelection);
-                                dcSynced = true;
-                            }
-                        }
-                        else if (rsInstalled || (!dcInstalled && !dcMode))
+                        if (rsInstalled)
                         {
                             _shaderPackService.SyncGameFolder(card.InstallPath, effectiveMode, effectiveSelection);
                         }

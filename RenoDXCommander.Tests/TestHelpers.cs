@@ -73,10 +73,11 @@ internal static class TestHelpers
 
     private class StubAuxInstallService : IAuxInstallService
     {
-        public Task<AuxInstalledRecord> InstallDcAsync(string gameName, string installPath, int dcModeLevel, AuxInstalledRecord? existingDcRecord = null, AuxInstalledRecord? existingRsRecord = null, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IProgress<(string, double)>? progress = null) => Task.FromResult(new AuxInstalledRecord());
-        public Task<AuxInstalledRecord> InstallReShadeAsync(string gameName, string installPath, bool dcMode, bool dcIsInstalled = false, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IProgress<(string, double)>? progress = null) => Task.FromResult(new AuxInstalledRecord());
+        public Task<AuxInstalledRecord> InstallDcAsync(string gameName, string installPath, int dcModeLevel, AuxInstalledRecord? existingDcRecord = null, AuxInstalledRecord? existingRsRecord = null, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null) => Task.FromResult(new AuxInstalledRecord());
+        public Task<AuxInstalledRecord> InstallReShadeAsync(string gameName, string installPath, bool dcMode, bool dcIsInstalled = false, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null) => Task.FromResult(new AuxInstalledRecord());
         public Task<bool> CheckForUpdateAsync(AuxInstalledRecord record) => Task.FromResult(false);
         public void Uninstall(AuxInstalledRecord record) { }
+        public void UninstallDllOnly(AuxInstalledRecord record) { }
         public List<AuxInstalledRecord> LoadAll() => new();
         public AuxInstalledRecord? FindRecord(string gameName, string installPath, string addonType) => null;
         public void SaveAuxRecord(AuxInstalledRecord record) { }
@@ -133,8 +134,14 @@ internal static class TestHelpers
         public void LaunchInstallerAndExit(string installerPath, Action closeApp) { }
     }
 
-    private class StubShaderPackService : IShaderPackService
+    internal class StubShaderPackService : IShaderPackService
     {
+        /// <summary>Records each call to SyncGameFolder with its parameters.</summary>
+        public List<(string GameDir, ShaderPackService.DeployMode Mode, IEnumerable<string>? SelectedPackIds)> SyncGameFolderCalls { get; } = new();
+
+        /// <summary>Records each call to SyncDcFolder with its parameters.</summary>
+        public List<(ShaderPackService.DeployMode Mode, IEnumerable<string>? SelectedPackIds)> SyncDcFolderCalls { get; } = new();
+
         public IReadOnlyList<(string Id, string DisplayName, ShaderPackService.PackCategory Category)> AvailablePacks { get; } = new List<(string, string, ShaderPackService.PackCategory)>();
         public string? GetPackDescription(string packId) => null;
         public Task EnsureLatestAsync(IProgress<string>? progress = null) => Task.CompletedTask;
@@ -143,8 +150,10 @@ internal static class TestHelpers
         public void RemoveFromGameFolder(string gameDir) { }
         public bool IsManagedByRdxc(string gameDir) => false;
         public void RestoreOriginalIfPresent(string gameDir) { }
-        public void SyncDcFolder(ShaderPackService.DeployMode m, IEnumerable<string>? selectedPackIds = null) { }
-        public void SyncGameFolder(string gameDir, ShaderPackService.DeployMode m, IEnumerable<string>? selectedPackIds = null) { }
+        public void SyncDcFolder(ShaderPackService.DeployMode m, IEnumerable<string>? selectedPackIds = null)
+            => SyncDcFolderCalls.Add((m, selectedPackIds));
+        public void SyncGameFolder(string gameDir, ShaderPackService.DeployMode m, IEnumerable<string>? selectedPackIds = null)
+            => SyncGameFolderCalls.Add((gameDir, m, selectedPackIds));
         public void SyncShadersToAllLocations(IEnumerable<(string installPath, bool dcInstalled, bool rsInstalled, bool dcMode, string? shaderModeOverride)> locations, ShaderPackService.DeployMode? mode = null, IEnumerable<string>? selectedPackIds = null) { }
     }
 

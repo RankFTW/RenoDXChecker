@@ -4,17 +4,16 @@ using FsCheck.Xunit;
 namespace RenoDXCommander.Tests;
 
 /// <summary>
-/// Fix verification property tests for the DC shader routing fix.
+/// Fix verification property tests for the local-only shader routing model.
 ///
-/// These tests verify that for ANY input where dcInstalled=true — regardless of
-/// dcModeLevel or perGameDcMode — the routing logic ALWAYS calls SyncDcFolder
-/// and NEVER calls SyncGameFolder.
+/// These tests verify that for ANY input where rsInstalled=true — regardless of
+/// dcInstalled, dcModeLevel, or perGameDcMode — the routing logic ALWAYS calls
+/// SyncGameFolder and NEVER calls SyncDcFolder.
 ///
-/// Unlike the bug condition exploration tests (which only tested dcMode=false),
-/// these tests cover the full input space: dcModeLevel can be 0, 1, 2, etc.,
-/// and perGameDcMode can be null or any non-negative integer.
+/// The new architecture deploys shaders exclusively to game-local folders.
+/// SyncDcFolder is never invoked for shader deployment.
 ///
-/// **Validates: Requirements 2.1, 2.2, 2.3, 2.4**
+/// **Validates: Requirements 8.1, 8.2**
 /// </summary>
 public class DcShaderRoutingFixVerificationTests
 {
@@ -25,50 +24,46 @@ public class DcShaderRoutingFixVerificationTests
     /// </summary>
     public enum RoutingOutcome
     {
-        SyncDcFolder,
         SyncGameFolder,
         Skip
     }
 
     /// <summary>
     /// Models the FIXED routing decision used by DeployAllShaders, DeployShadersForCard,
-    /// and SyncShadersToAllLocations. The fix changed the condition from
-    /// <c>if (dcInstalled &amp;&amp; dcMode)</c> to <c>if (dcInstalled)</c>.
+    /// and SyncShadersToAllLocations. All games with RS installed always get
+    /// SyncGameFolder. SyncDcFolder is never called.
     /// </summary>
-    public static RoutingOutcome FixedRoutingDecision(bool dcInstalled, bool rsInstalled)
+    public static RoutingOutcome FixedRoutingDecision(bool rsInstalled, bool dcInstalled)
     {
-        if (dcInstalled)
-            return RoutingOutcome.SyncDcFolder;
-        else if (rsInstalled)
+        if (rsInstalled)
             return RoutingOutcome.SyncGameFolder;
         return RoutingOutcome.Skip;
     }
 
     /// <summary>
     /// Models the FIXED routing decision for InstallReShadeAsync.
-    /// The fix changed <c>if (dcMode)</c> to <c>if (dcMode || dcIsInstalled)</c>.
+    /// Always deploys shaders locally via SyncGameFolder, regardless of
+    /// dcMode or dcIsInstalled. SyncDcFolder is never called.
     /// </summary>
     public static RoutingOutcome FixedReShadeRoutingDecision(bool dcMode, bool dcIsInstalled)
     {
-        if (dcMode || dcIsInstalled)
-            return RoutingOutcome.SyncDcFolder;
-        else if (!dcIsInstalled)
-            return RoutingOutcome.SyncGameFolder;
-        return RoutingOutcome.Skip;
+        // InstallReShadeAsync always deploys locally — RS is being installed
+        return RoutingOutcome.SyncGameFolder;
     }
 
-    // ── Property test: dcInstalled=true (any dcModeLevel) → SyncDcFolder ─────
+    // ── Property test: rsInstalled=true (any DC status) → SyncGameFolder ─────
 
     /// <summary>
-    /// For any input where dcInstalled=true, regardless of dcModeLevel (0, 1, 2, ...)
-    /// and regardless of perGameDcMode (null, 0, 1, 2, ...), the fixed general routing
-    /// logic (DeployAllShaders / DeployShadersForCard / SyncShadersToAllLocations)
-    /// SHALL call SyncDcFolder and SHALL NOT call SyncGameFolder.
+    /// For any input where rsInstalled=true, regardless of dcInstalled,
+    /// dcModeLevel (0, 1, 2, ...), and perGameDcMode (null, 0, 1, 2, ...),
+    /// the fixed general routing logic (DeployAllShaders / DeployShadersForCard /
+    /// SyncShadersToAllLocations) SHALL call SyncGameFolder and SHALL NOT call
+    /// SyncDcFolder.
     ///
-    /// **Validates: Requirements 2.1, 2.2, 2.3**
+    /// **Validates: Requirements 8.1, 8.2**
     /// </summary>
     [Property(MaxTest = 200)]
-    public Property DcInstalled_AnyDcModeLevel_GeneralRouting_AlwaysSyncDcFolder()
+    public Property RsInstalled_AnyDcStatus_GeneralRouting_AlwaysSyncGameFolder()
     {
         // dcModeLevel can be any non-negative integer (0, 1, 2, ...)
         var genDcModeLevel = Gen.Choose(0, 10);
@@ -78,40 +73,38 @@ public class DcShaderRoutingFixVerificationTests
             Gen.Constant<int?>(null),
             Gen.Choose(0, 10).Select(v => (int?)v));
 
-        // rsInstalled can be anything — shouldn't matter when dcInstalled=true
-        var genRsInstalled = Arb.Default.Bool().Generator;
+        // dcInstalled can be anything — shouldn't matter, always SyncGameFolder
+        var genDcInstalled = Arb.Default.Bool().Generator;
 
         var gen = from dcModeLevel in genDcModeLevel
                   from perGameDcMode in genPerGameDcMode
-                  from rsInstalled in genRsInstalled
-                  select (dcModeLevel, perGameDcMode, rsInstalled);
+                  from dcInstalled in genDcInstalled
+                  select (dcModeLevel, perGameDcMode, dcInstalled);
 
         return Prop.ForAll(
             Arb.From(gen),
-            ((int dcModeLevel, int? perGameDcMode, bool rsInstalled) input) =>
+            ((int dcModeLevel, int? perGameDcMode, bool dcInstalled) input) =>
             {
-                const bool dcInstalled = true;
+                const bool rsInstalled = true;
 
-                var outcome = FixedRoutingDecision(dcInstalled, input.rsInstalled);
+                var outcome = FixedRoutingDecision(rsInstalled, input.dcInstalled);
 
-                return (outcome == RoutingOutcome.SyncDcFolder)
+                return (outcome == RoutingOutcome.SyncGameFolder)
                     .Label($"dcModeLevel={input.dcModeLevel}, perGameDcMode={input.perGameDcMode?.ToString() ?? "null"}, " +
-                           $"rsInstalled={input.rsInstalled} → outcome={outcome} (expected SyncDcFolder)");
+                           $"dcInstalled={input.dcInstalled} → outcome={outcome} (expected SyncGameFolder)");
             });
     }
 
     /// <summary>
-    /// For any input where dcIsInstalled=true, regardless of dcModeLevel (0, 1, 2, ...)
-    /// and regardless of perGameDcMode (null, 0, 1, 2, ...), the fixed InstallReShadeAsync
-    /// routing logic SHALL call SyncDcFolder and SHALL NOT call SyncGameFolder.
+    /// For any input where InstallReShadeAsync is called, regardless of
+    /// dcModeLevel (0, 1, 2, ...), perGameDcMode (null, 0, 1, 2, ...),
+    /// and dcIsInstalled (true/false), the fixed routing logic SHALL call
+    /// SyncGameFolder and SHALL NOT call SyncDcFolder.
     ///
-    /// This covers both dcMode=true and dcMode=false scenarios — in either case,
-    /// when DC is installed, shaders must route to the DC appdata folder.
-    ///
-    /// **Validates: Requirements 2.4**
+    /// **Validates: Requirements 8.1, 8.2**
     /// </summary>
     [Property(MaxTest = 200)]
-    public Property DcInstalled_AnyDcModeLevel_ReShadeRouting_AlwaysSyncDcFolder()
+    public Property AnyDcStatus_ReShadeRouting_AlwaysSyncGameFolder()
     {
         // dcModeLevel can be any non-negative integer
         var genDcModeLevel = Gen.Choose(0, 10);
@@ -121,24 +114,70 @@ public class DcShaderRoutingFixVerificationTests
             Gen.Constant<int?>(null),
             Gen.Choose(0, 10).Select(v => (int?)v));
 
+        // dcIsInstalled can be anything
+        var genDcIsInstalled = Arb.Default.Bool().Generator;
+
         var gen = from dcModeLevel in genDcModeLevel
                   from perGameDcMode in genPerGameDcMode
-                  select (dcModeLevel, perGameDcMode);
+                  from dcIsInstalled in genDcIsInstalled
+                  select (dcModeLevel, perGameDcMode, dcIsInstalled);
 
         return Prop.ForAll(
             Arb.From(gen),
-            ((int dcModeLevel, int? perGameDcMode) input) =>
+            ((int dcModeLevel, int? perGameDcMode, bool dcIsInstalled) input) =>
             {
-                const bool dcIsInstalled = true;
-
                 // Derive dcMode the same way the production code does
                 bool dcMode = (input.perGameDcMode ?? input.dcModeLevel) > 0;
 
-                var outcome = FixedReShadeRoutingDecision(dcMode, dcIsInstalled);
+                var outcome = FixedReShadeRoutingDecision(dcMode, input.dcIsInstalled);
 
-                return (outcome == RoutingOutcome.SyncDcFolder)
+                return (outcome == RoutingOutcome.SyncGameFolder)
                     .Label($"dcModeLevel={input.dcModeLevel}, perGameDcMode={input.perGameDcMode?.ToString() ?? "null"}, " +
-                           $"dcMode={dcMode} → outcome={outcome} (expected SyncDcFolder)");
+                           $"dcIsInstalled={input.dcIsInstalled}, dcMode={dcMode} → outcome={outcome} (expected SyncGameFolder)");
+            });
+    }
+
+    // ── Property test: SyncDcFolder is never a valid outcome ─────────────────
+
+    /// <summary>
+    /// For ANY combination of inputs (rsInstalled, dcInstalled, dcMode, dcModeLevel,
+    /// perGameDcMode), the routing model SHALL never produce a SyncDcFolder outcome.
+    /// The SyncDcFolder outcome has been removed from the model entirely.
+    ///
+    /// **Validates: Requirements 8.2**
+    /// </summary>
+    [Property(MaxTest = 200)]
+    public Property NoInputCombination_EverRoutes_ToSyncDcFolder()
+    {
+        var gen = from rsInstalled in Arb.Default.Bool().Generator
+                  from dcInstalled in Arb.Default.Bool().Generator
+                  from dcModeLevel in Gen.Choose(0, 10)
+                  from perGameDcMode in Gen.OneOf(
+                      Gen.Constant<int?>(null),
+                      Gen.Choose(0, 10).Select(v => (int?)v))
+                  select (rsInstalled, dcInstalled, dcModeLevel, perGameDcMode);
+
+        return Prop.ForAll(
+            Arb.From(gen),
+            ((bool rsInstalled, bool dcInstalled, int dcModeLevel, int? perGameDcMode) input) =>
+            {
+                var generalOutcome = FixedRoutingDecision(input.rsInstalled, input.dcInstalled);
+
+                bool dcMode = (input.perGameDcMode ?? input.dcModeLevel) > 0;
+                var reshadeOutcome = FixedReShadeRoutingDecision(dcMode, input.dcInstalled);
+
+                // Neither routing path should ever produce SyncDcFolder
+                // (SyncDcFolder has been removed from the enum, so this is a structural guarantee,
+                //  but we verify the outcomes are only SyncGameFolder or Skip)
+                var generalValid = generalOutcome == RoutingOutcome.SyncGameFolder ||
+                                   generalOutcome == RoutingOutcome.Skip;
+                var reshadeValid = reshadeOutcome == RoutingOutcome.SyncGameFolder ||
+                                   reshadeOutcome == RoutingOutcome.Skip;
+
+                return (generalValid && reshadeValid)
+                    .Label($"rsInstalled={input.rsInstalled}, dcInstalled={input.dcInstalled}, " +
+                           $"dcModeLevel={input.dcModeLevel}, perGameDcMode={input.perGameDcMode?.ToString() ?? "null"} " +
+                           $"→ general={generalOutcome}, reshade={reshadeOutcome}");
             });
     }
 }

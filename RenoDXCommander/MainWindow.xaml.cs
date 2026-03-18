@@ -221,6 +221,8 @@ public sealed partial class MainWindow : Window
             {
                 AuxInstallService.MergeRsVulkanIni(card.InstallPath);
                 VulkanFootprintService.Create(card.InstallPath);
+                // Deploy shaders for Vulkan games (no DLL install, so shaders go with INI)
+                ViewModel.DeployShadersForCard(card.GameName);
             }
             else
                 AuxInstallService.MergeRsIni(card.InstallPath);
@@ -597,6 +599,8 @@ public sealed partial class MainWindow : Window
             {
                 AuxInstallService.MergeRsVulkanIni(card.InstallPath);
                 VulkanFootprintService.Create(card.InstallPath);
+                // Deploy shaders for Vulkan games (no DLL install, so shaders go with INI)
+                ViewModel.DeployShadersForCard(card.GameName);
             }
             else
                 AuxInstallService.MergeRsIni(card.InstallPath);

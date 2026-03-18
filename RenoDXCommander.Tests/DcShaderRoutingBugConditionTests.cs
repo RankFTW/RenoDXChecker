@@ -1,25 +1,25 @@
 using FsCheck;
 using FsCheck.Xunit;
-using RenoDXCommander.Services;
-using Xunit;
 
 namespace RenoDXCommander.Tests;
 
 /// <summary>
-/// Bug condition exploration property test for the DC shader routing fix.
+/// Bug condition regression tests for the local-only shader routing model.
 ///
-/// The bug condition is: dcInstalled=true AND dcMode=false (dcModeLevel=0, perGameDcMode null or 0).
-/// Under the OLD (unfixed) code, the routing logic checked <c>dcInstalled &amp;&amp; dcMode</c>,
-/// so when dcMode was false, shaders were incorrectly routed to the game folder via SyncGameFolder
-/// instead of the DC appdata folder via SyncDcFolder.
+/// The OLD bug condition was: dcInstalled=true AND dcMode=false (dcModeLevel=0,
+/// perGameDcMode null or 0). Under the old code, shaders were not deployed anywhere
+/// because the <c>dcInstalled &amp;&amp; dcMode</c> check failed, skipping SyncDcFolder,
+/// and the game-local path was also skipped because dcInstalled was true.
 ///
-/// This test models the FIXED routing decision as a pure function and verifies that for ANY
-/// randomly generated input satisfying the bug condition, the routing correctly calls SyncDcFolder.
+/// Under the NEW local-only architecture, this bug CANNOT occur because:
+/// - SyncDcFolder is never called (it's a no-op)
+/// - All RS-installed games always get SyncGameFolder regardless of DC status
+/// - The dcMode flag has no effect on shader routing
 ///
-/// Since the code has already been fixed (Tasks 1-4), this test PASSES on the fixed code.
-/// It documents what WOULD have failed on the unfixed code.
+/// These tests verify that the old bug condition scenario now correctly deploys
+/// shaders locally via SyncGameFolder.
 ///
-/// **Validates: Requirements 2.1, 2.2, 2.3, 2.4**
+/// **Validates: Requirements 8.1, 8.3**
 /// </summary>
 public class DcShaderRoutingBugConditionTests
 {
@@ -27,70 +27,63 @@ public class DcShaderRoutingBugConditionTests
 
     /// <summary>
     /// Represents the possible shader routing outcomes.
+    /// SyncDcFolder has been removed — the new model never routes to DC AppData.
     /// </summary>
     public enum RoutingOutcome
     {
-        SyncDcFolder,
         SyncGameFolder,
         Skip
     }
 
     /// <summary>
-    /// Models the FIXED routing decision used by DeployAllShaders, DeployShadersForCard,
-    /// and SyncShadersToAllLocations. The fix changed the condition from
-    /// <c>if (dcInstalled &amp;&amp; dcMode)</c> to <c>if (dcInstalled)</c>.
+    /// Models the NEW routing decision used by DeployAllShaders, DeployShadersForCard,
+    /// and SyncShadersToAllLocations. All games with RS installed always get
+    /// SyncGameFolder. DC status is irrelevant.
     /// </summary>
-    public static RoutingOutcome FixedRoutingDecision(bool dcInstalled, bool rsInstalled)
+    public static RoutingOutcome FixedRoutingDecision(bool rsInstalled, bool dcInstalled)
     {
-        if (dcInstalled)
-            return RoutingOutcome.SyncDcFolder;
-        else if (rsInstalled)
+        if (rsInstalled)
             return RoutingOutcome.SyncGameFolder;
         return RoutingOutcome.Skip;
     }
 
     /// <summary>
-    /// Models the FIXED routing decision for InstallReShadeAsync.
-    /// The fix changed <c>if (dcMode)</c> to <c>if (dcMode || dcIsInstalled)</c>.
+    /// Models the NEW routing decision for InstallReShadeAsync.
+    /// Always deploys shaders locally via SyncGameFolder, regardless of
+    /// dcMode or dcIsInstalled.
     /// </summary>
     public static RoutingOutcome FixedReShadeRoutingDecision(bool dcMode, bool dcIsInstalled)
     {
-        if (dcMode || dcIsInstalled)
-            return RoutingOutcome.SyncDcFolder;
-        else if (!dcIsInstalled)
-            return RoutingOutcome.SyncGameFolder;
-        return RoutingOutcome.Skip;
+        return RoutingOutcome.SyncGameFolder;
     }
 
     // ── Bug condition helper ─────────────────────────────────────────────────
 
     /// <summary>
-    /// Returns true when the bug condition holds: DC is installed but dcMode is false.
+    /// Returns true when the OLD bug condition holds: DC is installed but dcMode is false.
+    /// This scenario used to cause no shaders to be deployed anywhere.
     /// </summary>
-    public static bool IsBugCondition(bool dcInstalled, int dcModeLevel, int? perGameDcMode)
+    public static bool IsOldBugCondition(bool dcInstalled, int dcModeLevel, int? perGameDcMode)
     {
         bool dcMode = (perGameDcMode ?? dcModeLevel) > 0;
         return dcInstalled && !dcMode;
     }
 
-    // ── Property test: Bug condition → SyncDcFolder ──────────────────────────
+    // ── Property test: Old bug condition now correctly deploys locally ────────
 
     /// <summary>
-    /// For any input where dcInstalled=true and dcMode=false (the bug condition),
-    /// the fixed routing logic SHALL call SyncDcFolder.
+    /// For any input where dcInstalled=true and dcMode=false (the old bug condition),
+    /// the new routing logic SHALL call SyncGameFolder when rsInstalled=true.
     ///
-    /// Generates random rsInstalled values and dcModeLevel=0 with perGameDcMode
-    /// that is null or 0 (ensuring dcMode evaluates to false).
+    /// Under the OLD code, this scenario resulted in NO shaders deployed anywhere.
+    /// Under the NEW code, shaders are always deployed locally regardless of DC status.
     ///
-    /// On UNFIXED code, this would FAIL because the old condition
-    /// <c>dcInstalled &amp;&amp; dcMode</c> would skip the DC branch.
-    ///
-    /// **Validates: Requirements 2.1, 2.2, 2.3**
+    /// **Validates: Requirements 8.1, 8.3**
     /// </summary>
     [Property(MaxTest = 100)]
-    public Property BugCondition_DcInstalledAndDcModeFalse_RoutesToSyncDcFolder()
+    public Property OldBugCondition_DcInstalledDcModeFalse_NowRoutesLocally()
     {
-        // Generate dcModeLevel = 0 always (bug condition requires dcMode=false)
+        // Generate dcModeLevel = 0 always (old bug condition requires dcMode=false)
         var genDcModeLevel = Gen.Constant(0);
 
         // Generate perGameDcMode as null or 0 (both yield dcMode=false)
@@ -98,45 +91,44 @@ public class DcShaderRoutingBugConditionTests
             Gen.Constant<int?>(null),
             Gen.Constant<int?>(0));
 
-        // rsInstalled can be anything — doesn't affect the DC routing
-        var genRsInstalled = Arb.Default.Bool().Generator;
-
         var gen = from dcModeLevel in genDcModeLevel
                   from perGameDcMode in genPerGameDcMode
-                  from rsInstalled in genRsInstalled
-                  select (dcModeLevel, perGameDcMode, rsInstalled);
+                  select (dcModeLevel, perGameDcMode);
 
         return Prop.ForAll(
             Arb.From(gen),
-            ((int dcModeLevel, int? perGameDcMode, bool rsInstalled) input) =>
+            ((int dcModeLevel, int? perGameDcMode) input) =>
             {
-                const bool dcInstalled = true; // Bug condition requires DC installed
+                const bool dcInstalled = true;
+                const bool rsInstalled = true;
 
-                // Verify this IS the bug condition
-                var isBug = IsBugCondition(dcInstalled, input.dcModeLevel, input.perGameDcMode);
+                // Verify this IS the old bug condition
+                var isOldBug = IsOldBugCondition(dcInstalled, input.dcModeLevel, input.perGameDcMode);
 
-                // The fixed routing decision
-                var outcome = FixedRoutingDecision(dcInstalled, input.rsInstalled);
+                // The new routing decision — always local
+                var outcome = FixedRoutingDecision(rsInstalled, dcInstalled);
 
-                return (isBug && outcome == RoutingOutcome.SyncDcFolder)
+                return (isOldBug && outcome == RoutingOutcome.SyncGameFolder)
                     .Label($"dcModeLevel={input.dcModeLevel}, perGameDcMode={input.perGameDcMode?.ToString() ?? "null"}, " +
-                           $"rsInstalled={input.rsInstalled} → isBugCondition={isBug}, outcome={outcome}");
+                           $"dcInstalled={dcInstalled}, rsInstalled={rsInstalled} " +
+                           $"→ isOldBugCondition={isOldBug}, outcome={outcome} (expected SyncGameFolder)");
             });
     }
 
     /// <summary>
-    /// For any input where dcIsInstalled=true and dcMode=false (the bug condition),
-    /// the fixed InstallReShadeAsync routing logic SHALL call SyncDcFolder.
+    /// For any input where dcIsInstalled=true and dcMode=false (the old bug condition
+    /// for InstallReShadeAsync), the new routing logic SHALL call SyncGameFolder.
     ///
-    /// On UNFIXED code, this would FAIL because the old condition <c>if (dcMode)</c>
-    /// would skip SyncDcFolder when dcMode was false, even though DC was installed.
+    /// Under the OLD code, InstallReShadeAsync checked <c>if (dcMode)</c> and skipped
+    /// SyncDcFolder when dcMode was false, even though DC was installed.
+    /// Under the NEW code, shaders are always deployed locally.
     ///
-    /// **Validates: Requirements 2.4**
+    /// **Validates: Requirements 8.1, 8.3**
     /// </summary>
     [Property(MaxTest = 100)]
-    public Property BugCondition_ReShadeInstall_DcInstalledAndDcModeFalse_RoutesToSyncDcFolder()
+    public Property OldBugCondition_ReShadeInstall_DcInstalledDcModeFalse_NowRoutesLocally()
     {
-        // dcMode = false (the bug condition for InstallReShadeAsync)
+        // dcMode = false (the old bug condition for InstallReShadeAsync)
         const bool dcMode = false;
         const bool dcIsInstalled = true;
 
@@ -154,16 +146,16 @@ public class DcShaderRoutingBugConditionTests
             Arb.From(gen),
             ((int dcModeLevel, int? perGameDcMode) input) =>
             {
-                // Verify this IS the bug condition
-                var isBug = IsBugCondition(dcIsInstalled, input.dcModeLevel, input.perGameDcMode);
+                // Verify this IS the old bug condition
+                var isOldBug = IsOldBugCondition(dcIsInstalled, input.dcModeLevel, input.perGameDcMode);
 
-                // The fixed routing decision for InstallReShadeAsync
+                // The new routing decision for InstallReShadeAsync — always local
                 var outcome = FixedReShadeRoutingDecision(dcMode, dcIsInstalled);
 
-                return (isBug && outcome == RoutingOutcome.SyncDcFolder)
+                return (isOldBug && outcome == RoutingOutcome.SyncGameFolder)
                     .Label($"dcMode={dcMode}, dcIsInstalled={dcIsInstalled}, " +
                            $"dcModeLevel={input.dcModeLevel}, perGameDcMode={input.perGameDcMode?.ToString() ?? "null"} " +
-                           $"→ isBugCondition={isBug}, outcome={outcome}");
+                           $"→ isOldBugCondition={isOldBug}, outcome={outcome} (expected SyncGameFolder)");
             });
     }
 }

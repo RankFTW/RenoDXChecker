@@ -403,38 +403,35 @@ public class ShaderPackServicePropertyTests : IDisposable
                     try { File.Delete(f); } catch { }
     }
 
-    // ── Property 3: DC mode cleanup removes game-local shaders and restores original ──
+    // ── Property 3: DC mode preserves game-local shaders via SyncGameFolder ──
 
-    // Feature: reshade-vulkan-shader-deploy, Property 3: DC mode cleanup removes game-local shaders and restores original
+    // Feature: local-shader-deployment, Property 3: DC mode preserves game-local shaders
     /// <summary>
-    /// **Validates: Requirements 2.1, 2.2**
+    /// **Validates: Requirements 8.1, 8.3, 8.4**
     ///
     /// For any game location where dcInstalled is true and dcMode is true,
-    /// after SyncShadersToAllLocations processes it, the RDXC-managed
-    /// reshade-shaders folder SHALL not exist in the game directory.
-    /// If a reshade-shaders-original folder was present, it SHALL be
-    /// restored to reshade-shaders.
+    /// after SyncShadersToAllLocations processes it, the game-local
+    /// reshade-shaders folder SHALL exist with shaders deployed via SyncGameFolder.
+    /// Game-local shaders are never removed during DC mode — they are preserved.
     /// </summary>
     [Property(MaxTest = 30)]
-    public Property DcModeCleanup_RemovesGameLocalShaders_AndRestoresOriginal()
+    public Property DcMode_PreservesGameLocalShaders_ViaSyncGameFolder()
     {
-        var gen = from state in GenDcFolderState()
-                  from hasOriginal in Arb.Generate<bool>()
+        var gen = from mode in GenNonOffDeployMode()
+                  from state in GenDcFolderState()
                   from suffix in Gen.Choose(1, 999999)
-                  select (state, hasOriginal, suffix);
+                  select (mode, state, suffix);
 
         return Prop.ForAll(gen.ToArbitrary(), tuple =>
         {
-            var (state, hasOriginal, suffix) = tuple;
+            var (mode, state, suffix) = tuple;
 
-            // Skip invalid combination: user-owned folder + hasOriginal both present
-            // because RemoveFromGameFolder would try to rename reshade-shaders to
-            // reshade-shaders-original, but it already exists — the rename is skipped.
-            // We still test this case but adjust expectations below.
+            // Ensure custom staging files exist for User mode
+            if (mode == ShaderPackService.DeployMode.User)
+                EnsureCustomStagingFiles();
 
-            var gameDir = SetupGameDirForDc($"{suffix}_{state}_{hasOriginal}", state, hasOriginal);
+            var gameDir = SetupGameDirForDc($"{suffix}_{state}_{mode}", state, hasOriginal: false);
             var rsDir = Path.Combine(gameDir, ShaderPackService.GameReShadeShaders);
-            var origDir = Path.Combine(gameDir, ShaderPackService.GameReShadeOriginal);
 
             try
             {
@@ -444,88 +441,39 @@ public class ShaderPackServicePropertyTests : IDisposable
                     (installPath: gameDir, dcInstalled: true, rsInstalled: true,
                      dcMode: true, shaderModeOverride: (string?)null)
                 };
-                _service.SyncShadersToAllLocations(locations);
+                _service.SyncShadersToAllLocations(locations, mode);
 
-                // Assert: RDXC-managed folder is gone
-                if (_service.IsManagedByRdxc(gameDir))
-                    return false.Label($"RDXC-managed reshade-shaders still exists " +
-                                       $"(state={state}, hasOriginal={hasOriginal})");
+                // Assert: reshade-shaders folder exists (shaders deployed locally)
+                if (!Directory.Exists(rsDir))
+                    return false.Label($"reshade-shaders folder missing after SyncShadersToAllLocations " +
+                                       $"(mode={mode}, state={state})");
 
-                if (state == DcFolderState.Managed)
+                // Assert: managed marker file exists
+                var markerPath = Path.Combine(rsDir, "Managed by RDXC.txt");
+                if (!File.Exists(markerPath))
+                    return false.Label($"Managed marker file missing after SyncShadersToAllLocations " +
+                                       $"(mode={mode}, state={state})");
+
+                // Assert: shader files exist matching the mode
+                var shadersDir = Path.Combine(rsDir, "Shaders");
+
+                if (mode == ShaderPackService.DeployMode.User)
                 {
-                    // Managed folder should be deleted entirely
-                    if (hasOriginal)
-                    {
-                        // Original should be restored to reshade-shaders
-                        if (!Directory.Exists(rsDir))
-                            return false.Label($"reshade-shaders-original was not restored after managed removal " +
-                                               $"(state={state}, hasOriginal={hasOriginal})");
-                        var restoredShader = Path.Combine(rsDir, "Shaders", "original_user.fx");
-                        if (!File.Exists(restoredShader))
-                            return false.Label($"Restored folder missing original user content " +
-                                               $"(state={state}, hasOriginal={hasOriginal})");
-                        if (Directory.Exists(origDir))
-                            return false.Label($"reshade-shaders-original still exists after restore " +
-                                               $"(state={state}, hasOriginal={hasOriginal})");
-                    }
-                    else
-                    {
-                        // No original to restore — reshade-shaders should be gone
-                        if (Directory.Exists(rsDir))
-                            return false.Label($"reshade-shaders still exists when no original to restore " +
-                                               $"(state={state}, hasOriginal={hasOriginal})");
-                    }
+                    var hasCustomShader = File.Exists(Path.Combine(shadersDir, "_rdxc_test_custom.fx"));
+                    if (!hasCustomShader)
+                        return false.Label($"Custom shader file not deployed locally for User mode " +
+                                           $"(state={state})");
                 }
-                else if (state == DcFolderState.UserOwned)
+                else
                 {
-                    // User-owned folder gets renamed to reshade-shaders-original by RemoveFromGameFolder.
-                    // If hasOriginal was already true, the rename is skipped (original already exists).
-                    if (hasOriginal)
-                    {
-                        // reshade-shaders-original already existed, so the user-owned folder
-                        // could not be renamed — it stays in place (not managed, so no deletion).
-                        // RestoreOriginalIfPresent won't restore because reshade-shaders still exists.
-                    }
-                    else
-                    {
-                        // User-owned folder was renamed to reshade-shaders-original,
-                        // then RestoreOriginalIfPresent restores it back to reshade-shaders
-                        // (since reshade-shaders is now gone after the rename).
-                        if (!Directory.Exists(rsDir))
-                            return false.Label($"User-owned folder was not restored after rename round-trip " +
-                                               $"(state={state}, hasOriginal={hasOriginal})");
-                        var userShader = Path.Combine(rsDir, "Shaders", "user.fx");
-                        if (!File.Exists(userShader))
-                            return false.Label($"Restored user-owned folder missing content " +
-                                               $"(state={state}, hasOriginal={hasOriginal})");
-                    }
-                }
-                else // Missing
-                {
-                    if (hasOriginal)
-                    {
-                        // Original should be restored to reshade-shaders
-                        if (!Directory.Exists(rsDir))
-                            return false.Label($"reshade-shaders-original was not restored when folder was missing " +
-                                               $"(state={state}, hasOriginal={hasOriginal})");
-                        var restoredShader = Path.Combine(rsDir, "Shaders", "original_user.fx");
-                        if (!File.Exists(restoredShader))
-                            return false.Label($"Restored folder missing original user content " +
-                                               $"(state={state}, hasOriginal={hasOriginal})");
-                        if (Directory.Exists(origDir))
-                            return false.Label($"reshade-shaders-original still exists after restore " +
-                                               $"(state={state}, hasOriginal={hasOriginal})");
-                    }
-                    else
-                    {
-                        // Nothing existed, nothing should exist
-                        if (Directory.Exists(rsDir))
-                            return false.Label($"reshade-shaders appeared from nowhere " +
-                                               $"(state={state}, hasOriginal={hasOriginal})");
-                    }
+                    var hasShaderFiles = Directory.Exists(shadersDir) &&
+                                         Directory.EnumerateFiles(shadersDir, "*", SearchOption.AllDirectories).Any();
+                    if (!hasShaderFiles)
+                        return false.Label($"No shader files deployed locally for {mode} mode " +
+                                           $"(state={state})");
                 }
 
-                return true.Label($"OK: state={state}, hasOriginal={hasOriginal}");
+                return true.Label($"OK: mode={mode}, state={state}");
             }
             finally
             {
@@ -559,18 +507,19 @@ public class ShaderPackServicePropertyTests : IDisposable
             Gen.Constant<string?>("User"));
     }
 
-    // ── Property 4: DC mode syncs to DC global folder ─────────────────────────────
+    // ── Property 4: DC mode deploys locally, never to DC global folder ──────────
 
-    // Feature: reshade-vulkan-shader-deploy, Property 4: DC mode syncs to DC global folder
+    // Feature: local-shader-deployment, Property 4: DC folder is never synced
     /// <summary>
-    /// **Validates: Requirements 2.3**
+    /// **Validates: Requirements 8.1, 8.2**
     ///
     /// For any set of game locations containing at least one DC-mode game,
     /// after SyncShadersToAllLocations processes them, the DC global Reshade
-    /// folder SHALL contain shader files matching the global DeployMode.
+    /// folder SHALL NOT receive any new shader files. Shaders are deployed
+    /// locally to the game folder instead.
     /// </summary>
     [Property(MaxTest = 30)]
-    public Property DcMode_SyncsToDcGlobalFolder_MatchingGlobalMode()
+    public Property DcMode_NeverSyncsToDcGlobalFolder()
     {
         var gen = from mode in GenNonOffDeployMode()
                   from suffix in Gen.Choose(1, 999999)
@@ -584,10 +533,10 @@ public class ShaderPackServicePropertyTests : IDisposable
             if (mode == ShaderPackService.DeployMode.User)
                 EnsureCustomStagingFiles();
 
-            // Snapshot DC global folder before test so we only clean up our files
+            // Snapshot DC global folder before test so we can detect any new files
             var preExisting = SnapshotDcFolder();
 
-            // Set the global mode so SyncShadersToAllLocations uses it for DC folder
+            // Set the global mode
             ShaderPackService.CurrentMode = mode;
 
             // Create a temp game dir for the DC-mode location
@@ -604,32 +553,29 @@ public class ShaderPackServicePropertyTests : IDisposable
                 };
                 _service.SyncShadersToAllLocations(locations, mode);
 
-                // Assert: DC global Reshade folder contains shader files matching the global mode
-                var dcShadersDir = ShaderPackService.DcShadersDir;
-                var dcTexturesDir = ShaderPackService.DcTexturesDir;
+                // Assert: DC global folder has no new shader files
+                var postFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (Directory.Exists(ShaderPackService.DcShadersDir))
+                    foreach (var f in Directory.EnumerateFiles(ShaderPackService.DcShadersDir, "*", SearchOption.AllDirectories))
+                        postFiles.Add(f);
+                if (Directory.Exists(ShaderPackService.DcTexturesDir))
+                    foreach (var f in Directory.EnumerateFiles(ShaderPackService.DcTexturesDir, "*", SearchOption.AllDirectories))
+                        postFiles.Add(f);
 
-                if (mode == ShaderPackService.DeployMode.User)
-                {
-                    // User mode: custom shader files should be deployed to DC folder
-                    var hasCustomShader = File.Exists(Path.Combine(dcShadersDir, "_rdxc_test_custom.fx"));
-                    if (!hasCustomShader)
-                        return false.Label($"Custom shader file not deployed to DC folder for User mode");
-                }
-                else
-                {
-                    // Minimum or All mode: staging shader files should be deployed
-                    var hasShaderFiles = Directory.Exists(dcShadersDir) &&
-                                         Directory.EnumerateFiles(dcShadersDir, "*", SearchOption.AllDirectories).Any();
-                    if (!hasShaderFiles)
-                        return false.Label($"No shader files deployed to DC folder for {mode} mode");
-                }
+                var newFiles = postFiles.Except(preExisting, StringComparer.OrdinalIgnoreCase).ToList();
+                if (newFiles.Count > 0)
+                    return false.Label($"DC global folder received {newFiles.Count} new shader files for {mode} mode — " +
+                                       $"should be zero. First: {Path.GetFileName(newFiles[0])}");
+
+                // Assert: game folder received shaders locally instead
+                var rsDir = Path.Combine(gameDir, ShaderPackService.GameReShadeShaders);
+                if (!Directory.Exists(rsDir))
+                    return false.Label($"Game-local reshade-shaders folder missing for {mode} mode");
 
                 return true.Label($"OK: mode={mode}");
             }
             finally
             {
-                // Clean up: remove only files we created in the DC global folder
-                CleanupDcFolder(preExisting);
                 try { Directory.Delete(gameDir, recursive: true); } catch { }
             }
         });

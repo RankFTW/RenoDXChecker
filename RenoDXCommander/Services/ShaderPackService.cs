@@ -1061,12 +1061,52 @@ public class ShaderPackService : IShaderPackService
 
     public void DeployToDcFolder(DeployMode? mode = null)
     {
-        var m = mode ?? CurrentMode;
-        if (m == DeployMode.Off) return;
-        if (m == DeployMode.User)
-            DeployCustomIfAbsent(DcShadersDir, DcTexturesDir);
-        else
-            DeployPacksIfAbsent(m, DcShadersDir, DcTexturesDir);
+        CrashReporter.Log("[ShaderPackService.DeployToDcFolder] No-op — local-only shader deployment");
+    }
+
+    /// <summary>
+    /// One-time startup migration: renames legacy Shaders and Textures folders
+    /// inside the DC AppData folder to *.old so Display Commander no longer loads
+    /// stale global shaders. Skips the rename when the .old target already exists.
+    /// Never throws — errors are logged via CrashReporter.
+    /// </summary>
+    public static void MigrateLegacyDcShaders()
+        => MigrateLegacyDcShaders(DcShadersDir, DcTexturesDir);
+
+    /// <summary>
+    /// Testable overload that accepts explicit directory paths.
+    /// </summary>
+    internal static void MigrateLegacyDcShaders(string shadersDir, string texturesDir)
+    {
+        // Rename Shaders → Shaders.old
+        try
+        {
+            var shadersOld = shadersDir + ".old";
+            if (Directory.Exists(shadersDir) && !Directory.Exists(shadersOld))
+            {
+                Directory.Move(shadersDir, shadersOld);
+                CrashReporter.Log("[ShaderPackService.MigrateLegacyDcShaders] Renamed Shaders → Shaders.old");
+            }
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"[ShaderPackService.MigrateLegacyDcShaders] Failed to rename Shaders — {ex.Message}");
+        }
+
+        // Rename Textures → Textures.old
+        try
+        {
+            var texturesOld = texturesDir + ".old";
+            if (Directory.Exists(texturesDir) && !Directory.Exists(texturesOld))
+            {
+                Directory.Move(texturesDir, texturesOld);
+                CrashReporter.Log("[ShaderPackService.MigrateLegacyDcShaders] Renamed Textures → Textures.old");
+            }
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"[ShaderPackService.MigrateLegacyDcShaders] Failed to rename Textures — {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -1226,96 +1266,9 @@ public class ShaderPackService : IShaderPackService
     /// </summary>
     public void SyncDcFolder(DeployMode m, IEnumerable<string>? selectedPackIds = null)
     {
-        var (allKnownShaders, allKnownTextures) = AllKnownPackFiles();
-
-        // Select mode with null/empty selection → treat as Off
-        if (m == DeployMode.Select && (selectedPackIds == null || !selectedPackIds.Any()))
-            m = DeployMode.Off;
-
-        if (m == DeployMode.Off)
-        {
-            // Remove every pack file and every custom file from the DC folder
-            PruneFiles(DcShadersDir, allKnownShaders, Enumerable.Empty<string>());
-            PruneFiles(DcTexturesDir, allKnownTextures, Enumerable.Empty<string>());
-
-            // Remove custom files too — enumerate what's in Custom staging and delete from DC
-            if (Directory.Exists(CustomShadersDir))
-                foreach (var f in Directory.EnumerateFiles(CustomShadersDir, "*", SearchOption.AllDirectories))
-                {
-                    var rel = Path.GetRelativePath(CustomShadersDir, f);
-                    var dest = Path.Combine(DcShadersDir, rel);
-                    if (File.Exists(dest)) try { File.Delete(dest); } catch (Exception ex) { CrashReporter.Log($"[ShaderPackService] Operation failed — {ex.Message}"); }
-                }
-            if (Directory.Exists(CustomTexturesDir))
-                foreach (var f in Directory.EnumerateFiles(CustomTexturesDir, "*", SearchOption.AllDirectories))
-                {
-                    var rel = Path.GetRelativePath(CustomTexturesDir, f);
-                    var dest = Path.Combine(DcTexturesDir, rel);
-                    if (File.Exists(dest)) try { File.Delete(dest); } catch (Exception ex) { CrashReporter.Log($"[ShaderPackService] Operation failed — {ex.Message}"); }
-                }
-            return;
-        }
-
-        if (m == DeployMode.User)
-        {
-            // Remove all pack files, then deploy custom
-            PruneFiles(DcShadersDir, allKnownShaders, Enumerable.Empty<string>());
-            PruneFiles(DcTexturesDir, allKnownTextures, Enumerable.Empty<string>());
-            DeployCustomIfAbsent(DcShadersDir, DcTexturesDir);
-            return;
-        }
-
-        // Select mode: prune + deploy using pack IDs
-        if (m == DeployMode.Select)
-        {
-            var (selectShaders, selectTextures) = FilesForIds(selectedPackIds!);
-            PruneFiles(DcShadersDir, allKnownShaders, selectShaders);
-            PruneFiles(DcTexturesDir, allKnownTextures, selectTextures);
-
-            // Remove any custom files (switching away from User mode)
-            if (Directory.Exists(CustomShadersDir))
-                foreach (var f in Directory.EnumerateFiles(CustomShadersDir, "*", SearchOption.AllDirectories))
-                {
-                    var rel = Path.GetRelativePath(CustomShadersDir, f);
-                    var dest = Path.Combine(DcShadersDir, rel);
-                    if (File.Exists(dest)) try { File.Delete(dest); } catch (Exception ex) { CrashReporter.Log($"[ShaderPackService] Operation failed — {ex.Message}"); }
-                }
-            if (Directory.Exists(CustomTexturesDir))
-                foreach (var f in Directory.EnumerateFiles(CustomTexturesDir, "*", SearchOption.AllDirectories))
-                {
-                    var rel = Path.GetRelativePath(CustomTexturesDir, f);
-                    var dest = Path.Combine(DcTexturesDir, rel);
-                    if (File.Exists(dest)) try { File.Delete(dest); } catch (Exception ex) { CrashReporter.Log($"[ShaderPackService] Operation failed — {ex.Message}"); }
-                }
-
-            DeployPacksIfAbsent(selectedPackIds!, DcShadersDir, DcTexturesDir);
-            return;
-        }
-
-        // Minimum or All: prune files that belong to packs not in the current mode,
-        // then deploy what's missing for the current mode.
-        var (modeShaders, modeTextures) = FilesForMode(m);
-        PruneFiles(DcShadersDir, allKnownShaders, modeShaders);
-        PruneFiles(DcTexturesDir, allKnownTextures, modeTextures);
-
-        // Remove any custom files (switching away from User mode)
-        if (Directory.Exists(CustomShadersDir))
-            foreach (var f in Directory.EnumerateFiles(CustomShadersDir, "*", SearchOption.AllDirectories))
-            {
-                var rel = Path.GetRelativePath(CustomShadersDir, f);
-                var dest = Path.Combine(DcShadersDir, rel);
-                if (File.Exists(dest)) try { File.Delete(dest); } catch (Exception ex) { CrashReporter.Log($"[ShaderPackService] Operation failed — {ex.Message}"); }
-            }
-        if (Directory.Exists(CustomTexturesDir))
-            foreach (var f in Directory.EnumerateFiles(CustomTexturesDir, "*", SearchOption.AllDirectories))
-            {
-                var rel = Path.GetRelativePath(CustomTexturesDir, f);
-                var dest = Path.Combine(DcTexturesDir, rel);
-                if (File.Exists(dest)) try { File.Delete(dest); } catch (Exception ex) { CrashReporter.Log($"[ShaderPackService] Operation failed — {ex.Message}"); }
-            }
-
-        DeployToDcFolder(m);
+        CrashReporter.Log("[ShaderPackService.SyncDcFolder] No-op — local-only shader deployment");
     }
+
 
     /// <summary>
     /// Synchronises the game-local reshade-shaders folder to exactly match the current mode.
@@ -1441,7 +1394,7 @@ public class ShaderPackService : IShaderPackService
     }
 
     /// <summary>
-    /// Synchronises shaders across every installed location AND the DC global folder.
+    /// Synchronises shaders to every game that has ReShade installed.
     /// Called after ↻ Refresh so mode changes take effect immediately everywhere.
     /// </summary>
     public void SyncShadersToAllLocations(
@@ -1450,11 +1403,13 @@ public class ShaderPackService : IShaderPackService
         IEnumerable<string>? selectedPackIds = null)
     {
         var globalMode = mode ?? CurrentMode;
-        bool dcSynced = false;
 
         foreach (var loc in locations)
         {
             if (string.IsNullOrEmpty(loc.installPath) || !Directory.Exists(loc.installPath))
+                continue;
+
+            if (!loc.rsInstalled)
                 continue;
 
             // Resolve effective mode: per-game override wins, otherwise global
@@ -1463,31 +1418,8 @@ public class ShaderPackService : IShaderPackService
                 ? overrideMode
                 : globalMode;
 
-            if (loc.dcInstalled)
-            {
-                // DC mode: game-local reshade-shaders not used — clean it up
-                if (IsManagedByRdxc(loc.installPath))
-                    RemoveFromGameFolder(loc.installPath);
-                RestoreOriginalIfPresent(loc.installPath);
-
-                if (!dcSynced)
-                {
-                    // DC folder is shared across all DC-mode games — always use
-                    // the global mode, never a per-game override.
-                    SyncDcFolder(globalMode, selectedPackIds);
-                    dcSynced = true;
-                }
-            }
-            else if (loc.rsInstalled && !loc.dcInstalled)
-            {
-                // SyncGameFolder handles all modes including Off (removes managed folder)
-                SyncGameFolder(loc.installPath, effectiveMode, selectedPackIds);
-            }
+            SyncGameFolder(loc.installPath, effectiveMode, selectedPackIds);
         }
-
-        // If no DC game was seen but DC folder exists and mode is Off, still prune it
-        if (!dcSynced && globalMode == DeployMode.Off && Directory.Exists(DcReshadeDir))
-            SyncDcFolder(globalMode, selectedPackIds);
     }
 
     // ── Private copy helpers ──────────────────────────────────────────────────────

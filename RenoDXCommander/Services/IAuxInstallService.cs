@@ -16,6 +16,7 @@ public interface IAuxInstallService
         string? shaderModeOverride = null,
         bool use32Bit = false,
         string? filenameOverride = null,
+        IEnumerable<string>? selectedPackIds = null,
         IProgress<(string message, double percent)>? progress = null);
 
     Task<AuxInstalledRecord> InstallReShadeAsync(
@@ -26,11 +27,19 @@ public interface IAuxInstallService
         string? shaderModeOverride = null,
         bool use32Bit = false,
         string? filenameOverride = null,
+        IEnumerable<string>? selectedPackIds = null,
         IProgress<(string message, double percent)>? progress = null);
 
     Task<bool> CheckForUpdateAsync(AuxInstalledRecord record);
 
     void Uninstall(AuxInstalledRecord record);
+
+    /// <summary>
+    /// Removes only the DLL file and DB record for the given install, without
+    /// triggering shader folder operations (RestoreOriginalIfPresent).
+    /// Used by DC mode switching where shaders must remain untouched.
+    /// </summary>
+    void UninstallDllOnly(AuxInstalledRecord record);
 
     List<AuxInstalledRecord> LoadAll();
 
