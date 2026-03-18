@@ -1,3 +1,18 @@
+## v1.5.0
+
+### Bug Fixes
+
+**Global shader selection not persisting across restarts**
+- The global shader deploy mode was not being saved to the settings file, causing the shader selection to reset to empty every time the app was opened. The `SaveSettingsToDict` method now correctly writes the `ShaderDeployMode` key.
+
+**Per-game shader mode overrides resetting on load**
+- Per-game shader mode overrides (Off, Minimum, All, User) were being filtered out during settings load, causing them to reset. Only "Select" mode was being preserved. All valid shader modes are now loaded correctly.
+
+**Shader selection not saved after choosing packs**
+- Clicking Deploy in the global shader selection picker did not persist the selection to disk. Settings are now saved immediately after the picker closes.
+
+---
+
 ## v1.4.9
 
 ### New Features
