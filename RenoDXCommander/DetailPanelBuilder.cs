@@ -195,7 +195,6 @@ public class DetailPanelBuilder
             {
                 // Vulkan layer install path — RS is "installed" when reshade.ini exists
                 // in the game folder (the Vulkan layer needs it to function for this game).
-                bool vulkanLayerInstalled = VulkanLayerService.IsLayerInstalled();
                 bool rsIniExists = File.Exists(Path.Combine(card.InstallPath, "reshade.ini"));
                 if (rsIniExists)
                 {
@@ -210,7 +209,7 @@ public class DetailPanelBuilder
                     _window.DetailRsStatus.Foreground = UIFactory.GetBrush("#A0AABB");
                 }
                 _window.DetailRsInstallBtn.Tag = card;
-                _window.DetailRsInstallBtn.Content = vulkanLayerInstalled ? "Reinstall Vulkan Layer" : "Install Vulkan Layer";
+                _window.DetailRsInstallBtn.Content = card.RsActionLabel;
                 _window.DetailRsInstallBtn.IsEnabled = card.IsRsNotInstalling;
                 _window.DetailRsInstallBtn.Background = UIFactory.GetBrush(card.RsBtnBackground);
                 _window.DetailRsInstallBtn.Foreground = UIFactory.GetBrush(card.RsBtnForeground);
@@ -289,7 +288,8 @@ public class DetailPanelBuilder
             _window.DetailRdxInstallBtn.Tag = card;
             if (card.IsExternalOnly)
             {
-                _window.DetailRdxStatus.Text = "";
+                _window.DetailRdxStatus.Text = card.IsRdxInstalled ? "Installed" : "";
+                _window.DetailRdxStatus.Foreground = UIFactory.GetBrush("#5ECB7D");
                 _window.DetailRdxInstallBtn.Content = card.ExternalDisplayLabel;
                 _window.DetailRdxInstallBtn.IsEnabled = true;
                 _window.DetailRdxInstallBtn.Background = UIFactory.Brush(ResourceKeys.AccentBlueBgBrush);
@@ -549,20 +549,21 @@ public class DetailPanelBuilder
         // ── Per-game DC Mode + Shader mode (side by side) ─────────────────────────
         int? currentDcMode = _window.ViewModel.GetPerGameDcModeOverride(gameName);
         var globalDcLabel = _window.ViewModel.DcModeLevel switch { 1 => "DC Mode 1", 2 => "DC Mode 2", _ => "Off" };
-        var dcModeOptions = new[] { $"Global ({globalDcLabel})", "Exclude (Off)", "DC Mode 1", "DC Mode 2" };
+        var dcModeOptions = new[] { $"Global ({globalDcLabel})", "Exclude (Off)", "DC Mode 1", "DC Mode 2", "DC Mode Custom" };
         var dcModeCombo = new ComboBox
         {
             ItemsSource = dcModeOptions,
             // Vulkan games default to DC mode off when no explicit override is set
             SelectedIndex = (card.RequiresVulkanInstall && currentDcMode == null) ? 1
-                : currentDcMode switch { null => 0, 0 => 1, 1 => 2, 2 => 3, _ => 0 },
+                : currentDcMode switch { null => 0, 0 => 1, 1 => 2, 2 => 3, 3 => 4, _ => 0 },
             FontSize = 12,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Header = "DC Mode",
         };
         ToolTipService.SetToolTip(dcModeCombo,
             "Global = use the Settings DC Mode. Exclude (Off) = always use normal naming. " +
-            "DC Mode 1 = force dxgi.dll proxy. DC Mode 2 = force winmm.dll proxy.");
+            "DC Mode 1 = force dxgi.dll proxy. DC Mode 2 = force winmm.dll proxy. " +
+            "DC Mode Custom = use a custom DLL filename.");
 
         // Subscribe to DcModeLevel changes to keep the "Global (...)" label current
         _dcModeLevelHandler = (sender, e) =>
@@ -571,7 +572,7 @@ public class DetailPanelBuilder
             _dispatcherQueue.TryEnqueue(() =>
             {
                 var updatedLabel = _window.ViewModel.DcModeLevel switch { 1 => "DC Mode 1", 2 => "DC Mode 2", _ => "Off" };
-                var updatedOptions = new[] { $"Global ({updatedLabel})", "Exclude (Off)", "DC Mode 1", "DC Mode 2" };
+                var updatedOptions = new[] { $"Global ({updatedLabel})", "Exclude (Off)", "DC Mode 1", "DC Mode 2", "DC Mode Custom" };
                 var savedIndex = dcModeCombo.SelectedIndex;
                 dcModeCombo.ItemsSource = updatedOptions;
                 dcModeCombo.SelectedIndex = savedIndex;
@@ -579,10 +580,94 @@ public class DetailPanelBuilder
         };
         _window.ViewModel.PropertyChanged += _dcModeLevelHandler;
 
+        // ── DC Mode Custom DLL filename selector ────────────────────────────────
+        var dcCustomDllSelector = new ComboBox
+        {
+            IsEditable = true,
+            ItemsSource = DllOverrideConstants.CommonDllNames,
+            PlaceholderText = "Select or type DLL filename",
+            Header = "DC Custom DLL filename",
+            FontSize = 12,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Visibility = dcModeCombo.SelectedIndex == 4 ? Visibility.Visible : Visibility.Collapsed,
+        };
+
+        // Pre-populate with saved filename when opening panel for a game with DC Mode Custom
+        if (currentDcMode == 3)
+        {
+            var savedDllName = _window.ViewModel.GetDcCustomDllFileName(gameName);
+            if (!string.IsNullOrWhiteSpace(savedDllName))
+            {
+                if (DllOverrideConstants.CommonDllNames.Contains(savedDllName, StringComparer.OrdinalIgnoreCase))
+                    dcCustomDllSelector.SelectedItem = DllOverrideConstants.CommonDllNames.First(n => n.Equals(savedDllName, StringComparison.OrdinalIgnoreCase));
+                else
+                {
+                    var capturedDll = savedDllName;
+                    dcCustomDllSelector.Loaded += (s, e) => dcCustomDllSelector.Text = capturedDll;
+                }
+            }
+        }
+
+        // Helper: rename the installed DC file to the chosen custom DLL filename
+        void RenameDcToCustom(string dllFileName)
+        {
+            var targetCard = _window.ViewModel.AllCards.FirstOrDefault(c =>
+                c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
+            if (targetCard?.DcRecord == null || string.IsNullOrEmpty(targetCard.InstallPath)) return;
+
+            var oldName = targetCard.DcRecord.InstalledAs;
+            if (string.IsNullOrEmpty(oldName)) return;
+            if (oldName.Equals(dllFileName, StringComparison.OrdinalIgnoreCase)) return;
+
+            var oldPath = Path.Combine(targetCard.InstallPath, oldName);
+            var newPath = Path.Combine(targetCard.InstallPath, dllFileName);
+            try
+            {
+                if (File.Exists(oldPath))
+                {
+                    if (File.Exists(newPath)) File.Delete(newPath);
+                    File.Move(oldPath, newPath);
+                    targetCard.DcRecord.InstalledAs = dllFileName;
+                    targetCard.DcInstalledFile = dllFileName;
+                    CrashReporter.Log($"[DetailPanelBuilder] DC custom rename {targetCard.GameName}: {oldName} → {dllFileName}");
+                }
+            }
+            catch (Exception ex)
+            {
+                CrashReporter.Log($"[DetailPanelBuilder] DC custom rename failed for '{targetCard.GameName}' — {ex.Message}");
+                targetCard.DcActionMessage = $"❌ Rename failed: {ex.Message}";
+            }
+        }
+
+        // Auto-save: DC Custom DLL filename on dropdown selection
+        dcCustomDllSelector.SelectionChanged += (s, e) =>
+        {
+            var selected = dcCustomDllSelector.SelectedItem as string;
+            if (!string.IsNullOrWhiteSpace(selected))
+            {
+                _window.ViewModel.SetDcCustomDllFileName(capturedName, selected);
+                if (dcModeCombo.SelectedIndex == 4)
+                    RenameDcToCustom(selected);
+            }
+        };
+
+        // Auto-save: DC Custom DLL filename on Enter key
+        dcCustomDllSelector.KeyDown += (s, e) =>
+        {
+            if (e.Key != Windows.System.VirtualKey.Enter) return;
+            var typed = dcCustomDllSelector.Text?.Trim();
+            if (!string.IsNullOrWhiteSpace(typed))
+            {
+                _window.ViewModel.SetDcCustomDllFileName(capturedName, typed);
+                if (dcModeCombo.SelectedIndex == 4)
+                    RenameDcToCustom(typed);
+            }
+        };
+
         // ── Auto-save: DC Mode on selection change ───────────────────────────────
         dcModeCombo.SelectionChanged += (s, e) =>
         {
-            int? newDcMode = dcModeCombo.SelectedIndex switch { 1 => 0, 2 => 1, 3 => 2, _ => (int?)null };
+            int? newDcMode = dcModeCombo.SelectedIndex switch { 1 => 0, 2 => 1, 3 => 2, 4 => 3, _ => (int?)null };
             var currentOverride = _window.ViewModel.GetPerGameDcModeOverride(capturedName);
             if (newDcMode != currentOverride)
             {
@@ -590,6 +675,19 @@ public class DetailPanelBuilder
                 _window.ViewModel.SetPerGameDcModeOverride(capturedName, newDcMode);
                 _window.ViewModel.ApplyDcModeSwitchForCard(capturedName, previousDcMode);
             }
+
+            // When switching to DC Mode Custom with a DLL filename already set, rename
+            if (dcModeCombo.SelectedIndex == 4)
+            {
+                var dllName = dcCustomDllSelector.SelectedItem as string ?? dcCustomDllSelector.Text?.Trim();
+                if (!string.IsNullOrWhiteSpace(dllName))
+                    RenameDcToCustom(dllName);
+            }
+
+            // Toggle DC Mode Custom DLL selector visibility
+            dcCustomDllSelector.Visibility = dcModeCombo.SelectedIndex == 4
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         };
 
         string currentShaderMode = _window.ViewModel.GetPerGameShaderMode(gameName);
@@ -657,15 +755,38 @@ public class DetailPanelBuilder
             }
         };
 
-        var modeGrid = new Grid { ColumnSpacing = 8 };
+        // ── Two-column grid: DC Mode (left) | divider | Shaders (right) ────────
+        var modeGrid = new Grid();
         modeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        modeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         modeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        Grid.SetColumn(dcModeCombo, 0);
-        Grid.SetColumn(shaderToggle, 1);
-        modeGrid.Children.Add(dcModeCombo);
-        modeGrid.Children.Add(shaderToggle);
+
+        // Column 0: DC Mode combo + DC Mode Custom DLL selector
+        var dcModeColumn = new StackPanel { Spacing = 8 };
+        dcModeColumn.Children.Add(dcModeCombo);
+        dcModeColumn.Children.Add(dcCustomDllSelector);
+        Grid.SetColumn(dcModeColumn, 0);
+
+        // Column 1: Vertical divider
+        var modeDivider = new Border
+        {
+            Width = 1,
+            Background = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Margin = new Thickness(12, 0, 12, 0),
+        };
+        Grid.SetColumn(modeDivider, 1);
+
+        // Column 2: Global Shaders toggle + Select Shaders button
+        var shaderColumn = new StackPanel { Spacing = 8 };
+        shaderColumn.Children.Add(shaderToggle);
+        shaderColumn.Children.Add(selectShadersBtn);
+        Grid.SetColumn(shaderColumn, 2);
+
+        modeGrid.Children.Add(dcModeColumn);
+        modeGrid.Children.Add(modeDivider);
+        modeGrid.Children.Add(shaderColumn);
         _window.OverridesPanel.Children.Add(modeGrid);
-        _window.OverridesPanel.Children.Add(selectShadersBtn);
         _window.OverridesPanel.Children.Add(UIFactory.MakeSeparator());
 
         // ── Rendering Path (dual-API games only) ─────────────────────────────────
@@ -1107,6 +1228,12 @@ public class DetailPanelBuilder
                 _window.ViewModel.SetPerGameDcModeOverride(capturedName, null);
                 _window.ViewModel.ApplyDcModeSwitchForCard(capturedName, prev);
             }
+
+            // Clear DC Mode Custom DLL filename
+            _window.ViewModel.SetDcCustomDllFileName(capturedName, null);
+            dcCustomDllSelector.SelectedItem = null;
+            dcCustomDllSelector.Text = "";
+            dcCustomDllSelector.Visibility = Visibility.Collapsed;
 
             // Shader mode → Global
             if (_window.ViewModel.GetPerGameShaderMode(capturedName) != "Global")

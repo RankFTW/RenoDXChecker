@@ -94,6 +94,9 @@ public partial class GameCardViewModel
         OnPropertyChanged(nameof(DcIniBorderThickness));
         OnPropertyChanged(nameof(DcIniMargin));
         OnPropertyChanged(nameof(IsDcInstalled));
+        // RS status text/color depend on IsDcInstalled when DC Mode is active
+        OnPropertyChanged(nameof(RsStatusText));
+        OnPropertyChanged(nameof(RsStatusColor));
         OnPropertyChanged(nameof(CardDcStatusDot));
         OnPropertyChanged(nameof(CardDcInstallEnabled));
         // Combined card

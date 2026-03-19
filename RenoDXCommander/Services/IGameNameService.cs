@@ -32,6 +32,9 @@ public interface IGameNameService
     /// <summary>Per-game Display Commander mode override levels.</summary>
     Dictionary<string, int> PerGameDcModeOverride { get; }
 
+    /// <summary>Per-game DC Mode Custom DLL filenames. Key = game name, Value = custom DLL filename.</summary>
+    Dictionary<string, string> DcCustomDllFileNames { get; }
+
     /// <summary>Games excluded from batch ReShade updates.</summary>
     HashSet<string> UpdateAllExcludedReShade { get; }
 

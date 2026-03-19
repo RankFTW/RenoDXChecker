@@ -1,3 +1,24 @@
+## v1.5.1
+
+### New Features
+
+**Vulkan ReShade lightweight install**
+- When the global Vulkan implicit layer is already registered, clicking the ReShade install button on a Vulkan game now performs a fast lightweight deploy (INI + footprint + shaders only) without requiring administrator privileges or reinstalling the layer.
+- The install flyout and detail panel show context-aware labels: "Vulkan RS" / "Install Vulkan ReShade" when the layer is present, "Reinstall" / "Reinstall Vulkan ReShade" when already active, and "Install" / "Install Vulkan Layer" when the layer is absent.
+
+**Installed indicator for Nexus/Discord mods**
+- External mods downloaded from Nexus Mods or Discord now show a green "Installed" status label next to the Redownload button in the detail panel when the mod is installed.
+
+### Bug Fixes
+
+**Vulkan ReShade blocked by DC Mode when DC Mode is off**
+- Fixed Vulkan games incorrectly showing "ReShade cannot be installed while DC Mode is active" when the global DC Mode was on but the game had no per-game override. The install handler now applies the same Vulkan DC Mode exemption used everywhere else in the app.
+
+**Update All placing dxgi.dll in Vulkan game folders**
+- Fixed the Update All ReShade batch operation incorrectly running the standard DX ReShade install path for Vulkan games, which copied a `dxgi.dll` into the game directory. Vulkan games are now excluded from Update All ReShade since they use the global implicit layer and don't have per-game DLLs.
+
+---
+
 ## v1.5.0
 
 ### Bug Fixes

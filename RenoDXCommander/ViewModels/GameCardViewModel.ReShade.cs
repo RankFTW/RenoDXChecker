@@ -8,6 +8,14 @@ namespace RenoDXCommander.ViewModels;
 // ReShade status, install state, and computed properties
 public partial class GameCardViewModel
 {
+    // ── Testable seam for VulkanLayerService.IsLayerInstalled() ────────────────────
+    /// <summary>
+    /// Delegate used by computed properties to check Vulkan layer status.
+    /// Defaults to <see cref="VulkanLayerService.IsLayerInstalled()"/>.
+    /// Tests can replace this with a custom func to control the result.
+    /// </summary>
+    internal static Func<bool> IsLayerInstalledFunc = VulkanLayerService.IsLayerInstalled;
+
     // ── RS computed properties ─────────────────────────────────────────────────────
 
     /// <summary>Per-component status dot for ReShade.</summary>
@@ -18,8 +26,15 @@ public partial class GameCardViewModel
     {
         get
         {
-            if (RsBlockedByDcMode) return "🚫  DC Mode — ReShade managed globally";
+            if (RsBlockedByDcMode) return "DC Mode — ReShade managed globally";
             if (RsIsInstalling) return "Installing...";
+            if (RequiresVulkanInstall)
+            {
+                bool layerInstalled = IsLayerInstalledFunc();
+                if (layerInstalled && IsVulkanRsActive) return "Reinstall Vulkan ReShade";
+                if (layerInstalled) return "Install Vulkan ReShade";
+                return "Install Vulkan Layer";
+            }
             return RsStatus == GameStatus.UpdateAvailable ? "⬆  Update ReShade"
                  : RsStatus == GameStatus.Installed       ? "↺  Reinstall ReShade"
                  : "⬇  Install ReShade";
@@ -38,21 +53,40 @@ public partial class GameCardViewModel
                                                ? Visibility.Visible : Visibility.Collapsed;
 
     // Component table: RS short status text + short action labels
-    public string RsStatusText => RsBlockedByDcMode ? "DC Mode"
+    public string RsStatusText => RsBlockedByDcMode
+        ? (IsDcInstalled ? "Installed" : "DC Mode")
         : RsIsInstalling ? "Installing…"
         : RsStatus == GameStatus.UpdateAvailable ? (RsInstalledVersion ?? "Update")
         : RsStatus == GameStatus.Installed       ? (RsInstalledVersion ?? "Installed")
         : "Ready";
-    public string RsStatusColor => RsBlockedByDcMode ? "#6B7A8E"
+    public string RsStatusColor => RsBlockedByDcMode
+        ? (IsDcInstalled ? "#5ECB7D" : "#6B7A8E")
         : RsIsInstalling ? "#D4A856"
         : RsStatus == GameStatus.UpdateAvailable ? "#B898E8"
         : RsStatus == GameStatus.Installed       ? "#5ECB7D"
         : "#A0AABB";
-    public string RsShortAction => RsBlockedByDcMode ? "🚫"
-        : RsIsInstalling ? "…"
-        : RsStatus == GameStatus.UpdateAvailable ? "⬆ Update"
-        : RsStatus == GameStatus.Installed       ? "↺ Reinstall"
-        : "⬇ Install";
+    /// <summary>True when this is a Vulkan game and reshade.ini already exists in the game folder.</summary>
+    private bool IsVulkanRsActive => RequiresVulkanInstall
+        && File.Exists(Path.Combine(InstallPath, "reshade.ini"));
+
+    public string RsShortAction
+    {
+        get
+        {
+            if (RsBlockedByDcMode) return "DC Mode";
+            if (RsIsInstalling) return "…";
+            if (RequiresVulkanInstall)
+            {
+                bool layerInstalled = IsLayerInstalledFunc();
+                if (layerInstalled && IsVulkanRsActive) return "↺ Reinstall";
+                if (layerInstalled) return "⬇ Vulkan RS";
+                return "⬇ Install";
+            }
+            return RsStatus == GameStatus.UpdateAvailable ? "⬆ Update"
+                 : RsStatus == GameStatus.Installed       ? "↺ Reinstall"
+                 : "⬇ Install";
+        }
+    }
 
     public bool IsRsNotInstalling => !RsIsInstalling && !RsBlockedByDcMode;
     public bool IsRsInstalled   => RsStatus is GameStatus.Installed or GameStatus.UpdateAvailable;

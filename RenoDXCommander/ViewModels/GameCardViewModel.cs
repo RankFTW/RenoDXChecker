@@ -38,6 +38,8 @@ public partial class GameCardViewModel : ObservableObject
     [ObservableProperty] private string     _dcActionMessage = "";
     [ObservableProperty] private string?    _dcInstalledFile;
     [ObservableProperty] private string?    _dcInstalledVersion;
+    /// <summary>Per-game custom DLL filename when DC Mode Custom (PerGameDcMode == 3) is selected.</summary>
+    [ObservableProperty] private string?    _dcCustomDllFileName;
     public AuxInstalledRecord? DcRecord { get; set; }
 
     // ── ReShade state ─────────────────────────────────────────────────────────────
@@ -64,7 +66,7 @@ public partial class GameCardViewModel : ObservableObject
     public string EngineHint    { get; set; } = "";
     public GraphicsApiType GraphicsApi { get; set; } = GraphicsApiType.Unknown;
     public string? NameUrl      { get; set; }
-    /// <summary>Per-game DC Mode override: null = follow global, 0 = force off, 1 = force DC Mode 1, 2 = force DC Mode 2.</summary>
+    /// <summary>Per-game DC Mode override: null = follow global, 0 = force off, 1 = force DC Mode 1, 2 = force DC Mode 2, 3 = DC Mode Custom.</summary>
     public int? PerGameDcMode        { get; set; }
     /// <summary>True when any per-game DC Mode override is set (game does not follow global toggle).</summary>
     public bool DcModeExcluded       => PerGameDcMode.HasValue;

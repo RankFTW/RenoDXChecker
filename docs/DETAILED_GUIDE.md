@@ -22,6 +22,7 @@ This document covers everything RDXC does in depth. For a quick overview, see th
 - [Remote Manifest](#remote-manifest)
 - [Update All](#update-all)
 - [Auto-Update](#auto-update)
+- [Patch Notes](#patch-notes)
 - [Data Storage](#data-storage)
 - [Troubleshooting](#troubleshooting)
 - [Third-Party Components](#third-party-components)
@@ -30,7 +31,7 @@ This document covers everything RDXC does in depth. For a quick overview, see th
 
 ## Layout
 
-RDXC offers two view modes — Detail View and Grid View — plus a global Settings page.
+RDXC offers two view modes — Detail View and Grid View — plus a global Settings page. RDXC remembers its window size and position across restarts.
 
 ### Detail View
 
@@ -49,26 +50,22 @@ An alternative card-based layout showing all games as a grid of cards. Toggle be
 
 Games in Luma mode do not show a wiki status icon on the grid card.
 
-### Compact UI Mode
-
-A third layout option with an alphabetical game list on the left, the selected game's card and overrides in the centre, and all toolbar buttons vertically on the right. Toggle with the 📐 button. Full UI and Compact UI each remember their own window size independently.
-
 ### Toolbar
 
 | Control | Function |
 |---------|----------|
-| **RDXC logo + title** | App branding (hidden in Compact mode) |
-| **Add Game** | Manually add a game folder |
-| **Refresh** | Rescan game library and fetch latest mod info |
-| **Deploy...** | Flyout menu: Deploy DC Mode to All, Deploy Shaders to All, Update All RenoDX / ReShade / Display Commander. Deploy Shaders and Deploy DC Mode show confirmation dialogs before executing. |
-| **Support** | Open the RDXC support channel on Discord |
-| **Settings** | Navigate to the Settings page |
+| **RDXC logo + title** | App branding |
+| **Refresh** | Rescan game library and fetch latest mod info. After the initial boot, refresh runs invisibly in the background — game cards stay visible throughout. |
+| **Update** | Update ReShade, Display Commander, and RenoDX for all eligible games in one click |
+| **Global Shaders** | Opens the shader selection picker to choose which shader packs to deploy globally. Selecting packs and clicking Deploy immediately syncs shaders to all installed game folders. |
+| **Help** | Flyout menu with Discord (opens the RDXC support channel) and Guide (opens the detailed guide) |
 | **View toggle** | Switch between Detail View and Grid View |
+| **Settings** | Navigate to the Settings page |
 
 ### Game List Sidebar (Detail View)
 
 - **Search box** — filters games in real-time as you type. The ✕ clear button appears as soon as you start typing.
-- **Filter chips** — All Games, Favourites, Installed, Unreal, Unity, Other, RenoDX, Luma, Hidden
+- **Filter chips** — All Games, Favourites, Installed, Unreal, Unity, Other, RenoDX, Luma, Hidden. Engine and mod filters can be combined (e.g. Unreal + RenoDX shows Unreal games with RenoDX mods).
 - **Game/installed counts** — how many games are visible and how many have mods installed
 - **Game list** — each entry shows a platform icon, game name, and a green dot if updates are available
 
@@ -90,6 +87,14 @@ When a game is selected, the detail panel shows:
 
 When no game is selected, the panel shows a placeholder prompting you to pick one.
 
+### Status Bar
+
+The bottom status bar shows:
+
+- **Status text** (left) — game count, installed count, or current operation status
+- **Single-player warning** (centre) — a reminder that ReShade with addon support may trigger anti-cheat in online/multiplayer games
+- **Patch Notes** (right) — opens a dialog showing recent patch notes
+
 ---
 
 ## Settings Page
@@ -99,13 +104,12 @@ Click **Settings** in the toolbar to open the Settings page. Click **← Back to
 | Section | Contents |
 |---------|----------|
 | **Display Commander Mode** | DC Mode selector (Off / Mode 1 / Mode 2) with inline explanation, plus Deploy DC Mode to All button |
-| **Shader Deploy Mode** | Shader mode selector (Off / Minimum / All / User / Select) with inline explanation, plus Deploy Shaders to All button |
-| **Preferences** | Skip Update Check toggle, Beta Opt-In toggle, Verbose Logging toggle — each with inline description |
+| **Add Game** | Manually add a game that wasn't automatically detected |
 | **Full Refresh** | Clears all caches and re-scans everything from disk |
-| **Crash & Error Logs** | Open Logs Folder and Open Downloads Cache buttons, with paths shown inline. A new session log is created on every launch (max 10 kept). |
-| **About** | Version (including beta suffix when applicable), author, disclaimer |
-| **Credits** | Third-party components with licences and links |
-| **Links** | External links to RenoDX, ReShade, Display Commander, Luma, Discord channels, etc. |
+| **Preferences** | Skip Update Check toggle, Beta Opt-In toggle, Verbose Logging toggle — each with inline description |
+| **Crash & Error Logs** | Open Logs Folder, Open Downloads Cache, and ReShade staging path — with paths shown inline |
+| **About** | Version, app description, disclaimer, and single-player warning |
+| **Credits** | Third-party components with descriptions, licences, and links |
 
 All settings apply immediately — no separate save action required.
 
@@ -146,7 +150,7 @@ RDXC automatically detects whether a game is 32-bit or 64-bit by examining the P
 
 ### Adding Games Manually
 
-- **Add Game** button — enter the game name and pick the install folder.
+- **Add Game** button (on the Settings page) — enter the game name and pick the install folder.
 - **Drag and drop** — drag a game's `.exe` onto the RDXC window. RDXC detects the engine type (Unreal, Unity, or Unknown), infers the game root folder by recognising store markers and engine layouts, and guesses the game name from folder structure. A confirmation dialog lets you edit the name before adding. Added games appear in their correct alphabetical position immediately.
 
 ### Drag-and-Drop
@@ -287,8 +291,6 @@ DC Mode controls how Display Commander loads alongside ReShade. Configure it on 
 
 When DC Mode is active, ReShade is synced to `%LOCALAPPDATA%\Programs\Display_Commander\Reshade\` and Display Commander loads it from there at runtime. Per-game ReShade installs are removed automatically. Individual games can override the global DC Mode via the Overrides section.
 
-The DC AppData shader folder sync always uses the global shader deploy mode, not per-game overrides. Per-game shader overrides only apply to standalone ReShade game folders.
-
 ### Why DC Mode is Recommended
 
 Loading DC as `dxgi.dll` is the preferred method. As explained by pmnoxx, loading DC as a ReShade addon causes it to hook too late, breaking several features:
@@ -336,23 +338,13 @@ RDXC downloads and maintains 7 HDR shader packs, merged into a shared staging fo
 | [potatoFX](https://github.com/CreepySasquatch/potatoFX) | CreepySasquatch |
 | [reshade-shaders (slim)](https://github.com/crosire/reshade-shaders/tree/slim) | crosire |
 
-### Deploy Modes
+### Global Shader Selection
 
-Configure on the Settings page:
+Click the **Global Shaders** button in the toolbar to open the shader selection picker. The picker lists all 7 available shader packs with checkboxes. Select the packs you want and click Deploy — shaders are immediately synced to all installed game folders. The selection is saved and restored across app restarts.
 
-| Mode | Behaviour |
-|------|-----------|
-| **Off** | No shaders deployed. Manage your own. |
-| **Minimum** (default) | Lilium HDR Shaders only. |
-| **All** | All 7 packs. |
-| **User** | Custom folder only — no auto-downloaded packs. |
-| **Select** | Choose exactly which shader packs to deploy via a picker window. Selection saved globally and restored across restarts. |
+### Per-Game Shader Overrides
 
-Custom shaders: `%LOCALAPPDATA%\RenoDXCommander\reshade\Custom\Shaders\` and `\Textures\`.
-
-### Shader Selection Picker
-
-When Select mode is chosen (globally or per-game), a picker window lists all 7 available shader packs with checkboxes. The selection is saved and restored across app restarts. Per-game shader overrides in both Detail View and Grid View include Select as an option, allowing different games to use different subsets of shader packs. Clicking Deploy in the picker immediately deploys the chosen shaders to the game folder.
+Per-game shader overrides in both Detail View and Grid View allow different games to use different subsets of shader packs. Select mode opens a picker to choose specific shader packs for that game. Clicking Deploy in the per-game picker immediately deploys the chosen shaders to the game folder.
 
 ### Deploy Destinations
 
@@ -363,6 +355,8 @@ When Select mode is chosen (globally or per-game), a picker window lists all 7 a
 | DC Mode OFF (Vulkan ReShade) | `<game folder>\reshade-shaders\Shaders\` and `\Textures\` (requires `RDXC_VULKAN_FOOTPRINT`) |
 
 User-owned shader folders are preserved by renaming to `reshade-shaders-original` before deployment and restored when the shader mode is set to Off or when Vulkan ReShade is uninstalled.
+
+Custom shaders: `%LOCALAPPDATA%\RenoDXCommander\reshade\Custom\Shaders\` and `\Textures\`.
 
 ### Startup Shader Deployment
 
@@ -403,12 +397,10 @@ The Overrides section appears below Components in the detail panel. All controls
 | **DLL naming override** | Custom filenames for ReShade and DC via dropdown combo boxes with common DLL suggestions (`dxgi.dll`, `d3d11.dll`, `dinput8.dll`, `version.dll`, `winmm.dll`, `d3d12.dll`, `xinput1_3.dll`, `msvcp140.dll`, `bink2w64.dll`, `d3d9.dll`). Dropdowns cross-filter so both can't use the same name. Existing installs are renamed in place — no reinstall needed. Takes priority over any manifest-defined DLL names. |
 | **Global update inclusion** | Three toggle switches (ReShade, DC, RenoDX) controlling whether the game is included in bulk updates for each component. All default to On. Legacy single-toggle settings are auto-migrated. |
 | **DC Mode** | Follow Global / Exclude (Off) / Force Mode 1 / Force Mode 2. Vulkan games default to Exclude (Off). |
-| **Shader Mode** | Global / Off / Minimum / All / User / Select. Per-game shader mode only applies when DC Mode is OFF. Select mode opens a picker to choose specific shader packs. |
+| **Shader Mode** | Global / Off / Minimum / All / User / Select. Select mode opens a picker to choose specific shader packs for this game. |
 | **Rendering Path** | For dual-API games: DirectX or Vulkan. Switching from DirectX to Vulkan triggers automatic cleanup of DX artifacts. |
 | **Wiki exclusion** | Exclude the game from wiki lookups |
 | **Reset Overrides** | Reset all override settings back to defaults (game name, wiki name, DC mode, shader mode, DLL override, all three update toggles, and wiki exclusion) |
-
-In Compact mode, the previously selected game card is automatically re-selected after changing overrides.
 
 ---
 
@@ -462,9 +454,9 @@ RDXC fetches a remote manifest from GitHub on every launch, providing game-speci
 
 ## Update All
 
-The Deploy... flyout provides three Update All actions for ReShade, Display Commander, and RenoDX across all eligible games. Each component respects its own per-game inclusion toggle — a game excluded from ReShade updates can still receive DC and RenoDX updates. Games with DLL overrides or foreign DLLs are also skipped. Updates are flagged by comparing stored file sizes against remote sources.
+The **Update** button in the toolbar updates ReShade, Display Commander, and RenoDX across all eligible games in one click. Each component respects its own per-game inclusion toggle — a game excluded from ReShade updates can still receive DC and RenoDX updates. Games with foreign DLLs are skipped. Updates are flagged by comparing stored file sizes against remote sources.
 
-Deploy Shaders and Deploy DC Mode show confirmation dialogs before executing bulk operations.
+**Deploy DC Mode to All** is available on the Settings page and applies the current DC Mode naming to all games that have ReShade and Display Commander installed.
 
 ---
 
@@ -480,7 +472,13 @@ When Beta Opt-In is enabled in Settings, RDXC checks both the stable release (`R
 - Beta is only offered when its base version exceeds the latest stable, OR when the current app is already on a beta and a newer beta at the same base version is available
 - No update is offered if all candidates are at or below the current version
 
-The app encodes its beta status in the 4th component of the assembly version: `1.5.0.0` = stable, `1.5.0.1` = beta 1, `1.5.0.2` = beta 2, etc.
+The app encodes its beta status in the 4th component of the assembly version: `1.5.1.0` = stable, `1.5.1.1` = beta 1, `1.5.1.2` = beta 2, etc.
+
+---
+
+## Patch Notes
+
+RDXC shows a patch notes dialog on first launch after an update, displaying the most recent version changes in a scrollable markdown view. The dialog can also be opened at any time via the **Patch Notes** button in the status bar.
 
 ---
 
@@ -499,13 +497,17 @@ Everything under `%LOCALAPPDATA%\RenoDXCommander\`:
 | `reshade\` | Staged shader packs and custom shaders |
 | `logs\` | Session logs (timestamped, max 10 kept) and crash reports |
 
+### Session Logging
+
+A new session log file is created every time RDXC starts, named with a timestamp (e.g. `session_2025-03-14_12-30-00.txt`). All activity is logged to the session file automatically — no need to enable Verbose Logging first. Old session logs are automatically pruned to keep a maximum of 10 on disk. The Verbose Logging toggle in Settings enables additional detail in log entries.
+
 ---
 
 ## Troubleshooting
 
 | Problem | Fix |
 |---------|-----|
-| Game not detected | Click **Add Game** in the toolbar or drag the game's `.exe` onto the window |
+| Game not detected | Click **Add Game** on the Settings page or drag the game's `.exe` onto the window |
 | Xbox games missing | Click **Refresh** — RDXC uses the PackageManager API |
 | ReShade not loading | Check the install path via 📁 — `dxgi.dll` must be next to the game exe |
 | ReShade not detected | If using a non-standard DLL name, RDXC should detect it via binary signature scanning. Try **Refresh**. |
@@ -516,8 +518,8 @@ Everything under `%LOCALAPPDATA%\RenoDXCommander\`:
 | Games/mods out of sync | Settings → **Full Refresh** to clear all caches |
 | Drag-and-drop not working | Ensure RDXC is running. Drag-and-drop uses Win32 shell handling and works even as administrator. |
 | Vulkan ReShade not showing as installed | Check that `reshade.ini` exists in the game folder. The Vulkan layer must also be installed globally. |
-| Shaders missing after DC uninstall | Click **Refresh** or **Deploy Shaders** — RDXC will detect the missing shaders and redeploy them. For Vulkan games, the footprint file is also restored. |
-| Auto-update not triggering for beta | Ensure Beta Opt-In is enabled in Settings. The beta release on GitHub must have a parseable version in the title (e.g. "RDXC 1.5.0 beta 1") and the asset must be named `RDXC-Setup.exe`. |
+| Shaders missing after DC uninstall | Click **Refresh** or use **Global Shaders** — RDXC will detect the missing shaders and redeploy them. For Vulkan games, the footprint file is also restored. |
+| Auto-update not triggering for beta | Ensure Beta Opt-In is enabled in Settings. The beta release on GitHub must have a parseable version in the title (e.g. "RDXC 1.5.1 beta 1") and the asset must be named `RDXC-Setup.exe`. |
 | Games showing as installed after manual file removal | Click **Refresh** — RDXC verifies files exist on disk and cleans up stale records. |
 | DLL override not applying from manifest | Click **Refresh** — manifest DLL overrides are applied on every refresh, renaming existing files to match. |
 

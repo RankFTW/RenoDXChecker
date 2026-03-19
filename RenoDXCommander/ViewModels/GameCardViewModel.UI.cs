@@ -28,7 +28,7 @@ public partial class GameCardViewModel
 
     public string CardRdxStatusDot  => StatusDotColor(Status, IsInstalling);
     public string CardRsStatusDot   => RequiresVulkanInstall
-        ? (RsIsInstalling ? "#2196F3" : VulkanLayerService.IsLayerInstalled() ? "#4CAF50" : "#5A6880")
+        ? (RsIsInstalling ? "#2196F3" : IsLayerInstalledFunc() ? "#4CAF50" : "#5A6880")
         : StatusDotColor(RsStatus, RsIsInstalling);
     public string CardDcStatusDot   => StatusDotColor(DcStatus, DcIsInstalling);
     public string CardLumaStatusDot => StatusDotColor(LumaStatus, IsLumaInstalling);

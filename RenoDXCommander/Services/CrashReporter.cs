@@ -15,7 +15,7 @@ public static class CrashReporter
 {
     // ── Config ────────────────────────────────────────────────────────────────────
 
-    public const string AppVersion = "1.5.0";
+    public const string AppVersion = "1.5.1";
 
     private static readonly string LogDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),

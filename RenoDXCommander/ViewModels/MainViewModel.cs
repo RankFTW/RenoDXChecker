@@ -127,6 +127,35 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public Func<Task<bool>>? ShowVulkanLayerWarningDialog { get; set; }
 
+    // ── Testable seams for Vulkan layer operations in InstallReShadeVulkanAsync ──
+    /// <summary>
+    /// Delegate used by <see cref="InstallReShadeVulkanAsync"/> to check Vulkan layer status.
+    /// Defaults to <see cref="VulkanLayerService.IsLayerInstalled()"/>.
+    /// Tests can replace this with a custom func to control the result.
+    /// </summary>
+    internal Func<bool> IsVulkanLayerInstalledFunc { get; set; } = VulkanLayerService.IsLayerInstalled;
+
+    /// <summary>
+    /// Delegate used by <see cref="InstallReShadeVulkanAsync"/> to install the Vulkan layer.
+    /// Defaults to <see cref="VulkanLayerService.InstallLayer()"/>.
+    /// Tests can replace this with a spy/mock to track invocations.
+    /// </summary>
+    internal Action InstallLayerAction { get; set; } = VulkanLayerService.InstallLayer;
+
+    /// <summary>
+    /// Delegate used by <see cref="InstallReShadeVulkanAsync"/> to check admin status.
+    /// Defaults to <see cref="VulkanLayerService.IsRunningAsAdmin()"/>.
+    /// Tests can replace this to avoid real admin checks.
+    /// </summary>
+    internal Func<bool> IsRunningAsAdminFunc { get; set; } = VulkanLayerService.IsRunningAsAdmin;
+
+    /// <summary>
+    /// Delegate used by <see cref="InstallReShadeVulkanAsync"/> to dispatch UI updates.
+    /// Defaults to using <see cref="DispatcherQueue"/>. Tests can replace this to run
+    /// the action synchronously (e.g. <c>action => action()</c>).
+    /// </summary>
+    internal Action<Action>? DispatchUiAction { get; set; }
+
     /// <summary>
     /// Async callback set by the UI layer. Shows the global shader selection picker.
     /// Takes the current selection, returns the confirmed selection or null on cancel.
@@ -646,6 +675,9 @@ public partial class MainViewModel : ObservableObject
         {
             1 => AuxInstallService.DcDxgiName,
             2 => AuxInstallService.DcWinmmName,
+            3 => GetDcCustomDllFileName(gameName) is { } custom && !string.IsNullOrWhiteSpace(custom)
+                ? custom
+                : (card.Is32Bit ? AuxInstallService.DcNormalName32 : AuxInstallService.DcNormalName),
             _ => card.Is32Bit ? AuxInstallService.DcNormalName32 : AuxInstallService.DcNormalName,
         } : null;
 
@@ -784,10 +816,28 @@ public partial class MainViewModel : ObservableObject
         var card = _allCards.FirstOrDefault(c => c.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase));
         if (card != null) { card.PerGameDcMode = mode; card.NotifyAll(); }
     }
+
+    /// <summary>Returns the persisted DC Mode Custom DLL filename for a game, or null if none set.</summary>
+    public string? GetDcCustomDllFileName(string gameName)
+        => _dcCustomDllFileNames.TryGetValue(gameName, out var v) ? v : null;
+
+    /// <summary>Sets or removes the DC Mode Custom DLL filename for a game.</summary>
+    public void SetDcCustomDllFileName(string gameName, string? fileName)
+    {
+        if (!string.IsNullOrWhiteSpace(fileName))
+            _dcCustomDllFileNames[gameName] = fileName;
+        else
+            _dcCustomDllFileNames.Remove(gameName);
+        SaveNameMappings();
+        var card = _allCards.FirstOrDefault(c => c.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase));
+        if (card != null) { card.DcCustomDllFileName = fileName; card.NotifyAll(); }
+    }
     /// <summary>Games for which the user has toggled UE-Extended ON.</summary>
     private HashSet<string> _ueExtendedGames => _gameNameService.UeExtendedGames;
     /// <summary>Per-game DC Mode overrides. Key = game name, Value = 0 (off), 1 (DC Mode 1), 2 (DC Mode 2). Absent = follow global.</summary>
     private Dictionary<string, int> _perGameDcModeOverride => _gameNameService.PerGameDcModeOverride;
+    /// <summary>Per-game DC Mode Custom DLL filenames. Key = game name, Value = custom DLL filename.</summary>
+    private Dictionary<string, string> _dcCustomDllFileNames => _gameNameService.DcCustomDllFileNames;
     private HashSet<string> _updateAllExcludedReShade => _gameNameService.UpdateAllExcludedReShade;
     private HashSet<string> _updateAllExcludedDc => _gameNameService.UpdateAllExcludedDc;
     private HashSet<string> _updateAllExcludedRenoDx => _gameNameService.UpdateAllExcludedRenoDx;
@@ -2168,6 +2218,7 @@ public partial class MainViewModel : ObservableObject
             IsNativeHdrGame        = isNativeHdr,
             IsManifestUeExtended   = useUeExt && !isNativeHdr,
             PerGameDcMode          = _perGameDcModeOverride.TryGetValue(game.Name, out var pgdmM) ? pgdmM : null,
+            DcCustomDllFileName    = _dcCustomDllFileNames.TryGetValue(game.Name, out var dcDllM) ? dcDllM : null,
             ExcludeFromUpdateAllReShade = _gameNameService.UpdateAllExcludedReShade.Contains(game.Name),
             ExcludeFromUpdateAllDc      = _gameNameService.UpdateAllExcludedDc.Contains(game.Name),
             ExcludeFromUpdateAllRenoDx  = _gameNameService.UpdateAllExcludedRenoDx.Contains(game.Name),
@@ -2487,6 +2538,9 @@ public partial class MainViewModel : ObservableObject
 
         // Block ReShade install when DC mode is active for this game
         var effectiveDcLevel = card.DllOverrideEnabled ? 0 : (card.PerGameDcMode ?? DcModeLevel);
+        // Vulkan games default to DC mode off unless explicitly overridden
+        if (card.RequiresVulkanInstall && !card.PerGameDcMode.HasValue)
+            effectiveDcLevel = 0;
         if (effectiveDcLevel > 0)
         {
             card.RsActionMessage = "🚫 ReShade cannot be installed while DC Mode is active.";
@@ -2574,10 +2628,46 @@ public partial class MainViewModel : ObservableObject
     /// Vulkan-specific ReShade install flow. Installs the global Vulkan implicit layer,
     /// deploys reshade.ini and ReShadePreset.ini to the game directory, and updates card status.
     /// </summary>
-    private async Task InstallReShadeVulkanAsync(GameCardViewModel card)
+    internal async Task InstallReShadeVulkanAsync(GameCardViewModel card)
     {
+        // ── Lightweight deploy path — layer already present, no admin needed ──
+        if (IsVulkanLayerInstalledFunc())
+        {
+            card.RsIsInstalling  = true;
+            card.RsActionMessage = "Installing Vulkan ReShade...";
+            try
+            {
+                AuxInstallService.MergeRsVulkanIni(card.InstallPath);
+                AuxInstallService.CopyRsPresetIniIfPresent(card.InstallPath);
+                VulkanFootprintService.Create(card.InstallPath);
+                _shaderPackService.SyncGameFolder(card.InstallPath,
+                    ResolveShaderSelection(card.GameName, card.ShaderModeOverride));
+
+                var vulkanVersion = AuxInstallService.ReadInstalledVersion(
+                    VulkanLayerService.LayerDirectory, VulkanLayerService.LayerDllName);
+                Action updateCard = () =>
+                {
+                    card.RsInstalledVersion = vulkanVersion;
+                    card.RsStatus        = GameStatus.Installed;
+                    card.RsActionMessage = "✅ Vulkan ReShade installed!";
+                    card.NotifyAll();
+                };
+                if (DispatchUiAction != null) DispatchUiAction(updateCard);
+                else DispatcherQueue?.TryEnqueue(() => updateCard());
+            }
+            catch (Exception ex)
+            {
+                card.RsActionMessage = $"❌ Vulkan ReShade Failed: {ex.Message}";
+                CrashReporter.WriteCrashReport("InstallReShadeVulkanAsync", ex, note: $"Game: {card.GameName}");
+            }
+            finally { card.RsIsInstalling = false; }
+            return;
+        }
+
+        // ── Full install path — layer absent, requires admin + InstallLayer() ──
+
         // 1. Check admin privileges
-        if (!VulkanLayerService.IsRunningAsAdmin())
+        if (!IsRunningAsAdminFunc())
         {
             if (ShowVulkanAdminRequiredDialog != null)
                 await ShowVulkanAdminRequiredDialog();
@@ -2586,8 +2676,8 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        // 2. If layer not installed and warning not yet shown this session, show global warning
-        if (!VulkanLayerService.IsLayerInstalled() && !_vulkanLayerWarningShownThisSession)
+        // 2. If warning not yet shown this session, show global warning
+        if (!_vulkanLayerWarningShownThisSession)
         {
             if (ShowVulkanLayerWarningDialog != null)
             {
@@ -2605,7 +2695,7 @@ public partial class MainViewModel : ObservableObject
         try
         {
             // 3. Install the global Vulkan layer (copies DLL, writes manifest, registers in registry)
-            await Task.Run(() => VulkanLayerService.InstallLayer());
+            await Task.Run(() => InstallLayerAction());
 
             // 4. Deploy reshade.vulkan.ini (as reshade.ini) to game directory
             AuxInstallService.MergeRsVulkanIni(card.InstallPath);
@@ -2626,13 +2716,15 @@ public partial class MainViewModel : ObservableObject
             // 7. Update card RS status
             var vulkanVersion = AuxInstallService.ReadInstalledVersion(
                 VulkanLayerService.LayerDirectory, VulkanLayerService.LayerDllName);
-            DispatcherQueue?.TryEnqueue(() =>
+            Action updateCard = () =>
             {
                 card.RsInstalledVersion = vulkanVersion;
                 card.RsStatus        = GameStatus.Installed;
                 card.RsActionMessage = "✅ ReShade installed (Vulkan Layer)!";
                 card.NotifyAll();
-            });
+            };
+            if (DispatchUiAction != null) DispatchUiAction(updateCard);
+            else DispatcherQueue?.TryEnqueue(() => updateCard());
         }
         catch (Exception ex)
         {
@@ -3853,6 +3945,7 @@ public partial class MainViewModel : ObservableObject
                                          : effectiveMod?.DiscordUrl,
                 NameUrl                = effectiveMod?.NameUrl,
                 PerGameDcMode          = _perGameDcModeOverride.TryGetValue(game.Name, out var pgdmBc) ? pgdmBc : null,
+                DcCustomDllFileName    = _dcCustomDllFileNames.TryGetValue(game.Name, out var dcDllBc) ? dcDllBc : null,
                 ExcludeFromUpdateAllReShade = _gameNameService.UpdateAllExcludedReShade.Contains(game.Name),
                 ExcludeFromUpdateAllDc      = _gameNameService.UpdateAllExcludedDc.Contains(game.Name),
                 ExcludeFromUpdateAllRenoDx  = _gameNameService.UpdateAllExcludedRenoDx.Contains(game.Name),

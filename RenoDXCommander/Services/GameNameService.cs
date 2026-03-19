@@ -23,6 +23,7 @@ public class GameNameService : IGameNameService
     private HashSet<string> _favouriteGames = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _ueExtendedGames = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, int> _perGameDcModeOverride = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, string> _dcCustomDllFileNames = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _updateAllExcludedReShade = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _updateAllExcludedDc = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _updateAllExcludedRenoDx = new(StringComparer.OrdinalIgnoreCase);
@@ -44,6 +45,7 @@ public class GameNameService : IGameNameService
     public HashSet<string> FavouriteGames => _favouriteGames;
     public HashSet<string> UeExtendedGames => _ueExtendedGames;
     public Dictionary<string, int> PerGameDcModeOverride => _perGameDcModeOverride;
+    public Dictionary<string, string> DcCustomDllFileNames => _dcCustomDllFileNames;
     public HashSet<string> UpdateAllExcludedReShade => _updateAllExcludedReShade;
     public HashSet<string> UpdateAllExcludedDc => _updateAllExcludedDc;
     public HashSet<string> UpdateAllExcludedRenoDx => _updateAllExcludedRenoDx;
@@ -84,6 +86,7 @@ public class GameNameService : IGameNameService
         _wikiExclusions            = new(StringComparer.OrdinalIgnoreCase);
         _ueExtendedGames           = new(StringComparer.OrdinalIgnoreCase);
         _perGameDcModeOverride     = new(StringComparer.OrdinalIgnoreCase);
+        _dcCustomDllFileNames      = new(StringComparer.OrdinalIgnoreCase);
         _updateAllExcludedReShade  = new(StringComparer.OrdinalIgnoreCase);
         _updateAllExcludedDc       = new(StringComparer.OrdinalIgnoreCase);
         _updateAllExcludedRenoDx   = new(StringComparer.OrdinalIgnoreCase);
@@ -144,6 +147,9 @@ public class GameNameService : IGameNameService
             _perGameDcModeOverride = new(StringComparer.OrdinalIgnoreCase);
             foreach (var name in oldExcluded) _perGameDcModeOverride[name] = 0;
         }
+
+        _dcCustomDllFileNames = new(Load<Dictionary<string, string>>("DcCustomDllFileNames",
+            new(StringComparer.OrdinalIgnoreCase)), StringComparer.OrdinalIgnoreCase);
 
         _updateAllExcludedReShade = new HashSet<string>(
             Load<List<string>>("UpdateAllExcludedReShade", new()), StringComparer.OrdinalIgnoreCase);
@@ -242,6 +248,7 @@ public class GameNameService : IGameNameService
                 s["UeExtendedGames"] = JsonSerializer.Serialize(_ueExtendedGames.ToList());
                 s["DcModeLevel"]     = dcModeLevel.ToString();
                 s["PerGameDcModeOverride"]  = JsonSerializer.Serialize(_perGameDcModeOverride);
+                s["DcCustomDllFileNames"]   = JsonSerializer.Serialize(_dcCustomDllFileNames);
                 s["UpdateAllExcludedReShade"] = JsonSerializer.Serialize(_updateAllExcludedReShade.ToList());
                 s["UpdateAllExcludedDc"]      = JsonSerializer.Serialize(_updateAllExcludedDc.ToList());
                 s["UpdateAllExcludedRenoDx"]  = JsonSerializer.Serialize(_updateAllExcludedRenoDx.ToList());
@@ -348,6 +355,7 @@ public class GameNameService : IGameNameService
         MigrateHashSet(_wikiExclusions, oldName, newName);
         MigrateHashSet(_ueExtendedGames, oldName, newName);
         MigrateDict(_perGameDcModeOverride, oldName, newName);
+        MigrateDict(_dcCustomDllFileNames, oldName, newName);
         MigrateHashSet(_updateAllExcludedReShade, oldName, newName);
         MigrateHashSet(_updateAllExcludedDc, oldName, newName);
         MigrateHashSet(_updateAllExcludedRenoDx, oldName, newName);

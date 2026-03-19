@@ -162,12 +162,15 @@ public class CardInstallActionsPropertyTests
                 bool rdxColorOk = card.RdxStatusColor == expectedRdxColor;
 
                 // ── RS status text and color ──
-                string expectedRsText = rsBlockedByDcMode ? "DC Mode"
+                bool isDcInstalled = dcStatus is GameStatus.Installed or GameStatus.UpdateAvailable;
+                string expectedRsText = rsBlockedByDcMode
+                    ? (isDcInstalled ? "Installed" : "DC Mode")
                     : rsIsInstalling ? "Installing…"
                     : rsStatus == GameStatus.UpdateAvailable ? "Update"
                     : rsStatus == GameStatus.Installed       ? "Installed"
                     : "Ready";
-                string expectedRsColor = rsBlockedByDcMode ? "#6B7A8E"
+                string expectedRsColor = rsBlockedByDcMode
+                    ? (isDcInstalled ? "#5ECB7D" : "#6B7A8E")
                     : rsIsInstalling ? "#D4A856"
                     : rsStatus == GameStatus.UpdateAvailable ? "#B898E8"
                     : rsStatus == GameStatus.Installed       ? "#5ECB7D"
