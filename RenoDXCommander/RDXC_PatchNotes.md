@@ -1,3 +1,12 @@
+## v1.5.2
+
+### Bug Fixes
+
+**Update All removing shaders from game folders**
+- Fixed the Update All ReShade and Update All DC operations removing managed shaders from every game folder they touched. The batch update was not passing the per-game shader selection to the install methods, causing the shader sync to interpret a null selection as "remove all shaders". Shaders are now preserved correctly during batch updates using each game's global or per-game shader selection.
+
+---
+
 ## v1.5.1
 
 ### New Features

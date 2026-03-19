@@ -3052,7 +3052,8 @@ public partial class MainViewModel : ObservableObject
                 OnPropertyChanged(nameof(UpdateAllBtnBackground));
                 OnPropertyChanged(nameof(UpdateAllBtnForeground));
                 OnPropertyChanged(nameof(UpdateAllBtnBorder));
-            });
+            },
+            shaderResolver: ResolveShaderSelection);
     }
 
     public async Task UpdateAllDcAsync()
@@ -3066,7 +3067,8 @@ public partial class MainViewModel : ObservableObject
                 OnPropertyChanged(nameof(UpdateAllBtnBackground));
                 OnPropertyChanged(nameof(UpdateAllBtnForeground));
                 OnPropertyChanged(nameof(UpdateAllBtnBorder));
-            });
+            },
+            shaderResolver: ResolveShaderSelection);
     }
 
     // ── Init ──

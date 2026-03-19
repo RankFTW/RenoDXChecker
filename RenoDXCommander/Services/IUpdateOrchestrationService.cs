@@ -34,7 +34,8 @@ public interface IUpdateOrchestrationService
         IDllOverrideService dllOverrideService,
         int dcModeLevel,
         Microsoft.UI.Dispatching.DispatcherQueue? dispatcherQueue,
-        Action notifyUpdateState);
+        Action notifyUpdateState,
+        Func<string, string?, IEnumerable<string>?>? shaderResolver = null);
 
     /// <summary>
     /// Batch-updates all eligible Display Commander installations.
@@ -44,7 +45,8 @@ public interface IUpdateOrchestrationService
         IDllOverrideService dllOverrideService,
         int dcModeLevel,
         Microsoft.UI.Dispatching.DispatcherQueue? dispatcherQueue,
-        Action notifyUpdateState);
+        Action notifyUpdateState,
+        Func<string, string?, IEnumerable<string>?>? shaderResolver = null);
 
     /// <summary>
     /// Checks all installed mods and aux components for available updates.

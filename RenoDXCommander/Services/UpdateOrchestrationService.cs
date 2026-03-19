@@ -92,7 +92,8 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
         IDllOverrideService dllOverrideService,
         int dcModeLevel,
         Microsoft.UI.Dispatching.DispatcherQueue? dispatcherQueue,
-        Action notifyUpdateState)
+        Action notifyUpdateState,
+        Func<string, string?, IEnumerable<string>?>? shaderResolver = null)
     {
         var targets = UpdateAllEligible(allCards)
             .Where(c => !c.ExcludeFromUpdateAllReShade)
@@ -142,6 +143,7 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
                     shaderModeOverride: card.ShaderModeOverride,
                     use32Bit:       card.Is32Bit,
                     filenameOverride: rsOverride,
+                    selectedPackIds: shaderResolver?.Invoke(card.GameName, card.ShaderModeOverride),
                     progress:       progress).ConfigureAwait(false);
                 dispatcherQueue?.TryEnqueue(() =>
                 {
@@ -169,7 +171,8 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
         IDllOverrideService dllOverrideService,
         int dcModeLevel,
         Microsoft.UI.Dispatching.DispatcherQueue? dispatcherQueue,
-        Action notifyUpdateState)
+        Action notifyUpdateState,
+        Func<string, string?, IEnumerable<string>?>? shaderResolver = null)
     {
         var targets = UpdateAllEligible(allCards)
             .Where(c => !c.ExcludeFromUpdateAllDc)
@@ -234,6 +237,7 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
                     shaderModeOverride: card.ShaderModeOverride,
                     use32Bit:         card.Is32Bit,
                     filenameOverride: dcOverride,
+                    selectedPackIds:  shaderResolver?.Invoke(card.GameName, card.ShaderModeOverride),
                     progress:         progress).ConfigureAwait(false);
                 dispatcherQueue?.TryEnqueue(() =>
                 {

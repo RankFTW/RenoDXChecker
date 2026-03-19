@@ -472,7 +472,7 @@ When Beta Opt-In is enabled in Settings, RDXC checks both the stable release (`R
 - Beta is only offered when its base version exceeds the latest stable, OR when the current app is already on a beta and a newer beta at the same base version is available
 - No update is offered if all candidates are at or below the current version
 
-The app encodes its beta status in the 4th component of the assembly version: `1.5.1.0` = stable, `1.5.1.1` = beta 1, `1.5.1.2` = beta 2, etc.
+The app encodes its beta status in the 4th component of the assembly version: `1.5.2.0` = stable, `1.5.2.1` = beta 1, `1.5.2.2` = beta 2, etc.
 
 ---
 
@@ -519,7 +519,7 @@ A new session log file is created every time RDXC starts, named with a timestamp
 | Drag-and-drop not working | Ensure RDXC is running. Drag-and-drop uses Win32 shell handling and works even as administrator. |
 | Vulkan ReShade not showing as installed | Check that `reshade.ini` exists in the game folder. The Vulkan layer must also be installed globally. |
 | Shaders missing after DC uninstall | Click **Refresh** or use **Global Shaders** — RDXC will detect the missing shaders and redeploy them. For Vulkan games, the footprint file is also restored. |
-| Auto-update not triggering for beta | Ensure Beta Opt-In is enabled in Settings. The beta release on GitHub must have a parseable version in the title (e.g. "RDXC 1.5.1 beta 1") and the asset must be named `RDXC-Setup.exe`. |
+| Auto-update not triggering for beta | Ensure Beta Opt-In is enabled in Settings. The beta release on GitHub must have a parseable version in the title (e.g. "RDXC 1.5.2 beta 1") and the asset must be named `RDXC-Setup.exe`. |
 | Games showing as installed after manual file removal | Click **Refresh** — RDXC verifies files exist on disk and cleans up stale records. |
 | DLL override not applying from manifest | Click **Refresh** — manifest DLL overrides are applied on every refresh, renaming existing files to match. |
 
