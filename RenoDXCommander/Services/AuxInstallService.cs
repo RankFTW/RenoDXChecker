@@ -9,7 +9,7 @@ namespace RenoDXCommander.Services;
 /// Maintains its own DB (aux_installed.json) separate from RenoDX records.
 /// Caches downloaded files in the same downloads folder as RenoDX.
 /// </summary>
-public class AuxInstallService : IAuxInstallService
+public class AuxInstallService : IAuxInstallService, IAuxFileService
 {
     // ── URLs & filenames ──────────────────────────────────────────────────────────
     public const string DcUrl        = "https://github.com/pmnoxx/display-commander/releases/download/latest_build/zzz_display_commander.addon64";
@@ -1087,4 +1087,22 @@ public class AuxInstallService : IAuxInstallService
         FileHelper.WriteAllTextWithRetry(DbPath, json, "AuxInstallService.SaveDb");
     }
 
+    // ── IAuxFileService explicit implementations ──────────────────────────────
+    void IAuxFileService.SyncReShadeToDisplayCommander() => SyncReShadeToDisplayCommander();
+    bool IAuxFileService.EnsureReShadeStaging() => EnsureReShadeStaging();
+    DxgiFileType IAuxFileService.IdentifyDxgiFile(string filePath) => IdentifyDxgiFile(filePath);
+    WinmmFileType IAuxFileService.IdentifyWinmmFile(string filePath) => IdentifyWinmmFile(filePath);
+    bool IAuxFileService.BackupForeignDll(string dllPath) => BackupForeignDll(dllPath);
+    void IAuxFileService.RestoreForeignDll(string dllPath) => RestoreForeignDll(dllPath);
+    bool IAuxFileService.IsReShadeFileStrict(string filePath) => IsReShadeFileStrict(filePath);
+    bool IAuxFileService.IsDcFileStrict(string filePath) => IsDcFileStrict(filePath);
+    bool IAuxFileService.IsReShadeFile(string filePath) => IsReShadeFile(filePath);
+    void IAuxFileService.EnsureInisDir() => EnsureInisDir();
+    void IAuxFileService.MergeRsIni(string gameDir) => MergeRsIni(gameDir);
+    void IAuxFileService.MergeRsVulkanIni(string gameDir) => MergeRsVulkanIni(gameDir);
+    void IAuxFileService.CopyRsIni(string gameDir) => CopyRsIni(gameDir);
+    void IAuxFileService.CopyRsPresetIniIfPresent(string gameDir) => CopyRsPresetIniIfPresent(gameDir);
+    void IAuxFileService.CopyDcIni(string gameDir) => CopyDcIni(gameDir);
+    string? IAuxFileService.ReadInstalledVersion(string installPath, string fileName) => ReadInstalledVersion(installPath, fileName);
+    bool IAuxFileService.CheckReShadeUpdateLocal(AuxInstalledRecord record) => CheckReShadeUpdateLocal(record);
 }

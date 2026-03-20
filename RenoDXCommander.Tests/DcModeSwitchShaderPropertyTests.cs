@@ -363,7 +363,7 @@ public class DcModeSwitchShaderPropertyTests : IDisposable
         var lumaService = new StubLumaService();
         var settingsVm = new SettingsViewModel();
         var filterVm = new FilterViewModel();
-        var updateOrch = new UpdateOrchestrationService(installer, auxInstaller);
+        var updateOrch = new UpdateOrchestrationService(installer, auxInstaller, new CrashReporterService(), auxInstaller);
         var dllOverride = new DllOverrideService(auxInstaller);
         var gameName = new GameNameService(gameDetection, installer, auxInstaller, lumaService);
         var rsUpdate = new StubReShadeUpdateService();
@@ -376,6 +376,7 @@ public class DcModeSwitchShaderPropertyTests : IDisposable
             new HttpClient(),
             installer,
             auxInstaller,
+            new CrashReporterService(),
             new StubWikiService(),
             new StubManifestService(),
             new StubGameLibraryService(),
@@ -560,7 +561,7 @@ public class DcModeSwitchShaderPropertyTests : IDisposable
         public void RemoveRecord(InstalledModRecord record) { }
     }
 
-    private class StubAuxInstallService : IAuxInstallService
+    private class StubAuxInstallService : IAuxInstallService, IAuxFileService
     {
         public Task<AuxInstalledRecord> InstallDcAsync(string gameName, string installPath, string? dllFileName, AuxInstalledRecord? existingDcRecord = null, AuxInstalledRecord? existingRsRecord = null, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null) => Task.FromResult(new AuxInstalledRecord());
         public Task<AuxInstalledRecord> InstallReShadeAsync(string gameName, string installPath, bool dcMode, bool dcIsInstalled = false, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null) => Task.FromResult(new AuxInstalledRecord());
@@ -571,6 +572,24 @@ public class DcModeSwitchShaderPropertyTests : IDisposable
         public AuxInstalledRecord? FindRecord(string gameName, string installPath, string addonType) => null;
         public void SaveAuxRecord(AuxInstalledRecord record) { }
         public void RemoveRecord(AuxInstalledRecord record) { }
+        // IAuxFileService stubs
+        public void SyncReShadeToDisplayCommander() { }
+        public bool EnsureReShadeStaging() => false;
+        public AuxInstallService.DxgiFileType IdentifyDxgiFile(string filePath) => AuxInstallService.DxgiFileType.Unknown;
+        public AuxInstallService.WinmmFileType IdentifyWinmmFile(string filePath) => AuxInstallService.WinmmFileType.Unknown;
+        public bool BackupForeignDll(string dllPath) => false;
+        public void RestoreForeignDll(string dllPath) { }
+        public bool IsReShadeFileStrict(string filePath) => false;
+        public bool IsDcFileStrict(string filePath) => false;
+        public bool IsReShadeFile(string filePath) => false;
+        public void EnsureInisDir() { }
+        public void MergeRsIni(string gameDir) { }
+        public void MergeRsVulkanIni(string gameDir) { }
+        public void CopyRsIni(string gameDir) { }
+        public void CopyRsPresetIniIfPresent(string gameDir) { }
+        public void CopyDcIni(string gameDir) { }
+        public string? ReadInstalledVersion(string installPath, string fileName) => null;
+        public bool CheckReShadeUpdateLocal(AuxInstalledRecord record) => false;
     }
 
     private class StubWikiService : IWikiService

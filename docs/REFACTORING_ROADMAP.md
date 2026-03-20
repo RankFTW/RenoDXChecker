@@ -37,13 +37,17 @@
 - MainWindow retains one-line delegation stubs, constructor/lifecycle, ViewModel sync, navigation, and `PickFolderAsync`
 - 7 reflection-based verification tests confirm structural correctness
 
-## 5. Wrap static services behind interfaces
-- **Status:** Not started
+## ✅ 5. Wrap static services behind interfaces
+- **Status:** Done
 - **Risk:** Medium
 - **Impact:** Medium — cleaner DI, better testability
-- `CrashReporter` — static methods used everywhere
-- `AuxInstallService` — static methods used everywhere
-- Wrap behind interfaces and inject via existing DI container
+- **Spec:** `.kiro/specs/static-service-interfaces/`
+- Created `ICrashReporter` interface and `CrashReporterService` wrapper delegating to the static `CrashReporter` class
+- Created `IAuxFileService` interface for 17 static file-identification/INI-management methods on `AuxInstallService`; implemented via explicit interface delegation on the same class
+- Registered both interfaces as singletons in the DI container (`IAuxFileService` reuses the existing `AuxInstallService` singleton)
+- Migrated 8 consumer classes to constructor injection: `MainViewModel`, `UpdateOrchestrationService`, `MainWindow`, `DragDropHandler`, `WindowStateManager`, `OverridesFlyoutBuilder`, `LumaService`
+- Static constants/paths (`TypeDc`, `RsStagingDir`, etc.) intentionally left as static per design
+- 3 property-based test classes (FsCheck) + 1 structural/DI reflection test class
 
 ## 6. Minor cleanup
 - **Status:** Not started

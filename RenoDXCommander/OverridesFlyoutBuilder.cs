@@ -18,10 +18,12 @@ public class OverridesFlyoutBuilder
 {
     private readonly MainWindow _window;
     private readonly DispatcherQueue _dispatcherQueue;
+    private readonly ICrashReporter _crashReporter;
 
-    public OverridesFlyoutBuilder(MainWindow window)
+    public OverridesFlyoutBuilder(MainWindow window, ICrashReporter crashReporter)
     {
         _window = window;
+        _crashReporter = crashReporter;
         _dispatcherQueue = window.DispatcherQueue;
     }
 
@@ -685,7 +687,7 @@ public class OverridesFlyoutBuilder
             if (ViewModel.IsWikiExcluded(capturedName))
                 ViewModel.ToggleWikiExclusion(capturedName);
 
-            CrashReporter.Log($"[OverridesFlyoutBuilder.OpenOverridesFlyout] Overrides reset for: {capturedName}");
+            _crashReporter.Log($"[OverridesFlyoutBuilder.OpenOverridesFlyout] Overrides reset for: {capturedName}");
 
             // Only reselect/NotifyAll/RebuildCardGrid if game name actually changed
             if (nameChanged)

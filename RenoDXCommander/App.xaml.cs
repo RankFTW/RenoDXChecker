@@ -71,6 +71,9 @@ public partial class App : Application
         services.AddSingleton<ILiliumShaderService, LiliumShaderService>();
         services.AddSingleton<IGameDetectionService, GameDetectionService>();
         services.AddSingleton<IPeHeaderService, PeHeaderService>();
+        services.AddSingleton<ICrashReporter, CrashReporterService>();
+        services.AddSingleton<IAuxFileService>(sp => sp.GetRequiredService<IAuxInstallService>() as AuxInstallService
+            ?? throw new InvalidOperationException("IAuxInstallService must be AuxInstallService"));
 
         // ViewModels
         services.AddSingleton<SettingsViewModel>();

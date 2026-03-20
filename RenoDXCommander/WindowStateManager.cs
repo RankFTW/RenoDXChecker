@@ -13,6 +13,7 @@ public class WindowStateManager
 {
     private readonly Window _window;
     private readonly DragDropHandler _dragDropHandler;
+    private readonly ICrashReporter _crashReporter;
     private IntPtr _hwnd;
     private IntPtr _origWndProc;
     private NativeInterop.WndProcDelegate? _wndProcDelegate; // prevent GC
@@ -24,11 +25,12 @@ public class WindowStateManager
     // In-memory cache of window bounds (populated from file on first restore)
     private (int X, int Y, int W, int H)? _windowBounds;
 
-    public WindowStateManager(Window window, IntPtr hwnd, DragDropHandler dragDropHandler)
+    public WindowStateManager(Window window, IntPtr hwnd, DragDropHandler dragDropHandler, ICrashReporter crashReporter)
     {
         _window = window;
         _hwnd = hwnd;
         _dragDropHandler = dragDropHandler;
+        _crashReporter = crashReporter;
     }
 
     /// <summary>
@@ -109,7 +111,7 @@ public class WindowStateManager
                     if (ext is ".addon64" or ".addon32")
                     {
                         try { await _dragDropHandler.ProcessDroppedAddon(path); }
-                        catch (Exception ex) { CrashReporter.Log($"[WindowStateManager.HandleWin32Drop] Addon error — {ex.Message}"); }
+                        catch (Exception ex) { _crashReporter.Log($"[WindowStateManager.HandleWin32Drop] Addon error — {ex.Message}"); }
                         continue;
                     }
 
@@ -117,21 +119,21 @@ public class WindowStateManager
                         && ext is not ".addon64" and not ".addon32")
                     {
                         try { await _dragDropHandler.ProcessDroppedArchive(path); }
-                        catch (Exception ex) { CrashReporter.Log($"[WindowStateManager.HandleWin32Drop] Archive error — {ex.Message}"); }
+                        catch (Exception ex) { _crashReporter.Log($"[WindowStateManager.HandleWin32Drop] Archive error — {ex.Message}"); }
                         continue;
                     }
 
                     if (ext.Equals(".exe", StringComparison.OrdinalIgnoreCase))
                     {
                         try { await _dragDropHandler.ProcessDroppedExe(path); }
-                        catch (Exception ex) { CrashReporter.Log($"[WindowStateManager.HandleWin32Drop] Exe error — {ex.Message}"); }
+                        catch (Exception ex) { _crashReporter.Log($"[WindowStateManager.HandleWin32Drop] Exe error — {ex.Message}"); }
                     }
                 }
             });
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"[WindowStateManager.HandleWin32Drop] Failed — {ex.Message}");
+            _crashReporter.Log($"[WindowStateManager.HandleWin32Drop] Failed — {ex.Message}");
         }
     }
 

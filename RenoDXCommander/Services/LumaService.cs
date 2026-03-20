@@ -24,10 +24,12 @@ public class LumaService : ILumaService
 
     private readonly HttpClient _http;
     private readonly ShaderPackService _shaderPackService;
+    private readonly IAuxFileService _auxFileService;
 
-    public LumaService(HttpClient http)
+    public LumaService(HttpClient http, IAuxFileService auxFileService)
     {
         _http = http;
+        _auxFileService = auxFileService;
         _shaderPackService = new ShaderPackService(http);
     }
 
@@ -337,10 +339,10 @@ public class LumaService : ILumaService
         progress?.Report(("Deploying ReShade config...", 90));
         try
         {
-            AuxInstallService.EnsureInisDir();
+            _auxFileService.EnsureInisDir();
             if (File.Exists(AuxInstallService.RsIniPath))
             {
-                AuxInstallService.MergeRsIni(gameInstallPath);
+                _auxFileService.MergeRsIni(gameInstallPath);
                 installedFiles.Add("reshade.ini");
             }
         }

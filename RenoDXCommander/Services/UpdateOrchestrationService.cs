@@ -12,13 +12,19 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
 {
     private readonly IModInstallService _installer;
     private readonly IAuxInstallService _auxInstaller;
+    private readonly ICrashReporter _crashReporter;
+    private readonly IAuxFileService _auxFileService;
 
     public UpdateOrchestrationService(
         IModInstallService installer,
-        IAuxInstallService auxInstaller)
+        IAuxInstallService auxInstaller,
+        ICrashReporter crashReporter,
+        IAuxFileService auxFileService)
     {
         _installer = installer;
         _auxInstaller = auxInstaller;
+        _crashReporter = crashReporter;
+        _auxFileService = auxFileService;
     }
 
     /// <summary>
@@ -110,10 +116,10 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
                 var dxgiPath = Path.Combine(card.InstallPath, "dxgi.dll");
                 if (File.Exists(dxgiPath))
                 {
-                    var fileType = AuxInstallService.IdentifyDxgiFile(dxgiPath);
+                    var fileType = _auxFileService.IdentifyDxgiFile(dxgiPath);
                     if (fileType == AuxInstallService.DxgiFileType.Unknown)
                     {
-                        CrashReporter.Log($"[UpdateOrchestrationService.UpdateAllReShade] Skipping {card.GameName} — foreign dxgi.dll detected");
+                        _crashReporter.Log($"[UpdateOrchestrationService.UpdateAllReShade] Skipping {card.GameName} — foreign dxgi.dll detected");
                         dispatcherQueue?.TryEnqueue(() =>
                         {
                             card.RsActionMessage = "⚠ Skipped — unknown dxgi.dll";
@@ -149,7 +155,7 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
                 {
                     card.RsRecord           = record;
                     card.RsInstalledFile    = record.InstalledAs;
-                    card.RsInstalledVersion = AuxInstallService.ReadInstalledVersion(record.InstallPath, record.InstalledAs);
+                    card.RsInstalledVersion = _auxFileService.ReadInstalledVersion(record.InstallPath, record.InstalledAs);
                     card.RsStatus           = GameStatus.Installed;
                     card.RsActionMessage    = "✅ Updated!";
                     card.NotifyAll();
@@ -158,7 +164,7 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
             catch (Exception ex)
             {
                 card.RsActionMessage = $"❌ Failed: {ex.Message}";
-                CrashReporter.WriteCrashReport("UpdateAllReShade", ex, note: $"Game: {card.GameName}");
+                _crashReporter.WriteCrashReport("UpdateAllReShade", ex, note: $"Game: {card.GameName}");
             }
             finally { card.RsIsInstalling = false; }
         }
@@ -188,10 +194,10 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
                 var dxgiPath = Path.Combine(card.InstallPath, "dxgi.dll");
                 if (File.Exists(dxgiPath))
                 {
-                    var fileType = AuxInstallService.IdentifyDxgiFile(dxgiPath);
+                    var fileType = _auxFileService.IdentifyDxgiFile(dxgiPath);
                     if (fileType == AuxInstallService.DxgiFileType.Unknown)
                     {
-                        CrashReporter.Log($"[UpdateOrchestrationService.UpdateAllDc] Skipping {card.GameName} — foreign dxgi.dll detected");
+                        _crashReporter.Log($"[UpdateOrchestrationService.UpdateAllDc] Skipping {card.GameName} — foreign dxgi.dll detected");
                         dispatcherQueue?.TryEnqueue(() =>
                         {
                             card.DcActionMessage = "⚠ Skipped — unknown dxgi.dll";
@@ -229,7 +235,7 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
                 {
                     card.DcRecord           = record;
                     card.DcInstalledFile    = record.InstalledAs;
-                    card.DcInstalledVersion = AuxInstallService.ReadInstalledVersion(record.InstallPath, record.InstalledAs);
+                    card.DcInstalledVersion = _auxFileService.ReadInstalledVersion(record.InstallPath, record.InstalledAs);
                     card.DcStatus           = GameStatus.Installed;
                     card.DcActionMessage    = "✅ Updated!";
                     card.NotifyAll();
@@ -238,7 +244,7 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
             catch (Exception ex)
             {
                 card.DcActionMessage = $"❌ Failed: {ex.Message}";
-                CrashReporter.WriteCrashReport("UpdateAllDc", ex, note: $"Game: {card.GameName}");
+                _crashReporter.WriteCrashReport("UpdateAllDc", ex, note: $"Game: {card.GameName}");
             }
             finally { card.DcIsInstalling = false; }
         }
@@ -253,7 +259,7 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
         Microsoft.UI.Dispatching.DispatcherQueue? dispatcherQueue,
         Action notifyUpdateState)
     {
-        CrashReporter.Log($"[UpdateOrchestrationService.CheckForUpdatesAsync] {cards.Count} total cards");
+        _crashReporter.Log($"[UpdateOrchestrationService.CheckForUpdatesAsync] {cards.Count} total cards");
 
         var installed = cards
             .Where(c => c.Status == GameStatus.Installed
@@ -262,7 +268,7 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
                      && c.InstalledRecord?.SnapshotUrl != null)
             .ToList();
 
-        CrashReporter.Log($"[UpdateOrchestrationService.CheckForUpdatesAsync] {installed.Count} RenoDX mods to check");
+        _crashReporter.Log($"[UpdateOrchestrationService.CheckForUpdatesAsync] {installed.Count} RenoDX mods to check");
 
         var tasks = installed.Select(async card =>
         {
@@ -272,26 +278,26 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
             {
                 updateAvailable = await _installer.CheckForUpdateAsync(record).ConfigureAwait(false);
             }
-            catch (Exception ex) { CrashReporter.Log($"[UpdateOrchestrationService.CheckForUpdatesAsync] Update check failed for '{card.GameName}' — {ex.Message}"); return; }
+            catch (Exception ex) { _crashReporter.Log($"[UpdateOrchestrationService.CheckForUpdatesAsync] Update check failed for '{card.GameName}' — {ex.Message}"); return; }
 
             if (updateAvailable)
             {
                 try { _installer.SaveRecordPublic(record); }
-                catch (Exception ex) { CrashReporter.Log($"[UpdateOrchestrationService.CheckForUpdatesAsync] Failed to save record for '{card.GameName}' — {ex.Message}"); }
+                catch (Exception ex) { _crashReporter.Log($"[UpdateOrchestrationService.CheckForUpdatesAsync] Failed to save record for '{card.GameName}' — {ex.Message}"); }
                 dispatcherQueue?.TryEnqueue(() => { card.Status = GameStatus.UpdateAvailable; });
             }
         });
 
         await Task.WhenAll(tasks).ConfigureAwait(false);
-        CrashReporter.Log("[UpdateOrchestrationService.CheckForUpdatesAsync] RenoDX mod checks complete");
+        _crashReporter.Log("[UpdateOrchestrationService.CheckForUpdatesAsync] RenoDX mod checks complete");
 
         var auxInstalled = cards
             .Where(c => c.DcStatus == GameStatus.Installed || c.RsStatus == GameStatus.Installed)
             .ToList();
 
-        CrashReporter.Log($"[UpdateOrchestrationService.CheckForUpdatesAsync] {auxInstalled.Count} aux (DC/RS) cards to check");
+        _crashReporter.Log($"[UpdateOrchestrationService.CheckForUpdatesAsync] {auxInstalled.Count} aux (DC/RS) cards to check");
         foreach (var c in auxInstalled)
-            CrashReporter.Log($"[UpdateOrchestrationService.CheckForUpdatesAsync] Aux check: {c.GameName} DC={c.DcStatus} DcRec={c.DcRecord != null} RS={c.RsStatus} RsRec={c.RsRecord != null} RsBlocked={c.RsBlockedByDcMode}");
+            _crashReporter.Log($"[UpdateOrchestrationService.CheckForUpdatesAsync] Aux check: {c.GameName} DC={c.DcStatus} DcRec={c.DcRecord != null} RS={c.RsStatus} RsRec={c.RsRecord != null} RsBlocked={c.RsBlockedByDcMode}");
 
         var auxTasks = auxInstalled.SelectMany(card => new[]
         {
@@ -300,7 +306,7 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
         });
 
         await Task.WhenAll(auxTasks).ConfigureAwait(false);
-        CrashReporter.Log("[UpdateOrchestrationService.CheckForUpdatesAsync] All checks complete");
+        _crashReporter.Log("[UpdateOrchestrationService.CheckForUpdatesAsync] All checks complete");
 
         dispatcherQueue?.TryEnqueue(() => notifyUpdateState());
     }
@@ -313,7 +319,7 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
             bool upd;
             if (isRs && record.SourceUrl == null)
             {
-                upd = AuxInstallService.CheckReShadeUpdateLocal(record);
+                upd = _auxFileService.CheckReShadeUpdateLocal(record);
             }
             else
             {
@@ -326,6 +332,6 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
                     else      card.DcStatus = GameStatus.UpdateAvailable;
                 });
         }
-        catch (Exception ex) { CrashReporter.Log($"[UpdateOrchestrationService.CheckAuxUpdate] Aux update check failed for '{card.GameName}' ({record.AddonType}) — {ex.Message}"); }
+        catch (Exception ex) { _crashReporter.Log($"[UpdateOrchestrationService.CheckAuxUpdate] Aux update check failed for '{card.GameName}' ({record.AddonType}) — {ex.Message}"); }
     }
 }

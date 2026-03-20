@@ -20,6 +20,7 @@ public partial class MainViewModel : ObservableObject
     public HttpClient HttpClient => _http;
     private readonly IModInstallService _installer;
     private readonly IAuxInstallService _auxInstaller;
+    private readonly ICrashReporter _crashReporter;
     private readonly IWikiService _wikiService;
     private readonly IManifestService _manifestService;
     private readonly IGameLibraryService _gameLibraryService;
@@ -211,7 +212,7 @@ public partial class MainViewModel : ObservableObject
                 }
             }
             catch (Exception ex)
-            { CrashReporter.Log($"[MainViewModel.DeployAllShaders] Failed — {ex.Message}"); }
+            { _crashReporter.Log($"[MainViewModel.DeployAllShaders] Failed — {ex.Message}"); }
         });
     }
 
@@ -243,7 +244,7 @@ public partial class MainViewModel : ObservableObject
                 }
             }
             catch (Exception ex)
-            { CrashReporter.Log($"[MainViewModel.DeployShadersForCard] Failed for '{gameName}' — {ex.Message}"); }
+            { _crashReporter.Log($"[MainViewModel.DeployShadersForCard] Failed for '{gameName}' — {ex.Message}"); }
         });
     }
 
@@ -344,6 +345,7 @@ public partial class MainViewModel : ObservableObject
         HttpClient http,
         IModInstallService installer,
         IAuxInstallService auxInstaller,
+        ICrashReporter crashReporter,
         IWikiService wikiService,
         IManifestService manifestService,
         IGameLibraryService gameLibraryService,
@@ -363,6 +365,7 @@ public partial class MainViewModel : ObservableObject
         _http = http;
         _installer = installer;
         _auxInstaller = auxInstaller;
+        _crashReporter = crashReporter;
         _wikiService = wikiService;
         _manifestService = manifestService;
         _gameLibraryService = gameLibraryService;
@@ -489,12 +492,12 @@ public partial class MainViewModel : ObservableObject
                         card.RsRecord.InstalledAs = effectiveRs;
                         _auxInstaller.SaveAuxRecord(card.RsRecord);
                         card.RsInstalledFile = effectiveRs;
-                        CrashReporter.Log($"[MainViewModel.ApplyManifestDllRenames] RS {card.GameName}: {Path.GetFileName(oldPath)} → {effectiveRs}");
+                        _crashReporter.Log($"[MainViewModel.ApplyManifestDllRenames] RS {card.GameName}: {Path.GetFileName(oldPath)} → {effectiveRs}");
                     }
                 }
                 catch (Exception ex)
                 {
-                    CrashReporter.Log($"[MainViewModel.ApplyManifestDllRenames] RS rename failed for '{card.GameName}' — {ex.Message}");
+                    _crashReporter.Log($"[MainViewModel.ApplyManifestDllRenames] RS rename failed for '{card.GameName}' — {ex.Message}");
                 }
             }
 
@@ -513,12 +516,12 @@ public partial class MainViewModel : ObservableObject
                         card.DcRecord.InstalledAs = effectiveDc;
                         _auxInstaller.SaveAuxRecord(card.DcRecord);
                         card.DcInstalledFile = effectiveDc;
-                        CrashReporter.Log($"[MainViewModel.ApplyManifestDllRenames] DC {card.GameName}: {Path.GetFileName(oldPath)} → {effectiveDc}");
+                        _crashReporter.Log($"[MainViewModel.ApplyManifestDllRenames] DC {card.GameName}: {Path.GetFileName(oldPath)} → {effectiveDc}");
                     }
                 }
                 catch (Exception ex)
                 {
-                    CrashReporter.Log($"[MainViewModel.ApplyManifestDllRenames] DC rename failed for '{card.GameName}' — {ex.Message}");
+                    _crashReporter.Log($"[MainViewModel.ApplyManifestDllRenames] DC rename failed for '{card.GameName}' — {ex.Message}");
                 }
             }
         }
@@ -556,11 +559,11 @@ public partial class MainViewModel : ObservableObject
                 try
                 {
                     _auxInstaller.UninstallDllOnly(card.RsRecord);
-                    CrashReporter.Log($"[MainViewModel.ApplyDcModeSwitch] Uninstalled ReShade from {card.GameName}");
+                    _crashReporter.Log($"[MainViewModel.ApplyDcModeSwitch] Uninstalled ReShade from {card.GameName}");
                 }
                 catch (Exception ex)
                 {
-                    CrashReporter.Log($"[MainViewModel.ApplyDcModeSwitch] RS uninstall failed for '{card.GameName}' — {ex.Message}");
+                    _crashReporter.Log($"[MainViewModel.ApplyDcModeSwitch] RS uninstall failed for '{card.GameName}' — {ex.Message}");
                 }
                 card.RsRecord           = null;
                 card.RsInstalledFile    = null;
@@ -613,7 +616,7 @@ public partial class MainViewModel : ObservableObject
             }
             catch (Exception ex)
             {
-                CrashReporter.Log($"[MainViewModel.ApplyDcModeSwitch] Shader transition failed for '{card.GameName}' — {ex.Message}");
+                _crashReporter.Log($"[MainViewModel.ApplyDcModeSwitch] Shader transition failed for '{card.GameName}' — {ex.Message}");
             }
 
             card.NotifyAll();
@@ -650,11 +653,11 @@ public partial class MainViewModel : ObservableObject
             try
             {
                 _auxInstaller.UninstallDllOnly(card.RsRecord);
-                CrashReporter.Log($"[MainViewModel.ApplyDcModeSwitchForCard] Uninstalled ReShade from {card.GameName}");
+                _crashReporter.Log($"[MainViewModel.ApplyDcModeSwitchForCard] Uninstalled ReShade from {card.GameName}");
             }
             catch (Exception ex)
             {
-                CrashReporter.Log($"[MainViewModel.ApplyDcModeSwitchForCard] RS uninstall failed for '{card.GameName}' — {ex.Message}");
+                _crashReporter.Log($"[MainViewModel.ApplyDcModeSwitchForCard] RS uninstall failed for '{card.GameName}' — {ex.Message}");
             }
             card.RsRecord           = null;
             card.RsInstalledFile    = null;
@@ -707,7 +710,7 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"[MainViewModel.ApplyDcModeSwitchForCard] Shader transition failed for '{card.GameName}' — {ex.Message}");
+            _crashReporter.Log($"[MainViewModel.ApplyDcModeSwitchForCard] Shader transition failed for '{card.GameName}' — {ex.Message}");
         }
 
         card.NotifyAll();
@@ -751,11 +754,11 @@ public partial class MainViewModel : ObservableObject
                 card.DcInstalledFile = newName;
                 _auxInstaller.SaveAuxRecord(card.DcRecord);
             }
-            CrashReporter.Log($"[MainViewModel.RenameFile] {label} {card.GameName}: {oldName} → {newName}");
+            _crashReporter.Log($"[MainViewModel.RenameFile] {label} {card.GameName}: {oldName} → {newName}");
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"[MainViewModel.RenameFile] {label} rename failed for '{card.GameName}' — {ex.Message}");
+            _crashReporter.Log($"[MainViewModel.RenameFile] {label} rename failed for '{card.GameName}' — {ex.Message}");
         }
     }
 
@@ -1413,7 +1416,7 @@ public partial class MainViewModel : ObservableObject
                 val => DcModeEnabled = val,
                 val => DcDllFileName = val,
                 grid => IsGridLayout = grid);
-            CrashReporter.Log("[MainViewModel.LoadNameMappings] Delegated to GameNameService");
+            _crashReporter.Log("[MainViewModel.LoadNameMappings] Delegated to GameNameService");
         }
         finally
         {
@@ -1656,12 +1659,12 @@ public partial class MainViewModel : ObservableObject
                 if (File.Exists(deletePath))
                 {
                     File.Delete(deletePath);
-                    CrashReporter.Log($"[MainViewModel.ToggleUeExtended] Deleted {deleteFile} from {card.InstallPath}");
+                    _crashReporter.Log($"[MainViewModel.ToggleUeExtended] Deleted {deleteFile} from {card.InstallPath}");
                 }
             }
             catch (Exception ex)
             {
-                CrashReporter.Log($"[MainViewModel.ToggleUeExtended] Failed to delete file — {ex.Message}");
+                _crashReporter.Log($"[MainViewModel.ToggleUeExtended] Failed to delete file — {ex.Message}");
             }
         }
 
@@ -1938,7 +1941,7 @@ public partial class MainViewModel : ObservableObject
     {
         if (card == null) return;
         var key = card.GameName;
-        CrashReporter.Log($"[MainViewModel.ToggleHide] {key} (currently hidden={card.IsHidden})");
+        _crashReporter.Log($"[MainViewModel.ToggleHide] {key} (currently hidden={card.IsHidden})");
         if (_hiddenGames.Contains(key))
             _hiddenGames.Remove(key);
         else
@@ -2294,7 +2297,7 @@ public partial class MainViewModel : ObservableObject
         }
         card.IsInstalling = true;
         card.ActionMessage = "Starting download...";
-        CrashReporter.Log($"[MainViewModel.InstallModAsync] Install started: {card.GameName} → {card.InstallPath}");
+        _crashReporter.Log($"[MainViewModel.InstallModAsync] Install started: {card.GameName} → {card.InstallPath}");
         try
         {
             var progress = new Progress<(string msg, double pct)>(p =>
@@ -2314,7 +2317,7 @@ public partial class MainViewModel : ObservableObject
                 card.InstalledAddonFileName = record.AddonFileName;
                 card.Status                 = GameStatus.Installed;
                 card.ActionMessage          = "✅ Installed! Press Home in-game to open ReShade.";
-                CrashReporter.Log($"[MainViewModel.InstallModAsync] Install complete: {card.GameName} — {record.AddonFileName}");
+                _crashReporter.Log($"[MainViewModel.InstallModAsync] Install complete: {card.GameName} — {record.AddonFileName}");
                 // Update the addon file cache so the next Refresh finds the installed file
                 // instead of using the stale "no addon" entry from before the install.
                 if (!string.IsNullOrEmpty(card.InstallPath))
@@ -2329,7 +2332,7 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             card.ActionMessage = $"❌ Failed: {ex.Message}";
-            CrashReporter.WriteCrashReport("InstallModAsync", ex, note: $"Game: {card.GameName}, Path: {card.InstallPath}");
+            _crashReporter.WriteCrashReport("InstallModAsync", ex, note: $"Game: {card.GameName}, Path: {card.InstallPath}");
         }
         finally
         {
@@ -2354,7 +2357,7 @@ public partial class MainViewModel : ObservableObject
     public void UninstallMod(GameCardViewModel? card)
     {
         if (card?.InstalledRecord == null) return;
-        CrashReporter.Log($"[MainViewModel.UninstallMod] Uninstalling: {card.GameName}");
+        _crashReporter.Log($"[MainViewModel.UninstallMod] Uninstalling: {card.GameName}");
         _installer.Uninstall(card.InstalledRecord);
         card.InstalledRecord        = null;
         card.InstalledAddonFileName = null;
@@ -2473,7 +2476,7 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             card.DcActionMessage = $"❌ DC Failed: {ex.Message}";
-            CrashReporter.WriteCrashReport("InstallDcAsync", ex, note: $"Game: {card.GameName}");
+            _crashReporter.WriteCrashReport("InstallDcAsync", ex, note: $"Game: {card.GameName}");
         }
         finally { card.DcIsInstalling = false; }
     }
@@ -2497,7 +2500,7 @@ public partial class MainViewModel : ObservableObject
                 }
                 catch (Exception shaderEx)
                 {
-                    CrashReporter.Log($"[UninstallDc] Shader removal failed for '{card.GameName}': {shaderEx.Message}");
+                    _crashReporter.Log($"[UninstallDc] Shader removal failed for '{card.GameName}': {shaderEx.Message}");
                 }
             }
 
@@ -2520,7 +2523,7 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             card.DcActionMessage = $"❌ Uninstall failed: {ex.Message}";
-            CrashReporter.WriteCrashReport("UninstallDc", ex, note: $"Game: {card.GameName}");
+            _crashReporter.WriteCrashReport("UninstallDc", ex, note: $"Game: {card.GameName}");
         }
     }
 
@@ -2614,7 +2617,7 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             card.RsActionMessage = $"❌ ReShade Failed: {ex.Message}";
-            CrashReporter.WriteCrashReport("InstallReShadeAsync", ex, note: $"Game: {card.GameName}");
+            _crashReporter.WriteCrashReport("InstallReShadeAsync", ex, note: $"Game: {card.GameName}");
         }
         finally { card.RsIsInstalling = false; }
     }
@@ -2653,7 +2656,7 @@ public partial class MainViewModel : ObservableObject
             catch (Exception ex)
             {
                 card.RsActionMessage = $"❌ Vulkan ReShade Failed: {ex.Message}";
-                CrashReporter.WriteCrashReport("InstallReShadeVulkanAsync", ex, note: $"Game: {card.GameName}");
+                _crashReporter.WriteCrashReport("InstallReShadeVulkanAsync", ex, note: $"Game: {card.GameName}");
             }
             finally { card.RsIsInstalling = false; }
             return;
@@ -2724,7 +2727,7 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             card.RsActionMessage = $"❌ Vulkan ReShade Failed: {ex.Message}";
-            CrashReporter.WriteCrashReport("InstallReShadeVulkanAsync", ex, note: $"Game: {card.GameName}");
+            _crashReporter.WriteCrashReport("InstallReShadeVulkanAsync", ex, note: $"Game: {card.GameName}");
         }
         finally { card.RsIsInstalling = false; }
     }
@@ -2751,7 +2754,7 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             card.RsActionMessage = $"❌ Uninstall failed: {ex.Message}";
-            CrashReporter.WriteCrashReport("UninstallReShade", ex, note: $"Game: {card.GameName}");
+            _crashReporter.WriteCrashReport("UninstallReShade", ex, note: $"Game: {card.GameName}");
         }
     }
 
@@ -2784,7 +2787,7 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             card.RsActionMessage = $"❌ Uninstall failed: {ex.Message}";
-            CrashReporter.WriteCrashReport("UninstallVulkanReShade", ex, note: $"Game: {card.GameName}");
+            _crashReporter.WriteCrashReport("UninstallVulkanReShade", ex, note: $"Game: {card.GameName}");
         }
     }
 
@@ -2865,7 +2868,7 @@ public partial class MainViewModel : ObservableObject
                     card.InstalledAddonFileName = null;
                     card.Status = GameStatus.Available;
                 }
-                catch (Exception ex) { CrashReporter.Log($"[MainViewModel.ToggleLumaMode] RenoDX uninstall failed — {ex.Message}"); }
+                catch (Exception ex) { _crashReporter.Log($"[MainViewModel.ToggleLumaMode] RenoDX uninstall failed — {ex.Message}"); }
             }
 
             // Remove ReShade if installed
@@ -2879,7 +2882,7 @@ public partial class MainViewModel : ObservableObject
                     card.RsInstalledVersion = null;
                     card.RsStatus = GameStatus.NotInstalled;
                 }
-                catch (Exception ex) { CrashReporter.Log($"[MainViewModel.ToggleLumaMode] ReShade uninstall failed — {ex.Message}"); }
+                catch (Exception ex) { _crashReporter.Log($"[MainViewModel.ToggleLumaMode] ReShade uninstall failed — {ex.Message}"); }
             }
 
             // Remove DC if installed (Luma mode hides DC entirely)
@@ -2893,7 +2896,7 @@ public partial class MainViewModel : ObservableObject
                     card.DcInstalledVersion = null;
                     card.DcStatus = GameStatus.NotInstalled;
                 }
-                catch (Exception ex) { CrashReporter.Log($"[MainViewModel.ToggleLumaMode] DC uninstall failed — {ex.Message}"); }
+                catch (Exception ex) { _crashReporter.Log($"[MainViewModel.ToggleLumaMode] DC uninstall failed — {ex.Message}"); }
             }
         }
         else
@@ -2910,7 +2913,7 @@ public partial class MainViewModel : ObservableObject
                     card.LumaRecord = null;
                     card.LumaStatus = GameStatus.NotInstalled;
                 }
-                catch (Exception ex) { CrashReporter.Log($"[MainViewModel.ToggleLumaMode] Luma uninstall failed — {ex.Message}"); }
+                catch (Exception ex) { _crashReporter.Log($"[MainViewModel.ToggleLumaMode] Luma uninstall failed — {ex.Message}"); }
             }
             else
             {
@@ -2945,7 +2948,7 @@ public partial class MainViewModel : ObservableObject
                     }
                     card.LumaStatus = GameStatus.NotInstalled;
                 }
-                catch (Exception ex) { CrashReporter.Log($"[MainViewModel.ToggleLumaMode] Fallback cleanup failed — {ex.Message}"); }
+                catch (Exception ex) { _crashReporter.Log($"[MainViewModel.ToggleLumaMode] Fallback cleanup failed — {ex.Message}"); }
             }
 
             // Always clear the persisted record if it exists on disk
@@ -2984,7 +2987,7 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             card.LumaActionMessage = $"❌ Install failed: {ex.Message}";
-            CrashReporter.WriteCrashReport("InstallLuma", ex, note: $"Game: {card.GameName}");
+            _crashReporter.WriteCrashReport("InstallLuma", ex, note: $"Game: {card.GameName}");
         }
         finally
         {
@@ -3008,7 +3011,7 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             card.LumaActionMessage = $"❌ Uninstall failed: {ex.Message}";
-            CrashReporter.WriteCrashReport("UninstallLuma", ex, note: $"Game: {card.GameName}");
+            _crashReporter.WriteCrashReport("UninstallLuma", ex, note: $"Game: {card.GameName}");
         }
     }
 
@@ -3075,7 +3078,7 @@ public partial class MainViewModel : ObservableObject
         _allCards.Clear();
         _originalDetectedNames.Clear();
 
-        CrashReporter.Log($"[MainViewModel.InitializeAsync] Started (forceRescan={forceRescan})");
+        _crashReporter.Log($"[MainViewModel.InitializeAsync] Started (forceRescan={forceRescan})");
         try
         {
             // One-time migration: rename legacy DC AppData shader folders to .old
@@ -3119,16 +3122,16 @@ public partial class MainViewModel : ObservableObject
                 var detectTask   = DetectAllGamesDedupedAsync();
                 rsTask           = Task.Run(async () => {
                     try { await _rsUpdateService.EnsureLatestAsync(); }
-                    catch (Exception ex) { CrashReporter.Log($"[MainViewModel.InitializeAsync] ReShade update task failed — {ex.Message}"); }
+                    catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] ReShade update task failed — {ex.Message}"); }
                 });
 
                 // Await detection first — this never needs network
                 var freshGamesResult = await detectTask;
 
                 // Await network tasks individually so failures don't block game display
-                try { await wikiTask; } catch (Exception ex) { wikiFetchFailed = true; CrashReporter.Log($"[MainViewModel.InitializeAsync] Wiki fetch failed (offline?) — {ex.Message}"); }
-                try { await lumaTask; } catch (Exception ex) { CrashReporter.Log($"[MainViewModel.InitializeAsync] Luma fetch failed (offline?) — {ex.Message}"); }
-                try { _manifest = await manifestTask; } catch (Exception ex) { CrashReporter.Log($"[MainViewModel.InitializeAsync] Manifest fetch failed — {ex.Message}"); }
+                try { await wikiTask; } catch (Exception ex) { wikiFetchFailed = true; _crashReporter.Log($"[MainViewModel.InitializeAsync] Wiki fetch failed (offline?) — {ex.Message}"); }
+                try { await lumaTask; } catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] Luma fetch failed (offline?) — {ex.Message}"); }
+                try { _manifest = await manifestTask; } catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] Manifest fetch failed — {ex.Message}"); }
                 // rsTask + SyncReShadeToDisplayCommander deferred until after cards display
 
                 var wikiResult = !wikiFetchFailed ? await wikiTask : default;
@@ -3157,7 +3160,7 @@ public partial class MainViewModel : ObservableObject
                             || !freshPaths.Contains(g.InstallPath.TrimEnd(Path.DirectorySeparatorChar)))))
                     .ToList();
 
-                CrashReporter.Log($"[MainViewModel.InitializeAsync] Merged library: {freshGames.Count} detected + {cachedGames.Count} cached → {detectedGames.Count} total");
+                _crashReporter.Log($"[MainViewModel.InitializeAsync] Merged library: {freshGames.Count} detected + {cachedGames.Count} cached → {detectedGames.Count} total");
             }
             else
             {
@@ -3169,16 +3172,16 @@ public partial class MainViewModel : ObservableObject
                 var detectTask   = DetectAllGamesDedupedAsync();
                 rsTask           = Task.Run(async () => {
                     try { await _rsUpdateService.EnsureLatestAsync(); }
-                    catch (Exception ex) { CrashReporter.Log($"[MainViewModel.InitializeAsync] ReShade update task failed — {ex.Message}"); }
+                    catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] ReShade update task failed — {ex.Message}"); }
                 });
 
                 // Await detection first — this never needs network
                 detectedGames = await detectTask;
 
                 // Await network tasks individually so failures don't block game display
-                try { await wikiTask; } catch (Exception ex) { wikiFetchFailed = true; CrashReporter.Log($"[MainViewModel.InitializeAsync] Wiki fetch failed (offline?) — {ex.Message}"); }
-                try { await lumaTask; } catch (Exception ex) { CrashReporter.Log($"[MainViewModel.InitializeAsync] Luma fetch failed (offline?) — {ex.Message}"); }
-                try { _manifest = await manifestTask; } catch (Exception ex) { CrashReporter.Log($"[MainViewModel.InitializeAsync] Manifest fetch failed — {ex.Message}"); }
+                try { await wikiTask; } catch (Exception ex) { wikiFetchFailed = true; _crashReporter.Log($"[MainViewModel.InitializeAsync] Wiki fetch failed (offline?) — {ex.Message}"); }
+                try { await lumaTask; } catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] Luma fetch failed (offline?) — {ex.Message}"); }
+                try { _manifest = await manifestTask; } catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] Manifest fetch failed — {ex.Message}"); }
                 // rsTask + SyncReShadeToDisplayCommander deferred until after cards display
 
                 var wikiResult2 = !wikiFetchFailed ? await wikiTask : default;
@@ -3186,7 +3189,7 @@ public partial class MainViewModel : ObservableObject
                 _genericNotes = wikiResult2.GenericNotes ?? new();
                 try { _lumaMods = lumaTask.IsCompletedSuccessfully ? await lumaTask : new(); } catch { _lumaMods = new(); }
                 addonCache    = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-                CrashReporter.Log($"[MainViewModel.InitializeAsync] Wiki fetch complete: {_allMods.Count} mods. Store scan complete: {detectedGames.Count} games.");
+                _crashReporter.Log($"[MainViewModel.InitializeAsync] Wiki fetch complete: {_allMods.Count} mods. Store scan complete: {detectedGames.Count} games.");
             }
 
             // Apply persisted renames so user-chosen names survive Refresh.
@@ -3225,9 +3228,9 @@ public partial class MainViewModel : ObservableObject
                 prevUpdateStatus[c.GameName] = (c.Status, c.DcStatus, c.RsStatus);
 
             SubStatusText = "Matching mods and checking install status...";
-            CrashReporter.Log($"[MainViewModel.InitializeAsync] Building cards for {allGames.Count} games...");
+            _crashReporter.Log($"[MainViewModel.InitializeAsync] Building cards for {allGames.Count} games...");
             _allCards = await Task.Run(() => BuildCards(allGames, records, auxRecords, addonCache, _genericNotes));
-            CrashReporter.Log($"[MainViewModel.InitializeAsync] BuildCards complete: {_allCards.Count} cards");
+            _crashReporter.Log($"[MainViewModel.InitializeAsync] BuildCards complete: {_allCards.Count} cards");
 
             // Apply manifest DLL name overrides to any existing installs whose filenames don't match
             ApplyManifestDllRenames();
@@ -3247,7 +3250,7 @@ public partial class MainViewModel : ObservableObject
             }
 
             // Check for updates (async, parallel, non-blocking)
-            CrashReporter.Log("[MainViewModel.InitializeAsync] Starting background update checks...");
+            _crashReporter.Log("[MainViewModel.InitializeAsync] Starting background update checks...");
             _ = Task.Run(async () =>
             {
                 try
@@ -3256,7 +3259,7 @@ public partial class MainViewModel : ObservableObject
                 }
                 catch (Exception ex)
                 {
-                    CrashReporter.Log($"[MainViewModel.InitializeAsync] Background update check failed — {ex}");
+                    _crashReporter.Log($"[MainViewModel.InitializeAsync] Background update check failed — {ex}");
                 }
             });
 
@@ -3283,13 +3286,13 @@ public partial class MainViewModel : ObservableObject
                     await rsTask;
                     AuxInstallService.SyncReShadeToDisplayCommander();
                 }
-                catch (Exception ex) { CrashReporter.Log($"[MainViewModel.InitializeAsync] Deferred ReShade sync failed — {ex.Message}"); }
+                catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] Deferred ReShade sync failed — {ex.Message}"); }
 
                 // Wait for shader packs to be downloaded/extracted
                 if (_shaderPackReadyTask != null)
                 {
                     try { await _shaderPackReadyTask; }
-                    catch (Exception ex) { CrashReporter.Log($"[MainViewModel.InitializeAsync] ShaderPackReady failed — {ex.Message}"); }
+                    catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] ShaderPackReady failed — {ex.Message}"); }
                 }
 
                 // Deploy shaders to all installed game locations
@@ -3312,7 +3315,7 @@ public partial class MainViewModel : ObservableObject
                         }
                     }
                 }
-                catch (Exception ex) { CrashReporter.Log($"[MainViewModel.InitializeAsync] SyncShaders failed — {ex.Message}"); }
+                catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] SyncShaders failed — {ex.Message}"); }
                 finally
                 {
                     DispatcherQueue?.TryEnqueue(() => { SubStatusText = ""; });
@@ -3329,7 +3332,7 @@ public partial class MainViewModel : ObservableObject
         {
             StatusText = "Error loading";
             SubStatusText = ex.Message;
-            CrashReporter.WriteCrashReport("InitializeAsync", ex);
+            _crashReporter.WriteCrashReport("InitializeAsync", ex);
         }
         finally
         {

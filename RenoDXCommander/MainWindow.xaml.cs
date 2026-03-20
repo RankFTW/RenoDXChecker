@@ -21,6 +21,7 @@ public sealed partial class MainWindow : Window
     private const int DefaultWidth  = 1280;
     private const int DefaultHeight = 1000;
 
+    private readonly ICrashReporter _crashReporter;
     private readonly CardBuilder _cardBuilder;
     private readonly DetailPanelBuilder _detailPanelBuilder;
     private readonly OverridesFlyoutBuilder _overridesFlyoutBuilder;
@@ -33,13 +34,14 @@ public sealed partial class MainWindow : Window
     /// <summary>Exposes the detail panel builder for extracted handler classes.</summary>
     internal DetailPanelBuilder DetailPanelBuilderInstance => _detailPanelBuilder;
 
-    public MainWindow(MainViewModel viewModel)
+    public MainWindow(MainViewModel viewModel, ICrashReporter crashReporter)
     {
         ViewModel = viewModel;
+        _crashReporter = crashReporter;
         InitializeComponent();
         _cardBuilder = new CardBuilder(this);
         _detailPanelBuilder = new DetailPanelBuilder(this);
-        _overridesFlyoutBuilder = new OverridesFlyoutBuilder(this);
+        _overridesFlyoutBuilder = new OverridesFlyoutBuilder(this, crashReporter);
         _dialogService = new DialogService(this);
         _settingsHandler = new SettingsHandler(this);
         _installEventHandler = new InstallEventHandler(this, PickFolderAsync);
@@ -50,7 +52,7 @@ public sealed partial class MainWindow : Window
         var shaderTask = ViewModel.ShaderPackServiceInstance.EnsureLatestAsync();
         shaderTask.SafeFireAndForget("MainWindow.ShaderPack");
         ViewModel.SetShaderPackReadyTask(shaderTask);
-        CrashReporter.Log("[MainWindow.MainWindow] InitializeComponent complete");
+        _crashReporter.Log("[MainWindow.MainWindow] InitializeComponent complete");
         // Set a sensible default size immediately so the window isn't huge on first launch.
         // TryRestoreWindowBounds (called on Activated) will then override this with the
         // saved size+position from the previous session, if one exists.
@@ -58,8 +60,8 @@ public sealed partial class MainWindow : Window
 
         // Enforce minimum window size and enable Win32 drag-and-drop via WindowStateManager
         var hwnd = WindowNative.GetWindowHandle(this);
-        _dragDropHandler = new DragDropHandler(this);
-        _windowStateManager = new WindowStateManager(this, hwnd, _dragDropHandler);
+        _dragDropHandler = new DragDropHandler(this, _crashReporter);
+        _windowStateManager = new WindowStateManager(this, hwnd, _dragDropHandler, _crashReporter);
         _windowStateManager.InstallWndProcSubclass();
         _windowStateManager.EnableDragAccept();
 
@@ -189,13 +191,13 @@ public sealed partial class MainWindow : Window
 
     private void RefreshButton_Click(object sender, RoutedEventArgs e)
     {
-        CrashReporter.Log("[MainWindow.RefreshButton_Click] User clicked Refresh");
+        _crashReporter.Log("[MainWindow.RefreshButton_Click] User clicked Refresh");
         _ = RefreshWithScrollRestore();
     }
 
     private void FullRefreshButton_Click(object sender, RoutedEventArgs e)
     {
-        CrashReporter.Log("[MainWindow.FullRefreshButton_Click] User clicked Full Refresh");
+        _crashReporter.Log("[MainWindow.FullRefreshButton_Click] User clicked Full Refresh");
         _ = FullRefreshWithScrollRestore();
     }
 
@@ -334,7 +336,7 @@ public sealed partial class MainWindow : Window
             }
             catch (Exception ex)
             {
-                CrashReporter.Log($"[MainWindow.RebuildCardGrid] Skipped card '{card.GameName}' — {ex.Message}");
+                _crashReporter.Log($"[MainWindow.RebuildCardGrid] Skipped card '{card.GameName}' — {ex.Message}");
             }
         }
         // If the selected game is in the displayed list, scroll to it
@@ -659,7 +661,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"[MainWindow.PatchNotesLink_Click] Patch notes dialog error — {ex.Message}");
+            _crashReporter.Log($"[MainWindow.PatchNotesLink_Click] Patch notes dialog error — {ex.Message}");
         }
     }
 
@@ -717,7 +719,7 @@ public sealed partial class MainWindow : Window
 
         var gameName = nameBox.Text.Trim();
         if (string.IsNullOrEmpty(gameName)) return;
-        CrashReporter.Log($"[MainWindow.AddGameButton_Click] Adding game: {gameName}");
+        _crashReporter.Log($"[MainWindow.AddGameButton_Click] Adding game: {gameName}");
 
         // Pick the game folder
         var folder = await PickFolderAsync();
@@ -971,7 +973,7 @@ public sealed partial class MainWindow : Window
         if (card?.NameUrl != null)
         {
             try { await Windows.System.Launcher.LaunchUriAsync(new Uri(card.NameUrl)); }
-            catch (Exception ex) { CrashReporter.Log($"[MainWindow.CardInfoLink_Click] Failed — {ex.Message}"); }
+            catch (Exception ex) { _crashReporter.Log($"[MainWindow.CardInfoLink_Click] Failed — {ex.Message}"); }
         }
     }
 
