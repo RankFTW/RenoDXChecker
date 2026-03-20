@@ -69,7 +69,12 @@ public partial class MainViewModel : ObservableObject
         set => _settingsViewModel.LastSeenVersion = value;
     }
 
-    [ObservableProperty] private int _dcModeLevel;
+    [ObservableProperty] private bool _dcModeEnabled;
+    [ObservableProperty] private string _dcDllFileName = "dxgi.dll";
+
+    public Visibility DcDllPickerVisibility =>
+        DcModeEnabled ? Visibility.Visible : Visibility.Collapsed;
+
     [ObservableProperty] private bool _lumaFeatureEnabled = true;
 
     [ObservableProperty] private AppPage currentPage = AppPage.GameView;
@@ -169,7 +174,7 @@ public partial class MainViewModel : ObservableObject
     public Func<string, List<string>?, Task<List<string>?>>? ShowPerGameShaderSelectionPicker { get; set; }
 
     /// <summary>Guard flag — true while LoadNameMappings is running so that
-    /// property-change handlers (DcModeLevel, etc.) don't
+    /// property-change handlers (DcModeEnabled, DcDllFileName, etc.) don't
     /// call SaveNameMappings before all fields have been loaded.</summary>
     private bool _isLoadingSettings
     {
@@ -420,29 +425,19 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private HashSet<string> _manifestWikiUnlinks = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Backward-compat: true when any DC Mode level is active.</summary>
-    public bool DcModeEnabled => DcModeLevel > 0;
-
-    partial void OnDcModeLevelChanged(int value)
+    partial void OnDcModeEnabledChanged(bool oldValue, bool newValue)
     {
+        OnPropertyChanged(nameof(DcDllPickerVisibility));
+        if (_isLoadingSettings) return;
         SaveNameMappings();
-        OnPropertyChanged(nameof(DcModeEnabled));
-        OnPropertyChanged(nameof(DcModeBtnLabel));
-        OnPropertyChanged(nameof(DcModeBtnBackground));
-        OnPropertyChanged(nameof(DcModeBtnForeground));
-        OnPropertyChanged(nameof(DcModeBtnBorder));
+        ApplyDcModeSwitch((wasEnabled: oldValue, wasDllFileName: DcDllFileName));
     }
 
-    /// <summary>Cycles Off → DC Mode 1 → DC Mode 2 → Off and returns the new level.</summary>
-    public int CycleDcMode()
+    partial void OnDcDllFileNameChanged(string oldValue, string newValue)
     {
-        DcModeLevel = DcModeLevel switch
-        {
-            0 => 1,
-            1 => 2,
-            _ => 0,
-        };
-        return DcModeLevel;
+        if (_isLoadingSettings) return;
+        SaveNameMappings();
+        ApplyDcModeSwitch((wasEnabled: DcModeEnabled, wasDllFileName: oldValue));
     }
 
     /// <summary>
@@ -530,16 +525,16 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Renames installed DC and ReShade files across all games to match the current DcModeLevel.
-    /// Called after cycling the DC Mode so that a subsequent Refresh picks up the new naming.
-    /// 
-    /// Both DC (Mode 1) and ReShade (Mode Off) use dxgi.dll, so renames must be ordered
-    /// to avoid one clobbering the other:
-    ///   DC Mode turning ON  → rename ReShade FIRST (vacate dxgi.dll), then rename DC into it.
-    ///   DC Mode turning OFF → rename DC FIRST (vacate dxgi.dll), then rename ReShade into it.
-    ///   Mode 1 ↔ Mode 2    → only DC changes (dxgi.dll ↔ winmm.dll), ReShade stays as ReShade64.dll.
+    /// Renames installed DC files across all games to match the current effective DC mode.
+    /// Called after toggling DC mode or changing the global DLL filename so that a subsequent
+    /// Refresh picks up the new naming.
+    ///
+    /// Shader transitions:
+    ///   Off → On  → deploy shaders
+    ///   On  → Off → remove shaders and restore originals
+    ///   On  → On (DLL change only) → DLL rename only, no shader action (Requirement 10.3)
     /// </summary>
-    public void ApplyDcModeSwitch(int previousGlobalLevel)
+    public void ApplyDcModeSwitch((bool wasEnabled, string wasDllFileName) previous)
     {
         foreach (var card in _allCards)
         {
@@ -547,20 +542,16 @@ public partial class MainViewModel : ObservableObject
             if (card.IsLumaMode) continue;
             if (string.IsNullOrEmpty(card.InstallPath) || !Directory.Exists(card.InstallPath)) continue;
 
-            // Per-game override takes precedence over global DC Mode level
-            var effectiveLevel = card.PerGameDcMode ?? DcModeLevel;
-
-            // Vulkan games default to DC mode off unless explicitly overridden
-            if (card.RequiresVulkanInstall && !card.PerGameDcMode.HasValue)
-                effectiveLevel = 0;
+            // Resolve the new effective DC mode for this game
+            var (newEnabled, newDllFileName) = ResolveEffectiveDcMode(card.GameName, card);
 
             // Update RS blocked flag
-            card.RsBlockedByDcMode = effectiveLevel > 0;
+            card.RsBlockedByDcMode = newEnabled;
 
             // ── Uninstall RDXC-installed ReShade DLL when DC mode is active ──
             // DC Mode reads ReShade from the DC AppData folder instead of game folders.
             // Use UninstallDllOnly to avoid touching shader folders (Requirement 5.1, 5.3).
-            if (effectiveLevel > 0 && card.RsRecord != null)
+            if (newEnabled && card.RsRecord != null)
             {
                 try
                 {
@@ -579,12 +570,7 @@ public partial class MainViewModel : ObservableObject
 
             // ── DC file rename ──
             string? dcOldName = card.DcRecord?.InstalledAs;
-            string? dcNewName = card.DcRecord != null ? effectiveLevel switch
-            {
-                1 => AuxInstallService.DcDxgiName,
-                2 => AuxInstallService.DcWinmmName,
-                _ => card.Is32Bit ? AuxInstallService.DcNormalName32 : AuxInstallService.DcNormalName,
-            } : null;
+            string? dcNewName = card.DcRecord != null ? newDllFileName : null;
 
             bool dcNeedsRename = dcOldName != null && dcNewName != null
                 && !dcOldName.Equals(dcNewName, StringComparison.OrdinalIgnoreCase)
@@ -593,27 +579,37 @@ public partial class MainViewModel : ObservableObject
             if (dcNeedsRename)
                 RenameFile(card, isRs: false, dcOldName!, dcNewName!);
 
-            // ── Shader transitions based on effective level change ──
-            // Compute previous and new effective levels to detect 0↔non-zero transitions.
-            // Requirements: 3.1, 3.2, 3.3, 4.1, 4.2, 5.3
-            var previousEffective = ComputeEffectiveLevel(card, previousGlobalLevel, card.PerGameDcMode);
-            var newEffective = ComputeEffectiveLevel(card, DcModeLevel, card.PerGameDcMode);
+            // ── Shader transitions based on effective enabled change ──
+            // Determine previous effective enabled state for this card.
+            // Per-game overrides are unchanged by a global switch, so we only need to
+            // check whether the card was previously enabled vs now.
+            // Requirements: 3.1, 3.2, 3.3, 10.1, 10.2, 10.3
+            bool wasEnabled = previous.wasEnabled;
+            // Cards with per-game overrides are unaffected by global changes —
+            // recompute their previous state from the override itself.
+            var perGameOverride = GetPerGameDcModeOverride(card.GameName);
+            if (perGameOverride == "Off")
+                wasEnabled = false;
+            else if (perGameOverride == "Custom")
+                wasEnabled = true;
+            else if (card.RequiresVulkanInstall && perGameOverride == null)
+                wasEnabled = false;
 
             try
             {
-                if (previousEffective == 0 && newEffective > 0 && card.DcRecord != null)
+                if (!wasEnabled && newEnabled && card.DcRecord != null)
                 {
-                    // 0→non-zero with DC installed: deploy shaders
+                    // Off → On with DC installed: deploy shaders
                     _shaderPackService.SyncGameFolder(card.InstallPath,
                         ResolveShaderSelection(card.GameName, card.ShaderModeOverride));
                 }
-                else if (previousEffective > 0 && newEffective == 0)
+                else if (wasEnabled && !newEnabled)
                 {
-                    // non-zero→0: remove shaders and restore originals
+                    // On → Off: remove shaders and restore originals
                     _shaderPackService.RemoveFromGameFolder(card.InstallPath);
                     _shaderPackService.RestoreOriginalIfPresent(card.InstallPath);
                 }
-                // Both non-zero (1↔2) or both zero → no shader action
+                // Both On (DLL change only) or both Off → no shader action (Requirement 10.3)
             }
             catch (Exception ex)
             {
@@ -632,7 +628,7 @@ public partial class MainViewModel : ObservableObject
     /// Called when the user saves a per-game DC Mode override so changes take
     /// effect immediately without requiring a full Refresh.
     /// </summary>
-    public void ApplyDcModeSwitchForCard(string gameName, int? previousPerGameDcMode)
+    public void ApplyDcModeSwitchForCard(string gameName, string? previousPerGameDcMode)
     {
         var card = _allCards.FirstOrDefault(c =>
             c.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase));
@@ -641,18 +637,15 @@ public partial class MainViewModel : ObservableObject
         if (card.IsLumaMode) return;
         if (string.IsNullOrEmpty(card.InstallPath) || !Directory.Exists(card.InstallPath)) return;
 
-        var effectiveLevel = card.PerGameDcMode ?? DcModeLevel;
-
-        // Vulkan games default to DC mode off unless explicitly overridden
-        if (card.RequiresVulkanInstall && !card.PerGameDcMode.HasValue)
-            effectiveLevel = 0;
+        // Resolve the new effective DC mode for this game
+        var (newEnabled, newDllFileName) = ResolveEffectiveDcMode(card.GameName, card);
 
         // Update RS blocked flag
-        card.RsBlockedByDcMode = effectiveLevel > 0;
+        card.RsBlockedByDcMode = newEnabled;
 
         // Uninstall RDXC-installed ReShade DLL when DC mode is active for this game.
         // Use UninstallDllOnly to avoid touching shader folders (Requirement 5.2, 5.4).
-        if (effectiveLevel > 0 && card.RsRecord != null)
+        if (newEnabled && card.RsRecord != null)
         {
             try
             {
@@ -671,15 +664,7 @@ public partial class MainViewModel : ObservableObject
 
         // DC file rename
         string? dcOldName = card.DcRecord?.InstalledAs;
-        string? dcNewName = card.DcRecord != null ? effectiveLevel switch
-        {
-            1 => AuxInstallService.DcDxgiName,
-            2 => AuxInstallService.DcWinmmName,
-            3 => GetDcCustomDllFileName(gameName) is { } custom && !string.IsNullOrWhiteSpace(custom)
-                ? custom
-                : (card.Is32Bit ? AuxInstallService.DcNormalName32 : AuxInstallService.DcNormalName),
-            _ => card.Is32Bit ? AuxInstallService.DcNormalName32 : AuxInstallService.DcNormalName,
-        } : null;
+        string? dcNewName = card.DcRecord != null ? newDllFileName : null;
 
         bool dcNeedsRename = dcOldName != null && dcNewName != null
             && !dcOldName.Equals(dcNewName, StringComparison.OrdinalIgnoreCase)
@@ -688,27 +673,37 @@ public partial class MainViewModel : ObservableObject
         if (dcNeedsRename)
             RenameFile(card, isRs: false, dcOldName!, dcNewName!);
 
-        // ── Shader transitions based on effective level change ──
-        // Compute previous and new effective levels to detect 0↔non-zero transitions.
-        // Requirements: 3.1, 3.2, 3.3, 4.1, 4.2, 5.4
-        var previousEffective = ComputeEffectiveLevel(card, DcModeLevel, previousPerGameDcMode);
-        var newEffective = ComputeEffectiveLevel(card, DcModeLevel, card.PerGameDcMode);
+        // ── Shader transitions based on effective enabled change ──
+        // Determine previous effective enabled state from the previous per-game override.
+        // Requirements: 3.4, 3.5, 3.6, 10.1, 10.2, 10.3
+        bool wasEnabled;
+        if (previousPerGameDcMode == "Off")
+            wasEnabled = false;
+        else if (previousPerGameDcMode == "Custom")
+            wasEnabled = true;
+        else // "Global" or null — was following global setting
+        {
+            if (card.RequiresVulkanInstall && previousPerGameDcMode == null)
+                wasEnabled = false;
+            else
+                wasEnabled = DcModeEnabled;
+        }
 
         try
         {
-            if (previousEffective == 0 && newEffective > 0 && card.DcRecord != null)
+            if (!wasEnabled && newEnabled && card.DcRecord != null)
             {
-                // 0→non-zero with DC installed: deploy shaders
+                // Off → On with DC installed: deploy shaders
                 _shaderPackService.SyncGameFolder(card.InstallPath,
                     ResolveShaderSelection(card.GameName, card.ShaderModeOverride));
             }
-            else if (previousEffective > 0 && newEffective == 0)
+            else if (wasEnabled && !newEnabled)
             {
-                // non-zero→0: remove shaders and restore originals
+                // On → Off: remove shaders and restore originals
                 _shaderPackService.RemoveFromGameFolder(card.InstallPath);
                 _shaderPackService.RestoreOriginalIfPresent(card.InstallPath);
             }
-            // Both non-zero (1↔2) or both zero → no shader action
+            // Both On (DLL change only) or both Off → no shader action (Requirement 10.3)
         }
         catch (Exception ex)
         {
@@ -764,31 +759,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    // DC Mode button label / colours — shown in the header bar
-    public string DcModeBtnLabel => DcModeLevel switch
-    {
-        1 => "DC Mode 1",
-        2 => "DC Mode 2",
-        _ => "DC Mode: Off",
-    };
-    public string DcModeBtnBackground => DcModeLevel switch
-    {
-        1 => "#122830",
-        2 => "#201838",
-        _ => "#1E242C",
-    };
-    public string DcModeBtnForeground => DcModeLevel switch
-    {
-        1 => "#4DC9E6",
-        2 => "#B898E8",
-        _ => "#6B7A8E",
-    };
-    public string DcModeBtnBorder => DcModeLevel switch
-    {
-        1 => "#1E4858",
-        2 => "#3A2860",
-        _ => "#283240",
-    };
+
 
     // VerboseLogging change handling delegated to SettingsViewModel
 
@@ -803,13 +774,13 @@ public partial class MainViewModel : ObservableObject
         if (newValue != null) newValue.IsSelected = true;
     }
 
-    public int? GetPerGameDcModeOverride(string gameName)
+    public string? GetPerGameDcModeOverride(string gameName)
         => _perGameDcModeOverride.TryGetValue(gameName, out var v) ? v : null;
 
-    public void SetPerGameDcModeOverride(string gameName, int? mode)
+    public void SetPerGameDcModeOverride(string gameName, string? mode)
     {
-        if (mode.HasValue)
-            _perGameDcModeOverride[gameName] = mode.Value;
+        if (mode != null)
+            _perGameDcModeOverride[gameName] = mode;
         else
             _perGameDcModeOverride.Remove(gameName);
         SaveNameMappings();
@@ -832,10 +803,48 @@ public partial class MainViewModel : ObservableObject
         var card = _allCards.FirstOrDefault(c => c.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase));
         if (card != null) { card.DcCustomDllFileName = fileName; card.NotifyAll(); }
     }
+
+    /// <summary>
+    /// Resolves the effective DC mode (enabled flag + DLL filename) for a game,
+    /// walking the resolution chain: DLL override / Luma → per-game Custom → per-game Off →
+    /// Global/absent → Vulkan check → global enabled check → manifest override → global DLL filename.
+    /// </summary>
+    public (bool enabled, string dllFileName) ResolveEffectiveDcMode(string gameName, GameCardViewModel card)
+    {
+        // DLL override takes full precedence
+        if (card.DllOverrideEnabled) return (false, "");
+        if (card.IsLumaMode) return (false, "");
+
+        var perGameOverride = _gameNameService.PerGameDcModeOverride.TryGetValue(gameName, out var v) ? v : null;
+
+        if (perGameOverride == "Off")
+            return (false, card.Is32Bit ? AuxInstallService.DcNormalName32 : AuxInstallService.DcNormalName);
+
+        if (perGameOverride == "Custom")
+        {
+            var customDll = GetDcCustomDllFileName(gameName);
+            return (true, !string.IsNullOrWhiteSpace(customDll) ? customDll : "dxgi.dll");
+        }
+
+        // "Global" or absent
+        if (card.RequiresVulkanInstall && perGameOverride == null)
+            return (false, card.Is32Bit ? AuxInstallService.DcNormalName32 : AuxInstallService.DcNormalName);
+
+        if (!DcModeEnabled)
+            return (false, card.Is32Bit ? AuxInstallService.DcNormalName32 : AuxInstallService.DcNormalName);
+
+        // Global DC mode is on — check manifest override
+        var manifestDll = GetManifestDllNames(gameName)?.Dc;
+        if (!string.IsNullOrWhiteSpace(manifestDll) && perGameOverride != "Custom")
+            return (true, manifestDll);
+
+        return (true, DcDllFileName);
+    }
+
     /// <summary>Games for which the user has toggled UE-Extended ON.</summary>
     private HashSet<string> _ueExtendedGames => _gameNameService.UeExtendedGames;
-    /// <summary>Per-game DC Mode overrides. Key = game name, Value = 0 (off), 1 (DC Mode 1), 2 (DC Mode 2). Absent = follow global.</summary>
-    private Dictionary<string, int> _perGameDcModeOverride => _gameNameService.PerGameDcModeOverride;
+    /// <summary>Per-game DC Mode overrides. Key = game name, Value = "Global", "Off", or "Custom". Absent = follow global.</summary>
+    private Dictionary<string, string> _perGameDcModeOverride => _gameNameService.PerGameDcModeOverride;
     /// <summary>Per-game DC Mode Custom DLL filenames. Key = game name, Value = custom DLL filename.</summary>
     private Dictionary<string, string> _dcCustomDllFileNames => _gameNameService.DcCustomDllFileNames;
     private HashSet<string> _updateAllExcludedReShade => _gameNameService.UpdateAllExcludedReShade;
@@ -1401,7 +1410,8 @@ public partial class MainViewModel : ObservableObject
             _gameNameService.LoadNameMappings(
                 _dllOverrideService,
                 _settingsViewModel,
-                level => DcModeLevel = level,
+                val => DcModeEnabled = val,
+                val => DcDllFileName = val,
                 grid => IsGridLayout = grid);
             CrashReporter.Log("[MainViewModel.LoadNameMappings] Delegated to GameNameService");
         }
@@ -1804,7 +1814,8 @@ public partial class MainViewModel : ObservableObject
         _gameNameService.SaveNameMappings(
             _dllOverrideService,
             _settingsViewModel,
-            DcModeLevel,
+            DcModeEnabled,
+            DcDllFileName,
             IsGridLayout,
             _isLoadingSettings);
     }
@@ -1899,7 +1910,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     public async Task RefreshAsync()
     {
-        ApplyDcModeSwitch(DcModeLevel);
+        ApplyDcModeSwitch((wasEnabled: DcModeEnabled, wasDllFileName: DcDllFileName));
         await InitializeAsync(forceRescan: true);
     }
 
@@ -1911,7 +1922,7 @@ public partial class MainViewModel : ObservableObject
         _resolvedPathCache.Clear();
         _addonFileCache.Clear();
         _bitnessCache.Clear();
-        ApplyDcModeSwitch(DcModeLevel);
+        ApplyDcModeSwitch((wasEnabled: DcModeEnabled, wasDllFileName: DcDllFileName));
         await InitializeAsync(forceRescan: true);
     }
 
@@ -2237,7 +2248,7 @@ public partial class MainViewModel : ObservableObject
             RsInstalledFile = rsRecManual?.InstalledAs,
             RsInstalledVersion = rsRecManual != null ? AuxInstallService.ReadInstalledVersion(rsRecManual.InstallPath, rsRecManual.InstalledAs) : null,
             RsBlockedByDcMode = !_dllOverrides.ContainsKey(game.Name)
-                                 && (_perGameDcModeOverride.ContainsKey(game.Name) ? pgdmM : DcModeLevel) > 0,
+                                 && (_perGameDcModeOverride.ContainsKey(game.Name) ? pgdmM != "Off" : DcModeEnabled),
         };
 
         card.IsDualApiGame = GraphicsApiDetector.IsDualApi(card.DetectedApis);
@@ -2253,7 +2264,7 @@ public partial class MainViewModel : ObservableObject
 
             // Vulkan games default to DC mode off unless the user or manifest
             // explicitly set a per-game DC mode override.
-            if (!card.PerGameDcMode.HasValue)
+            if (card.PerGameDcMode == null)
                 card.RsBlockedByDcMode = false;
         }
 
@@ -2368,13 +2379,9 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        // Check for foreign dxgi.dll before overwriting
-        var effectiveDcModeLevel = card.DllOverrideEnabled ? 0 : (card.PerGameDcMode ?? DcModeLevel);
-        // Luma mode: DC must always install as addon (never dxgi.dll) because Luma uses dxgi.dll
-        if (card.IsLumaMode) effectiveDcModeLevel = 0;
-        // Vulkan games default to DC mode off unless explicitly overridden
-        if (card.RequiresVulkanInstall && !card.PerGameDcMode.HasValue) effectiveDcModeLevel = 0;
-        if (effectiveDcModeLevel == 1)
+        // Resolve effective DC mode using the canonical resolution method
+        var (effectiveDcOn, resolvedDllFileName) = ResolveEffectiveDcMode(card.GameName, card);
+        if (effectiveDcOn)
         {
             var dxgiPath = Path.Combine(card.InstallPath, "dxgi.dll");
             if (File.Exists(dxgiPath))
@@ -2401,8 +2408,9 @@ public partial class MainViewModel : ObservableObject
             }
         }
 
-        // Check for foreign winmm.dll before overwriting (DC Mode 2)
-        if (effectiveDcModeLevel == 2)
+        // Check for foreign winmm.dll before overwriting (when target DLL is winmm.dll)
+        var targetDll = effectiveDcOn ? resolvedDllFileName : "";
+        if (effectiveDcOn && targetDll.Equals("winmm.dll", StringComparison.OrdinalIgnoreCase))
         {
             var winmmPath = Path.Combine(card.InstallPath, "winmm.dll");
             if (File.Exists(winmmPath))
@@ -2437,14 +2445,14 @@ public partial class MainViewModel : ObservableObject
                 card.DcActionMessage = p.msg;
                 card.DcProgress      = p.pct;
             });
-            var record = await _auxInstaller.InstallDcAsync(card.GameName, card.InstallPath, effectiveDcModeLevel,
+            var record = await _auxInstaller.InstallDcAsync(card.GameName, card.InstallPath, effectiveDcOn ? resolvedDllFileName : null,
                 existingDcRecord: card.DcRecord,
                 existingRsRecord: card.RsRecord,
                 shaderModeOverride: card.ShaderModeOverride,
                 use32Bit:         card.Is32Bit,
                 filenameOverride: card.DllOverrideEnabled
                     ? (GetDllOverride(card.GameName)?.DcFileName)
-                    : (GetManifestDllNames(card.GameName)?.Dc is { Length: > 0 } mDc ? mDc : null),
+                    : null,
                 selectedPackIds:  ResolveShaderSelection(card.GameName, card.ShaderModeOverride),
                 progress:         progress);
 
@@ -2470,31 +2478,18 @@ public partial class MainViewModel : ObservableObject
         finally { card.DcIsInstalling = false; }
     }
 
-    /// <summary>
-    /// Computes the effective DC mode level for a game card, respecting DLL overrides,
-    /// Luma mode, Vulkan defaults, and per-game overrides.
-    /// </summary>
-    private static int ComputeEffectiveLevel(GameCardViewModel card, int globalLevel, int? perGameOverride)
-    {
-        if (card.DllOverrideEnabled) return 0;
-        if (card.IsLumaMode) return 0;
-        if (card.RequiresVulkanInstall && !perGameOverride.HasValue) return 0;
-        return perGameOverride ?? globalLevel;
-    }
-
     [RelayCommand]
     public void UninstallDc(GameCardViewModel? card)
     {
         if (card?.DcRecord == null) return;
         try
         {
-            // Compute effective DC mode level to decide whether to remove shaders
-            var effectiveLevel = card.DllOverrideEnabled ? 0
-                : card.IsLumaMode ? 0
-                : (card.RequiresVulkanInstall && !card.PerGameDcMode.HasValue) ? 0
-                : card.PerGameDcMode ?? DcModeLevel;
+            // Compute effective DC mode to decide whether to remove shaders
+            var effectiveDcOn = !card.DllOverrideEnabled && !card.IsLumaMode
+                && !(card.RequiresVulkanInstall && card.PerGameDcMode == null)
+                && (card.PerGameDcMode == "Custom" || (card.PerGameDcMode is null or "Global" && DcModeEnabled));
 
-            if (effectiveLevel > 0 && !string.IsNullOrEmpty(card.InstallPath))
+            if (effectiveDcOn && !string.IsNullOrEmpty(card.InstallPath))
             {
                 try
                 {
@@ -2537,11 +2532,10 @@ public partial class MainViewModel : ObservableObject
         if (card == null) return;
 
         // Block ReShade install when DC mode is active for this game
-        var effectiveDcLevel = card.DllOverrideEnabled ? 0 : (card.PerGameDcMode ?? DcModeLevel);
-        // Vulkan games default to DC mode off unless explicitly overridden
-        if (card.RequiresVulkanInstall && !card.PerGameDcMode.HasValue)
-            effectiveDcLevel = 0;
-        if (effectiveDcLevel > 0)
+        var effectiveDcOn = !card.DllOverrideEnabled
+            && !(card.RequiresVulkanInstall && card.PerGameDcMode == null)
+            && (card.PerGameDcMode == "Custom" || (card.PerGameDcMode is null or "Global" && DcModeEnabled));
+        if (effectiveDcOn)
         {
             card.RsActionMessage = "🚫 ReShade cannot be installed while DC Mode is active.";
             return;
@@ -2561,7 +2555,8 @@ public partial class MainViewModel : ObservableObject
         }
 
         // Check for foreign dxgi.dll before overwriting (when DC mode is OFF, ReShade installs as dxgi.dll)
-        var effectiveDcModeRs = !card.DllOverrideEnabled && (card.PerGameDcMode ?? DcModeLevel) > 0;
+        var effectiveDcModeRs = !card.DllOverrideEnabled
+            && (card.PerGameDcMode == "Custom" || (card.PerGameDcMode is null or "Global" && DcModeEnabled));
         if (!effectiveDcModeRs)
         {
             var dxgiPath = Path.Combine(card.InstallPath, "dxgi.dll");
@@ -3044,7 +3039,7 @@ public partial class MainViewModel : ObservableObject
     public async Task UpdateAllReShadeAsync()
     {
         await _updateOrchestrationService.UpdateAllReShadeAsync(
-            _allCards, _dllOverrideService, DcModeLevel, DispatcherQueue,
+            _allCards, _dllOverrideService, DcModeEnabled, DispatcherQueue,
             () =>
             {
                 HasUpdatesAvailable = AnyUpdateAvailable;
@@ -3059,7 +3054,7 @@ public partial class MainViewModel : ObservableObject
     public async Task UpdateAllDcAsync()
     {
         await _updateOrchestrationService.UpdateAllDcAsync(
-            _allCards, _dllOverrideService, DcModeLevel, DispatcherQueue,
+            _allCards, _dllOverrideService, ResolveEffectiveDcMode, DispatcherQueue,
             () =>
             {
                 HasUpdatesAvailable = AnyUpdateAvailable;
@@ -3970,7 +3965,7 @@ public partial class MainViewModel : ObservableObject
                 RsInstalledFile        = rsRec?.InstalledAs,
                 RsInstalledVersion     = rsRec != null ? AuxInstallService.ReadInstalledVersion(rsRec.InstallPath, rsRec.InstalledAs) : null,
                 RsBlockedByDcMode      = !_dllOverrides.ContainsKey(game.Name)
-                                           && (_perGameDcModeOverride.ContainsKey(game.Name) ? pgdmBc : DcModeLevel) > 0,
+                                           && (_perGameDcModeOverride.ContainsKey(game.Name) ? pgdmBc != "Off" : DcModeEnabled),
             });
 
             // ── Luma matching ──────────────────────────────────────────────────────
@@ -3988,7 +3983,7 @@ public partial class MainViewModel : ObservableObject
 
                 // Vulkan games default to DC mode off unless the user or manifest
                 // explicitly set a per-game DC mode override.
-                if (!newCard.PerGameDcMode.HasValue)
+                if (newCard.PerGameDcMode == null)
                     newCard.RsBlockedByDcMode = false;
             }
 

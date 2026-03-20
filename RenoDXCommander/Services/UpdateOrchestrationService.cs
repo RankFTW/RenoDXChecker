@@ -90,7 +90,7 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
     public async Task UpdateAllReShadeAsync(
         IReadOnlyList<GameCardViewModel> allCards,
         IDllOverrideService dllOverrideService,
-        int dcModeLevel,
+        bool dcModeEnabled,
         Microsoft.UI.Dispatching.DispatcherQueue? dispatcherQueue,
         Action notifyUpdateState,
         Func<string, string?, IEnumerable<string>?>? shaderResolver = null)
@@ -104,7 +104,7 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
 
         foreach (var card in targets)
         {
-            var effectiveDcMode = !card.DllOverrideEnabled && (card.PerGameDcMode ?? dcModeLevel) > 0;
+            var effectiveDcMode = !card.DllOverrideEnabled && (card.PerGameDcMode == "Custom" || (card.PerGameDcMode is null or "Global" && dcModeEnabled));
             if (!effectiveDcMode)
             {
                 var dxgiPath = Path.Combine(card.InstallPath, "dxgi.dll");
@@ -169,7 +169,7 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
     public async Task UpdateAllDcAsync(
         IReadOnlyList<GameCardViewModel> allCards,
         IDllOverrideService dllOverrideService,
-        int dcModeLevel,
+        Func<string, GameCardViewModel, (bool enabled, string dllFileName)> dcModeResolver,
         Microsoft.UI.Dispatching.DispatcherQueue? dispatcherQueue,
         Action notifyUpdateState,
         Func<string, string?, IEnumerable<string>?>? shaderResolver = null)
@@ -181,8 +181,9 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
 
         foreach (var card in targets)
         {
-            var effectiveDcModeLevel = card.DllOverrideEnabled ? 0 : (card.PerGameDcMode ?? dcModeLevel);
-            if (effectiveDcModeLevel == 1)
+            var (effectiveDcOn, resolvedDllFileName) = dcModeResolver(card.GameName, card);
+            // Foreign DLL check for the target filename
+            if (effectiveDcOn)
             {
                 var dxgiPath = Path.Combine(card.InstallPath, "dxgi.dll");
                 if (File.Exists(dxgiPath))
@@ -200,23 +201,8 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
                 }
             }
 
-            if (effectiveDcModeLevel == 2)
-            {
-                var winmmPath = Path.Combine(card.InstallPath, "winmm.dll");
-                if (File.Exists(winmmPath))
-                {
-                    var fileType = AuxInstallService.IdentifyWinmmFile(winmmPath);
-                    if (fileType == AuxInstallService.WinmmFileType.Unknown)
-                    {
-                        CrashReporter.Log($"[UpdateOrchestrationService.UpdateAllDc] Skipping {card.GameName} — foreign winmm.dll detected");
-                        dispatcherQueue?.TryEnqueue(() =>
-                        {
-                            card.DcActionMessage = "⚠ Skipped — unknown winmm.dll";
-                        });
-                        continue;
-                    }
-                }
-            }
+            // Foreign winmm.dll check removed — will be reimplemented in task 4 with new DLL filename resolution
+            // (Previously checked effectiveDcModeLevel == 2 for winmm.dll)
 
             card.DcIsInstalling  = true;
             card.DcActionMessage = "Updating...";
@@ -231,7 +217,7 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
                     ? dllOverrideService.GetDllOverride(card.GameName)?.DcFileName
                     : null;
                 var record = await _auxInstaller.InstallDcAsync(
-                    card.GameName, card.InstallPath, effectiveDcModeLevel,
+                    card.GameName, card.InstallPath, effectiveDcOn ? resolvedDllFileName : null,
                     existingDcRecord: card.DcRecord,
                     existingRsRecord: card.RsRecord,
                     shaderModeOverride: card.ShaderModeOverride,

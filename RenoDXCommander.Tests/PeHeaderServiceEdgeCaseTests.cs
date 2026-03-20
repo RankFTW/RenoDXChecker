@@ -197,8 +197,9 @@ public class LegacyIs32BitGamesIgnoredTests
         // We check this by listing the known keys that SaveNameMappings writes.
         var knownSavedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "NameMappings", "WikiExclusions", "UeExtendedGames", "DcModeLevel",
-            "PerGameDcModeOverride", "UpdateAllExcluded", "PerGameShaderMode",
+            "NameMappings", "WikiExclusions", "UeExtendedGames", "DcModeEnabled",
+            "DcDllFileName", "PerGameDcModeOverride", "DcCustomDllFileNames",
+            "UpdateAllExcluded", "PerGameShaderMode",
             "ShaderDeployMode", "SkipUpdateCheck", "VerboseLogging", "LastSeenVersion",
             "LumaEnabledGames", "LumaDisabledGames", "GameRenames", "DllOverrides",
             "FolderOverrides", "HiddenGames", "FavouriteGames", "GridLayout",

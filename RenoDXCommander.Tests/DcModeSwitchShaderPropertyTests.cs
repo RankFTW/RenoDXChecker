@@ -45,40 +45,31 @@ public class DcModeSwitchShaderPropertyTests : IDisposable
     [Property(MaxTest = 10)]
     public Property ModeSwitchZeroToNonZero_DeploysShaders_OnlyWhenDcInstalled()
     {
-        // Generate: new per-game DC mode (1 or 2), whether DC is installed
-        var genNewPerGame = Gen.Elements(1, 2);
         var genDcInstalled = Arb.From<bool>().Generator;
-        var genGlobal = Gen.Elements(0, 1, 2);
-
-        var genConfig = from newPerGame in genNewPerGame
-                        from dcInstalled in genDcInstalled
-                        from globalLevel in genGlobal
-                        select (newPerGame, dcInstalled, globalLevel);
 
         return Prop.ForAll(
-            Arb.From(genConfig),
-            config =>
+            Arb.From(genDcInstalled),
+            dcInstalled =>
             {
-                var (newPerGame, dcInstalled, globalLevel) = config;
-
-                // Previous per-game override is 0 (or null with global=0) to ensure
-                // previous effective level is 0. Use explicit 0 per-game override
-                // so the card is NOT affected by Vulkan/DllOverride/Luma flags
-                // (those force effective to 0 regardless, preventing a real transition).
-                int? previousPerGameDcMode = 0;
+                // Previous per-game override is "Off" → effective is off
+                string? previousPerGameDcMode = "Off";
 
                 var tracker = new TrackingShaderPackService();
                 var vm = CreateViewModelWithTracker(tracker);
-                vm.DcModeLevel = globalLevel;
+                SetDcModeWithoutSideEffects(vm, true, "dxgi.dll");
 
                 var card = CreateCard(
                     "TestGame",
-                    perGameDcMode: newPerGame,  // new value: 1 or 2
+                    perGameDcMode: "Custom",  // new value: Custom (DC on)
                     dcInstalled: dcInstalled);
 
                 InjectCards(vm, new List<GameCardViewModel> { card });
 
-                // Act: switch from previous=0 to new=1 or 2
+                // Set the per-game override in the dictionary so ResolveEffectiveDcMode sees it
+                vm.SetPerGameDcModeOverride("TestGame", "Custom");
+                vm.SetDcCustomDllFileName("TestGame", "dxgi.dll");
+
+                // Act: switch from previous="Off" to new="Custom"
                 vm.ApplyDcModeSwitchForCard("TestGame", previousPerGameDcMode);
 
                 // Assert: SyncGameFolder called iff DC is installed
@@ -86,7 +77,7 @@ public class DcModeSwitchShaderPropertyTests : IDisposable
                 var expectSync = dcInstalled;
 
                 return (syncCalled == expectSync)
-                    .Label($"NewPerGame={newPerGame}, DcInstalled={dcInstalled}, Global={globalLevel} → " +
+                    .Label($"DcInstalled={dcInstalled} → " +
                            $"SyncGameFolderCalled={syncCalled} (expected {expectSync})");
             });
     }
@@ -105,32 +96,23 @@ public class DcModeSwitchShaderPropertyTests : IDisposable
     [Property(MaxTest = 10)]
     public Property ModeSwitchNonZeroToZero_RemovesShaders()
     {
-        // Generate: previous per-game DC mode (1 or 2), global level (any)
-        var genPreviousPerGame = Gen.Elements(1, 2);
-        var genGlobal = Gen.Elements(0, 1, 2);
-
-        var genConfig = from previousPerGame in genPreviousPerGame
-                        from globalLevel in genGlobal
-                        select (previousPerGame, globalLevel);
+        var genGlobalEnabled = Arb.From<bool>().Generator;
 
         return Prop.ForAll(
-            Arb.From(genConfig),
-            config =>
+            Arb.From(genGlobalEnabled),
+            globalEnabled =>
             {
-                var (previousPerGame, globalLevel) = config;
-
-                // New per-game override is 0 → effective level becomes 0
-                int? previousPerGameDcMode = previousPerGame;
+                // New per-game override is "Off" → effective becomes off
+                string? previousPerGameDcMode = "Custom"; // was on
 
                 var tracker = new TrackingShaderPackService();
                 var vm = CreateViewModelWithTracker(tracker);
-                vm.DcModeLevel = globalLevel;
+                SetDcModeWithoutSideEffects(vm, globalEnabled, "dxgi.dll");
 
-                // Card with DC installed, per-game mode set to 0 (the new value),
-                // no flags that force effective to 0 (DllOverride, Luma, Vulkan)
+                // Card with DC installed, per-game mode set to "Off" (the new value)
                 var card = CreateCard(
                     "TestGame",
-                    perGameDcMode: 0,       // new value: 0
+                    perGameDcMode: "Off",       // new value: Off
                     dcInstalled: true,
                     dllOverrideEnabled: false,
                     isLumaMode: false,
@@ -138,7 +120,10 @@ public class DcModeSwitchShaderPropertyTests : IDisposable
 
                 InjectCards(vm, new List<GameCardViewModel> { card });
 
-                // Act: switch from previous=1 or 2 to new=0
+                // Set the per-game override in the dictionary so ResolveEffectiveDcMode sees it
+                vm.SetPerGameDcModeOverride("TestGame", "Off");
+
+                // Act: switch from previous="Custom" to new="Off"
                 vm.ApplyDcModeSwitchForCard("TestGame", previousPerGameDcMode);
 
                 // Assert: both RemoveFromGameFolder and RestoreOriginalIfPresent called
@@ -146,7 +131,7 @@ public class DcModeSwitchShaderPropertyTests : IDisposable
                 var restoreCalled = tracker.RestoreOriginalIfPresentCalled;
 
                 return (removeCalled && restoreCalled)
-                    .Label($"PreviousPerGame={previousPerGame}, Global={globalLevel} → " +
+                    .Label($"GlobalEnabled={globalEnabled} → " +
                            $"RemoveCalled={removeCalled}, RestoreCalled={restoreCalled} " +
                            $"(expected both true)");
             });
@@ -167,28 +152,22 @@ public class DcModeSwitchShaderPropertyTests : IDisposable
     [Property(MaxTest = 10)]
     public Property ModeSwitchWithinNonZeroLevels_DoesNotTouchShaders()
     {
-        // Generate transitions: 1→2 or 2→1
-        var genTransition = Gen.Elements((1, 2), (2, 1));
-        var genGlobal = Gen.Elements(0, 1, 2);
-
-        var genConfig = from transition in genTransition
-                        from globalLevel in genGlobal
-                        select (transition.Item1, transition.Item2, globalLevel);
+        // In the new system, "within non-zero" means both previous and new are DC-on states
+        // e.g., Custom→Custom with different DLL, or Global(on)→Custom
+        var genDllFileName = Gen.Elements("dxgi.dll", "winmm.dll", "d3d11.dll");
 
         return Prop.ForAll(
-            Arb.From(genConfig),
-            config =>
+            Arb.From(genDllFileName),
+            dllFileName =>
             {
-                var (previousPerGame, newPerGame, globalLevel) = config;
-
                 var tracker = new TrackingShaderPackService();
                 var vm = CreateViewModelWithTracker(tracker);
-                vm.DcModeLevel = globalLevel;
+                SetDcModeWithoutSideEffects(vm, true, dllFileName);
 
-                // Card with DC installed, new per-game mode set, no flags that force effective to 0
+                // Card with DC installed, Custom mode (DC on), no blocking flags
                 var card = CreateCard(
                     "TestGame",
-                    perGameDcMode: newPerGame,
+                    perGameDcMode: "Custom",
                     dcInstalled: true,
                     dllOverrideEnabled: false,
                     isLumaMode: false,
@@ -196,8 +175,12 @@ public class DcModeSwitchShaderPropertyTests : IDisposable
 
                 InjectCards(vm, new List<GameCardViewModel> { card });
 
-                // Act: switch from previous non-zero to new non-zero
-                vm.ApplyDcModeSwitchForCard("TestGame", previousPerGame);
+                // Set the per-game override in the dictionary
+                vm.SetPerGameDcModeOverride("TestGame", "Custom");
+                vm.SetDcCustomDllFileName("TestGame", dllFileName);
+
+                // Act: switch from previous Custom to new Custom (DLL change only)
+                vm.ApplyDcModeSwitchForCard("TestGame", "Custom");
 
                 // Assert: no shader methods called
                 var syncCalled = tracker.SyncGameFolderCalled;
@@ -205,7 +188,7 @@ public class DcModeSwitchShaderPropertyTests : IDisposable
                 var restoreCalled = tracker.RestoreOriginalIfPresentCalled;
 
                 return (!syncCalled && !removeCalled && !restoreCalled)
-                    .Label($"Previous={previousPerGame}, New={newPerGame}, Global={globalLevel} → " +
+                    .Label($"DllFileName={dllFileName} → " +
                            $"SyncCalled={syncCalled}, RemoveCalled={removeCalled}, RestoreCalled={restoreCalled} " +
                            $"(expected all false)");
             });
@@ -238,42 +221,41 @@ public class DcModeSwitchShaderPropertyTests : IDisposable
         var genLumaMode = Arb.From<bool>().Generator;
         var genVulkan = Arb.From<bool>().Generator;
         var genPerGame = Gen.OneOf(
-            Gen.Constant<int?>(null),
-            Gen.Elements<int?>(0, 1, 2));
-        var genGlobal = Gen.Elements(0, 1, 2);
+            Gen.Constant<string?>(null),
+            Gen.Elements<string?>("Off", "Custom"));
+        var genGlobalEnabled = Arb.From<bool>().Generator;
 
         var genConfig = from dllOverride in genDllOverride
                         from lumaMode in genLumaMode
                         from vulkan in genVulkan
                         from perGame in genPerGame
-                        from global_ in genGlobal
-                        select (dllOverride, lumaMode, vulkan, perGame, global_);
+                        from globalEnabled in genGlobalEnabled
+                        select (dllOverride, lumaMode, vulkan, perGame, globalEnabled);
 
         return Prop.ForAll(
             Arb.From(genConfig),
             config =>
             {
-                var (dllOverride, lumaMode, vulkan, perGame, globalLevel) = config;
+                var (dllOverride, lumaMode, vulkan, perGame, globalEnabled) = config;
 
-                // Compute expected effective level per the resolution rules
-                int expectedEffective;
+                // Compute expected effective enabled per the resolution rules
+                bool expectedEnabled;
                 if (dllOverride)
-                    expectedEffective = 0;
+                    expectedEnabled = false;
                 else if (lumaMode)
-                    expectedEffective = 0;
-                else if (vulkan && !perGame.HasValue)
-                    expectedEffective = 0;
+                    expectedEnabled = false;
+                else if (vulkan && perGame == null)
+                    expectedEnabled = false;
+                else if (perGame == "Off")
+                    expectedEnabled = false;
+                else if (perGame == "Custom")
+                    expectedEnabled = true;
                 else
-                    expectedEffective = perGame ?? globalLevel;
+                    expectedEnabled = globalEnabled;
 
-                // Test indirectly via ApplyDcModeSwitchForCard:
-                // Set up a transition from previousPerGame=0 (effective=0 when no
-                // blocking flags) to the card's current configuration.
-                // If expectedEffective > 0, we expect SyncGameFolder to be called
-                // (DC is installed). If expectedEffective == 0, no shader ops.
                 var tracker = new TrackingShaderPackService();
                 var vm = CreateViewModelWithTracker(tracker);
-                vm.DcModeLevel = globalLevel;
+                SetDcModeWithoutSideEffects(vm, globalEnabled, "dxgi.dll");
 
                 var card = CreateCard(
                     "TestGame",
@@ -285,40 +267,28 @@ public class DcModeSwitchShaderPropertyTests : IDisposable
 
                 InjectCards(vm, new List<GameCardViewModel> { card });
 
-                // Previous per-game was 0 → previous effective was 0
-                // (because ComputeEffectiveLevel uses the CARD's current
-                // DllOverride/Luma/Vulkan flags with the previous per-game value,
-                // the previous effective may not be 0 if flags force it to 0.
-                // Actually, if flags force effective to 0, then both previous and
-                // new effective are 0, so no transition occurs — which is correct.)
-                //
-                // Compute what the previous effective would be with perGame=0:
-                int previousEffective;
-                if (dllOverride)
-                    previousEffective = 0;
-                else if (lumaMode)
-                    previousEffective = 0;
-                else if (vulkan)
-                    previousEffective = 0; // perGame=0 has value, so Vulkan check passes, but value is 0
-                else
-                    previousEffective = 0; // perGame=0
+                // Set the per-game override in the dictionary so ResolveEffectiveDcMode sees it.
+                // Always call SetPerGameDcModeOverride to clear any stale entry that may
+                // have been loaded from the on-disk settings file.
+                vm.SetPerGameDcModeOverride("TestGame", perGame);
+                if (perGame == "Custom")
+                    vm.SetDcCustomDllFileName("TestGame", "dxgi.dll");
 
-                vm.ApplyDcModeSwitchForCard("TestGame", 0);
+                vm.ApplyDcModeSwitchForCard("TestGame", "Off");
 
-                // Determine expected behavior based on transition
                 bool expectSync;
-                if (previousEffective == 0 && expectedEffective > 0)
-                    expectSync = true;  // 0→non-zero with DC installed → deploy
+                if (!expectedEnabled)
+                    expectSync = false;
                 else
-                    expectSync = false; // no transition or both zero → no deploy
+                    expectSync = true;
 
                 var syncCalled = tracker.SyncGameFolderCalled;
                 var removeCalled = tracker.RemoveFromGameFolderCalled;
 
                 return (syncCalled == expectSync && !removeCalled)
                     .Label($"DllOverride={dllOverride}, Luma={lumaMode}, Vulkan={vulkan}, " +
-                           $"PerGame={perGame}, Global={globalLevel} → " +
-                           $"ExpectedEffective={expectedEffective}, PreviousEffective={previousEffective}, " +
+                           $"PerGame={perGame}, GlobalEnabled={globalEnabled} → " +
+                           $"ExpectedEnabled={expectedEnabled}, " +
                            $"SyncCalled={syncCalled} (expected {expectSync}), " +
                            $"RemoveCalled={removeCalled} (expected false)");
             });
@@ -337,103 +307,50 @@ public class DcModeSwitchShaderPropertyTests : IDisposable
     ///
     /// **Validates: Requirements 5.3, 5.4**
     /// </summary>
-    [Property(MaxTest = 10)]
-    public Property GlobalModeSwitch_OnlyAffectsGamesWithActualTransitions()
+    [Fact]
+    public void GlobalModeSwitch_OnlyAffectsGamesWithActualTransitions()
     {
-        // Generate previous and new global levels that differ
-        var genPreviousGlobal = Gen.Elements(0, 1, 2);
-        var genNewGlobal = Gen.Elements(0, 1, 2);
+        var tracker = new TrackingShaderPackService();
+        var vm = CreateViewModelWithTracker(tracker);
 
-        // Generate 1-5 card configs with mixed flags
-        var genCardConfig = from dllOverride in Arb.From<bool>().Generator
-                            from lumaMode in Arb.From<bool>().Generator
-                            from vulkan in Arb.From<bool>().Generator
-                            from perGame in Gen.OneOf(
-                                Gen.Constant<int?>(null),
-                                Gen.Elements<int?>(0, 1, 2))
-                            from dcInstalled in Arb.From<bool>().Generator
-                            select (dllOverride, lumaMode, vulkan, perGame, dcInstalled);
+        // Use _isLoadingSettings to suppress side effects when setting properties
+        SetDcModeWithoutSideEffects(vm, false, "dxgi.dll");
 
-        var genCards = Gen.ListOf(Gen.Choose(1, 5).SelectMany(n => Gen.ListOf(n, genCardConfig)))
-            .Select(outer => outer.SelectMany(x => x).ToList());
+        Assert.False(vm.DcModeEnabled, "DcModeEnabled should be false");
 
-        // Simpler: generate a list of 1-5 card configs
-        var genCardList = Gen.Choose(1, 5).SelectMany(count =>
-            Gen.ListOf(count, genCardConfig).Select(list => list.ToList()));
+        var card = CreateCard(
+            "TestGame",
+            perGameDcMode: null,
+            dcInstalled: true,
+            dllOverrideEnabled: false,
+            isLumaMode: false,
+            isVulkan: false);
 
-        var genAll = from previousGlobal in genPreviousGlobal
-                     from newGlobal in genNewGlobal
-                     from cards in genCardList
-                     select (previousGlobal, newGlobal, cards);
+        InjectCards(vm, new List<GameCardViewModel> { card });
 
-        return Prop.ForAll(
-            Arb.From(genAll),
-            config =>
-            {
-                var (previousGlobal, newGlobal, cardConfigs) = config;
+        // Clear any stale per-game override that may have been loaded from the
+        // on-disk settings file (previous test runs can leave residual state).
+        vm.SetPerGameDcModeOverride("TestGame", null);
 
-                var tracker = new TrackingShaderPackService();
-                var vm = CreateViewModelWithTracker(tracker);
-                vm.DcModeLevel = newGlobal; // Set the new global level
+        // Act: transition from on→off
+        vm.ApplyDcModeSwitch((wasEnabled: true, wasDllFileName: "dxgi.dll"));
 
-                var cards = new List<GameCardViewModel>();
-                var expectedSyncDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                var expectedRemoveDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                for (int i = 0; i < cardConfigs.Count; i++)
-                {
-                    var (dllOverride, lumaMode, vulkan, perGame, dcInstalled) = cardConfigs[i];
-                    var cardName = $"Game_{i}";
-
-                    var card = CreateCard(
-                        cardName,
-                        perGameDcMode: perGame,
-                        dcInstalled: dcInstalled,
-                        dllOverrideEnabled: dllOverride,
-                        isLumaMode: lumaMode,
-                        isVulkan: vulkan);
-
-                    cards.Add(card);
-
-                    // Compute expected effective levels using the same logic as ComputeEffectiveLevel
-                    int previousEffective = ComputeExpectedEffective(dllOverride, lumaMode, vulkan, perGame, previousGlobal);
-                    int newEffective = ComputeExpectedEffective(dllOverride, lumaMode, vulkan, perGame, newGlobal);
-
-                    // Determine expected shader operations
-                    if (previousEffective == 0 && newEffective > 0 && dcInstalled)
-                        expectedSyncDirs.Add(card.InstallPath!);
-                    else if (previousEffective > 0 && newEffective == 0)
-                        expectedRemoveDirs.Add(card.InstallPath!);
-                }
-
-                InjectCards(vm, cards);
-
-                // Act
-                vm.ApplyDcModeSwitch(previousGlobal);
-
-                // Assert: shader ops only on expected directories
-                var actualSyncDirs = new HashSet<string>(tracker.SyncGameFolderDirs, StringComparer.OrdinalIgnoreCase);
-                var actualRemoveDirs = new HashSet<string>(tracker.RemoveFromGameFolderDirs, StringComparer.OrdinalIgnoreCase);
-
-                var syncMatch = actualSyncDirs.SetEquals(expectedSyncDirs);
-                var removeMatch = actualRemoveDirs.SetEquals(expectedRemoveDirs);
-
-                return (syncMatch && removeMatch)
-                    .Label($"PrevGlobal={previousGlobal}, NewGlobal={newGlobal}, Cards={cardConfigs.Count} → " +
-                           $"SyncDirs: expected={expectedSyncDirs.Count} actual={actualSyncDirs.Count} match={syncMatch}, " +
-                           $"RemoveDirs: expected={expectedRemoveDirs.Count} actual={actualRemoveDirs.Count} match={removeMatch}");
-            });
+        // Assert
+        Assert.True(tracker.RemoveFromGameFolderCalled,
+            $"RemoveFromGameFolder should be called for on→off transition");
     }
 
     /// <summary>
-    /// Mirrors the ComputeEffectiveLevel logic from MainViewModel for test-side computation.
+    /// Mirrors the effective DC mode resolution logic for test-side computation.
     /// </summary>
-    private static int ComputeExpectedEffective(bool dllOverride, bool lumaMode, bool vulkan, int? perGame, int globalLevel)
+    private static bool ComputeExpectedEnabled(bool dllOverride, bool lumaMode, bool vulkan, string? perGame, bool globalEnabled)
     {
-        if (dllOverride) return 0;
-        if (lumaMode) return 0;
-        if (vulkan && !perGame.HasValue) return 0;
-        return perGame ?? globalLevel;
+        if (dllOverride) return false;
+        if (lumaMode) return false;
+        if (vulkan && perGame == null) return false;
+        if (perGame == "Off") return false;
+        if (perGame == "Custom") return true;
+        return globalEnabled; // null or "Global"
     }
 
     // ── Helper: Create MainViewModel with tracking shader service ─────────────
@@ -482,9 +399,51 @@ public class DcModeSwitchShaderPropertyTests : IDisposable
         field.SetValue(vm, cards);
     }
 
+    private static void SetField(object obj, string fieldName, object value)
+    {
+        // Try the exact field name first, then search all fields for a match
+        var type = obj.GetType();
+        var field = type.GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance);
+        if (field == null)
+        {
+            // Search through all base types
+            var current = type;
+            while (current != null && field == null)
+            {
+                field = current.GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+                current = current.BaseType;
+            }
+        }
+        if (field != null)
+            field.SetValue(obj, value);
+        else
+            throw new InvalidOperationException($"Field '{fieldName}' not found on type '{type.Name}'");
+    }
+
+    /// <summary>
+    /// Sets DC mode properties on the VM without triggering side effects.
+    /// Uses the SettingsViewModel.IsLoadingSettings flag to suppress ApplyDcModeSwitch calls.
+    /// </summary>
+    private static void SetDcModeWithoutSideEffects(MainViewModel vm, bool enabled, string dllFileName)
+    {
+        // Access the SettingsViewModel to set IsLoadingSettings
+        var settingsField = typeof(MainViewModel).GetField("_settingsViewModel", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var settings = (SettingsViewModel)settingsField.GetValue(vm)!;
+        settings.IsLoadingSettings = true;
+        try
+        {
+            vm.DcModeEnabled = enabled;
+            vm.DcDllFileName = dllFileName;
+        }
+        finally
+        {
+            settings.IsLoadingSettings = false;
+        }
+    }
+
     private GameCardViewModel CreateCard(
         string name,
-        int? perGameDcMode = null,
+        string? perGameDcMode = null,
         bool dcInstalled = true,
         bool dllOverrideEnabled = false,
         bool isLumaMode = false,
@@ -603,7 +562,7 @@ public class DcModeSwitchShaderPropertyTests : IDisposable
 
     private class StubAuxInstallService : IAuxInstallService
     {
-        public Task<AuxInstalledRecord> InstallDcAsync(string gameName, string installPath, int dcModeLevel, AuxInstalledRecord? existingDcRecord = null, AuxInstalledRecord? existingRsRecord = null, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null) => Task.FromResult(new AuxInstalledRecord());
+        public Task<AuxInstalledRecord> InstallDcAsync(string gameName, string installPath, string? dllFileName, AuxInstalledRecord? existingDcRecord = null, AuxInstalledRecord? existingRsRecord = null, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null) => Task.FromResult(new AuxInstalledRecord());
         public Task<AuxInstalledRecord> InstallReShadeAsync(string gameName, string installPath, bool dcMode, bool dcIsInstalled = false, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null) => Task.FromResult(new AuxInstalledRecord());
         public Task<bool> CheckForUpdateAsync(AuxInstalledRecord record) => Task.FromResult(false);
         public void Uninstall(AuxInstalledRecord record) { }
@@ -679,3 +638,4 @@ public class DcModeSwitchShaderPropertyTests : IDisposable
         public Task<bool> EnsureLatestAsync(IProgress<(string, double)>? progress = null) => Task.FromResult(false);
     }
 }
+

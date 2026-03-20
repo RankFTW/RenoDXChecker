@@ -11,6 +11,7 @@
         <Grid.Resources>
             <x:Double x:Key="CardItemWidth">390</x:Double>
             <x:Double x:Key="CompactCardWidth">400</x:Double>
+            <converters:BoolToVisibility x:Key="BoolToVisibility"/>
         </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>  <!-- Row 0: Toolbar -->
@@ -652,26 +653,29 @@
                                 <TextBlock Text="Display Commander Mode" FontSize="13" FontWeight="SemiBold"
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
                                 <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource InlineDescriptionBrush}" LineHeight="18"
-                                           Text="Controls how Display Commander loads alongside ReShade. Off = normal dxgi.dll proxy. Mode 1 = DC as dxgi.dll, ReShade as ReShade64.dll. Mode 2 = DC as winmm.dll, ReShade as ReShade64.dll."/>
-                                <Button x:Name="DcModeBtn"
-                                        Click="DcModeButton_Click"
-                                        Content="{x:Bind ViewModel.DcModeBtnLabel, Mode=OneWay}"
-                                        Background="{x:Bind ViewModel.DcModeBtnBackground, Mode=OneWay}"
-                                        Foreground="{x:Bind ViewModel.DcModeBtnForeground, Mode=OneWay}"
-                                        BorderBrush="{x:Bind ViewModel.DcModeBtnBorder, Mode=OneWay}"
-                                        BorderThickness="1"
-                                        CornerRadius="8" Padding="12,7" FontSize="12"
-                                        HorizontalAlignment="Stretch"
-                                        ToolTipService.ToolTip="Cycle DC Mode: Off → Mode 1 (DC → dxgi.dll) → Mode 2 (DC → winmm.dll) → Off"/>
+                                           Text="Toggle Display Commander mode On or Off. When On, choose which DLL filename DC uses to load alongside ReShade. The DLL picker lets you select from common proxy DLL names or type a custom one."/>
+                                <ToggleSwitch x:Name="DcModeToggle"
+                                              IsOn="{x:Bind ViewModel.DcModeEnabled, Mode=TwoWay}"
+                                              OnContent="On" OffContent="Off"
+                                              Header="Display Commander Mode"/>
+                                <ComboBox x:Name="DcDllPicker"
+                                          IsEditable="True"
+                                          ItemsSource="{x:Bind DcDllPickerNames}"
+                                          SelectionChanged="DcDllPicker_SelectionChanged"
+                                          TextSubmitted="DcDllPicker_TextSubmitted"
+                                          Visibility="{x:Bind ViewModel.DcDllPickerVisibility, Mode=OneWay}"
+                                          PlaceholderText="Select or type DLL filename"
+                                          Header="DLL Filename"
+                                          HorizontalAlignment="Stretch"/>
                                 <Button x:Name="DeployDcModeBtn" Content="Deploy DC Mode to All"
                                         Click="DeployDcModeButton_Click"
                                         Background="{StaticResource AccentBlueBgBrush}" Foreground="{StaticResource AccentBlueBrush}"
                                         BorderBrush="{StaticResource AccentBlueBorderBrush}" BorderThickness="1"
                                         CornerRadius="8" Padding="12,7" FontSize="12"
                                         HorizontalAlignment="Stretch"
-                                        ToolTipService.ToolTip="Apply the current DC Mode to all installed games"/>
+                                        ToolTipService.ToolTip="Apply the current DC Mode (On/Off + DLL filename) to all installed games"/>
                                 <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource InlineDescriptionBrush}"
-                                           Text="Applies the current DC Mode naming to all games that have ReShade and Display Commander installed."/>
+                                           Text="Applies the current DC Mode (On/Off and DLL filename) to all games that have ReShade and Display Commander installed."/>
                             </StackPanel>
                         </Border>
 

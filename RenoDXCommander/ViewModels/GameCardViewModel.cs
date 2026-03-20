@@ -66,10 +66,10 @@ public partial class GameCardViewModel : ObservableObject
     public string EngineHint    { get; set; } = "";
     public GraphicsApiType GraphicsApi { get; set; } = GraphicsApiType.Unknown;
     public string? NameUrl      { get; set; }
-    /// <summary>Per-game DC Mode override: null = follow global, 0 = force off, 1 = force DC Mode 1, 2 = force DC Mode 2, 3 = DC Mode Custom.</summary>
-    public int? PerGameDcMode        { get; set; }
+    /// <summary>Per-game DC Mode override: null = follow global, "Off" = force off, "Global" = follow global, "Custom" = per-game DLL.</summary>
+    public string? PerGameDcMode        { get; set; }
     /// <summary>True when any per-game DC Mode override is set (game does not follow global toggle).</summary>
-    public bool DcModeExcluded       => PerGameDcMode.HasValue;
+    public bool DcModeExcluded       => PerGameDcMode != null;
     public bool ExcludeFromUpdateAllReShade { get; set; }
     public bool ExcludeFromUpdateAllDc      { get; set; }
     public bool ExcludeFromUpdateAllRenoDx  { get; set; }

@@ -361,16 +361,16 @@ public class CardPropertyTests
     [Property(MaxTest = 100)]
     public Property OverrideRoundTrip_PerGameDcMode()
     {
-        var genDcMode = Gen.OneOf<int?>(
-            Gen.Constant<int?>(null),
-            Gen.Constant<int?>(0),
-            Gen.Constant<int?>(1),
-            Gen.Constant<int?>(2)
+        var genDcMode = Gen.OneOf<string?>(
+            Gen.Constant<string?>(null),
+            Gen.Constant<string?>("Off"),
+            Gen.Constant<string?>("Custom"),
+            Gen.Constant<string?>("Global")
         );
 
         return Prop.ForAll(
             Arb.From(genDcMode),
-            (int? dcMode) =>
+            (string? dcMode) =>
             {
                 var card = new GameCardViewModel();
                 card.PerGameDcMode = dcMode;
@@ -379,7 +379,7 @@ public class CardPropertyTests
                 bool roundTrip = card.PerGameDcMode == dcMode;
 
                 // DcModeExcluded reflects whether an override is set
-                bool excludedCorrect = card.DcModeExcluded == dcMode.HasValue;
+                bool excludedCorrect = card.DcModeExcluded == (dcMode != null);
 
                 return roundTrip && excludedCorrect;
             });

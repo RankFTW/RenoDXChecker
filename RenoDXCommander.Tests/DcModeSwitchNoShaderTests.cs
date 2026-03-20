@@ -87,7 +87,7 @@ public class DcModeSwitchNoShaderTests : IDisposable
         GameStatus rsStatus = GameStatus.NotInstalled,
         bool hasDcRecord = false,
         bool hasRsRecord = false,
-        int? perGameDcMode = null)
+        string? perGameDcMode = null)
     {
         var dir = Path.Combine(_tempRoot, name);
         Directory.CreateDirectory(dir);
@@ -138,10 +138,10 @@ public class DcModeSwitchNoShaderTests : IDisposable
     /// **Validates: Requirements 5.1, 5.3**
     /// </summary>
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public void ApplyDcModeSwitch_NeverCallsShaderMethods(int dcModeLevel)
+    [InlineData(false, "dxgi.dll")]
+    [InlineData(true, "dxgi.dll")]
+    [InlineData(true, "winmm.dll")]
+    public void ApplyDcModeSwitch_NeverCallsShaderMethods(bool dcModeEnabled, string dcDllFileName)
     {
         var tracker = new TrackingShaderPackService();
         var cards = new List<GameCardViewModel>
@@ -153,11 +153,12 @@ public class DcModeSwitchNoShaderTests : IDisposable
         };
 
         var vm = CreateViewModelWithCards(tracker, cards);
-        vm.DcModeLevel = dcModeLevel;
+        // Set fields directly to avoid triggering OnDcModeEnabledChanged which calls ApplyDcModeSwitch
+        SetDcModeWithoutSideEffects(vm, dcModeEnabled, dcDllFileName);
 
-        vm.ApplyDcModeSwitch(dcModeLevel);
+        vm.ApplyDcModeSwitch((wasEnabled: dcModeEnabled, wasDllFileName: dcDllFileName));
 
-        AssertNoShaderMethodsCalled(tracker, $"ApplyDcModeSwitch with dcModeLevel={dcModeLevel}");
+        AssertNoShaderMethodsCalled(tracker, $"ApplyDcModeSwitch with dcModeEnabled={dcModeEnabled}");
     }
 
     // ── ApplyDcModeSwitchForCard tests ───────────────────────────────────────
@@ -169,10 +170,10 @@ public class DcModeSwitchNoShaderTests : IDisposable
     /// **Validates: Requirements 5.2, 5.4**
     /// </summary>
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public void ApplyDcModeSwitchForCard_NeverCallsShaderMethods(int dcModeLevel)
+    [InlineData(false, "dxgi.dll")]
+    [InlineData(true, "dxgi.dll")]
+    [InlineData(true, "winmm.dll")]
+    public void ApplyDcModeSwitchForCard_NeverCallsShaderMethods(bool dcModeEnabled, string dcDllFileName)
     {
         var tracker = new TrackingShaderPackService();
         var card = CreateCard("TargetGame", GameStatus.Installed, GameStatus.Installed,
@@ -180,11 +181,11 @@ public class DcModeSwitchNoShaderTests : IDisposable
         var cards = new List<GameCardViewModel> { card };
 
         var vm = CreateViewModelWithCards(tracker, cards);
-        vm.DcModeLevel = dcModeLevel;
+        SetDcModeWithoutSideEffects(vm, dcModeEnabled, dcDllFileName);
 
         vm.ApplyDcModeSwitchForCard("TargetGame", card.PerGameDcMode);
 
-        AssertNoShaderMethodsCalled(tracker, $"ApplyDcModeSwitchForCard with dcModeLevel={dcModeLevel}");
+        AssertNoShaderMethodsCalled(tracker, $"ApplyDcModeSwitchForCard with dcModeEnabled={dcModeEnabled}");
     }
 
     /// <summary>
@@ -193,22 +194,28 @@ public class DcModeSwitchNoShaderTests : IDisposable
     /// **Validates: Requirements 5.2, 5.4**
     /// </summary>
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public void ApplyDcModeSwitchForCard_WithPerGameOverride_NeverCallsShaderMethods(int perGameLevel)
+    [InlineData("Off")]
+    [InlineData("Custom")]
+    [InlineData(null)]
+    public void ApplyDcModeSwitchForCard_WithPerGameOverride_NeverCallsShaderMethods(string? perGameMode)
     {
         var tracker = new TrackingShaderPackService();
         var card = CreateCard("OverrideGame", GameStatus.Installed, GameStatus.Installed,
-            hasDcRecord: true, hasRsRecord: true, perGameDcMode: perGameLevel);
+            hasDcRecord: true, hasRsRecord: true, perGameDcMode: perGameMode);
         var cards = new List<GameCardViewModel> { card };
 
         var vm = CreateViewModelWithCards(tracker, cards);
-        vm.DcModeLevel = 0; // global is off, per-game overrides
+        SetDcModeWithoutSideEffects(vm, false, "dxgi.dll");
 
-        vm.ApplyDcModeSwitchForCard("OverrideGame", perGameLevel);
+        // Set the per-game override in the dictionary so ResolveEffectiveDcMode sees it.
+        // For null, explicitly clear any stale entry that may have been loaded from the
+        // on-disk settings file (previous test runs can leave residual state).
+        vm.SetPerGameDcModeOverride("OverrideGame", perGameMode);
 
-        AssertNoShaderMethodsCalled(tracker, $"ApplyDcModeSwitchForCard with perGameDcMode={perGameLevel}");
+        // Pass the same perGameMode as previous — no transition should occur
+        vm.ApplyDcModeSwitchForCard("OverrideGame", perGameMode);
+
+        AssertNoShaderMethodsCalled(tracker, $"ApplyDcModeSwitchForCard with perGameDcMode={perGameMode}");
     }
 
     // ── Assertion helper ─────────────────────────────────────────────────────
@@ -225,6 +232,21 @@ public class DcModeSwitchNoShaderTests : IDisposable
             $"DeployToDcFolder should NOT be called during {context}");
         Assert.False(tracker.RestoreOriginalIfPresentCalled,
             $"RestoreOriginalIfPresent should NOT be called during {context}");
+    }
+
+    private static void SetDcModeWithoutSideEffects(MainViewModel vm, bool enabled, string dllFileName)
+    {
+        var settingsField = typeof(MainViewModel).GetField("_settingsViewModel", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var settings = (SettingsViewModel)settingsField.GetValue(vm)!;
+        settings.IsLoadingSettings = true;
+        try { vm.DcModeEnabled = enabled; vm.DcDllFileName = dllFileName; }
+        finally { settings.IsLoadingSettings = false; }
+    }
+
+        private static void SetField(object obj, string fieldName, object value)
+    {
+        var field = obj.GetType().GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)!;
+        field.SetValue(obj, value);
     }
 
     // ── Tracking IShaderPackService ──────────────────────────────────────────
@@ -283,7 +305,7 @@ public class DcModeSwitchNoShaderTests : IDisposable
 
     private class StubAuxInstallService : IAuxInstallService
     {
-        public Task<AuxInstalledRecord> InstallDcAsync(string gameName, string installPath, int dcModeLevel, AuxInstalledRecord? existingDcRecord = null, AuxInstalledRecord? existingRsRecord = null, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null) => Task.FromResult(new AuxInstalledRecord());
+        public Task<AuxInstalledRecord> InstallDcAsync(string gameName, string installPath, string? dllFileName, AuxInstalledRecord? existingDcRecord = null, AuxInstalledRecord? existingRsRecord = null, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null) => Task.FromResult(new AuxInstalledRecord());
         public Task<AuxInstalledRecord> InstallReShadeAsync(string gameName, string installPath, bool dcMode, bool dcIsInstalled = false, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null) => Task.FromResult(new AuxInstalledRecord());
         public Task<bool> CheckForUpdateAsync(AuxInstalledRecord record) => Task.FromResult(false);
         public void Uninstall(AuxInstalledRecord record) { }
@@ -359,3 +381,4 @@ public class DcModeSwitchNoShaderTests : IDisposable
         public Task<bool> EnsureLatestAsync(IProgress<(string, double)>? progress = null) => Task.FromResult(false);
     }
 }
+

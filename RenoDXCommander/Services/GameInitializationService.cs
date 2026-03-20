@@ -179,7 +179,11 @@ public class GameInitializationService : IGameInitializationService
             foreach (var (key, value) in manifest.DcModeOverrides)
             {
                 if (!gameNameService.PerGameDcModeOverride.ContainsKey(key))
-                    gameNameService.PerGameDcModeOverride[key] = value;
+                {
+                    // Convert legacy int manifest values to new string format
+                    var converted = value switch { 0 => "Off", 1 => "Custom", 2 => "Custom", _ => "Global" };
+                    gameNameService.PerGameDcModeOverride[key] = converted;
+                }
             }
         }
 

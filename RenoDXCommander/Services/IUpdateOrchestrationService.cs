@@ -32,7 +32,7 @@ public interface IUpdateOrchestrationService
     Task UpdateAllReShadeAsync(
         IReadOnlyList<GameCardViewModel> allCards,
         IDllOverrideService dllOverrideService,
-        int dcModeLevel,
+        bool dcModeEnabled,
         Microsoft.UI.Dispatching.DispatcherQueue? dispatcherQueue,
         Action notifyUpdateState,
         Func<string, string?, IEnumerable<string>?>? shaderResolver = null);
@@ -43,7 +43,7 @@ public interface IUpdateOrchestrationService
     Task UpdateAllDcAsync(
         IReadOnlyList<GameCardViewModel> allCards,
         IDllOverrideService dllOverrideService,
-        int dcModeLevel,
+        Func<string, GameCardViewModel, (bool enabled, string dllFileName)> dcModeResolver,
         Microsoft.UI.Dispatching.DispatcherQueue? dispatcherQueue,
         Action notifyUpdateState,
         Func<string, string?, IEnumerable<string>?>? shaderResolver = null);

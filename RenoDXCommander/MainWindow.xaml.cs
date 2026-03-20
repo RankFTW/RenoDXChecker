@@ -18,6 +18,8 @@ public sealed partial class MainWindow : Window
 {
     public MainViewModel ViewModel { get; }
 
+    public string[] DcDllPickerNames => DllOverrideConstants.DcDllPickerNames;
+
     // Sensible default — used on first launch before any saved size exists
     private const int DefaultWidth  = 1280;
     private const int DefaultHeight = 1000;
@@ -89,6 +91,8 @@ public sealed partial class MainWindow : Window
         GameList.ItemsSource = ViewModel.DisplayedGames;
         // Apply initial visibility
         UpdatePageVisibility();
+        // Sync DcDllPicker text once the ComboBox is loaded
+        DcDllPicker.Loaded += (_, _) => SyncDcDllPickerText();
         // Always show the ✕ clear button on search box
         SearchBox.Loaded += (_, _) => VisualStateManager.GoToState(SearchBox, "ButtonVisible", false);
         ViewModel.InitializeAsync().SafeFireAndForget("MainWindow.Init");
@@ -169,6 +173,9 @@ public sealed partial class MainWindow : Window
                 case nameof(ViewModel.HiddenCount):
                     HiddenCountText.Text = ViewModel.HiddenCount > 0
                         ? $"· {ViewModel.HiddenCount} hidden" : "";
+                    break;
+                case nameof(ViewModel.DcDllFileName):
+                    SyncDcDllPickerText();
                     break;
             }
         });
@@ -904,29 +911,29 @@ public sealed partial class MainWindow : Window
         };
 
         // ── DC Mode + Shader Mode (side by side) ──
-        int? currentDcMode = ViewModel.GetPerGameDcModeOverride(gameName);
-        var globalDcLabel = ViewModel.DcModeLevel switch { 1 => "DC Mode 1", 2 => "DC Mode 2", _ => "Off" };
-        var dcModeOptions = new[] { $"Global ({globalDcLabel})", "Exclude (Off)", "DC Mode 1", "DC Mode 2" };
+        string? currentDcMode = ViewModel.GetPerGameDcModeOverride(gameName);
+        var globalDcLabel = ViewModel.DcModeEnabled ? $"On — {ViewModel.DcDllFileName}" : "Off";
+        var dcModeOptions = new[] { $"Global ({globalDcLabel})", "Off", "Custom" };
         var dcModeCombo = new ComboBox
         {
             ItemsSource = dcModeOptions,
-            SelectedIndex = currentDcMode switch { null => 0, 0 => 1, 1 => 2, 2 => 3, _ => 0 },
+            SelectedIndex = currentDcMode switch { "Off" => 1, "Custom" => 2, _ => 0 },
             FontSize = 12,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Header = "DC Mode",
         };
         ToolTipService.SetToolTip(dcModeCombo,
-            "Global = use the Settings DC Mode. Exclude (Off) = always use normal naming. " +
-            "DC Mode 1 = force dxgi.dll proxy. DC Mode 2 = force winmm.dll proxy.");
+            "Global = use the Settings DC Mode. Off = always use normal naming. " +
+            "Custom = use a custom DLL filename.");
 
-        // Subscribe to DcModeLevel changes to keep the "Global (...)" label current
+        // Subscribe to DcModeEnabled/DcDllFileName changes to keep the "Global (...)" label current
         System.ComponentModel.PropertyChangedEventHandler dcModeLevelHandler = (sender, e) =>
         {
-            if (e.PropertyName != "DcModeLevel") return;
+            if (e.PropertyName != "DcModeEnabled" && e.PropertyName != "DcDllFileName") return;
             DispatcherQueue.TryEnqueue(() =>
             {
-                var updatedLabel = ViewModel.DcModeLevel switch { 1 => "DC Mode 1", 2 => "DC Mode 2", _ => "Off" };
-                var updatedOptions = new[] { $"Global ({updatedLabel})", "Exclude (Off)", "DC Mode 1", "DC Mode 2" };
+                var updatedLabel = ViewModel.DcModeEnabled ? $"On — {ViewModel.DcDllFileName}" : "Off";
+                var updatedOptions = new[] { $"Global ({updatedLabel})", "Off", "Custom" };
                 var savedIndex = dcModeCombo.SelectedIndex;
                 dcModeCombo.ItemsSource = updatedOptions;
                 dcModeCombo.SelectedIndex = savedIndex;
@@ -937,7 +944,7 @@ public sealed partial class MainWindow : Window
         // ── Auto-save: DC Mode on selection change ──
         dcModeCombo.SelectionChanged += (s, e) =>
         {
-            int? newDcMode = dcModeCombo.SelectedIndex switch { 1 => 0, 2 => 1, 3 => 2, _ => (int?)null };
+            string? newDcMode = dcModeCombo.SelectedIndex switch { 1 => "Off", 2 => "Custom", _ => (string?)null };
             var currentOverride = ViewModel.GetPerGameDcModeOverride(capturedName);
             if (newDcMode != currentOverride)
             {
@@ -2578,14 +2585,6 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private int _previousDcModeLevel;
-
-    private void DcModeButton_Click(object sender, RoutedEventArgs e)
-    {
-        _previousDcModeLevel = ViewModel.DcModeLevel;
-        ViewModel.CycleDcMode();
-    }
-
     private async void DeployDcModeButton_Click(object sender, RoutedEventArgs e)
     {
         var dlg = new ContentDialog
@@ -2597,7 +2596,49 @@ public sealed partial class MainWindow : Window
             XamlRoot          = Content.XamlRoot,
         };
         if (await dlg.ShowAsync() == ContentDialogResult.Primary)
-            ViewModel.ApplyDcModeSwitch(_previousDcModeLevel);
+            ViewModel.ApplyDcModeSwitch((wasEnabled: ViewModel.DcModeEnabled, wasDllFileName: ViewModel.DcDllFileName));
+    }
+
+    private bool _dcDllPickerIsTyping;
+
+    /// <summary>
+    /// Syncs the DcDllPicker ComboBox text/selection to match ViewModel.DcDllFileName.
+    /// Called on init and when the property changes from external sources.
+    /// </summary>
+    private void SyncDcDllPickerText()
+    {
+        var value = ViewModel.DcDllFileName;
+        _dcDllPickerIsTyping = true; // suppress SelectionChanged while we sync
+        // If the value matches a dropdown item, select it; otherwise clear selection and set text
+        var match = DcDllPickerNames.FirstOrDefault(n => n.Equals(value, StringComparison.OrdinalIgnoreCase));
+        if (match != null)
+            DcDllPicker.SelectedItem = match;
+        else
+        {
+            DcDllPicker.SelectedItem = null;
+            DcDllPicker.Text = value;
+        }
+        _dcDllPickerIsTyping = false;
+    }
+
+    private void DcDllPicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_dcDllPickerIsTyping) return;
+        if (sender is ComboBox combo && combo.SelectedItem is string selected && !string.IsNullOrWhiteSpace(selected))
+            ViewModel.DcDllFileName = selected;
+    }
+
+    private void DcDllPicker_TextSubmitted(ComboBox sender, ComboBoxTextSubmittedEventArgs e)
+    {
+        var typed = e.Text?.Trim();
+        if (!string.IsNullOrWhiteSpace(typed))
+        {
+            _dcDllPickerIsTyping = true; // suppress SelectionChanged side-effects
+            ViewModel.DcDllFileName = typed;
+            sender.SelectedItem = null; // clear stale selection so ComboBox doesn't revert
+            _dcDllPickerIsTyping = false;
+        }
+        e.Handled = true;
     }
 
     // ── Update All handlers ──────────────────────────────────────────────────

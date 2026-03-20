@@ -472,30 +472,11 @@ public class LumaService : ILumaService
 
     private static void SaveAllRecords(List<LumaInstalledRecord> records)
     {
-        try
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(DbPath)!);
-            var json = JsonSerializer.Serialize(records,
-                new JsonSerializerOptions { WriteIndented = true });
+        Directory.CreateDirectory(Path.GetDirectoryName(DbPath)!);
+        var json = JsonSerializer.Serialize(records,
+            new JsonSerializerOptions { WriteIndented = true });
 
-            // Retry with short delays to handle file contention from concurrent background tasks
-            for (int attempt = 0; attempt < 3; attempt++)
-            {
-                try
-                {
-                    File.WriteAllText(DbPath, json);
-                    return;
-                }
-                catch (IOException) when (attempt < 2)
-                {
-                    Thread.Sleep(50 * (attempt + 1));
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            CrashReporter.Log($"[LumaService.SaveAllRecords] Failed to save records — {ex.Message}");
-        }
+        FileHelper.WriteAllTextWithRetry(DbPath, json, "LumaService.SaveAllRecords");
     }
 
     private void SaveRecord(LumaInstalledRecord record)

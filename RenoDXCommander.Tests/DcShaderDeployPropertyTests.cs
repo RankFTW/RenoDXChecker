@@ -29,26 +29,27 @@ public class DcShaderDeployPropertyTests : IDisposable
         try { Directory.Delete(_tempRoot, recursive: true); } catch { }
     }
 
-    // ── Property 1: SyncGameFolder called iff dcModeLevel > 0 ──────────────────
+    // ── Property 1: SyncGameFolder called iff dllFileName is non-null ──────────────────
 
     /// <summary>
-    /// For any <c>dcModeLevel</c> in {0, 1, 2}, calling <c>InstallDcAsync</c> SHALL
-    /// invoke <c>SyncGameFolder</c> if and only if <c>dcModeLevel &gt; 0</c>.
-    /// When <c>dcModeLevel == 0</c>, <c>SyncGameFolder</c> SHALL NOT be called.
-    /// <c>SyncDcFolder</c> SHALL NOT be called for any level.
+    /// For any <c>dllFileName</c> in {null, "dxgi.dll", "winmm.dll"}, calling <c>InstallDcAsync</c> SHALL
+    /// invoke <c>SyncGameFolder</c> if and only if <c>dllFileName</c> is non-null.
+    /// When <c>dllFileName == null</c>, <c>SyncGameFolder</c> SHALL NOT be called.
+    /// <c>SyncDcFolder</c> SHALL NOT be called for any value.
     ///
     /// **Validates: Requirements 1.1, 1.2, 1.3, 5.1**
     /// </summary>
     [Property(MaxTest = 10)]
-    public Property SyncGameFolder_CalledOnlyWhenDcModeLevel_GreaterThanZero()
+    public Property SyncGameFolder_CalledOnlyWhenDllFileName_NonNull()
     {
-        var genLevel = Gen.Elements(0, 1, 2);
+        var genDllFileName = Gen.Elements<string?>(null, "dxgi.dll", "winmm.dll");
 
         return Prop.ForAll(
-            Arb.From(genLevel),
-            (int dcModeLevel) =>
+            Arb.From(genDllFileName),
+            (string? dllFileName) =>
             {
-                var installPath = Path.Combine(_tempRoot, $"Game_Sync_{dcModeLevel}_{Guid.NewGuid():N}"[..40]);
+                var label = dllFileName ?? "null";
+                var installPath = Path.Combine(_tempRoot, $"Game_Sync_{label}_{Guid.NewGuid():N}"[..40]);
                 Directory.CreateDirectory(installPath);
 
                 // Pre-seed the DC cache file so the download path is skipped
@@ -65,16 +66,16 @@ public class DcShaderDeployPropertyTests : IDisposable
                 sut.InstallDcAsync(
                     gameName: "TestGame",
                     installPath: installPath,
-                    dcModeLevel: dcModeLevel).GetAwaiter().GetResult();
+                    dllFileName: dllFileName).GetAwaiter().GetResult();
 
-                var expectSyncCalled = dcModeLevel > 0;
+                var expectSyncCalled = dllFileName != null;
                 var gameFolderCalled = tracker.SyncGameFolderCalled;
                 var correctCallState = gameFolderCalled == expectSyncCalled;
                 var correctDir = !gameFolderCalled || tracker.SyncGameFolderDir == installPath;
                 var dcFolderNotCalled = !tracker.SyncDcFolderCalled;
 
                 return (correctCallState && correctDir && dcFolderNotCalled)
-                    .Label($"dcModeLevel={dcModeLevel}: SyncGameFolderCalled={gameFolderCalled} " +
+                    .Label($"dllFileName={label}: SyncGameFolderCalled={gameFolderCalled} " +
                            $"(expected {expectSyncCalled}), " +
                            $"dir={tracker.SyncGameFolderDir ?? "null"} (expected {installPath}), " +
                            $"SyncDcFolderCalled={tracker.SyncDcFolderCalled} (expected false)");
@@ -84,7 +85,7 @@ public class DcShaderDeployPropertyTests : IDisposable
     // ── Property 1 (cont.): RemoveFromGameFolder NOT called during InstallDcAsync ──
 
     /// <summary>
-    /// For any <c>dcModeLevel</c> in {0, 1, 2}, calling <c>InstallDcAsync</c> SHALL NOT
+    /// For any <c>dllFileName</c> in {null, "dxgi.dll", "winmm.dll"}, calling <c>InstallDcAsync</c> SHALL NOT
     /// invoke <c>RemoveFromGameFolder</c> — game-local shaders are preserved during DC install.
     ///
     /// **Validates: Requirements 1.3, 5.1**
@@ -92,13 +93,14 @@ public class DcShaderDeployPropertyTests : IDisposable
     [Property(MaxTest = 10)]
     public Property RemoveFromGameFolder_NotCalledDuringDcInstall()
     {
-        var genLevel = Gen.Elements(0, 1, 2);
+        var genDllFileName = Gen.Elements<string?>(null, "dxgi.dll", "winmm.dll");
 
         return Prop.ForAll(
-            Arb.From(genLevel),
-            (int dcModeLevel) =>
+            Arb.From(genDllFileName),
+            (string? dllFileName) =>
             {
-                var installPath = Path.Combine(_tempRoot, $"Game_Rm_{dcModeLevel}_{Guid.NewGuid():N}"[..40]);
+                var label = dllFileName ?? "null";
+                var installPath = Path.Combine(_tempRoot, $"Game_Rm_{label}_{Guid.NewGuid():N}"[..40]);
                 Directory.CreateDirectory(installPath);
 
                 // Pre-seed the DC cache file so the download path is skipped
@@ -115,12 +117,12 @@ public class DcShaderDeployPropertyTests : IDisposable
                 sut.InstallDcAsync(
                     gameName: "TestGame",
                     installPath: installPath,
-                    dcModeLevel: dcModeLevel).GetAwaiter().GetResult();
+                    dllFileName: dllFileName).GetAwaiter().GetResult();
 
                 var notCalled = !tracker.RemoveFromGameFolderCalled;
 
                 return notCalled
-                    .Label($"dcModeLevel={dcModeLevel}: RemoveFromGameFolderCalled={tracker.RemoveFromGameFolderCalled} " +
+                    .Label($"dllFileName={label}: RemoveFromGameFolderCalled={tracker.RemoveFromGameFolderCalled} " +
                            $"(expected false — shaders should be preserved)");
             });
     }

@@ -13,7 +13,7 @@ public interface IGameInitializationService
     /// <summary>
     /// Detects games from all supported stores and deduplicates by name and install path.
     /// </summary>
-    List<DetectedGame> DetectAllGamesDeduped();
+    Task<List<DetectedGame>> DetectAllGamesDedupedAsync();
 
     /// <summary>
     /// Seeds the working sets with values from the remote manifest.

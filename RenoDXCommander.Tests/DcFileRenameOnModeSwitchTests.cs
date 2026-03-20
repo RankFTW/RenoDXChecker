@@ -42,14 +42,15 @@ public class DcFileRenameOnModeSwitchTests : IDisposable
         var customDll = "d3d11.dll";
         var vm = CreateViewModel();
         vm.SetDcCustomDllFileName(gameName, customDll);
-        vm.DcModeLevel = 0;
+        vm.SetPerGameDcModeOverride(gameName, "Custom");
+        SetDcModeWithoutSideEffects(vm, false, "dxgi.dll");
 
-        var card = CreateCard(gameName, perGameDcMode: 3, dcInstalled: true,
+        var card = CreateCard(gameName, perGameDcMode: "Custom", dcInstalled: true,
             installedAs: AuxInstallService.DcDxgiName);
         InjectCards(vm, new List<GameCardViewModel> { card });
 
-        // Act: switch from mode 1 to mode 3 (DC Mode Custom)
-        vm.ApplyDcModeSwitchForCard(gameName, 1);
+        // Act: switch from previous mode to Custom
+        vm.ApplyDcModeSwitchForCard(gameName, "Global");
 
         // Assert: DC file renamed to custom filename
         Assert.Equal(customDll, card.DcRecord!.InstalledAs);
@@ -69,19 +70,20 @@ public class DcFileRenameOnModeSwitchTests : IDisposable
         var gameName = "FallbackGame_" + Guid.NewGuid().ToString("N")[..6];
         var vm = CreateViewModel();
         // No custom DLL filename set (empty/null)
-        vm.DcModeLevel = 0;
+        vm.SetPerGameDcModeOverride(gameName, "Custom");
+        SetDcModeWithoutSideEffects(vm, false, "dxgi.dll");
 
-        var card = CreateCard(gameName, perGameDcMode: 3, dcInstalled: true,
+        var card = CreateCard(gameName, perGameDcMode: "Custom", dcInstalled: true,
             installedAs: AuxInstallService.DcDxgiName);
         InjectCards(vm, new List<GameCardViewModel> { card });
 
-        // Act: switch from mode 1 to mode 3 with no custom filename
-        vm.ApplyDcModeSwitchForCard(gameName, 1);
+        // Act: switch from previous mode to Custom with no custom filename
+        vm.ApplyDcModeSwitchForCard(gameName, "Global");
 
-        // Assert: DC file renamed to default name (zzz_display_commander.addon64)
-        Assert.Equal(AuxInstallService.DcNormalName, card.DcRecord!.InstalledAs);
-        Assert.True(File.Exists(Path.Combine(card.InstallPath!, AuxInstallService.DcNormalName)));
-        Assert.False(File.Exists(Path.Combine(card.InstallPath!, AuxInstallService.DcDxgiName)));
+        // Assert: DC file renamed to default name (dxgi.dll fallback for Custom with no filename)
+        // Custom with no filename falls back to dxgi.dll per design
+        var expectedName = "dxgi.dll";
+        Assert.Equal(expectedName, card.DcRecord!.InstalledAs);
     }
 
     /// <summary>
@@ -97,14 +99,15 @@ public class DcFileRenameOnModeSwitchTests : IDisposable
         var customDll = "d3d11.dll";
         var vm = CreateViewModel();
         vm.SetDcCustomDllFileName(gameName, customDll);
-        vm.DcModeLevel = 0;
+        SetDcModeWithoutSideEffects(vm, true, "dxgi.dll");
 
-        var card = CreateCard(gameName, perGameDcMode: 1, dcInstalled: true,
+        // Card now follows global (dxgi.dll), previously was Custom
+        var card = CreateCard(gameName, perGameDcMode: null, dcInstalled: true,
             installedAs: customDll);
         InjectCards(vm, new List<GameCardViewModel> { card });
 
-        // Act: switch from mode 3 (custom) to mode 1
-        vm.ApplyDcModeSwitchForCard(gameName, 3);
+        // Act: switch from Custom to Global (which is dxgi.dll)
+        vm.ApplyDcModeSwitchForCard(gameName, "Custom");
 
         // Assert: DC file renamed to dxgi.dll
         Assert.Equal(AuxInstallService.DcDxgiName, card.DcRecord!.InstalledAs);
@@ -125,14 +128,15 @@ public class DcFileRenameOnModeSwitchTests : IDisposable
         var customDll = "d3d11.dll";
         var vm = CreateViewModel();
         vm.SetDcCustomDllFileName(gameName, customDll);
-        vm.DcModeLevel = 0;
+        SetDcModeWithoutSideEffects(vm, true, "winmm.dll");
 
-        var card = CreateCard(gameName, perGameDcMode: 2, dcInstalled: true,
+        // Card now follows global (winmm.dll), previously was Custom
+        var card = CreateCard(gameName, perGameDcMode: null, dcInstalled: true,
             installedAs: customDll);
         InjectCards(vm, new List<GameCardViewModel> { card });
 
-        // Act: switch from mode 3 (custom) to mode 2
-        vm.ApplyDcModeSwitchForCard(gameName, 3);
+        // Act: switch from Custom to Global (which is winmm.dll)
+        vm.ApplyDcModeSwitchForCard(gameName, "Custom");
 
         // Assert: DC file renamed to winmm.dll
         Assert.Equal(AuxInstallService.DcWinmmName, card.DcRecord!.InstalledAs);
@@ -187,9 +191,24 @@ public class DcFileRenameOnModeSwitchTests : IDisposable
         field.SetValue(vm, cards);
     }
 
+    private static void SetDcModeWithoutSideEffects(MainViewModel vm, bool enabled, string dllFileName)
+    {
+        var settingsField = typeof(MainViewModel).GetField("_settingsViewModel", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var settings = (SettingsViewModel)settingsField.GetValue(vm)!;
+        settings.IsLoadingSettings = true;
+        try { vm.DcModeEnabled = enabled; vm.DcDllFileName = dllFileName; }
+        finally { settings.IsLoadingSettings = false; }
+    }
+
+        private static void SetField(object obj, string fieldName, object value)
+    {
+        var field = obj.GetType().GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)!;
+        field.SetValue(obj, value);
+    }
+
     private GameCardViewModel CreateCard(
         string name,
-        int? perGameDcMode = null,
+        string? perGameDcMode = null,
         bool dcInstalled = true,
         string? installedAs = null)
     {
@@ -260,7 +279,7 @@ public class DcFileRenameOnModeSwitchTests : IDisposable
 
     private class StubAuxInstallService : IAuxInstallService
     {
-        public Task<AuxInstalledRecord> InstallDcAsync(string gameName, string installPath, int dcModeLevel, AuxInstalledRecord? existingDcRecord = null, AuxInstalledRecord? existingRsRecord = null, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null) => Task.FromResult(new AuxInstalledRecord());
+        public Task<AuxInstalledRecord> InstallDcAsync(string gameName, string installPath, string? dllFileName, AuxInstalledRecord? existingDcRecord = null, AuxInstalledRecord? existingRsRecord = null, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null) => Task.FromResult(new AuxInstalledRecord());
         public Task<AuxInstalledRecord> InstallReShadeAsync(string gameName, string installPath, bool dcMode, bool dcIsInstalled = false, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null) => Task.FromResult(new AuxInstalledRecord());
         public Task<bool> CheckForUpdateAsync(AuxInstalledRecord record) => Task.FromResult(false);
         public void Uninstall(AuxInstalledRecord record) { }
@@ -336,3 +355,4 @@ public class DcFileRenameOnModeSwitchTests : IDisposable
         public Task<bool> EnsureLatestAsync(IProgress<(string, double)>? progress = null) => Task.FromResult(false);
     }
 }
+

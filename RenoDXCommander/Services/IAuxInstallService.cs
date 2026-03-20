@@ -10,7 +10,7 @@ public interface IAuxInstallService
     Task<AuxInstalledRecord> InstallDcAsync(
         string gameName,
         string installPath,
-        int dcModeLevel,
+        string? dllFileName,
         AuxInstalledRecord? existingDcRecord = null,
         AuxInstalledRecord? existingRsRecord = null,
         string? shaderModeOverride = null,

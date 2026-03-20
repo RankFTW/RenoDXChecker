@@ -30,14 +30,14 @@ public class DcShaderDeployExplorationTests : IDisposable
     }
 
     /// <summary>
-    /// Calls <c>InstallDcAsync</c> with <c>dcModeLevel=0</c> and asserts that
+    /// Calls <c>InstallDcAsync</c> with <c>dllFileName=null</c> and asserts that
     /// <c>SyncGameFolder</c> is NOT called (shaders are only deployed when
-    /// dcModeLevel &gt; 0) and <c>SyncDcFolder</c> is NOT called.
+    /// dllFileName is non-null) and <c>SyncDcFolder</c> is NOT called.
     ///
     /// **Validates: Requirements 1.2, 1.3, 5.1**
     /// </summary>
     [Fact]
-    public async Task DcModeLevel0_ShouldNotCallSyncGameFolder_NotSyncDcFolder()
+    public async Task DcModeOff_ShouldNotCallSyncGameFolder_NotSyncDcFolder()
     {
         // Arrange
         var installPath = Path.Combine(_tempRoot, "GameFolder");
@@ -63,12 +63,12 @@ public class DcShaderDeployExplorationTests : IDisposable
         await sut.InstallDcAsync(
             gameName: "TestGame",
             installPath: installPath,
-            dcModeLevel: 0);
+            dllFileName: null);
 
-        // Assert — SyncGameFolder is NOT called (dcModeLevel == 0 skips shader deployment)
+        // Assert — SyncGameFolder is NOT called (dllFileName == null skips shader deployment)
         Assert.False(
             tracker.SyncGameFolderCalled,
-            "SyncGameFolder should NOT be called during DC install for dcModeLevel == 0");
+            "SyncGameFolder should NOT be called during DC install for dllFileName == null");
 
         // Assert — SyncDcFolder is NOT called (DC global folder is never synced)
         Assert.False(

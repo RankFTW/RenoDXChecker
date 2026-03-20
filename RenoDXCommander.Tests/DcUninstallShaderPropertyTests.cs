@@ -45,31 +45,34 @@ public class DcUninstallShaderPropertyTests : IDisposable
         var genDllOverride = Arb.From<bool>().Generator;
         var genLumaMode = Arb.From<bool>().Generator;
         var genVulkan = Arb.From<bool>().Generator;
-        var genPerGame = Gen.Elements<int?>(null, 0, 1, 2);
-        var genGlobal = Gen.Elements(0, 1, 2);
+        var genPerGame = Gen.Elements<string?>(null, "Off", "Custom");
+        var genGlobalEnabled = Arb.From<bool>().Generator;
 
         var genConfig = from dllOverride in genDllOverride
                         from lumaMode in genLumaMode
                         from vulkan in genVulkan
                         from perGame in genPerGame
-                        from global_ in genGlobal
-                        select (dllOverride, lumaMode, vulkan, perGame, global_);
+                        from globalEnabled in genGlobalEnabled
+                        select (dllOverride, lumaMode, vulkan, perGame, globalEnabled);
 
         return Prop.ForAll(
             Arb.From(genConfig),
             config =>
             {
-                var (dllOverride, lumaMode, vulkan, perGame, globalLevel) = config;
+                var (dllOverride, lumaMode, vulkan, perGame, globalEnabled) = config;
 
-                // Compute expected effective level using the same logic as UninstallDc
-                var expectedEffective = dllOverride ? 0
-                    : lumaMode ? 0
-                    : (vulkan && !perGame.HasValue) ? 0
-                    : perGame ?? globalLevel;
+                // Compute expected effective enabled using the same logic as UninstallDc
+                bool expectedEnabled;
+                if (dllOverride) expectedEnabled = false;
+                else if (lumaMode) expectedEnabled = false;
+                else if (vulkan && perGame == null) expectedEnabled = false;
+                else if (perGame == "Off") expectedEnabled = false;
+                else if (perGame == "Custom") expectedEnabled = true;
+                else expectedEnabled = globalEnabled;
 
                 var tracker = new TrackingShaderPackService();
                 var vm = CreateViewModelWithTracker(tracker);
-                vm.DcModeLevel = globalLevel;
+                SetDcModeWithoutSideEffects(vm, globalEnabled, "dxgi.dll");
 
                 var card = CreateCardWithDcRecord(
                     "TestGame",
@@ -85,13 +88,13 @@ public class DcUninstallShaderPropertyTests : IDisposable
                 vm.UninstallDc(card);
 
                 // Assert
-                var expectRemove = expectedEffective > 0;
+                var expectRemove = expectedEnabled;
                 var removeWasCalled = tracker.RemoveFromGameFolderCalled;
 
                 return (removeWasCalled == expectRemove)
                     .Label($"DllOverride={dllOverride}, Luma={lumaMode}, Vulkan={vulkan}, " +
-                           $"PerGame={perGame?.ToString() ?? "null"}, Global={globalLevel} → " +
-                           $"effective={expectedEffective}: " +
+                           $"PerGame={perGame ?? "null"}, GlobalEnabled={globalEnabled} → " +
+                           $"effective={expectedEnabled}: " +
                            $"RemoveFromGameFolderCalled={removeWasCalled} (expected {expectRemove})");
             });
     }
@@ -142,12 +145,27 @@ public class DcUninstallShaderPropertyTests : IDisposable
         field.SetValue(vm, cards);
     }
 
+    private static void SetDcModeWithoutSideEffects(MainViewModel vm, bool enabled, string dllFileName)
+    {
+        var settingsField = typeof(MainViewModel).GetField("_settingsViewModel", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var settings = (SettingsViewModel)settingsField.GetValue(vm)!;
+        settings.IsLoadingSettings = true;
+        try { vm.DcModeEnabled = enabled; vm.DcDllFileName = dllFileName; }
+        finally { settings.IsLoadingSettings = false; }
+    }
+
+        private static void SetField(object obj, string fieldName, object value)
+    {
+        var field = obj.GetType().GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance)!;
+        field.SetValue(obj, value);
+    }
+
     private GameCardViewModel CreateCardWithDcRecord(
         string name,
         bool dllOverrideEnabled = false,
         bool isLumaMode = false,
         bool isVulkan = false,
-        int? perGameDcMode = null)
+        string? perGameDcMode = null)
     {
         var dir = Path.Combine(_tempRoot, name + "_" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(dir);
@@ -240,7 +258,7 @@ public class DcUninstallShaderPropertyTests : IDisposable
 
     private class StubAuxInstallService : IAuxInstallService
     {
-        public Task<AuxInstalledRecord> InstallDcAsync(string gameName, string installPath, int dcModeLevel, AuxInstalledRecord? existingDcRecord = null, AuxInstalledRecord? existingRsRecord = null, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null) => Task.FromResult(new AuxInstalledRecord());
+        public Task<AuxInstalledRecord> InstallDcAsync(string gameName, string installPath, string? dllFileName, AuxInstalledRecord? existingDcRecord = null, AuxInstalledRecord? existingRsRecord = null, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null) => Task.FromResult(new AuxInstalledRecord());
         public Task<AuxInstalledRecord> InstallReShadeAsync(string gameName, string installPath, bool dcMode, bool dcIsInstalled = false, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null) => Task.FromResult(new AuxInstalledRecord());
         public Task<bool> CheckForUpdateAsync(AuxInstalledRecord record) => Task.FromResult(false);
         public void Uninstall(AuxInstalledRecord record) { }
@@ -316,3 +334,4 @@ public class DcUninstallShaderPropertyTests : IDisposable
         public Task<bool> EnsureLatestAsync(IProgress<(string, double)>? progress = null) => Task.FromResult(false);
     }
 }
+

@@ -27,17 +27,17 @@ public class InstallDcShaderPreservationTests : IDisposable
 
     /// <summary>
     /// After <c>InstallDcAsync</c>, <c>SyncGameFolder</c> SHALL be called with
-    /// the game's install path only when dcModeLevel &gt; 0.
-    /// When dcModeLevel == 0, SyncGameFolder SHALL NOT be called.
+    /// the game's install path only when dllFileName is non-null (DC mode active).
+    /// When dllFileName is null, SyncGameFolder SHALL NOT be called.
     ///
     /// **Validates: Requirements 1.1, 1.2, 4.1, 4.3**
     /// </summary>
     [Theory]
-    [InlineData(1)]
-    [InlineData(2)]
-    public async Task InstallDcAsync_CallsSyncGameFolder_ForNonZeroDcModeLevels(int dcModeLevel)
+    [InlineData("dxgi.dll")]
+    [InlineData("winmm.dll")]
+    public async Task InstallDcAsync_CallsSyncGameFolder_ForNonNullDllFileName(string dllFileName)
     {
-        var installPath = Path.Combine(_tempRoot, $"Game_SyncLocal_{dcModeLevel}");
+        var installPath = Path.Combine(_tempRoot, $"Game_SyncLocal_{dllFileName}");
         Directory.CreateDirectory(installPath);
 
         // Pre-seed the DC cache file so the download path is skipped
@@ -54,21 +54,21 @@ public class InstallDcShaderPreservationTests : IDisposable
         await sut.InstallDcAsync(
             gameName: "TestGame",
             installPath: installPath,
-            dcModeLevel: dcModeLevel);
+            dllFileName: dllFileName);
 
         Assert.True(tracker.SyncGameFolderCalled,
-            $"SyncGameFolder should be called for dcModeLevel={dcModeLevel}");
+            $"SyncGameFolder should be called for dllFileName={dllFileName}");
         Assert.Equal(installPath, tracker.SyncGameFolderDir);
     }
 
     /// <summary>
-    /// After <c>InstallDcAsync</c> with dcModeLevel == 0, <c>SyncGameFolder</c>
+    /// After <c>InstallDcAsync</c> with dllFileName == null, <c>SyncGameFolder</c>
     /// SHALL NOT be called — shaders are only deployed in DC Mode.
     ///
     /// **Validates: Requirements 1.2, 1.3, 5.1**
     /// </summary>
     [Fact]
-    public async Task InstallDcAsync_DoesNotCallSyncGameFolder_ForDcModeLevel0()
+    public async Task InstallDcAsync_DoesNotCallSyncGameFolder_ForNullDllFileName()
     {
         var installPath = Path.Combine(_tempRoot, "Game_SyncLocal_0");
         Directory.CreateDirectory(installPath);
@@ -86,10 +86,10 @@ public class InstallDcShaderPreservationTests : IDisposable
         await sut.InstallDcAsync(
             gameName: "TestGame",
             installPath: installPath,
-            dcModeLevel: 0);
+            dllFileName: null);
 
         Assert.False(tracker.SyncGameFolderCalled,
-            "SyncGameFolder should NOT be called for dcModeLevel=0");
+            "SyncGameFolder should NOT be called for dllFileName=null");
     }
 
     /// <summary>
@@ -99,12 +99,12 @@ public class InstallDcShaderPreservationTests : IDisposable
     /// **Validates: Requirements 4.2**
     /// </summary>
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public async Task InstallDcAsync_DoesNotCallSyncDcFolder_ForAllDcModeLevels(int dcModeLevel)
+    [InlineData(null)]
+    [InlineData("dxgi.dll")]
+    [InlineData("winmm.dll")]
+    public async Task InstallDcAsync_DoesNotCallSyncDcFolder_ForAllDllFileNames(string? dllFileName)
     {
-        var installPath = Path.Combine(_tempRoot, $"Game_NoDcSync_{dcModeLevel}");
+        var installPath = Path.Combine(_tempRoot, $"Game_NoDcSync_{dllFileName ?? "null"}");
         Directory.CreateDirectory(installPath);
 
         // Pre-seed the DC cache file so the download path is skipped
@@ -121,14 +121,14 @@ public class InstallDcShaderPreservationTests : IDisposable
         await sut.InstallDcAsync(
             gameName: "TestGame",
             installPath: installPath,
-            dcModeLevel: dcModeLevel);
+            dllFileName: dllFileName);
 
         Assert.False(tracker.SyncDcFolderCalled,
-            $"SyncDcFolder should NOT be called for dcModeLevel={dcModeLevel}");
+            $"SyncDcFolder should NOT be called for dllFileName={dllFileName ?? "null"}");
     }
 
     /// <summary>
-    /// When a <c>shaderModeOverride</c> is provided and dcModeLevel &gt; 0,
+    /// When a <c>shaderModeOverride</c> is provided and dllFileName is non-null,
     /// <c>SyncGameFolder</c> SHALL be called.
     ///
     /// **Validates: Requirements 4.3, 7.3**
@@ -152,7 +152,7 @@ public class InstallDcShaderPreservationTests : IDisposable
         await sut.InstallDcAsync(
             gameName: "TestGame",
             installPath: installPath,
-            dcModeLevel: 1,
+            dllFileName: "dxgi.dll",
             shaderModeOverride: "All");
 
         Assert.True(tracker.SyncGameFolderCalled);

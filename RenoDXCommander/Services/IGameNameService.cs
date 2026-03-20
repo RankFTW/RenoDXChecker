@@ -29,8 +29,8 @@ public interface IGameNameService
     /// <summary>Games with UE extended mode enabled.</summary>
     HashSet<string> UeExtendedGames { get; }
 
-    /// <summary>Per-game Display Commander mode override levels.</summary>
-    Dictionary<string, int> PerGameDcModeOverride { get; }
+    /// <summary>Per-game Display Commander mode override. Values: "Global", "Off", "Custom" (absent key = "Global").</summary>
+    Dictionary<string, string> PerGameDcModeOverride { get; }
 
     /// <summary>Per-game DC Mode Custom DLL filenames. Key = game name, Value = custom DLL filename.</summary>
     Dictionary<string, string> DcCustomDllFileNames { get; }
@@ -74,14 +74,16 @@ public interface IGameNameService
     Dictionary<string, string> LoadNameMappings(
         IDllOverrideService dllOverrideService,
         SettingsViewModel settingsViewModel,
-        Action<int> setDcModeLevel,
+        Action<bool> setDcModeEnabled,
+        Action<string> setDcDllFileName,
         Action<bool> setIsGridLayout);
 
     /// <summary>Persists all settings to disk.</summary>
     void SaveNameMappings(
         IDllOverrideService dllOverrideService,
         SettingsViewModel settingsViewModel,
-        int dcModeLevel,
+        bool dcModeEnabled,
+        string dcDllFileName,
         bool isGridLayout,
         bool isLoadingSettings);
 

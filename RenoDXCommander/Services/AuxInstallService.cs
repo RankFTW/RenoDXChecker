@@ -560,7 +560,7 @@ public class AuxInstallService : IAuxInstallService
     public async Task<AuxInstalledRecord> InstallDcAsync(
         string gameName,
         string installPath,
-        int dcModeLevel,
+        string? dllFileName,
         AuxInstalledRecord? existingDcRecord = null,
         AuxInstalledRecord? existingRsRecord = null,
         string? shaderModeOverride = null,
@@ -573,20 +573,21 @@ public class AuxInstallService : IAuxInstallService
 
         var activeUrl    = use32Bit ? DcUrl32       : DcUrl;
         var cachePath    = Path.Combine(DownloadCacheDir, use32Bit ? DcCacheFile32 : DcCacheFile);
+        var normalName   = use32Bit ? DcNormalName32 : DcNormalName;
         var destName     = !string.IsNullOrWhiteSpace(filenameOverride)
             ? filenameOverride
-            : dcModeLevel switch
-            {
-                1 => DcDxgiName,
-                2 => DcWinmmName,
-                _ => use32Bit ? DcNormalName32 : DcNormalName,
-            };
-        var opposingNames = dcModeLevel switch
-        {
-            1 => new[] { use32Bit ? DcNormalName32 : DcNormalName, DcWinmmName },
-            2 => new[] { use32Bit ? DcNormalName32 : DcNormalName, DcDxgiName },
-            _ => new[] { DcDxgiName, DcWinmmName },
-        };
+            : dllFileName != null
+                ? dllFileName
+                : normalName;
+
+        // Collect all known DC filenames except the chosen destName to clean up old mode files.
+        var allKnownDcNames = DllOverrideConstants.DcDllPickerNames
+            .Append(DcNormalName)
+            .Append(DcNormalName32);
+        var opposingNames = allKnownDcNames
+            .Where(n => !n.Equals(destName, StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
         var opposingName = opposingNames[0];
         var destPath     = Path.Combine(installPath, destName);
 
@@ -696,17 +697,17 @@ public class AuxInstallService : IAuxInstallService
 
         // ── Shader deployment ─────────────────────────────────────────────────────
         // Deploy shaders locally to the game folder only when the game is in
-        // DC Mode (level 1 or 2). Level 0 means DC is an addon alongside ReShade,
-        // so ReShade manages shader deployment independently.
-        if (dcModeLevel > 0)
+        // DC Mode (dllFileName is non-null). When dllFileName is null, DC is an
+        // addon alongside ReShade, so ReShade manages shader deployment independently.
+        if (dllFileName != null)
         {
             var packList = selectedPackIds?.ToList();
-            CrashReporter.Log($"[AuxInstallService.InstallDcAsync] Shader deploy: dcModeLevel={dcModeLevel}, packs={packList?.Count ?? -1} ({string.Join(",", packList ?? [])})");
+            CrashReporter.Log($"[AuxInstallService.InstallDcAsync] Shader deploy: dllFileName={dllFileName}, packs={packList?.Count ?? -1} ({string.Join(",", packList ?? [])})");
             _shaderPackService.SyncGameFolder(installPath, packList);
         }
         else
         {
-            CrashReporter.Log($"[AuxInstallService.InstallDcAsync] Shader deploy skipped: dcModeLevel={dcModeLevel}");
+            CrashReporter.Log($"[AuxInstallService.InstallDcAsync] Shader deploy skipped: dllFileName=null");
         }
 
         var record = new AuxInstalledRecord
@@ -1083,19 +1084,7 @@ public class AuxInstallService : IAuxInstallService
         var json = JsonSerializer.Serialize(db,
             new JsonSerializerOptions { WriteIndented = true });
 
-        // Retry with short delays to handle file contention from concurrent background tasks
-        for (int attempt = 0; attempt < 3; attempt++)
-        {
-            try
-            {
-                File.WriteAllText(DbPath, json);
-                return;
-            }
-            catch (IOException) when (attempt < 2)
-            {
-                Thread.Sleep(50 * (attempt + 1));
-            }
-        }
+        FileHelper.WriteAllTextWithRetry(DbPath, json, "AuxInstallService.SaveDb");
     }
 
 }

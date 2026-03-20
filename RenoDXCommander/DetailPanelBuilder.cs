@@ -547,32 +547,32 @@ public class DetailPanelBuilder
         };
 
         // ── Per-game DC Mode + Shader mode (side by side) ─────────────────────────
-        int? currentDcMode = _window.ViewModel.GetPerGameDcModeOverride(gameName);
-        var globalDcLabel = _window.ViewModel.DcModeLevel switch { 1 => "DC Mode 1", 2 => "DC Mode 2", _ => "Off" };
-        var dcModeOptions = new[] { $"Global ({globalDcLabel})", "Exclude (Off)", "DC Mode 1", "DC Mode 2", "DC Mode Custom" };
+        string? currentDcMode = _window.ViewModel.GetPerGameDcModeOverride(gameName);
+        var globalDcLabel = _window.ViewModel.DcModeEnabled ? $"On — {_window.ViewModel.DcDllFileName}" : "Off";
+        var dcModeOptions = new[] { $"Global ({globalDcLabel})", "Off", "Custom" };
         var dcModeCombo = new ComboBox
         {
             ItemsSource = dcModeOptions,
             // Vulkan games default to DC mode off when no explicit override is set
             SelectedIndex = (card.RequiresVulkanInstall && currentDcMode == null) ? 1
-                : currentDcMode switch { null => 0, 0 => 1, 1 => 2, 2 => 3, 3 => 4, _ => 0 },
+                : currentDcMode switch { "Off" => 1, "Custom" => 2, _ => 0 },
             FontSize = 12,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Header = "DC Mode",
         };
         ToolTipService.SetToolTip(dcModeCombo,
-            "Global = use the Settings DC Mode. Exclude (Off) = always use normal naming. " +
-            "DC Mode 1 = force dxgi.dll proxy. DC Mode 2 = force winmm.dll proxy. " +
-            "DC Mode Custom = use a custom DLL filename.");
+            "Global: Follow the global DC mode setting.\n" +
+            "Off: Disable DC mode for this game.\n" +
+            "Custom: Use a custom DLL filename for this game.");
 
-        // Subscribe to DcModeLevel changes to keep the "Global (...)" label current
+        // Subscribe to DcModeEnabled/DcDllFileName changes to keep the "Global (...)" label current
         _dcModeLevelHandler = (sender, e) =>
         {
-            if (e.PropertyName != "DcModeLevel") return;
+            if (e.PropertyName != "DcModeEnabled" && e.PropertyName != "DcDllFileName") return;
             _dispatcherQueue.TryEnqueue(() =>
             {
-                var updatedLabel = _window.ViewModel.DcModeLevel switch { 1 => "DC Mode 1", 2 => "DC Mode 2", _ => "Off" };
-                var updatedOptions = new[] { $"Global ({updatedLabel})", "Exclude (Off)", "DC Mode 1", "DC Mode 2", "DC Mode Custom" };
+                var updatedLabel = _window.ViewModel.DcModeEnabled ? $"On — {_window.ViewModel.DcDllFileName}" : "Off";
+                var updatedOptions = new[] { $"Global ({updatedLabel})", "Off", "Custom" };
                 var savedIndex = dcModeCombo.SelectedIndex;
                 dcModeCombo.ItemsSource = updatedOptions;
                 dcModeCombo.SelectedIndex = savedIndex;
@@ -584,22 +584,22 @@ public class DetailPanelBuilder
         var dcCustomDllSelector = new ComboBox
         {
             IsEditable = true,
-            ItemsSource = DllOverrideConstants.CommonDllNames,
+            ItemsSource = DllOverrideConstants.DcDllPickerNames,
             PlaceholderText = "Select or type DLL filename",
             Header = "DC Custom DLL filename",
             FontSize = 12,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Visibility = dcModeCombo.SelectedIndex == 4 ? Visibility.Visible : Visibility.Collapsed,
+            Visibility = dcModeCombo.SelectedIndex == 2 ? Visibility.Visible : Visibility.Collapsed,
         };
 
         // Pre-populate with saved filename when opening panel for a game with DC Mode Custom
-        if (currentDcMode == 3)
+        if (currentDcMode == "Custom")
         {
             var savedDllName = _window.ViewModel.GetDcCustomDllFileName(gameName);
             if (!string.IsNullOrWhiteSpace(savedDllName))
             {
-                if (DllOverrideConstants.CommonDllNames.Contains(savedDllName, StringComparer.OrdinalIgnoreCase))
-                    dcCustomDllSelector.SelectedItem = DllOverrideConstants.CommonDllNames.First(n => n.Equals(savedDllName, StringComparison.OrdinalIgnoreCase));
+                if (DllOverrideConstants.DcDllPickerNames.Contains(savedDllName, StringComparer.OrdinalIgnoreCase))
+                    dcCustomDllSelector.SelectedItem = DllOverrideConstants.DcDllPickerNames.First(n => n.Equals(savedDllName, StringComparison.OrdinalIgnoreCase));
                 else
                 {
                     var capturedDll = savedDllName;
@@ -639,35 +639,60 @@ public class DetailPanelBuilder
             }
         }
 
-        // Auto-save: DC Custom DLL filename on dropdown selection
+        // Track whether a selection change came from a real dropdown pick vs. text-match during typing
+        bool dcCustomDllPickerIsTyping = false;
+        bool dcCustomDllPickerJustCommitted = false;
+
+        dcCustomDllSelector.GotFocus += (s, e) => { dcCustomDllPickerIsTyping = true; dcCustomDllPickerJustCommitted = false; };
+        dcCustomDllSelector.LostFocus += (s, e) =>
+        {
+            dcCustomDllPickerIsTyping = false;
+            if (dcCustomDllPickerJustCommitted) { dcCustomDllPickerJustCommitted = false; return; }
+            // Commit on focus loss (e.g. user tabs away after typing a custom name)
+            var typed = dcCustomDllSelector.Text?.Trim();
+            var current = _window.ViewModel.GetDcCustomDllFileName(capturedName);
+            if (!string.IsNullOrWhiteSpace(typed) && typed != current)
+            {
+                _window.ViewModel.SetDcCustomDllFileName(capturedName, typed);
+                if (dcModeCombo.SelectedIndex == 2)
+                    RenameDcToCustom(typed);
+            }
+        };
+
+        // Auto-save: DC Custom DLL filename on dropdown selection (not during typing)
         dcCustomDllSelector.SelectionChanged += (s, e) =>
         {
+            if (dcCustomDllPickerIsTyping) return; // ignore text-match events while user is typing
             var selected = dcCustomDllSelector.SelectedItem as string;
             if (!string.IsNullOrWhiteSpace(selected))
             {
                 _window.ViewModel.SetDcCustomDllFileName(capturedName, selected);
-                if (dcModeCombo.SelectedIndex == 4)
+                if (dcModeCombo.SelectedIndex == 2)
                     RenameDcToCustom(selected);
             }
         };
 
-        // Auto-save: DC Custom DLL filename on Enter key
-        dcCustomDllSelector.KeyDown += (s, e) =>
+        // Auto-save: DC Custom DLL filename on Enter key (TextSubmitted fires when user presses Enter)
+        dcCustomDllSelector.TextSubmitted += (sender, args) =>
         {
-            if (e.Key != Windows.System.VirtualKey.Enter) return;
-            var typed = dcCustomDllSelector.Text?.Trim();
+            var typed = args.Text?.Trim();
             if (!string.IsNullOrWhiteSpace(typed))
             {
+                dcCustomDllPickerIsTyping = true; // suppress SelectionChanged
+                dcCustomDllPickerJustCommitted = true;
                 _window.ViewModel.SetDcCustomDllFileName(capturedName, typed);
-                if (dcModeCombo.SelectedIndex == 4)
+                if (dcModeCombo.SelectedIndex == 2)
                     RenameDcToCustom(typed);
+                sender.SelectedItem = null; // clear stale selection so ComboBox doesn't revert
+                dcCustomDllPickerIsTyping = false;
             }
+            args.Handled = true; // prevent ComboBox from overriding SelectedItem
         };
 
         // ── Auto-save: DC Mode on selection change ───────────────────────────────
         dcModeCombo.SelectionChanged += (s, e) =>
         {
-            int? newDcMode = dcModeCombo.SelectedIndex switch { 1 => 0, 2 => 1, 3 => 2, 4 => 3, _ => (int?)null };
+            string? newDcMode = dcModeCombo.SelectedIndex switch { 1 => "Off", 2 => "Custom", _ => (string?)null };
             var currentOverride = _window.ViewModel.GetPerGameDcModeOverride(capturedName);
             if (newDcMode != currentOverride)
             {
@@ -677,7 +702,7 @@ public class DetailPanelBuilder
             }
 
             // When switching to DC Mode Custom with a DLL filename already set, rename
-            if (dcModeCombo.SelectedIndex == 4)
+            if (dcModeCombo.SelectedIndex == 2)
             {
                 var dllName = dcCustomDllSelector.SelectedItem as string ?? dcCustomDllSelector.Text?.Trim();
                 if (!string.IsNullOrWhiteSpace(dllName))
@@ -685,7 +710,7 @@ public class DetailPanelBuilder
             }
 
             // Toggle DC Mode Custom DLL selector visibility
-            dcCustomDllSelector.Visibility = dcModeCombo.SelectedIndex == 4
+            dcCustomDllSelector.Visibility = dcModeCombo.SelectedIndex == 2
                 ? Visibility.Visible
                 : Visibility.Collapsed;
         };
@@ -810,8 +835,8 @@ public class DetailPanelBuilder
             renderPathCombo.SelectionChanged += (s, e) =>
             {
                 var selected = renderPathCombo.SelectedItem as string;
-                if (selected == "Vulkan" && !card.PerGameDcMode.HasValue)
-                    dcModeCombo.SelectedIndex = 1; // "Exclude (Off)"
+                if (selected == "Vulkan" && card.PerGameDcMode == null)
+                    dcModeCombo.SelectedIndex = 1; // "Off"
 
                 // Auto-save: persist rendering path immediately
                 var newRenderPath = selected ?? "DirectX";
