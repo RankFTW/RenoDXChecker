@@ -48,7 +48,7 @@ public class GameInitializationService : IGameInitializationService
     /// <summary>
     /// Detects games from all supported stores and deduplicates by name and install path.
     /// </summary>
-    public List<DetectedGame> DetectAllGamesDeduped()
+    public async Task<List<DetectedGame>> DetectAllGamesDedupedAsync()
     {
         // Wrap each platform scan so that a failure in one does not abort others (Requirement 7.3).
         Task<List<DetectedGame>> SafeScan(Func<List<DetectedGame>> scan, string platform) =>
@@ -57,7 +57,7 @@ public class GameInitializationService : IGameInitializationService
                 try { return scan(); }
                 catch (Exception ex)
                 {
-                    CrashReporter.Log($"[GameInitializationService.DetectAllGamesDeduped] {platform} scan failed — {ex.Message}");
+                    CrashReporter.Log($"[GameInitializationService.DetectAllGamesDedupedAsync] {platform} scan failed — {ex.Message}");
                     return new List<DetectedGame>();
                 }
             });
@@ -73,9 +73,9 @@ public class GameInitializationService : IGameInitializationService
             SafeScan(_gameDetectionService.FindBattleNetGames, "Battle.net"),
             SafeScan(_gameDetectionService.FindRockstarGames, "Rockstar"),
         };
-        Task.WhenAll(tasks).Wait();
+        var results = await Task.WhenAll(tasks);
 
-        var all = tasks.SelectMany(t => t.Result).ToList();
+        var all = results.SelectMany(r => r).ToList();
 
         // Step 1: deduplicate exact same name from multiple stores
         var byName = all

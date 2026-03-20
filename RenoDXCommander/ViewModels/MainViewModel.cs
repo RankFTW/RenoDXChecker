@@ -3116,14 +3116,14 @@ public partial class MainViewModel : ObservableObject
                 var wikiTask     = _wikiService.FetchAllAsync();
                 var lumaTask     = _lumaService.FetchCompletedModsAsync();
                 var manifestTask = _manifestService.FetchAsync();
-                var detectTask   = Task.Run(DetectAllGamesDeduped);
+                var detectTask   = DetectAllGamesDedupedAsync();
                 rsTask           = Task.Run(async () => {
                     try { await _rsUpdateService.EnsureLatestAsync(); }
                     catch (Exception ex) { CrashReporter.Log($"[MainViewModel.InitializeAsync] ReShade update task failed — {ex.Message}"); }
                 });
 
                 // Await detection first — this never needs network
-                await detectTask;
+                var freshGamesResult = await detectTask;
 
                 // Await network tasks individually so failures don't block game display
                 try { await wikiTask; } catch (Exception ex) { wikiFetchFailed = true; CrashReporter.Log($"[MainViewModel.InitializeAsync] Wiki fetch failed (offline?) — {ex.Message}"); }
@@ -3131,11 +3131,12 @@ public partial class MainViewModel : ObservableObject
                 try { _manifest = await manifestTask; } catch (Exception ex) { CrashReporter.Log($"[MainViewModel.InitializeAsync] Manifest fetch failed — {ex.Message}"); }
                 // rsTask + SyncReShadeToDisplayCommander deferred until after cards display
 
-                _allMods      = !wikiFetchFailed ? wikiTask.Result.Mods : new();
-                _genericNotes = !wikiFetchFailed ? wikiTask.Result.GenericNotes : new();
-                try { _lumaMods = lumaTask.IsCompletedSuccessfully ? lumaTask.Result : new(); } catch { _lumaMods = new(); }
+                var wikiResult = !wikiFetchFailed ? await wikiTask : default;
+                _allMods      = wikiResult.Mods ?? new();
+                _genericNotes = wikiResult.GenericNotes ?? new();
+                try { _lumaMods = lumaTask.IsCompletedSuccessfully ? await lumaTask : new(); } catch { _lumaMods = new(); }
 
-                var freshGames = detectTask.Result;
+                var freshGames = freshGamesResult;
                 ApplyGameRenames(freshGames);
                 var cachedGames = _gameLibraryService.ToDetectedGames(savedLib);
 
@@ -3165,14 +3166,14 @@ public partial class MainViewModel : ObservableObject
                 var wikiTask     = _wikiService.FetchAllAsync();
                 var lumaTask     = _lumaService.FetchCompletedModsAsync();
                 var manifestTask = _manifestService.FetchAsync();
-                var detectTask   = Task.Run(DetectAllGamesDeduped);
+                var detectTask   = DetectAllGamesDedupedAsync();
                 rsTask           = Task.Run(async () => {
                     try { await _rsUpdateService.EnsureLatestAsync(); }
                     catch (Exception ex) { CrashReporter.Log($"[MainViewModel.InitializeAsync] ReShade update task failed — {ex.Message}"); }
                 });
 
                 // Await detection first — this never needs network
-                await detectTask;
+                detectedGames = await detectTask;
 
                 // Await network tasks individually so failures don't block game display
                 try { await wikiTask; } catch (Exception ex) { wikiFetchFailed = true; CrashReporter.Log($"[MainViewModel.InitializeAsync] Wiki fetch failed (offline?) — {ex.Message}"); }
@@ -3180,10 +3181,10 @@ public partial class MainViewModel : ObservableObject
                 try { _manifest = await manifestTask; } catch (Exception ex) { CrashReporter.Log($"[MainViewModel.InitializeAsync] Manifest fetch failed — {ex.Message}"); }
                 // rsTask + SyncReShadeToDisplayCommander deferred until after cards display
 
-                _allMods      = !wikiFetchFailed ? wikiTask.Result.Mods : new();
-                _genericNotes = !wikiFetchFailed ? wikiTask.Result.GenericNotes : new();
-                try { _lumaMods = lumaTask.IsCompletedSuccessfully ? lumaTask.Result : new(); } catch { _lumaMods = new(); }
-                detectedGames = detectTask.Result;
+                var wikiResult2 = !wikiFetchFailed ? await wikiTask : default;
+                _allMods      = wikiResult2.Mods ?? new();
+                _genericNotes = wikiResult2.GenericNotes ?? new();
+                try { _lumaMods = lumaTask.IsCompletedSuccessfully ? await lumaTask : new(); } catch { _lumaMods = new(); }
                 addonCache    = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
                 CrashReporter.Log($"[MainViewModel.InitializeAsync] Wiki fetch complete: {_allMods.Count} mods. Store scan complete: {detectedGames.Count} games.");
             }
@@ -3361,8 +3362,8 @@ public partial class MainViewModel : ObservableObject
 
     // ── Detection ─────────────────────────────────────────────────────────────────
 
-    private List<DetectedGame> DetectAllGamesDeduped()
-        => _gameInitializationService.DetectAllGamesDeduped();
+    private Task<List<DetectedGame>> DetectAllGamesDedupedAsync()
+        => _gameInitializationService.DetectAllGamesDedupedAsync();
 
     // ── Card building ─────────────────────────────────────────────────────────────
 

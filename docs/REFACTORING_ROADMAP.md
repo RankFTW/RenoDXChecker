@@ -6,13 +6,13 @@
 - **Spec:** `.kiro/specs/file-write-retry-helper/`
 - Extracted `FileHelper.WriteAllTextWithRetry` and replaced 6 call sites
 
-## 2. Fix blocking async patterns (`.Wait()`, `.Result`)
-- **Status:** Not started
+## ✅ 2. Fix blocking async patterns (`.Wait()`, `.Result`)
+- **Status:** Done
 - **Risk:** Medium
 - **Impact:** High — prevents potential deadlocks, improves responsiveness
-- `GameInitializationService.DetectAllGamesDeduped()` calls `Task.WhenAll(tasks).Wait()`
-- `MainViewModel` accesses `.Result` on tasks without checking `IsCompletedSuccessfully`
-- Convert to proper `async/await`
+- Converted `GameInitializationService.DetectAllGamesDeduped()` to `DetectAllGamesDedupedAsync()` using `await Task.WhenAll()` instead of `.Wait()`
+- Replaced all `.Result` accesses in `MainViewModel.InitializeAsync` with proper `await` on already-awaited tasks
+- Updated `IGameInitializationService` interface to match
 
 ## 3. Add logging to bare catch blocks
 - **Status:** Not started
