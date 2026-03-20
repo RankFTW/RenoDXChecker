@@ -71,18 +71,19 @@ public sealed partial class MainWindow : Window
         // Dark title bar — match our theme
         if (AppWindow.TitleBar is { } titleBar)
         {
-            titleBar.BackgroundColor = Windows.UI.Color.FromArgb(0xFF, 0x0F, 0x13, 0x18);           // SurfaceHeader
-            titleBar.ForegroundColor = Windows.UI.Color.FromArgb(0xFF, 0xE8, 0xEC, 0xF2);           // TextPrimary
-            titleBar.InactiveBackgroundColor = Windows.UI.Color.FromArgb(0xFF, 0x0F, 0x13, 0x18);
-            titleBar.InactiveForegroundColor = Windows.UI.Color.FromArgb(0xFF, 0x6B, 0x7A, 0x8E);   // TextTertiary
-            titleBar.ButtonBackgroundColor = Windows.UI.Color.FromArgb(0xFF, 0x0F, 0x13, 0x18);
-            titleBar.ButtonForegroundColor = Windows.UI.Color.FromArgb(0xFF, 0xA0, 0xAA, 0xBB);     // TextSecondary
-            titleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(0xFF, 0x1E, 0x24, 0x2C); // SurfaceOverlay
-            titleBar.ButtonHoverForegroundColor = Windows.UI.Color.FromArgb(0xFF, 0xE8, 0xEC, 0xF2);
-            titleBar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(0xFF, 0x28, 0x32, 0x40); // BorderDefault
-            titleBar.ButtonPressedForegroundColor = Windows.UI.Color.FromArgb(0xFF, 0xE8, 0xEC, 0xF2);
-            titleBar.ButtonInactiveBackgroundColor = Windows.UI.Color.FromArgb(0xFF, 0x0F, 0x13, 0x18);
-            titleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(0xFF, 0x40, 0x48, 0x58); // TextDisabled
+            var res = Application.Current.Resources;
+            titleBar.BackgroundColor              = (Windows.UI.Color)res["TitleBarBackground"];
+            titleBar.ForegroundColor              = (Windows.UI.Color)res["TitleBarForeground"];
+            titleBar.InactiveBackgroundColor      = (Windows.UI.Color)res["TitleBarInactiveBackground"];
+            titleBar.InactiveForegroundColor      = (Windows.UI.Color)res["TitleBarInactiveForeground"];
+            titleBar.ButtonBackgroundColor        = (Windows.UI.Color)res["TitleBarButtonBackground"];
+            titleBar.ButtonForegroundColor        = (Windows.UI.Color)res["TitleBarButtonForeground"];
+            titleBar.ButtonHoverBackgroundColor   = (Windows.UI.Color)res["TitleBarButtonHoverBackground"];
+            titleBar.ButtonHoverForegroundColor   = (Windows.UI.Color)res["TitleBarButtonHoverForeground"];
+            titleBar.ButtonPressedBackgroundColor = (Windows.UI.Color)res["TitleBarButtonPressedBackground"];
+            titleBar.ButtonPressedForegroundColor = (Windows.UI.Color)res["TitleBarButtonPressedForeground"];
+            titleBar.ButtonInactiveBackgroundColor = (Windows.UI.Color)res["TitleBarButtonInactiveBackground"];
+            titleBar.ButtonInactiveForegroundColor = (Windows.UI.Color)res["TitleBarButtonInactiveForeground"];
         }
         // Restore window size & position after activation (ensure HWND is ready)
         this.Activated += MainWindow_Activated;

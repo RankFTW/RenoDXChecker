@@ -57,9 +57,10 @@
 - Static constants/paths (`TypeDc`, `RsStagingDir`, etc.) intentionally left as static per design
 - 3 property-based test classes (FsCheck) + 1 structural/DI reflection test class
 
-## 6. Minor cleanup
-- **Status:** Not started
+## ✅ 6. Minor cleanup
+- **Status:** Done
 - **Risk:** Low
-- **Impact:** Low
-- Hardcoded title bar colors in `MainWindow` constructor → reference theme resources
-- Unused `using` directives scattered across files
+- **Impact:** Low — code hygiene
+- Extracted 12 hardcoded `Color.FromArgb` title bar values from `MainWindow.xaml.cs` into named `<Color>` theme resources in `App.xaml`
+- `MainWindow.xaml.cs` now reads colors via `Application.Current.Resources["TitleBar..."]` — easy to theme or override
+- No unused `using` directives found across the codebase (IDE analyzer confirmed clean)

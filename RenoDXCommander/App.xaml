@@ -9,6 +9,20 @@
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
                 <ResourceDictionary Source="Themes/DarkTheme.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- Title-bar colours (extracted from hardcoded values for easy theming) -->
+            <Color x:Key="TitleBarBackground">#FF0F1318</Color>
+            <Color x:Key="TitleBarForeground">#FFE8ECF2</Color>
+            <Color x:Key="TitleBarInactiveBackground">#FF0F1318</Color>
+            <Color x:Key="TitleBarInactiveForeground">#FF6B7A8E</Color>
+            <Color x:Key="TitleBarButtonBackground">#FF0F1318</Color>
+            <Color x:Key="TitleBarButtonForeground">#FFA0AABB</Color>
+            <Color x:Key="TitleBarButtonHoverBackground">#FF1E242C</Color>
+            <Color x:Key="TitleBarButtonHoverForeground">#FFE8ECF2</Color>
+            <Color x:Key="TitleBarButtonPressedBackground">#FF283240</Color>
+            <Color x:Key="TitleBarButtonPressedForeground">#FFE8ECF2</Color>
+            <Color x:Key="TitleBarButtonInactiveBackground">#FF0F1318</Color>
+            <Color x:Key="TitleBarButtonInactiveForeground">#FF404858</Color>
         </ResourceDictionary>
     </Application.Resources>
 </Application>
