@@ -5,12 +5,18 @@
 **Filter mode remembered across sessions**
 - Your selected filter tab (e.g. Unity, Installed, Favourites) is now saved and automatically restored when you reopen the app, so you no longer have to reselect it every launch.
 
+**Install button icons**
+- The card install button and external download/redownload buttons now show action icons (⬇ install, ↺ reinstall/manage, ⬆ update) matching the per-component buttons in the detail panel.
+
 **DC Mode redesigned — toggle + DLL picker**
 - DC Mode has been redesigned from a 3-state integer cycle (Off / dxgi.dll / winmm.dll) to a simple On/Off toggle with a DLL filename picker. You can now select any proxy DLL name from a dropdown or type a custom filename.
 - Per-game DC Mode overrides have been simplified to three options: Global, Off, and Custom. Custom lets you pick a per-game DLL filename independently of the global setting.
 - Legacy settings from previous versions are automatically migrated on first launch.
 
 ### Bug Fixes
+
+**ReShade version not shown in DC mode**
+- The ReShade status label now shows the installed version number even when DC mode is active, matching the behavior outside DC mode.
 
 **DC DLL picker not waiting for Enter before renaming**
 - Fixed the editable DC DLL filename picker triggering file renames on every keystroke while typing a custom name. The picker now only commits the change when you press Enter, select from the dropdown, or leave the field. Applies to both the global and per-game pickers.

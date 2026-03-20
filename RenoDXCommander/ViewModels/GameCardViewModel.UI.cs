@@ -48,8 +48,17 @@ public partial class GameCardViewModel
                 ? IsLumaInstalling : IsInstalling;
 
             if (effectiveInstalling) return "Installing...";
-            if (IsManaged) return "Manage";
-            return "Install";
+            if (IsManaged)
+            {
+                // Any component has an update available → show update icon
+                if (effectiveStatus == GameStatus.UpdateAvailable
+                    || RsStatus == GameStatus.UpdateAvailable
+                    || DcStatus == GameStatus.UpdateAvailable
+                    || LumaStatus == GameStatus.UpdateAvailable)
+                    return "⬆  Manage";
+                return "↺  Manage";
+            }
+            return "⬇  Install";
         }
     }
 

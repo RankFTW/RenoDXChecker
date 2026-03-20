@@ -142,8 +142,8 @@ public partial class GameCardViewModel
     // ── External link label: "Redownload" when RenoDX is installed ────────────────
     public string ExternalDisplayLabel =>
         IsRdxInstalled && !string.IsNullOrEmpty(ExternalLabel)
-            ? ExternalLabel.Replace("Download", "Redownload")
-            : ExternalLabel;
+            ? "↺  " + ExternalLabel.Replace("Download", "Redownload")
+            : "⬇  " + ExternalLabel;
 
     // Compact list item highlight — purple when any component has an update available
     private bool AnyUpdateAvailable => Status == GameStatus.UpdateAvailable

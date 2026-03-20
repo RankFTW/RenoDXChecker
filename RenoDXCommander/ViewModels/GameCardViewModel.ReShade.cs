@@ -54,7 +54,7 @@ public partial class GameCardViewModel
 
     // Component table: RS short status text + short action labels
     public string RsStatusText => RsBlockedByDcMode
-        ? (IsDcInstalled ? "Installed" : "DC Mode")
+        ? (IsDcInstalled ? (RsInstalledVersion ?? "Installed") : "DC Mode")
         : RsIsInstalling ? "Installing…"
         : RsStatus == GameStatus.UpdateAvailable ? (RsInstalledVersion ?? "Update")
         : RsStatus == GameStatus.Installed       ? (RsInstalledVersion ?? "Installed")
