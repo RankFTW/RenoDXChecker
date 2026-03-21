@@ -66,7 +66,8 @@ public sealed partial class MainWindow : Window
         _windowStateManager.EnableDragAccept();
 
         // Set the title bar icon (unpackaged apps need this explicitly)
-        AppWindow.SetIcon("icon.ico");
+        var exeDir = Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
+        AppWindow.SetIcon(Path.Combine(exeDir, "icon.ico"));
 
         // Dark title bar — match our theme
         if (AppWindow.TitleBar is { } titleBar)
