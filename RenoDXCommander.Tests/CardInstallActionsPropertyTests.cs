@@ -49,6 +49,7 @@ public class CardInstallActionsPropertyTests
                     IsExternalOnly = isExternalOnly,
                     LumaFeatureEnabled = lumaFeatureEnabled,
                     IsLumaMode = isLumaMode,
+                    DcLegacyMode = true, // DC features visible for this test
                     Mod = mod
                 };
                 card.LumaMod = lumaMod;
@@ -262,6 +263,7 @@ public class CardInstallActionsPropertyTests
                     LumaStatus = lumaStatus,
                     LumaFeatureEnabled = lumaFeatureEnabled,
                     IsLumaMode = isLumaMode,
+                    DcLegacyMode = true, // DC features visible for this test
                 };
                 card.LumaMod = lumaMod;
 

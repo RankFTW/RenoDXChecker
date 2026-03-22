@@ -435,6 +435,7 @@ public class DcModeSwitchShaderPropertyTests : IDisposable
         {
             vm.DcModeEnabled = enabled;
             vm.DcDllFileName = dllFileName;
+            settings.DcLegacyMode = true;
         }
         finally
         {

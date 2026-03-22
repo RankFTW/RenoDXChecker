@@ -66,7 +66,7 @@
                             BorderBrush="{StaticResource BorderSubtleBrush}"
                             BorderThickness="1"
                             CornerRadius="8" Padding="12,7" FontSize="12"
-                            ToolTipService.ToolTip="Update ReShade, Display Commander, and RenoDX for all games"/>
+                            ToolTipService.ToolTip="{x:Bind ViewModel.UpdateButtonTooltip, Mode=OneWay}"/>
 
                     <Border Width="1" Height="20" Background="{StaticResource BorderSubtleBrush}" Margin="4,0"/>
 
@@ -651,9 +651,27 @@
                     <StackPanel Padding="32,24,32,40" Spacing="14" MaxWidth="800"
                                 HorizontalAlignment="Center">
 
-                        <!-- ── DC Mode Settings ──────────────────────────────────── -->
+                        <!-- ── DC Legacy Mode Toggle ──────────────────────────────── -->
                         <Border Background="{StaticResource SurfaceRaisedBrush}" CornerRadius="10" Padding="20,16"
                                 BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="DC Legacy Mode" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource InlineDescriptionBrush}" LineHeight="18"
+                                           Text="Display Commander is no longer available for new downloads. Enable this toggle to restore legacy DC support if you are an existing DC user."/>
+                                <ToggleSwitch x:Name="DcLegacyModeToggle"
+                                              IsOn="{x:Bind ViewModel.DcLegacyMode, Mode=TwoWay}"
+                                              OnContent="Enabled — DC features visible"
+                                              OffContent="Disabled — DC features hidden"
+                                              Header="DC Legacy Mode"
+                                              Foreground="{StaticResource TextTertiaryBrush}" FontSize="12"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- ── DC Mode Settings ──────────────────────────────────── -->
+                        <Border Background="{StaticResource SurfaceRaisedBrush}" CornerRadius="10" Padding="20,16"
+                                BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1"
+                                Visibility="{x:Bind ViewModel.DcLegacySettingsVisibility, Mode=OneWay}">
                             <StackPanel Spacing="8">
                                 <TextBlock Text="Display Commander Mode" FontSize="13" FontWeight="SemiBold"
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
@@ -828,7 +846,11 @@
                                 </StackPanel>
 
                                 <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TextTertiaryBrush}" LineHeight="20"
+                                           Visibility="{x:Bind ViewModel.DcLegacySettingsVisibility, Mode=OneWay}"
                                            Text="A desktop manager for HDR game mods on Windows. Auto-detects your game libraries and installs ReShade, Display Commander, RenoDX, and Luma Framework mods in a few clicks."/>
+                                <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TextTertiaryBrush}" LineHeight="20"
+                                           Visibility="{x:Bind ViewModel.DcLegacyHiddenVisibility, Mode=OneWay}"
+                                           Text="A desktop manager for HDR game mods on Windows. Auto-detects your game libraries and installs ReShade, RenoDX, and Luma Framework mods in a few clicks."/>
 
                                 <!-- What it does -->
                                 <Border Background="{StaticResource SurfaceToolbarBrush}" CornerRadius="8" Padding="14,10"
@@ -837,7 +859,11 @@
                                         <TextBlock Text="What RDXC does" FontSize="12" FontWeight="SemiBold"
                                                    Foreground="{StaticResource TextPrimaryBrush}"/>
                                         <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource InlineDescriptionBrush}" LineHeight="18"
+                                                   Visibility="{x:Bind ViewModel.DcLegacySettingsVisibility, Mode=OneWay}"
                                                    Text="Scans Steam, GOG, Epic, EA App, Ubisoft, Xbox/Game Pass, Battle.net, and Rockstar for installed games. Provides one-click install, update, and uninstall for ReShade, Display Commander, RenoDX addons, and Luma Framework mods. Manages shader packs, per-game overrides, and DC Mode configuration."/>
+                                        <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource InlineDescriptionBrush}" LineHeight="18"
+                                                   Visibility="{x:Bind ViewModel.DcLegacyHiddenVisibility, Mode=OneWay}"
+                                                   Text="Scans Steam, GOG, Epic, EA App, Ubisoft, Xbox/Game Pass, Battle.net, and Rockstar for installed games. Provides one-click install, update, and uninstall for ReShade, RenoDX addons, and Luma Framework mods. Manages shader packs and per-game overrides."/>
                                     </StackPanel>
                                 </Border>
 
@@ -853,7 +879,11 @@
                                                  FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
                                         </TextBlock>
                                         <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource InlineDescriptionBrush}" LineHeight="18"
+                                                   Visibility="{x:Bind ViewModel.DcLegacySettingsVisibility, Mode=OneWay}"
                                                    Text="All mod files are fetched directly from their official sources and are not modified. RenoDX addons come from official GitHub snapshots. Display Commander is downloaded from pmnoxx's GitHub releases. ReShade with full addon support is downloaded from reshade.me. 7-Zip is bundled under the LGPL licence for archive extraction."/>
+                                        <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource InlineDescriptionBrush}" LineHeight="18"
+                                                   Visibility="{x:Bind ViewModel.DcLegacyHiddenVisibility, Mode=OneWay}"
+                                                   Text="All mod files are fetched directly from their official sources and are not modified. RenoDX addons come from official GitHub snapshots. ReShade with full addon support is downloaded from reshade.me. 7-Zip is bundled under the LGPL licence for archive extraction."/>
                                     </StackPanel>
                                 </Border>
 
@@ -912,7 +942,8 @@
                                 </Border>
 
                                 <!-- Display Commander -->
-                                <Border Background="{StaticResource SurfaceToolbarBrush}" CornerRadius="8" Padding="12,10" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1">
+                                <Border Background="{StaticResource SurfaceToolbarBrush}" CornerRadius="8" Padding="12,10" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1"
+                                        Visibility="{x:Bind ViewModel.DcLegacySettingsVisibility, Mode=OneWay}">
                                     <StackPanel Spacing="3">
                                         <TextBlock FontSize="12">
                                             <Run Text="Display Commander" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
@@ -1046,7 +1077,8 @@
                                 <HyperlinkButton NavigateUri="https://reshade.me" Padding="0">
                                     <TextBlock Foreground="{StaticResource AccentBlueBrush}" FontSize="12">ReShade — reshade.me</TextBlock>
                                 </HyperlinkButton>
-                                <HyperlinkButton NavigateUri="https://github.com/pmnoxx/display-commander" Padding="0">
+                                <HyperlinkButton NavigateUri="https://github.com/pmnoxx/display-commander" Padding="0"
+                                                Visibility="{x:Bind ViewModel.DcLegacySettingsVisibility, Mode=OneWay}">
                                     <TextBlock Foreground="{StaticResource AccentBlueBrush}" FontSize="12">Display Commander — github.com/pmnoxx/display-commander</TextBlock>
                                 </HyperlinkButton>
                                 <HyperlinkButton NavigateUri="https://github.com/Filoppi/Luma-Framework" Padding="0">

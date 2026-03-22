@@ -71,8 +71,9 @@ public partial class GameCardViewModel
     public string DcIniBorderThickness => DcDeleteVisible ? "0,1,0,1"  : "0,1,1,1";
     public string DcIniMargin          => DcDeleteVisible ? "0,0,1,0"  : "0";
 
-    // In Luma mode: hide DC row
-    public Visibility DcRowVisibility => EffectiveLumaMode ? Visibility.Collapsed : Visibility.Visible;
+    // Hide DC row when legacy mode is off, or when in Luma mode
+    public Visibility DcRowVisibility => !DcLegacyMode ? Visibility.Collapsed
+        : EffectiveLumaMode ? Visibility.Collapsed : Visibility.Visible;
 
     // ── Targeted notification: DcStatus changed ───────────────────────────────────
     private void NotifyDcStatusDependents()

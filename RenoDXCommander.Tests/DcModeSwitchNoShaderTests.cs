@@ -240,7 +240,7 @@ public class DcModeSwitchNoShaderTests : IDisposable
         var settingsField = typeof(MainViewModel).GetField("_settingsViewModel", BindingFlags.NonPublic | BindingFlags.Instance)!;
         var settings = (SettingsViewModel)settingsField.GetValue(vm)!;
         settings.IsLoadingSettings = true;
-        try { vm.DcModeEnabled = enabled; vm.DcDllFileName = dllFileName; }
+        try { vm.DcModeEnabled = enabled; vm.DcDllFileName = dllFileName; settings.DcLegacyMode = true; }
         finally { settings.IsLoadingSettings = false; }
     }
 

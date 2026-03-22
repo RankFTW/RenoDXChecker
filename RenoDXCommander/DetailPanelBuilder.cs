@@ -244,9 +244,9 @@ public class DetailPanelBuilder
             }
         }
 
-        // DC row
-        _window.DetailDcRow.Visibility = isLumaMode ? Visibility.Collapsed : Visibility.Visible;
-        if (!isLumaMode)
+        // DC row — hidden when in Luma mode OR when DC Legacy Mode is off
+        _window.DetailDcRow.Visibility = card.DcRowVisibility;
+        if (card.DcRowVisibility == Visibility.Visible)
         {
             _window.DetailDcStatus.Text = card.DcStatusText;
             _window.DetailDcStatus.Foreground = UIFactory.GetBrush(card.DcStatusColor);
@@ -374,9 +374,9 @@ public class DetailPanelBuilder
         _window.DetailRsProgress.Value = card.RsProgress;
         _window.DetailRsMessage.Visibility = card.RsMessageVisibility;
         _window.DetailRsMessage.Text = card.RsActionMessage;
-        _window.DetailDcProgress.Visibility = card.DcProgressVisibility;
+        _window.DetailDcProgress.Visibility = card.DcLegacyMode ? card.DcProgressVisibility : Visibility.Collapsed;
         _window.DetailDcProgress.Value = card.DcProgress;
-        _window.DetailDcMessage.Visibility = card.DcMessageVisibility;
+        _window.DetailDcMessage.Visibility = card.DcLegacyMode ? card.DcMessageVisibility : Visibility.Collapsed;
         _window.DetailDcMessage.Text = card.DcActionMessage;
         _window.DetailRdxProgress.Visibility = card.ProgressVisibility;
         _window.DetailRdxProgress.Value = card.InstallProgress;
@@ -547,10 +547,15 @@ public class DetailPanelBuilder
         };
 
         // ── Per-game DC Mode + Shader mode (side by side) ─────────────────────────
+        ComboBox? dcModeCombo = null;
+        ComboBox? dcCustomDllSelector = null;
+
+        if (card.DcLegacyMode)
+        {
         string? currentDcMode = _window.ViewModel.GetPerGameDcModeOverride(gameName);
         var globalDcLabel = _window.ViewModel.DcModeEnabled ? $"On — {_window.ViewModel.DcDllFileName}" : "Off";
         var dcModeOptions = new[] { $"Global ({globalDcLabel})", "Off", "Custom" };
-        var dcModeCombo = new ComboBox
+        dcModeCombo = new ComboBox
         {
             ItemsSource = dcModeOptions,
             // Vulkan games default to DC mode off when no explicit override is set
@@ -581,7 +586,7 @@ public class DetailPanelBuilder
         _window.ViewModel.PropertyChanged += _dcModeLevelHandler;
 
         // ── DC Mode Custom DLL filename selector ────────────────────────────────
-        var dcCustomDllSelector = new ComboBox
+        dcCustomDllSelector = new ComboBox
         {
             IsEditable = true,
             ItemsSource = DllOverrideConstants.DcDllPickerNames,
@@ -715,6 +720,8 @@ public class DetailPanelBuilder
                 : Visibility.Collapsed;
         };
 
+        } // end if (card.DcLegacyMode)
+
         string currentShaderMode = _window.ViewModel.GetPerGameShaderMode(gameName);
         bool isGlobalShaders = currentShaderMode != "Select";
         var shaderToggle = new ToggleSwitch
@@ -781,6 +788,8 @@ public class DetailPanelBuilder
         };
 
         // ── Two-column grid: DC Mode (left) | divider | Shaders (right) ────────
+        if (card.DcLegacyMode)
+        {
         var modeGrid = new Grid();
         modeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         modeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -812,6 +821,15 @@ public class DetailPanelBuilder
         modeGrid.Children.Add(modeDivider);
         modeGrid.Children.Add(shaderColumn);
         _window.OverridesPanel.Children.Add(modeGrid);
+        }
+        else
+        {
+        // DC Legacy Mode off — show only shader controls
+        var shaderColumn = new StackPanel { Spacing = 8 };
+        shaderColumn.Children.Add(shaderToggle);
+        shaderColumn.Children.Add(selectShadersBtn);
+        _window.OverridesPanel.Children.Add(shaderColumn);
+        }
         _window.OverridesPanel.Children.Add(UIFactory.MakeSeparator());
 
         // ── Rendering Path (dual-API games only) ─────────────────────────────────
@@ -835,7 +853,7 @@ public class DetailPanelBuilder
             renderPathCombo.SelectionChanged += (s, e) =>
             {
                 var selected = renderPathCombo.SelectedItem as string;
-                if (selected == "Vulkan" && card.PerGameDcMode == null)
+                if (selected == "Vulkan" && card.PerGameDcMode == null && dcModeCombo != null)
                     dcModeCombo.SelectedIndex = 1; // "Off"
 
                 // Auto-save: persist rendering path immediately
@@ -938,6 +956,7 @@ public class DetailPanelBuilder
             IsEnabled = isDllOverride,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             ItemsSource = DllOverrideConstants.CommonDllNames,
+            Visibility = card.DcLegacyMode ? Visibility.Visible : Visibility.Collapsed,
         };
         if (!string.IsNullOrEmpty(existingDcName))
         {
@@ -1127,7 +1146,8 @@ public class DetailPanelBuilder
             Spacing = 12,
         };
         toggleRow.Children.Add(rsBorder);
-        toggleRow.Children.Add(dcBorder);
+        if (card.DcLegacyMode)
+            toggleRow.Children.Add(dcBorder);
         toggleRow.Children.Add(rdxBorder);
 
         // ── Auto-save: Update inclusion toggles ──────────────────────────────────
@@ -1224,7 +1244,7 @@ public class DetailPanelBuilder
             // Reset all controls to defaults
             detectedBox.Text = originalStoreName ?? gameName;
             wikiBox.Text = "";
-            dcModeCombo.SelectedIndex = 0;
+            if (dcModeCombo != null) dcModeCombo.SelectedIndex = 0;
             shaderToggle.IsOn = true;
             if (renderPathCombo != null) renderPathCombo.SelectedItem = "DirectX";
             dllOverrideToggle.IsOn = false;
@@ -1256,9 +1276,12 @@ public class DetailPanelBuilder
 
             // Clear DC Mode Custom DLL filename
             _window.ViewModel.SetDcCustomDllFileName(capturedName, null);
-            dcCustomDllSelector.SelectedItem = null;
-            dcCustomDllSelector.Text = "";
-            dcCustomDllSelector.Visibility = Visibility.Collapsed;
+            if (dcCustomDllSelector != null)
+            {
+                dcCustomDllSelector.SelectedItem = null;
+                dcCustomDllSelector.Text = "";
+                dcCustomDllSelector.Visibility = Visibility.Collapsed;
+            }
 
             // Shader mode → Global
             if (_window.ViewModel.GetPerGameShaderMode(capturedName) != "Global")

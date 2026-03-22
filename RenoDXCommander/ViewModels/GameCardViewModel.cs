@@ -79,6 +79,10 @@ public partial class GameCardViewModel : ObservableObject
     // ── 32-bit mode ───────────────────────────────────────────────────────────────
     [ObservableProperty] private bool _is32Bit = false;
 
+    // ── DC Legacy Mode ────────────────────────────────────────────────────────────
+    /// <summary>Runtime-only flag set by MainViewModel — controls DC feature visibility across the card.</summary>
+    public bool DcLegacyMode { get; set; }
+
     // ── DC Mode ReShade blocking ──────────────────────────────────────────────────
     /// <summary>True when DC Mode is active for this game — ReShade install is blocked on the card.</summary>
     [ObservableProperty] private bool _rsBlockedByDcMode;
@@ -256,6 +260,7 @@ public partial class GameCardViewModel : ObservableObject
         NotifyOnce(nameof(RenoDxRowVisibility));
         NotifyOnce(nameof(ReShadeRowVisibility));
         NotifyOnce(nameof(DcRowVisibility));
+        NotifyOnce(nameof(DcLegacyMode));
         NotifyOnce(nameof(InstalledFileLabelVisible));
         NotifyOnce(nameof(WikiStatusIcon));
         NotifyOnce(nameof(WikiStatusIconVisible));

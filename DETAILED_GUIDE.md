@@ -102,7 +102,8 @@ Click **Settings** in the toolbar to open the Settings page. Click **← Back to
 
 | Section | Contents |
 |---------|----------|
-| **Display Commander Mode** | DC Mode On/Off toggle with DLL filename picker, plus Deploy DC Mode to All button |
+| **DC Legacy Mode** | Toggle to restore Display Commander features for existing users. Off by default — all DC UI is hidden. |
+| **Display Commander Mode** | DC Mode On/Off toggle with DLL filename picker, plus Deploy DC Mode to All button (visible only when DC Legacy Mode is on) |
 | **Add Game** | Manually add a game that wasn't automatically detected |
 | **Full Refresh** | Clears all caches and re-scans everything from disk |
 | **Preferences** | Skip Update Check toggle, Beta Opt-In toggle, Verbose Logging toggle — each with inline description |
@@ -283,6 +284,19 @@ The `RDXC_VULKAN_FOOTPRINT` file controls shader deployment to Vulkan game folde
 - **Absent** → shader sync skips the game folder
 - **DC installed** → footprint is automatically removed (DC manages shaders globally)
 - **DC uninstalled** → footprint is restored so shaders deploy correctly again
+
+---
+
+## DC Legacy Mode
+
+Display Commander is no longer available for new downloads. The DC Legacy Mode toggle in Settings controls whether DC features are visible and functional throughout RDXC.
+
+| State | Behaviour |
+|-------|-----------|
+| **OFF** (default) | All DC UI elements, install operations, update operations, and per-game overrides are hidden. Existing DC installations on disk are not modified. |
+| **ON** | Full DC functionality is restored — DC component rows, status dots, install/uninstall buttons, DC Mode settings, per-game DC overrides, and About section references all appear as before. |
+
+Toggling DC Legacy Mode triggers a full UI refresh. Turning it off does not uninstall any existing DC files from game folders — it only hides the UI and skips DC operations. Turning it back on restores the correct DC status for games that still have DC installed.
 
 ---
 
@@ -476,7 +490,7 @@ When Beta Opt-In is enabled in Settings, RDXC checks both the stable release (`R
 - Beta is only offered when its base version exceeds the latest stable, OR when the current app is already on a beta and a newer beta at the same base version is available
 - No update is offered if all candidates are at or below the current version
 
-The app encodes its beta status in the 4th component of the assembly version: `1.5.4.0` = stable, `1.5.4.1` = beta 1, `1.5.4.2` = beta 2, etc.
+The app encodes its beta status in the 4th component of the assembly version: `1.5.5.0` = stable, `1.5.5.1` = beta 1, `1.5.5.2` = beta 2, etc.
 
 ---
 
@@ -523,7 +537,7 @@ A new session log file is created every time RDXC starts, named with a timestamp
 | Drag-and-drop not working | Ensure RDXC is running. Drag-and-drop uses Win32 shell handling and works even as administrator. |
 | Vulkan ReShade not showing as installed | Check that `reshade.ini` exists in the game folder. The Vulkan layer must also be installed globally. |
 | Shaders missing after DC uninstall | Click **Refresh** — RDXC will detect the missing shaders and redeploy them. For Vulkan games, the footprint file is also restored. |
-| Auto-update not triggering for beta | Ensure Beta Opt-In is enabled in Settings. The beta release on GitHub must have a parseable version in the title (e.g. "RDXC 1.5.4 beta 1") and the asset must be named `RDXC-Setup.exe`. |
+| Auto-update not triggering for beta | Ensure Beta Opt-In is enabled in Settings. The beta release on GitHub must have a parseable version in the title (e.g. "RDXC 1.5.5 beta 1") and the asset must be named `RDXC-Setup.exe`. |
 | Games showing as installed after manual file removal | Click **Refresh** — RDXC verifies files exist on disk and cleans up stale records. |
 | DLL override not applying from manifest | Click **Refresh** — manifest DLL overrides are applied on every refresh, renaming existing files to match. |
 

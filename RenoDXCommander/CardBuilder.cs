@@ -156,6 +156,7 @@ public class CardBuilder
         var rdxDotPanel = UIFactory.MakeStatusDot("RDX", card.CardRdxStatusDot);
         var rsDotPanel = UIFactory.MakeStatusDot("RS", card.CardRsStatusDot);
         var dcDotPanel = UIFactory.MakeStatusDot("DC", card.CardDcStatusDot);
+        dcDotPanel.Visibility = card.DcLegacyMode ? Visibility.Visible : Visibility.Collapsed;
         dotsPanel.Children.Add(rdxDotPanel);
         dotsPanel.Children.Add(rsDotPanel);
         dotsPanel.Children.Add(dcDotPanel);
@@ -340,12 +341,15 @@ public class CardBuilder
                             if (lumaDotPanel?.Children[0] is Microsoft.UI.Xaml.Shapes.Ellipse lumaEllipse)
                                 lumaEllipse.Fill = UIFactory.GetBrush(c.CardLumaStatusDot);
                             break;
+                        case nameof(c.DcLegacyMode):
+                            dcDotPanel.Visibility = c.DcLegacyMode ? Visibility.Visible : Visibility.Collapsed;
+                            break;
                         case nameof(c.CardLumaVisible):
                             bool effectiveLuma = c.LumaFeatureEnabled && c.IsLumaMode;
                             // Hide/show RDX/RS/DC dots based on Luma mode
                             rdxDotPanel.Visibility = effectiveLuma ? Visibility.Collapsed : Visibility.Visible;
                             rsDotPanel.Visibility = effectiveLuma ? Visibility.Collapsed : Visibility.Visible;
-                            dcDotPanel.Visibility = effectiveLuma ? Visibility.Collapsed : Visibility.Visible;
+                            dcDotPanel.Visibility = (!c.DcLegacyMode || effectiveLuma) ? Visibility.Collapsed : Visibility.Visible;
                             // Add/remove Luma dot
                             if (c.CardLumaVisible && lumaDotPanel == null)
                             {

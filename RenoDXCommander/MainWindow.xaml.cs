@@ -585,7 +585,7 @@ public sealed partial class MainWindow : Window
             // Chain: RenoDX → DC → ReShade (skip components that are N/A)
             if (card.Mod?.SnapshotUrl != null)
                 await ViewModel.InstallModCommand.ExecuteAsync(card);
-            if (card.DcRowVisibility == Visibility.Visible)
+            if (ViewModel.DcLegacyMode && card.DcRowVisibility == Visibility.Visible)
                 await ViewModel.InstallDcCommand.ExecuteAsync(card);
             if (card.ReShadeRowVisibility == Visibility.Visible)
                 await ViewModel.InstallReShadeCommand.ExecuteAsync(card);
@@ -954,7 +954,8 @@ public sealed partial class MainWindow : Window
     private async void UpdateAllButton_Click(object sender, RoutedEventArgs e)
     {
         await ViewModel.UpdateAllReShadeAsync();
-        await ViewModel.UpdateAllDcAsync();
+        if (ViewModel.DcLegacyMode)
+            await ViewModel.UpdateAllDcAsync();
         await ViewModel.UpdateAllRenoDxAsync();
     }
 

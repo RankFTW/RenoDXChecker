@@ -1,6 +1,6 @@
 # RenoDX Commander (RDXC)
 
-A desktop manager for HDR game mods on Windows. Auto-detects your game libraries, installs ReShade, Display Commander, RenoDX, and Luma Framework mods — all in a few clicks.
+A desktop manager for HDR game mods on Windows. Auto-detects your game libraries, installs ReShade, RenoDX, and Luma Framework mods — all in a few clicks. Legacy Display Commander support available via opt-in toggle.
 
 ![RDXC Game View](screenshots/game_view.png)
 
@@ -30,9 +30,10 @@ Requires Windows 10/11 (x64) and [.NET 8 Desktop Runtime](https://dotnet.microso
 - **8-store game detection** — Steam, GOG, Epic, EA App, Ubisoft Connect, Xbox/Game Pass, Battle.net, Rockstar. New games appear automatically on every launch.
 - **Graphics API detection** — scans game executables via PE header analysis to detect DirectX 11/12, Vulkan, and OpenGL. API badges shown on game cards.
 - **Vulkan ReShade support** — installs ReShade as a global Vulkan implicit layer for Vulkan-rendered games, with per-game INI and shader deployment
-- **One-click install/update/uninstall** for ReShade, Display Commander, RenoDX addons, and Luma Framework mods
+- **One-click install/update/uninstall** for ReShade, RenoDX addons, and Luma Framework mods (Display Commander available via DC Legacy Mode)
 - **Version display** — installed ReShade and Display Commander version numbers shown directly on the component row, including when DC Mode is active
-- **DC Mode** — On/Off toggle with a DLL filename picker controlling how Display Commander loads alongside ReShade
+- **DC Legacy Mode** — opt-in toggle in Settings that restores full Display Commander functionality for existing users. Off by default — all DC UI is hidden until enabled.
+- **DC Mode** — On/Off toggle with a DLL filename picker controlling how Display Commander loads alongside ReShade (requires DC Legacy Mode)
 - **Shader pack management** — 7 HDR shader packs with five deploy modes (Off, Minimum, All, User, Select) plus a per-game shader selection picker
 - **Auto-save overrides** — all per-game settings save immediately when changed, no Save button needed
 - **Per-game overrides** — DLL naming, shader mode/selection, DC mode, rendering path, wiki name mapping, wiki exclusion, per-component Update All inclusion, reset overrides

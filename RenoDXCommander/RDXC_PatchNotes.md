@@ -1,3 +1,23 @@
+## v1.5.5
+
+### New Features
+
+**DC Legacy Mode toggle**
+- Display Commander is no longer available for new downloads. A new "DC Legacy Mode" toggle in Settings lets existing DC users restore full DC functionality. When off (the default), all DC-related UI, install operations, and update operations are hidden throughout the app. Existing DC installations are preserved — toggling off does not uninstall anything.
+
+**Lilium shaders always included in global selection**
+- The Lilium HDR shader pack is now always selected and locked (greyed out) in the global shader picker. It can still be deselected in per-game shader overrides. New installs and existing installs that were missing Lilium will have it added automatically.
+
+### Changes
+
+**DC UI hidden by default**
+- The DC component row, DC status dot, DC install/uninstall buttons, DC progress indicators, DC Mode settings, DC per-game overrides, DC DLL override filename, DC references in the About section, and DC references in the Update button tooltip are all hidden when DC Legacy Mode is off.
+
+**Refresh on DC Legacy Mode toggle**
+- Toggling DC Legacy Mode now triggers a full UI refresh so all cards and panels update immediately.
+
+---
+
 ## v1.5.4
 
 ### New Features

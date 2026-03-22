@@ -64,6 +64,19 @@ public partial class MainViewModel : ObservableObject
         get => _settingsViewModel.VerboseLogging;
         set => _settingsViewModel.VerboseLogging = value;
     }
+    public bool DcLegacyMode
+    {
+        get => _settingsViewModel.DcLegacyMode;
+        set
+        {
+            if (_settingsViewModel.DcLegacyMode != value)
+            {
+                _settingsViewModel.DcLegacyMode = value;
+                OnPropertyChanged(nameof(DcLegacyMode));
+                OnDcLegacyModeChanged();
+            }
+        }
+    }
     public string LastSeenVersion
     {
         get => _settingsViewModel.LastSeenVersion;
@@ -75,6 +88,17 @@ public partial class MainViewModel : ObservableObject
 
     public Visibility DcDllPickerVisibility =>
         DcModeEnabled ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility DcLegacySettingsVisibility =>
+        DcLegacyMode ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility DcLegacyHiddenVisibility =>
+        DcLegacyMode ? Visibility.Collapsed : Visibility.Visible;
+
+    public string UpdateButtonTooltip =>
+        DcLegacyMode
+            ? "Update ReShade, Display Commander, and RenoDX for all games"
+            : "Update ReShade and RenoDX for all games";
 
     [ObservableProperty] private bool _lumaFeatureEnabled = true;
 
@@ -438,6 +462,23 @@ public partial class MainViewModel : ObservableObject
         ApplyDcModeSwitch((wasEnabled: oldValue, wasDllFileName: DcDllFileName));
     }
 
+    private void OnDcLegacyModeChanged()
+    {
+        OnPropertyChanged(nameof(DcLegacySettingsVisibility));
+        OnPropertyChanged(nameof(DcLegacyHiddenVisibility));
+        OnPropertyChanged(nameof(UpdateButtonTooltip));
+        foreach (var card in _allCards)
+        {
+            card.DcLegacyMode = DcLegacyMode;
+            card.NotifyAll();
+        }
+        if (!_isLoadingSettings)
+        {
+            SaveNameMappings();
+            DispatcherQueue?.TryEnqueue(() => { _ = InitializeAsync(forceRescan: false); });
+        }
+    }
+
     partial void OnDcDllFileNameChanged(string oldValue, string newValue)
     {
         if (_isLoadingSettings) return;
@@ -541,6 +582,18 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public void ApplyDcModeSwitch((bool wasEnabled, string wasDllFileName) previous)
     {
+        // When DC Legacy Mode is off, skip all DC operations and ensure
+        // RsBlockedByDcMode is false on every card (Requirement 8.3).
+        if (!DcLegacyMode)
+        {
+            foreach (var card in _allCards)
+            {
+                card.RsBlockedByDcMode = false;
+                card.NotifyAll();
+            }
+            return;
+        }
+
         foreach (var card in _allCards)
         {
             if (card.DllOverrideEnabled) continue;
@@ -2246,6 +2299,7 @@ public partial class MainViewModel : ObservableObject
             DetectedApis           = _DetectAllApisForCard(scanPath, game.Name),
             VulkanRenderingPath    = _vulkanRenderingPaths.TryGetValue(game.Name, out var vrpManual) ? vrpManual : "DirectX",
             LumaFeatureEnabled     = LumaFeatureEnabled,
+            DcLegacyMode           = DcLegacyMode,
             DcRecord        = dcRecManual,
             DcStatus        = dcRecManual != null ? GameStatus.Installed : GameStatus.NotInstalled,
             DcInstalledFile = dcRecManual?.InstalledAs,
@@ -3996,6 +4050,7 @@ public partial class MainViewModel : ObservableObject
             }
 
             newCard.LumaFeatureEnabled = LumaFeatureEnabled;
+            newCard.DcLegacyMode = DcLegacyMode;
             var lumaMatch = MatchLumaGame(game.Name);
             if (lumaMatch != null)
             {

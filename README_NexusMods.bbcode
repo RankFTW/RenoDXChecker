@@ -1,5 +1,5 @@
 [center][size=6][b]RenoDX Commander (RDXC)[/b][/size]
-[size=3]A desktop manager for HDR game mods on Windows. Auto-detects your game libraries, installs ReShade, Display Commander, RenoDX, and Luma Framework mods all in a few clicks.[/size][/center]
+[size=3]A desktop manager for HDR game mods on Windows. Auto-detects your game libraries, installs ReShade, RenoDX, and Luma Framework mods all in a few clicks. Legacy Display Commander support available via opt-in toggle.[/size][/center]
 
 [line]
 
@@ -31,9 +31,10 @@ Grab the latest installer from the [url=https://github.com/RankFTW/RenoDXChecker
 [*] [b]8-store game detection[/b] — Steam, GOG, Epic, EA App, Ubisoft Connect, Xbox Game Pass, Battle.net, Rockstar. New games appear automatically on every launch.
 [*] [b]Graphics API detection[/b] — scans game executables via PE header analysis to detect DirectX 11/12, Vulkan, and OpenGL. API badges shown on game cards.
 [*] [b]Vulkan ReShade support[/b] — installs ReShade as a global Vulkan implicit layer for Vulkan-rendered games, with per-game INI and shader deployment
-[*] [b]One-click install/update/uninstall[/b] for ReShade, Display Commander, RenoDX addons, and Luma Framework mods
+[*] [b]One-click install/update/uninstall[/b] for ReShade, RenoDX addons, and Luma Framework mods (Display Commander available via DC Legacy Mode)
 [*] [b]Version display[/b] — installed ReShade and Display Commander version numbers shown directly on the component row
-[*] [b]DC Mode[/b] — 3 levels; controls how Display Commander loads alongside ReShade for better compatibility
+[*] [b]DC Legacy Mode[/b] — opt-in toggle in Settings that restores full Display Commander functionality for existing users. Off by default — all DC UI is hidden until enabled.
+[*] [b]DC Mode[/b] — On/Off toggle with DLL filename picker controlling how Display Commander loads alongside ReShade (requires DC Legacy Mode)
 [*] [b]Shader pack management[/b] — 7 HDR shader packs with five deploy modes: Off, Minimum, All, User, Select — plus a per-game shader selection picker
 [*] [b]Auto-save overrides[/b] — all per-game settings save immediately when changed, no Save button needed
 [*] [b]Per-game overrides[/b] — DLL naming, shader mode/selection, DC mode, rendering path, wiki name mapping, wiki exclusion, per-component Update All inclusion, reset overrides

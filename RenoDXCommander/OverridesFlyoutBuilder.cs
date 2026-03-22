@@ -153,10 +153,16 @@ public class OverridesFlyoutBuilder
         };
 
         // ── DC Mode + Shader Mode (side by side) ──
+        ComboBox? dcModeCombo = null;
+        ComboBox? dcCustomDllSelector = null;
+        System.ComponentModel.PropertyChangedEventHandler? dcModeLevelHandler = null;
+
+        if (card.DcLegacyMode)
+        {
         string? currentDcMode = ViewModel.GetPerGameDcModeOverride(gameName);
         var globalDcLabel = ViewModel.DcModeEnabled ? $"On — {ViewModel.DcDllFileName}" : "Off";
         var dcModeOptions = new[] { $"Global ({globalDcLabel})", "Off", "Custom" };
-        var dcModeCombo = new ComboBox
+        dcModeCombo = new ComboBox
         {
             ItemsSource = dcModeOptions,
             SelectedIndex = currentDcMode switch { "Off" => 1, "Custom" => 2, _ => 0 },
@@ -169,7 +175,7 @@ public class OverridesFlyoutBuilder
             "Custom = use a custom DLL filename.");
 
         // ── DC Mode Custom DLL filename selector ────────────────────────────────
-        var dcCustomDllSelector = new ComboBox
+        dcCustomDllSelector = new ComboBox
         {
             IsEditable = true,
             ItemsSource = DllOverrideConstants.DcDllPickerNames,
@@ -278,16 +284,17 @@ public class OverridesFlyoutBuilder
         };
 
         // Subscribe to DcModeEnabled/DcDllFileName changes to keep the "Global (...)" label current
-        System.ComponentModel.PropertyChangedEventHandler dcModeLevelHandler = (sender, e) =>
+        var localDcModeCombo = dcModeCombo;
+        dcModeLevelHandler = (sender, e) =>
         {
             if (e.PropertyName != "DcModeEnabled" && e.PropertyName != "DcDllFileName") return;
             _dispatcherQueue.TryEnqueue(() =>
             {
                 var updatedLabel = ViewModel.DcModeEnabled ? $"On — {ViewModel.DcDllFileName}" : "Off";
                 var updatedOptions = new[] { $"Global ({updatedLabel})", "Off", "Custom" };
-                var savedIndex = dcModeCombo.SelectedIndex;
-                dcModeCombo.ItemsSource = updatedOptions;
-                dcModeCombo.SelectedIndex = savedIndex;
+                var savedIndex = localDcModeCombo.SelectedIndex;
+                localDcModeCombo.ItemsSource = updatedOptions;
+                localDcModeCombo.SelectedIndex = savedIndex;
             });
         };
         ViewModel.PropertyChanged += dcModeLevelHandler;
@@ -317,6 +324,8 @@ public class OverridesFlyoutBuilder
                 ? Visibility.Visible
                 : Visibility.Collapsed;
         };
+
+        } // end if (card.DcLegacyMode)
 
         string currentShaderMode = ViewModel.GetPerGameShaderMode(gameName);
         bool isGlobalShaders = currentShaderMode != "Select";
@@ -379,6 +388,8 @@ public class OverridesFlyoutBuilder
             }
         };
 
+        if (card.DcLegacyMode)
+        {
         var modeGrid = new Grid();
         modeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         modeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -410,6 +421,15 @@ public class OverridesFlyoutBuilder
         modeGrid.Children.Add(modeDivider);
         modeGrid.Children.Add(shaderColumn);
         panel.Children.Add(modeGrid);
+        }
+        else
+        {
+        // DC Legacy Mode off — show only shader controls
+        var shaderColumn = new StackPanel { Spacing = 8 };
+        shaderColumn.Children.Add(shaderToggle);
+        shaderColumn.Children.Add(selectShadersBtn);
+        panel.Children.Add(shaderColumn);
+        }
         panel.Children.Add(UIFactory.MakeSeparator());
 
         // ── DLL naming override ──
@@ -485,6 +505,7 @@ public class OverridesFlyoutBuilder
             IsEnabled = isDllOverride,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             ItemsSource = DllOverrideConstants.CommonDllNames,
+            Visibility = card.DcLegacyMode ? Visibility.Visible : Visibility.Collapsed,
         };
         if (!string.IsNullOrEmpty(existingDcName))
         {
@@ -674,7 +695,8 @@ public class OverridesFlyoutBuilder
             Spacing = 12,
         };
         toggleRow.Children.Add(rsBorder);
-        toggleRow.Children.Add(dcBorder);
+        if (card.DcLegacyMode)
+            toggleRow.Children.Add(dcBorder);
         toggleRow.Children.Add(rdxBorder);
 
         // ── Auto-save: Update inclusion toggles ──
@@ -773,7 +795,7 @@ public class OverridesFlyoutBuilder
             // Reset all controls to defaults
             gameNameBox.Text = originalStoreName ?? gameName;
             wikiNameBox.Text = "";
-            dcModeCombo.SelectedIndex = 0;
+            if (dcModeCombo != null) dcModeCombo.SelectedIndex = 0;
             shaderToggle.IsOn = true;
             dllOverrideToggle.IsOn = false;
             rsToggle.IsOn = true;
@@ -804,9 +826,12 @@ public class OverridesFlyoutBuilder
 
             // Clear DC Mode Custom DLL filename
             ViewModel.SetDcCustomDllFileName(capturedName, null);
-            dcCustomDllSelector.SelectedItem = null;
-            dcCustomDllSelector.Text = "";
-            dcCustomDllSelector.Visibility = Visibility.Collapsed;
+            if (dcCustomDllSelector != null)
+            {
+                dcCustomDllSelector.SelectedItem = null;
+                dcCustomDllSelector.Text = "";
+                dcCustomDllSelector.Visibility = Visibility.Collapsed;
+            }
 
             // Shader mode → Global
             if (ViewModel.GetPerGameShaderMode(capturedName) != "Global")
@@ -874,7 +899,8 @@ public class OverridesFlyoutBuilder
         flyout.Closed += (s, ev) =>
         {
             // Unsubscribe from DcModeLevel changes to avoid leaked subscriptions
-            ViewModel.PropertyChanged -= dcModeLevelHandler;
+            if (dcModeLevelHandler != null)
+                ViewModel.PropertyChanged -= dcModeLevelHandler;
         };
 
         flyout.ShowAt(anchor);
