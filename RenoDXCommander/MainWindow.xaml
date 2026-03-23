@@ -455,7 +455,14 @@
                                             Click="InstallUlButton_Click"
                                             HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                             CornerRadius="8" FontSize="12" Height="32"/>
-                                    <Border Grid.Column="3"/>
+                                    <Button x:Name="DetailUlIniBtn" x:FieldModifier="internal" Grid.Column="3"
+                                            Click="UlIniButton_Click"
+                                            Background="{StaticResource SurfaceOverlayBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                            BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
+                                            CornerRadius="8" Width="36" Height="32" Padding="0"
+                                            ToolTipService.ToolTip="Copy ultra_limiter.ini to game folder">
+                                        <TextBlock Text="📋" FontSize="12" HorizontalAlignment="Center"/>
+                                    </Button>
                                     <Button x:Name="DetailUlDeleteBtn" x:FieldModifier="internal" Grid.Column="4"
                                             Click="UninstallUlButton_Click"
                                             Background="{StaticResource AccentRedBgBrush}" Foreground="{StaticResource AccentRedBrush}"

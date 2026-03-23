@@ -522,6 +522,21 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    internal void CardCopyUlIni_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: GameCardViewModel card }) return;
+        if (string.IsNullOrEmpty(card.InstallPath)) return;
+        try
+        {
+            AuxInstallService.CopyUlIni(card.InstallPath);
+            card.UlActionMessage = "✅ ultra_limiter.ini copied to game folder.";
+        }
+        catch (Exception ex)
+        {
+            card.UlActionMessage = $"❌ {ex.Message}";
+        }
+    }
+
     // ── Card action button handlers (Task 6.4) ───────────────────────────────────
 
     internal async void CardInstallButton_Click(object sender, RoutedEventArgs e)
@@ -885,6 +900,21 @@ public sealed partial class MainWindow : Window
 
     private void UninstallUlButton_Click(object sender, RoutedEventArgs e)
         => _installEventHandler.UninstallUlButton_Click(sender, e);
+
+    private void UlIniButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: GameCardViewModel card }) return;
+        if (string.IsNullOrEmpty(card.InstallPath)) return;
+        try
+        {
+            AuxInstallService.CopyUlIni(card.InstallPath);
+            card.UlActionMessage = "✅ ultra_limiter.ini copied to game folder.";
+        }
+        catch (Exception ex)
+        {
+            card.UlActionMessage = $"❌ {ex.Message}";
+        }
+    }
 
     private async void DetailUlStatus_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {

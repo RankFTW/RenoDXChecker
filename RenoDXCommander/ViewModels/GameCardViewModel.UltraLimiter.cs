@@ -41,6 +41,9 @@ public partial class GameCardViewModel
     public bool IsUlNotInstalling => !UlIsInstalling;
     public bool IsUlInstalled => UlStatus == GameStatus.Installed || UlStatus == GameStatus.UpdateAvailable;
 
+    /// <summary>True when ultra_limiter.ini is present in the inis folder — enables the 📋 button.</summary>
+    public bool UlIniExists => File.Exists(Services.AuxInstallService.UlIniPath);
+
     // ── Card grid properties ──────────────────────────────────────────────────────
     public string CardUlStatusDot => UlIsInstalling ? "#2196F3"
         : UlStatus == GameStatus.UpdateAvailable ? "#FF9800"

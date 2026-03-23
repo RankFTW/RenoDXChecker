@@ -259,6 +259,9 @@ public class DetailPanelBuilder
             _window.DetailUlInstallBtn.Foreground = UIFactory.GetBrush(card.UlBtnForeground);
             _window.DetailUlInstallBtn.BorderBrush = UIFactory.GetBrush(card.UlBtnBorderBrush);
             _window.DetailUlInstallBtn.BorderThickness = new Thickness(1);
+            _window.DetailUlIniBtn.Tag = card;
+            _window.DetailUlIniBtn.IsEnabled = card.UlIniExists;
+            _window.DetailUlIniBtn.Opacity = card.UlIniExists ? 1 : 0.3;
             _window.DetailUlDeleteBtn.Tag = card;
             var ulShow = card.UlDeleteVisibility == Visibility.Visible;
             _window.DetailUlDeleteBtn.Opacity = ulShow ? 1 : 0;

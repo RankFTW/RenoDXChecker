@@ -1,28 +1,45 @@
 ## v1.6.0
 
-### New Features
+### Highlights
+
+**Rebranded to UPST**
+- The app has been rebranded from RenoDX Commander (RDXC) to Ultra Plus Support Tools (UPST). The executable, window title, settings directory, and all user-facing references now use the UPST name.
 
 **Ultra Limiter support**
 - UPST can now install and manage the Ultra Limiter addon (`ultra_limiter.addon64`). A new UL component row appears in the install flyout and detail panel alongside RenoDX, ReShade, and Luma, with install, reinstall, and uninstall buttons, status dot, and progress indicator.
 - Ultra Limiter is automatically detected in game folders on refresh.
 - The UL row is hidden when a game is in Luma mode.
+- Ultra Limiter is downloaded from GitHub on demand rather than bundled with the app, keeping the install size smaller.
+- Update detection compares file size and SHA-256 hash against the remote release. When an update is available, the status dot turns orange and the button shows "Update".
+- For a full list of Ultra Limiter features and settings, see the [Ultra Limiter Feature Guide](https://github.com/RankFTW/Ultra-Limiter?tab=readme-ov-file#ultra-limiter--comprehensive-feature-guide).
+- A bundled `ultra_limiter.ini` is seeded to the UPST inis folder on first launch. A 📋 button on the Ultra Limiter row copies it to the game folder, matching the existing ReShade INI workflow.
+
+**Ultra Limiter "Installed" link**
+- The green "Installed" text for Ultra Limiter is now a clickable link that opens the Ultra Limiter feature guide on GitHub.
+
+**Display Commander removed**
+- All Display Commander functionality has been removed from the codebase. DC install/uninstall, DC Mode toggle, DC DLL picker, DC per-game overrides, DC shader deployment, DC update operations, DC status indicators, and all DC-related UI elements have been stripped.
+- ReShade is now always installed as the standard filename (`dxgi.dll` or the DLL override name) — the DC-mode filenames (`ReShade64.dll` / `ReShade32.dll`) are no longer used.
+- The DC Legacy Mode toggle in Settings has been removed.
+- A one-time warning dialog appears on first launch of v1.6.0 advising users to manually remove any old Display Commander files from game folders via the Browse button.
+
+### Other Changes
 
 **Lilium shader pack now optional in global selection**
 - The Lilium HDR shader pack is no longer locked in the global shader picker. You can now untick it if you don't want it deployed globally. Lilium is still selected by default on fresh installs.
-
-### Changes
-
-**Display Commander removed**
-- All Display Commander functionality has been removed from the codebase. DC install/uninstall, DC Mode toggle, DC DLL picker, DC per-game overrides, DC shader deployment, DC update operations, DC status indicators, and all DC-related UI elements have been stripped. This simplifies the app and reduces code surface significantly.
-- ReShade is now always installed as the standard filename (`dxgi.dll` or the DLL override name) — the DC-mode filenames (`ReShade64.dll` / `ReShade32.dll`) are no longer used.
-- The DC Legacy Mode toggle in Settings has been removed.
 
 **Overrides layout redesign**
 - The Global Shaders toggle and DLL naming override are now displayed side-by-side on the same row with a vertical divider, in both the detail view overrides panel and the grid view overrides flyout.
 - The Global update inclusion and Wiki exclusion row now uses equal-width columns so the vertical divider sits centered.
 
-**Rebranded to UPST**
-- The app has been rebranded from RenoDX Commander (RDXC) to Ultra Plus Support Tools (UPST). The executable, window title, settings directory, and all user-facing references now use the UPST name.
+**Version number now from assembly**
+- The version displayed in the Settings menu is now read from the assembly version rather than a hardcoded string, ensuring it always matches the build.
+
+**Drag-and-drop game selection fallback**
+- When dragging an addon or archive onto UPST and the filename doesn't match any game, the game picker now defaults to the currently selected game in the sidebar instead of showing an empty selection.
+
+**False update detection fix**
+- Fixed mods hosted on GitHub Pages falsely showing "Update Available" when the remote file hadn't changed. The update check now compares the remote hash against the stored install-time hash instead of re-hashing the local file, which could differ if the file was touched by the game or ReShade.
 
 **Obsolete specs cleaned up**
 - The `dc-legacy-toggle` and `dc-mode-redesign` spec directories have been removed.

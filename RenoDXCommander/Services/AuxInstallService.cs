@@ -199,6 +199,7 @@ public class AuxInstallService : IAuxInstallService, IAuxFileService
     public static string RsIniPath => Path.Combine(InisDir, "reshade.ini");
     public static string RsVulkanIniPath => Path.Combine(InisDir, "reshade.vulkan.ini");
     public static string RsPresetIniPath => Path.Combine(InisDir, "ReShadePreset.ini");
+    public static string UlIniPath => Path.Combine(InisDir, "ultra_limiter.ini");
 
     /// <summary>
     /// Ensures the inis directory exists and seeds the default reshade.ini if missing.
@@ -241,6 +242,24 @@ public class AuxInstallService : IAuxInstallService, IAuxFileService
                 catch (Exception ex)
                 {
                     CrashReporter.Log($"[AuxInstallService.EnsureInisDir] Failed to seed reshade.vulkan.ini — {ex.Message}");
+                }
+            }
+        }
+
+        // Seed bundled ultra_limiter.ini if the user doesn't already have one
+        if (!File.Exists(UlIniPath))
+        {
+            var bundledUl = Path.Combine(AppContext.BaseDirectory, "ultra_limiter.ini");
+            if (File.Exists(bundledUl))
+            {
+                try
+                {
+                    File.Copy(bundledUl, UlIniPath, overwrite: false);
+                    CrashReporter.Log("[AuxInstallService.EnsureInisDir] Seeded default ultra_limiter.ini from bundle");
+                }
+                catch (Exception ex)
+                {
+                    CrashReporter.Log($"[AuxInstallService.EnsureInisDir] Failed to seed ultra_limiter.ini — {ex.Message}");
                 }
             }
         }
@@ -355,6 +374,17 @@ public class AuxInstallService : IAuxInstallService, IAuxFileService
         {
             CrashReporter.Log($"[AuxInstallService.CopyRsPresetIniIfPresent] Failed for '{gameDir}' — {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Copies ultra_limiter.ini from the inis folder to the game directory (addon deploy path).
+    /// </summary>
+    public static void CopyUlIni(string gameInstallPath)
+    {
+        if (!File.Exists(UlIniPath))
+            throw new FileNotFoundException("ultra_limiter.ini not found in inis folder.", UlIniPath);
+        var deployPath = ModInstallService.GetAddonDeployPath(gameInstallPath);
+        File.Copy(UlIniPath, Path.Combine(deployPath, "ultra_limiter.ini"), overwrite: true);
     }
 
     // ── INI parsing / writing helpers ─────────────────────────────────────────────

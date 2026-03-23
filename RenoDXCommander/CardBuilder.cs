@@ -427,8 +427,8 @@ public class CardBuilder
         var ulRow = BuildComponentRow(card, "Ultra Limiter", "UL",
             card.UlStatusText, card.UlStatusColor, card.UlShortAction,
             card.IsUlNotInstalling, card.IsUlInstalled,
-            showCopyConfig: false, copyConfigVisible: false,
-            copyConfigTooltip: null,
+            showCopyConfig: true, copyConfigVisible: card.UlIniExists,
+            copyConfigTooltip: "Copy ultra_limiter.ini to game folder",
             btnBackground: card.UlBtnBackground, btnForeground: card.UlBtnForeground, btnBorderBrush: card.UlBtnBorderBrush);
         // Make UL status text a clickable link to the Ultra Limiter guide
         var ulStatusBlock = ulRow.Children.OfType<TextBlock>().FirstOrDefault(t => t.Tag as string == "StatusText");
@@ -560,7 +560,7 @@ public class CardBuilder
                         c.CardRsInstallEnabled, c.IsRsInstalled, c.RsIniExists,
                         c.RsBtnBackground, c.RsBtnForeground, c.RsBtnBorderBrush);
                     UpdateComponentRow(ulRow, c.UlStatusText, c.UlStatusColor, c.UlShortAction,
-                        c.IsUlNotInstalling, c.IsUlInstalled, false,
+                        c.IsUlNotInstalling, c.IsUlInstalled, c.UlIniExists,
                         c.UlBtnBackground, c.UlBtnForeground, c.UlBtnBorderBrush);
                     // Keep UL status underline in sync
                     var ulSb = ulRow.Children.OfType<TextBlock>().FirstOrDefault(t => t.Tag as string == "StatusText");
@@ -671,6 +671,8 @@ public class CardBuilder
         copyBtn.DataContext = componentTag;
         if (componentTag == "RS")
             copyBtn.Click += _window.CardCopyRsIni_Click;
+        if (componentTag == "UL")
+            copyBtn.Click += _window.CardCopyUlIni_Click;
         if (copyConfigTooltip != null)
             ToolTipService.SetToolTip(copyBtn, copyConfigTooltip);
         Grid.SetColumn(copyBtn, 3);

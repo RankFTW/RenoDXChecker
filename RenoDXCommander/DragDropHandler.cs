@@ -398,6 +398,7 @@ public class DragDropHandler
 
         // Try to auto-select a game by matching addon filename to game names
         var addonNameLower = Path.GetFileNameWithoutExtension(addonFileName).ToLowerInvariant();
+        bool autoMatched = false;
         for (int i = 0; i < sortedCards.Count; i++)
         {
             // Check if the addon name contains a significant part of the game name
@@ -414,6 +415,20 @@ public class DragDropHandler
                     }
                 }
                 if (matched)
+                {
+                    combo.SelectedIndex = i;
+                    autoMatched = true;
+                    break;
+                }
+            }
+        }
+
+        // Fall back to the currently selected game in the sidebar if no filename match
+        if (!autoMatched && ViewModel.SelectedGame != null)
+        {
+            for (int i = 0; i < sortedCards.Count; i++)
+            {
+                if (string.Equals(sortedCards[i].GameName, ViewModel.SelectedGame.GameName, StringComparison.OrdinalIgnoreCase))
                 {
                     combo.SelectedIndex = i;
                     break;
