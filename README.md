@@ -67,7 +67,7 @@ Requires Windows 10/11 (x64) and [.NET 8 Desktop Runtime](https://dotnet.microso
 | Foreign DLL blocking install | Choose **Overwrite** in the dialog, or cancel to keep the existing file |
 | Games/mods out of sync | Settings → **Full Refresh** to clear all caches |
 
-For detailed documentation on shader packs, Luma Framework, per-game overrides, game detection methods, and more, see the [Detailed Guide](https://github.com/RankFTW/rdxc-manifest/tree/main?tab=readme-ov-file#renodx-commander--detailed-guide).
+For detailed documentation on shader packs, Luma Framework, per-game overrides, game detection methods, and more, see the [Detailed Guide](https://github.com/RankFTW/rdxc-manifest/tree/main?tab=readme-ov-file#upst--detailed-guide).
 
 ---
 
