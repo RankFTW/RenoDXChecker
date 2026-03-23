@@ -1989,27 +1989,48 @@ public partial class MainViewModel : ObservableObject
 
     // ── Ultra Limiter commands ────────────────────────────────────────────────────
 
-    /// <summary>The bundled Ultra Limiter addon filename.</summary>
     private const string UltraLimiterFileName = "ultra_limiter.addon64";
+    private const string UltraLimiterDownloadUrl =
+        "https://github.com/RankFTW/Ultra-Limiter/releases/download/Ultra_Limiter/ultra_limiter.addon64";
 
+    private static readonly string UlCachePath = Path.Combine(
+        ModInstallService.DownloadCacheDir, UltraLimiterFileName);
+
+    private static readonly string UlMetaPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "UPST", "ul_meta.json");
+
+    /// <summary>
+    /// Downloads Ultra Limiter from GitHub (or uses cache) and deploys to the game folder.
+    /// Stores file size + SHA-256 hash for update detection.
+    /// </summary>
     public async Task InstallUlAsync(GameCardViewModel card)
     {
         if (string.IsNullOrEmpty(card.InstallPath)) return;
         card.UlIsInstalling = true;
-        card.UlActionMessage = "Installing Ultra Limiter...";
+        card.UlActionMessage = "Downloading Ultra Limiter...";
         card.UlProgress = 0;
         try
         {
-            await Task.Run(() =>
+            // Force fresh download on reinstall/update
+            if (card.UlStatus == GameStatus.Installed || card.UlStatus == GameStatus.UpdateAvailable)
             {
-                var sourcePath = Path.Combine(AppContext.BaseDirectory, UltraLimiterFileName);
-                if (!File.Exists(sourcePath))
-                    throw new FileNotFoundException($"Bundled {UltraLimiterFileName} not found at {sourcePath}");
+                if (File.Exists(UlCachePath)) File.Delete(UlCachePath);
+            }
 
-                var deployPath = ModInstallService.GetAddonDeployPath(card.InstallPath);
-                var destPath = Path.Combine(deployPath, UltraLimiterFileName);
-                File.Copy(sourcePath, destPath, overwrite: true);
-            });
+            // Download to cache if not already cached
+            await EnsureUlCachedAsync(new Progress<(string msg, double pct)>(p =>
+            {
+                DispatcherQueue?.TryEnqueue(() =>
+                {
+                    card.UlActionMessage = p.msg;
+                    card.UlProgress = p.pct;
+                });
+            }));
+
+            var deployPath = ModInstallService.GetAddonDeployPath(card.InstallPath);
+            var destPath = Path.Combine(deployPath, UltraLimiterFileName);
+            File.Copy(UlCachePath, destPath, overwrite: true);
 
             DispatcherQueue?.TryEnqueue(() =>
             {
@@ -2029,6 +2050,142 @@ public partial class MainViewModel : ObservableObject
                 card.NotifyAll();
             });
             _crashReporter.WriteCrashReport("InstallUl", ex, note: $"Game: {card.GameName}");
+        }
+    }
+
+    /// <summary>
+    /// Downloads Ultra Limiter to the cache directory if not already present.
+    /// Also saves size + hash metadata for future update detection.
+    /// </summary>
+    private async Task EnsureUlCachedAsync(IProgress<(string msg, double pct)>? progress = null)
+    {
+        if (File.Exists(UlCachePath))
+        {
+            progress?.Report(("Installing from cache...", 50));
+            return;
+        }
+
+        Directory.CreateDirectory(ModInstallService.DownloadCacheDir);
+        var tempPath = UlCachePath + ".tmp";
+
+        progress?.Report(("Downloading...", 0));
+        var resp = await _http.GetAsync(UltraLimiterDownloadUrl, HttpCompletionOption.ResponseHeadersRead);
+        resp.EnsureSuccessStatusCode();
+
+        var total = resp.Content.Headers.ContentLength ?? -1L;
+        long downloaded = 0;
+        var buffer = new byte[1024 * 1024];
+
+        using (var net = await resp.Content.ReadAsStreamAsync())
+        using (var file = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 1024, useAsync: true))
+        {
+            int read;
+            while ((read = await net.ReadAsync(buffer)) > 0)
+            {
+                await file.WriteAsync(buffer.AsMemory(0, read));
+                downloaded += read;
+                if (total > 0)
+                    progress?.Report(($"Downloading... {downloaded / 1024} KB", (double)downloaded / total * 100));
+            }
+        }
+
+        if (File.Exists(UlCachePath)) File.Delete(UlCachePath);
+        File.Move(tempPath, UlCachePath);
+
+        // Save metadata for update detection
+        SaveUlMeta(UlCachePath);
+        progress?.Report(("Downloaded!", 100));
+    }
+
+    /// <summary>Computes and persists UL file size + SHA-256 hash.</summary>
+    private static void SaveUlMeta(string filePath)
+    {
+        try
+        {
+            var info = new FileInfo(filePath);
+            using var sha = System.Security.Cryptography.SHA256.Create();
+            using var stream = File.OpenRead(filePath);
+            var hash = Convert.ToHexString(sha.ComputeHash(stream));
+
+            var meta = new Dictionary<string, object>
+            {
+                ["FileSize"] = info.Length,
+                ["FileHash"] = hash,
+                ["UpdatedAt"] = DateTime.UtcNow.ToString("o"),
+            };
+
+            Directory.CreateDirectory(Path.GetDirectoryName(UlMetaPath)!);
+            File.WriteAllText(UlMetaPath, System.Text.Json.JsonSerializer.Serialize(meta,
+                new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"[MainViewModel.SaveUlMeta] Failed to save UL metadata — {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Checks if a newer Ultra Limiter is available by downloading the remote file
+    /// and comparing size + hash against the cached version.
+    /// Returns true if an update is available.
+    /// </summary>
+    public async Task<bool> CheckUlUpdateAsync()
+    {
+        if (!File.Exists(UlCachePath) || !File.Exists(UlMetaPath)) return false;
+
+        try
+        {
+            var metaJson = File.ReadAllText(UlMetaPath);
+            var meta = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, System.Text.Json.JsonElement>>(metaJson);
+            if (meta == null) return false;
+
+            var storedSize = meta.TryGetValue("FileSize", out var sizeEl) ? sizeEl.GetInt64() : -1L;
+            var storedHash = meta.TryGetValue("FileHash", out var hashEl) ? hashEl.GetString() : null;
+
+            // Download remote file to temp and compare
+            var tempPath = UlCachePath + $".update_check_{Guid.NewGuid():N}.tmp";
+            try
+            {
+                var resp = await _http.GetAsync(UltraLimiterDownloadUrl, HttpCompletionOption.ResponseHeadersRead);
+                if (!resp.IsSuccessStatusCode) return false;
+
+                using (var net = await resp.Content.ReadAsStreamAsync())
+                using (var file = File.Create(tempPath))
+                {
+                    var buf = new byte[1024 * 1024];
+                    int read;
+                    while ((read = await net.ReadAsync(buf)) > 0)
+                        await file.WriteAsync(buf.AsMemory(0, read));
+                }
+
+                var remoteSize = new FileInfo(tempPath).Length;
+                using var sha = System.Security.Cryptography.SHA256.Create();
+                using var stream = File.OpenRead(tempPath);
+                var remoteHash = Convert.ToHexString(sha.ComputeHash(stream));
+
+                if (remoteSize == storedSize && remoteHash.Equals(storedHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Delete(tempPath);
+                    return false; // no update
+                }
+
+                // Update available — move temp into cache
+                if (File.Exists(UlCachePath)) File.Delete(UlCachePath);
+                File.Move(tempPath, UlCachePath);
+                SaveUlMeta(UlCachePath);
+
+                _crashReporter.Log($"[MainViewModel.CheckUlUpdateAsync] UL update detected ({storedSize} → {remoteSize} bytes)");
+                return true;
+            }
+            finally
+            {
+                if (File.Exists(tempPath)) try { File.Delete(tempPath); } catch { }
+            }
+        }
+        catch (Exception ex)
+        {
+            _crashReporter.Log($"[MainViewModel.CheckUlUpdateAsync] UL update check failed — {ex.Message}");
+            return false;
         }
     }
 
@@ -2836,6 +2993,24 @@ public partial class MainViewModel : ObservableObject
                 OnPropertyChanged(nameof(UpdateAllBtnForeground));
                 OnPropertyChanged(nameof(UpdateAllBtnBorder));
             });
+
+        // Check Ultra Limiter for updates (single global check, applies to all cards with UL installed)
+        try
+        {
+            var ulUpdateAvailable = await CheckUlUpdateAsync().ConfigureAwait(false);
+            if (ulUpdateAvailable)
+            {
+                DispatcherQueue?.TryEnqueue(() =>
+                {
+                    foreach (var card in cards.Where(c => c.UlStatus == GameStatus.Installed))
+                        card.UlStatus = GameStatus.UpdateAvailable;
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _crashReporter.Log($"[MainViewModel.CheckForUpdatesAsync] UL update check failed — {ex.Message}");
+        }
     }
 
     // Dispatcher reference for cross-thread UI updates

@@ -339,6 +339,87 @@ public class DialogService
         await dlg.ShowAsync();
     }
 
+    // ── One-time DC Removal Warning ─────────────────────────────────────────────
+
+    private static readonly string DcWarningMarkerPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "UPST", "DcRemovalWarningShown.txt");
+
+    /// <summary>
+    /// Shows a one-time warning that Display Commander is no longer supported
+    /// and users should manually remove any old installations from game folders.
+    /// </summary>
+    public async Task ShowDcRemovalWarningAsync()
+    {
+        try
+        {
+            // Wait until XamlRoot is ready
+            while (_window.Content.XamlRoot == null)
+                await Task.Delay(200);
+
+            // Wait for UI to settle and any prior dialogs (update, patch notes) to finish
+            await Task.Delay(5000);
+
+            // Only show once ever
+            if (File.Exists(DcWarningMarkerPath)) return;
+
+            // Use TaskCompletionSource to await the UI-thread dialog from this background context
+            var tcs = new TaskCompletionSource();
+            _dispatcherQueue.TryEnqueue(async () =>
+            {
+                try
+                {
+                    var message = new TextBlock
+                    {
+                        Text = "Display Commander is no longer supported by UPST.\n\n" +
+                               "If you have any old Display Commander files installed in your game folders " +
+                               "(e.g. zzz_display_commander.addon64), please remove them manually.\n\n" +
+                               "You can use the Browse button on each game's screen to open the game folder " +
+                               "and delete any Display Commander files.",
+                        TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap,
+                        Foreground = Brush(ResourceKeys.TextSecondaryBrush),
+                        FontSize = 13,
+                    };
+
+                    var dlg = new ContentDialog
+                    {
+                        Title           = "⚠ Display Commander — No Longer Supported",
+                        Content         = message,
+                        CloseButtonText = "OK",
+                        XamlRoot        = _window.Content.XamlRoot,
+                        Background      = Brush(ResourceKeys.SurfaceToolbarBrush),
+                    };
+
+                    await dlg.ShowAsync();
+
+                    // Write marker AFTER dialog was successfully shown
+                    try
+                    {
+                        Directory.CreateDirectory(Path.GetDirectoryName(DcWarningMarkerPath)!);
+                        File.WriteAllText(DcWarningMarkerPath, "DC removal warning shown");
+                    }
+                    catch (Exception ex)
+                    {
+                        CrashReporter.Log($"[DialogService.ShowDcRemovalWarningAsync] Failed to write marker — {ex.Message}");
+                    }
+
+                    tcs.TrySetResult();
+                }
+                catch (Exception ex)
+                {
+                    CrashReporter.Log($"[DialogService.ShowDcRemovalWarningAsync] Dialog failed — {ex.Message}");
+                    tcs.TrySetException(ex);
+                }
+            });
+
+            await tcs.Task;
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"[DialogService.ShowDcRemovalWarningAsync] DC removal warning error — {ex.Message}");
+        }
+    }
+
     // ── Game Notes Dialog ────────────────────────────────────────────────────────
 
     public async void NotesButton_Click(object sender, RoutedEventArgs e)

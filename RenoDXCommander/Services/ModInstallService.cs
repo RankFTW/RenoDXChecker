@@ -317,9 +317,14 @@ public class ModInstallService : IModInstallService
 
     /// <summary>
     /// For CDNs where HEAD Content-Length is unreliable, downloads the remote file
-    /// to a temp path and compares its size against the locally installed file.
+    /// to a temp path and compares it against the installed version.
     /// If a genuine update is detected, the downloaded file is moved into the
     /// download cache so the next install can reuse it without re-downloading.
+    ///
+    /// Hash comparison uses the stored <see cref="InstalledModRecord.FileHash"/> from
+    /// install time rather than re-hashing the local file. This avoids false positives
+    /// when the local file was touched by another process (e.g. game, ReShade) or when
+    /// the addon deploy path changed after installation.
     /// </summary>
     private async Task<bool> CheckForUpdateByDownloadAsync(
         InstalledModRecord record,
@@ -356,21 +361,44 @@ public class ModInstallService : IModInstallService
                     await file.WriteAsync(buf.AsMemory(0, read));
             }
 
-            var localSize  = new FileInfo(localFile).Length;
             var remoteSize = new FileInfo(tempFile).Length;
+            var remoteHash = await ComputeHashAsync(tempFile);
 
-            if (remoteSize == localSize)
+            // Compare against the stored install-time hash first — this is the most
+            // reliable reference because it was computed from the exact bytes we
+            // downloaded and deployed. Re-hashing the local file is unreliable:
+            // the file may have been touched by the game/ReShade, or the addon
+            // deploy path may have changed since installation.
+            var referenceHash = record.FileHash;
+            if (string.IsNullOrEmpty(referenceHash))
             {
-                // Sizes match — compare hashes to catch same-size updates
-                var localHash  = await ComputeHashAsync(localFile);
-                var remoteHash = await ComputeHashAsync(tempFile);
-                if (localHash == remoteHash)
+                // Legacy record without stored hash — fall back to local file hash
+                referenceHash = File.Exists(localFile) ? await ComputeHashAsync(localFile) : null;
+            }
+
+            if (referenceHash != null
+                && remoteHash.Equals(referenceHash, StringComparison.OrdinalIgnoreCase))
+            {
+                // Remote content matches what we installed — no update
+                File.Delete(tempFile);
+                return false;
+            }
+
+            // Also check local file directly as a secondary guard — if the remote
+            // matches the file on disk, there's definitely no update regardless of
+            // what the record says (handles edge cases like manual reinstalls).
+            if (File.Exists(localFile))
+            {
+                var localHash = await ComputeHashAsync(localFile);
+                if (remoteHash.Equals(localHash, StringComparison.OrdinalIgnoreCase))
                 {
-                    // Identical content — no update
+                    // Remote matches local file — no update; update stored hash
+                    record.FileHash = remoteHash;
+                    record.RemoteFileSize = remoteSize;
+                    SaveRecordPublic(record);
                     File.Delete(tempFile);
                     return false;
                 }
-                // Same size but different content — fall through to update path
             }
 
             // Real update detected — move temp into cache so install can reuse it
@@ -381,6 +409,7 @@ public class ModInstallService : IModInstallService
             record.RemoteFileSize = remoteSize;
             SaveRecordPublic(record);
 
+            var localSize = File.Exists(localFile) ? new FileInfo(localFile).Length : -1;
             CrashReporter.Log($"[ModInstallService.CheckForUpdateByDownloadAsync] Update detected via download ({localSize} → {remoteSize} bytes)");
             return true;
         }

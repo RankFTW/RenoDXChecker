@@ -104,6 +104,8 @@ public sealed partial class MainWindow : Window
         CheckForAppUpdateAsync().SafeFireAndForget("MainWindow.UpdateCheck");
         // Show patch notes on first launch after update
         ShowPatchNotesIfNewVersionAsync().SafeFireAndForget("MainWindow.PatchNotes");
+        // One-time DC removal warning (independent of patch notes)
+        ShowDcRemovalWarningAsync().SafeFireAndForget("MainWindow.DcRemovalWarning");
         // Register .addon64/.addon32 file associations (per-user, no admin)
         FileAssociationService.Register(crashReporter);
         // Watch Downloads folder for addon files
@@ -692,6 +694,9 @@ public sealed partial class MainWindow : Window
 
     private async Task ShowPatchNotesIfNewVersionAsync()
         => await _dialogService.ShowPatchNotesIfNewVersionAsync();
+
+    private async Task ShowDcRemovalWarningAsync()
+        => await _dialogService.ShowDcRemovalWarningAsync();
 
     private async Task ShowPatchNotesDialogAsync()
         => await _dialogService.ShowPatchNotesDialogAsync();

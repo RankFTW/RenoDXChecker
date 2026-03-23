@@ -9,9 +9,11 @@ public partial class GameCardViewModel
     // ── UL computed properties ─────────────────────────────────────────────────────
 
     /// <summary>Per-component status dot for Ultra Limiter.</summary>
-    public string UlStatusDot => UlStatus == GameStatus.Installed ? "🟢" : "⚪";
+    public string UlStatusDot => UlStatus == GameStatus.UpdateAvailable ? "🟠"
+        : UlStatus == GameStatus.Installed ? "🟢" : "⚪";
 
     public string UlActionLabel => UlIsInstalling ? "Installing..."
+        : UlStatus == GameStatus.UpdateAvailable ? "⬆  Update Ultra Limiter"
         : UlStatus == GameStatus.Installed ? "↺  Reinstall Ultra Limiter"
         : "⬇  Install Ultra Limiter";
 
@@ -21,23 +23,27 @@ public partial class GameCardViewModel
 
     public Visibility UlProgressVisibility => UlIsInstalling ? Visibility.Visible : Visibility.Collapsed;
     public Visibility UlMessageVisibility  => string.IsNullOrEmpty(UlActionMessage) ? Visibility.Collapsed : Visibility.Visible;
-    public Visibility UlDeleteVisibility   => UlStatus == GameStatus.Installed ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility UlDeleteVisibility   => UlStatus == GameStatus.Installed || UlStatus == GameStatus.UpdateAvailable ? Visibility.Visible : Visibility.Collapsed;
 
     public string UlStatusText => UlIsInstalling ? "Installing…"
+        : UlStatus == GameStatus.UpdateAvailable ? "Update Available"
         : UlStatus == GameStatus.Installed ? "Installed"
         : "Ready";
     public string UlStatusColor => UlIsInstalling ? "#D4A856"
+        : UlStatus == GameStatus.UpdateAvailable ? "#E8A33D"
         : UlStatus == GameStatus.Installed ? "#5ECB7D"
         : "#A0AABB";
     public string UlShortAction => UlIsInstalling ? "…"
+        : UlStatus == GameStatus.UpdateAvailable ? "⬆ Update"
         : UlStatus == GameStatus.Installed ? "↺ Reinstall"
         : "⬇ Install";
 
     public bool IsUlNotInstalling => !UlIsInstalling;
-    public bool IsUlInstalled => UlStatus == GameStatus.Installed;
+    public bool IsUlInstalled => UlStatus == GameStatus.Installed || UlStatus == GameStatus.UpdateAvailable;
 
     // ── Card grid properties ──────────────────────────────────────────────────────
     public string CardUlStatusDot => UlIsInstalling ? "#2196F3"
+        : UlStatus == GameStatus.UpdateAvailable ? "#FF9800"
         : UlStatus == GameStatus.Installed ? "#4CAF50" : "#5A6880";
     public bool CardUlInstallEnabled => !UlIsInstalling;
 
