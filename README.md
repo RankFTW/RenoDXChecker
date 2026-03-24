@@ -8,6 +8,12 @@ A desktop manager for HDR game mods on Windows. Auto-detects your game libraries
 
 ---
 
+## Acknowledgements
+
+ReShade HDR Installer would not be possible without the hard work of the entire RenoDX team and [Crosire](https://reshade.me), the creator of ReShade. Their dedication to open-source HDR modding is what makes tools like this one viable. Thank you to every mod author, contributor, and tester who keeps pushing PC HDR forward.
+
+---
+
 ## Download
 
 Grab the latest installer from the [Releases page](https://github.com/RankFTW/RenoDXChecker/releases/tag/RDXC).
