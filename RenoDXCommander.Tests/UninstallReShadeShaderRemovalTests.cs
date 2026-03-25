@@ -226,7 +226,7 @@ public class UninstallReShadeShaderRemovalTests : IDisposable
         public bool IsReShadeFile(string filePath) => false;
         public void EnsureInisDir() { }
         public void MergeRsIni(string gameDir) { }
-        public void MergeRsVulkanIni(string gameDir) { }
+        public void MergeRsVulkanIni(string gameDir, string? gameName = null) { }
         public void CopyRsIni(string gameDir) { }
         public void CopyRsPresetIniIfPresent(string gameDir) { }
         public string? ReadInstalledVersion(string installPath, string fileName) => null;

@@ -493,17 +493,110 @@ public class DetailPanelBuilder
             }
         };
 
-        var nameGrid = new Grid { ColumnSpacing = 8 };
-        nameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        nameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        nameGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(detectedBox, 0);
-        Grid.SetColumn(wikiBox, 1);
-        Grid.SetColumn(resetBtn, 2);
-        nameGrid.Children.Add(detectedBox);
-        nameGrid.Children.Add(wikiBox);
-        nameGrid.Children.Add(resetBtn);
-        _window.OverridesPanel.Children.Add(nameGrid);
+        // ── Top Row Grid (3 columns: Star | Auto | Star) ─────────────────────
+        var topRowGrid = new Grid { ColumnSpacing = 0 };
+        topRowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        topRowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        topRowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        // Left column: Game Name above (Wiki Name + Reset Button)
+        var topLeftColumn = new StackPanel { Spacing = 8 };
+        topLeftColumn.Children.Add(detectedBox);
+
+        var wikiResetRow = new Grid { ColumnSpacing = 8 };
+        wikiResetRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        wikiResetRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(wikiBox, 0);
+        Grid.SetColumn(resetBtn, 1);
+        wikiResetRow.Children.Add(wikiBox);
+        wikiResetRow.Children.Add(resetBtn);
+        topLeftColumn.Children.Add(wikiResetRow);
+
+        Grid.SetColumn(topLeftColumn, 0);
+        topRowGrid.Children.Add(topLeftColumn);
+
+        // Column 1: Vertical divider
+        var topRowDivider = new Border
+        {
+            Width = 1,
+            Background = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Margin = new Thickness(12, 0, 12, 0),
+        };
+        Grid.SetColumn(topRowDivider, 1);
+        topRowGrid.Children.Add(topRowDivider);
+
+        // Column 2: Wiki Exclusion toggle (+ Rendering Path ComboBox added by task 1.3)
+        var wikiExcludeToggle = new ToggleSwitch
+        {
+            Header = "Wiki exclusion",
+            IsOn = _window.ViewModel.IsWikiExcluded(gameName),
+            OnContent = "Excluded from wiki lookups",
+            OffContent = "Included in wiki lookups",
+            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
+            FontSize = 12,
+        };
+        ToolTipService.SetToolTip(wikiExcludeToggle,
+            "When enabled, this game will not be looked up on the RenoDX wiki. " +
+            "Useful for games that share a name with an unrelated wiki entry.");
+
+        // Auto-save: Wiki exclusion toggle
+        wikiExcludeToggle.Toggled += (s, ev) =>
+        {
+            if (wikiExcludeToggle.IsOn != _window.ViewModel.IsWikiExcluded(capturedName))
+                _window.ViewModel.ToggleWikiExclusion(capturedName);
+        };
+
+        // ── Rendering Path (dual-API games only) ─────────────────────────────────
+        ComboBox? renderPathCombo = null;
+        if (card.IsDualApiGame)
+        {
+            var renderPathItems = new[] { "DirectX", "Vulkan" };
+            renderPathCombo = new ComboBox
+            {
+                Header = "Rendering Path",
+                ItemsSource = renderPathItems,
+                SelectedItem = card.VulkanRenderingPath,
+                FontSize = 12,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+            };
+            ToolTipService.SetToolTip(renderPathCombo,
+                "Choose which rendering path ReShade targets. " +
+                "DirectX uses per-game DLL injection. Vulkan uses a global implicit layer.");
+
+            renderPathCombo.SelectionChanged += (s, e) =>
+            {
+                var selected = renderPathCombo.SelectedItem as string;
+
+                // Auto-save: persist rendering path immediately
+                var newRenderPath = selected ?? "DirectX";
+                var oldRenderPath = _window.ViewModel.GetVulkanRenderingPath(capturedName);
+                if (newRenderPath != oldRenderPath)
+                {
+                    // Switching from DirectX → Vulkan: clean up DX install artifacts
+                    if (newRenderPath == "Vulkan" && !string.IsNullOrEmpty(card.InstallPath))
+                    {
+                        if (card.RsRecord != null)
+                            _window.ViewModel.UninstallReShadeCommand.Execute(card);
+                        var iniPath = Path.Combine(card.InstallPath, "reshade.ini");
+                        if (File.Exists(iniPath))
+                            try { File.Delete(iniPath); } catch (Exception ex) { CrashReporter.Log($"[DetailPanelBuilder] Failed to delete reshade.ini at '{iniPath}' — {ex.Message}"); }
+                        _window.ViewModel.ShaderPackServiceInstance.RemoveFromGameFolder(card.InstallPath);
+                        _window.ViewModel.ShaderPackServiceInstance.RestoreOriginalIfPresent(card.InstallPath);
+                    }
+                    _window.ViewModel.SetVulkanRenderingPath(capturedName, newRenderPath);
+                }
+            };
+        }
+
+        var topRightColumn = new StackPanel { Spacing = 8 };
+        topRightColumn.Children.Add(wikiExcludeToggle);
+        if (renderPathCombo != null)
+            topRightColumn.Children.Add(renderPathCombo);
+        Grid.SetColumn(topRightColumn, 2);
+        topRowGrid.Children.Add(topRightColumn);
+
+        _window.OverridesPanel.Children.Add(topRowGrid);
         _window.OverridesPanel.Children.Add(UIFactory.MakeSeparator());
 
         // ── Auto-save: Game name on Enter ────────────────────────────────────────
@@ -541,10 +634,10 @@ public class DetailPanelBuilder
         bool isGlobalShaders = currentShaderMode != "Select";
         var shaderToggle = new ToggleSwitch
         {
-            Header = "Global Shaders",
+            Header = "Global",
             IsOn = isGlobalShaders,
-            OnContent = "Using global shader selection",
-            OffContent = "Using per-game shader selection",
+            OnContent = "On",
+            OffContent = "Off",
             Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
             FontSize = 12,
         };
@@ -583,6 +676,38 @@ public class DetailPanelBuilder
                     _window.ViewModel.GameNameServiceInstance.PerGameShaderSelection.Remove(capturedName);
                 _window.ViewModel.DeployShadersForCard(capturedName);
             }
+        };
+
+        // ── Per-game Custom Shaders toggle ─────────────────────────────────
+        bool isPerGameCustom = currentShaderMode == "Custom";
+        // Default to ON when global UseCustomShaders is enabled and no per-game override exists
+        bool customDefault = isPerGameCustom ||
+            (_window.ViewModel.Settings.UseCustomShaders && currentShaderMode == "Global"
+             && !_window.ViewModel.GameNameServiceInstance.PerGameShaderMode.ContainsKey(gameName));
+        var customShadersToggle = new ToggleSwitch
+        {
+            Header = "Custom",
+            IsOn = customDefault,
+            OnContent = "On",
+            OffContent = "Off",
+            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
+            FontSize = 12,
+        };
+        ToolTipService.SetToolTip(customShadersToggle,
+            "On = use shaders from the custom shader directories. Off = use shader packs (global or per-game).");
+
+        customShadersToggle.Toggled += (s, ev) =>
+        {
+            bool customOn = customShadersToggle.IsOn;
+            if (customOn)
+            {
+                _window.ViewModel.SetPerGameShaderMode(capturedName, "Custom");
+            }
+            else
+            {
+                _window.ViewModel.SetPerGameShaderMode(capturedName, "Global");
+            }
+            _window.ViewModel.DeployShadersForCard(capturedName);
         };
 
         selectShadersBtn.Click += async (s, ev) =>
@@ -666,84 +791,29 @@ public class DetailPanelBuilder
             }
         };
 
-        // ── Inline row: [Global Shaders + Select btn | divider | DLL override + RS name] ──
-        var modeGrid = new Grid { ColumnSpacing = 0 };
-        modeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        modeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        modeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        // ── Shaders section (left column of Middle Row) ──────────────────────
+        var shadersLabel = new TextBlock
+        {
+            Text = "Shaders",
+            FontSize = 12,
+            Foreground = UIFactory.Brush(ResourceKeys.TextPrimaryBrush),
+            Margin = new Thickness(0, 0, 0, 8),
+        };
+        var shaderTogglesRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 12,
+        };
+        shaderTogglesRow.Children.Add(shaderToggle);
+        shaderTogglesRow.Children.Add(customShadersToggle);
 
-        // Left: shader toggle + select button
         var shaderColumn = new StackPanel { Spacing = 8 };
-        shaderColumn.Children.Add(shaderToggle);
+        shaderColumn.Children.Add(shadersLabel);
+        shaderColumn.Children.Add(shaderTogglesRow);
         shaderColumn.Children.Add(selectShadersBtn);
         Grid.SetColumn(shaderColumn, 0);
 
-        // Center: vertical divider
-        var modeDivider = new Border
-        {
-            Width = 1,
-            Background = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
-            VerticalAlignment = VerticalAlignment.Stretch,
-            Margin = new Thickness(12, 0, 12, 0),
-        };
-        Grid.SetColumn(modeDivider, 1);
-
-        // Right: DLL override toggle + RS name combo
-        var dllColumn = new StackPanel { Spacing = 4 };
-        dllColumn.Children.Add(dllOverrideToggle);
-        dllColumn.Children.Add(rsNameBox);
-        Grid.SetColumn(dllColumn, 2);
-
-        modeGrid.Children.Add(shaderColumn);
-        modeGrid.Children.Add(modeDivider);
-        modeGrid.Children.Add(dllColumn);
-        _window.OverridesPanel.Children.Add(modeGrid);
-        _window.OverridesPanel.Children.Add(UIFactory.MakeSeparator());
-
-        // ── Rendering Path (dual-API games only) ─────────────────────────────────
-        ComboBox? renderPathCombo = null;
-        if (card.IsDualApiGame)
-        {
-            var renderPathItems = new[] { "DirectX", "Vulkan" };
-            renderPathCombo = new ComboBox
-            {
-                Header = "Rendering Path",
-                ItemsSource = renderPathItems,
-                SelectedItem = card.VulkanRenderingPath,
-                FontSize = 12,
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-            };
-            ToolTipService.SetToolTip(renderPathCombo,
-                "Choose which rendering path ReShade targets. " +
-                "DirectX uses per-game DLL injection. Vulkan uses a global implicit layer.");
-
-            renderPathCombo.SelectionChanged += (s, e) =>
-            {
-                var selected = renderPathCombo.SelectedItem as string;
-
-                // Auto-save: persist rendering path immediately
-                var newRenderPath = selected ?? "DirectX";
-                var oldRenderPath = _window.ViewModel.GetVulkanRenderingPath(capturedName);
-                if (newRenderPath != oldRenderPath)
-                {
-                    // Switching from DirectX → Vulkan: clean up DX install artifacts
-                    if (newRenderPath == "Vulkan" && !string.IsNullOrEmpty(card.InstallPath))
-                    {
-                        if (card.RsRecord != null)
-                            _window.ViewModel.UninstallReShadeCommand.Execute(card);
-                        var iniPath = Path.Combine(card.InstallPath, "reshade.ini");
-                        if (File.Exists(iniPath))
-                            try { File.Delete(iniPath); } catch (Exception ex) { CrashReporter.Log($"[DetailPanelBuilder] Failed to delete reshade.ini at '{iniPath}' — {ex.Message}"); }
-                        _window.ViewModel.ShaderPackServiceInstance.RemoveFromGameFolder(card.InstallPath);
-                        _window.ViewModel.ShaderPackServiceInstance.RestoreOriginalIfPresent(card.InstallPath);
-                    }
-                    _window.ViewModel.SetVulkanRenderingPath(capturedName, newRenderPath);
-                }
-            };
-
-            _window.OverridesPanel.Children.Add(renderPathCombo);
-            _window.OverridesPanel.Children.Add(UIFactory.MakeSeparator());
-        }
+        // (Rendering Path ComboBox is now in the Top Row right column — see above)
 
         // ── Auto-save: RS name box on Enter ──────────────────────────────────────
         rsNameBox.KeyDown += (s, e) =>
@@ -769,7 +839,7 @@ public class DetailPanelBuilder
             _window.ViewModel.UpdateDllOverrideNames(targetCard, rsName, "");
         };
 
-        // ── Global update inclusion + Wiki exclusion (inline row) ─────────────────
+        // ── Global update inclusion toggles (Middle Row right column) ──────────────
         var rsToggle = new ToggleSwitch
         {
             Header = "ReShade",
@@ -852,64 +922,48 @@ public class DetailPanelBuilder
                 _window.ViewModel.ToggleUpdateAllExclusionUl(capturedName);
         };
 
-        var wikiExcludeToggle = new ToggleSwitch
-        {
-            Header = "Wiki exclusion",
-            IsOn = _window.ViewModel.IsWikiExcluded(gameName),
-            OnContent = "Excluded from wiki lookups",
-            OffContent = "Included in wiki lookups",
-            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
-            FontSize = 12,
-        };
-        ToolTipService.SetToolTip(wikiExcludeToggle,
-            "When enabled, this game will not be looked up on the RenoDX wiki. " +
-            "Useful for games that share a name with an unrelated wiki entry.");
-
-        // ── Auto-save: Wiki exclusion toggle ─────────────────────────────────────
-        wikiExcludeToggle.Toggled += (s, ev) =>
-        {
-            if (wikiExcludeToggle.IsOn != _window.ViewModel.IsWikiExcluded(capturedName))
-                _window.ViewModel.ToggleWikiExclusion(capturedName);
-        };
-
-        // Build inline row Grid: [Global update inclusion | divider | Wiki exclusion]
-        var inlineRowGrid = new Grid();
-        inlineRowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        inlineRowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        inlineRowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        // Column 0: Global update inclusion
-        var leftSection = new StackPanel { Spacing = 0 };
-        leftSection.Children.Add(new TextBlock
+        // ── Global update inclusion section (Middle Row right column) ────────────
+        var globalUpdateColumn = new StackPanel { Spacing = 0 };
+        globalUpdateColumn.Children.Add(new TextBlock
         {
             Text = "Global update inclusion",
             FontSize = 12,
             Foreground = UIFactory.Brush(ResourceKeys.TextPrimaryBrush),
             Margin = new Thickness(0, 0, 0, 8),
         });
-        leftSection.Children.Add(toggleRow);
-        Grid.SetColumn(leftSection, 0);
+        globalUpdateColumn.Children.Add(toggleRow);
 
-        // Column 1: Vertical divider
-        var divider = new Border
+        // ── Middle Row vertical divider ──────────────────────────────────────────
+        var middleRowDivider = new Border
         {
             Width = 1,
             Background = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
             VerticalAlignment = VerticalAlignment.Stretch,
             Margin = new Thickness(12, 0, 12, 0),
         };
-        Grid.SetColumn(divider, 1);
 
-        // Column 2: Wiki exclusion
-        var rightSection = new StackPanel { Spacing = 0 };
-        rightSection.Children.Add(wikiExcludeToggle);
-        Grid.SetColumn(rightSection, 2);
+        // ── Middle Row Grid (3 columns: Star | Auto | Star) ─────────────────
+        var middleRowGrid = new Grid { ColumnSpacing = 0 };
+        middleRowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        middleRowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        middleRowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        inlineRowGrid.Children.Add(leftSection);
-        inlineRowGrid.Children.Add(divider);
-        inlineRowGrid.Children.Add(rightSection);
+        Grid.SetColumn(shaderColumn, 0);
+        Grid.SetColumn(middleRowDivider, 1);
+        Grid.SetColumn(globalUpdateColumn, 2);
 
-        _window.OverridesPanel.Children.Add(inlineRowGrid);
+        middleRowGrid.Children.Add(shaderColumn);
+        middleRowGrid.Children.Add(middleRowDivider);
+        middleRowGrid.Children.Add(globalUpdateColumn);
+
+        _window.OverridesPanel.Children.Add(middleRowGrid);
+        _window.OverridesPanel.Children.Add(UIFactory.MakeSeparator());
+
+        // ── Bottom Row: DLL naming override ──────────────────────────────────
+        var dllSection = new StackPanel { Spacing = 8 };
+        dllSection.Children.Add(dllOverrideToggle);
+        dllSection.Children.Add(rsNameBox);
+        _window.OverridesPanel.Children.Add(dllSection);
         _window.OverridesPanel.Children.Add(UIFactory.MakeSeparator());
 
         // ── Button row (Reset only — auto-save replaces Save button) ──────────
@@ -930,10 +984,12 @@ public class DetailPanelBuilder
             detectedBox.Text = originalStoreName ?? gameName;
             wikiBox.Text = "";
             shaderToggle.IsOn = true;
+            customShadersToggle.IsOn = false;
             if (renderPathCombo != null) renderPathCombo.SelectedItem = "DirectX";
             dllOverrideToggle.IsOn = false;
             rsToggle.IsOn = true;
             rdxToggle.IsOn = true;
+            ulToggle.IsOn = true;
             wikiExcludeToggle.IsOn = false;
 
             // Persist all reset values immediately

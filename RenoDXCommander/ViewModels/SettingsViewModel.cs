@@ -22,6 +22,7 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string _lastSeenVersion = "";
     [ObservableProperty] private List<string> _selectedShaderPacks = new();
     [ObservableProperty] private string _addonWatchFolder = "";
+    [ObservableProperty] private bool _useCustomShaders;
 
     /// <summary>
     /// Optional callback invoked after any settings-specific property changes,
@@ -113,6 +114,9 @@ public partial class SettingsViewModel : ObservableObject
                 SelectedShaderPacks.Add("Lilium");
         }
 
+        if (s.TryGetValue("UseCustomShaders", out var ucsVal))
+            UseCustomShaders = ucsVal == "true";
+
         if (s.TryGetValue("AddonWatchFolder", out var awfVal))
             AddonWatchFolder = awfVal ?? "";
     }
@@ -129,6 +133,7 @@ public partial class SettingsViewModel : ObservableObject
         s["LastSeenVersion"]   = LastSeenVersion;
         s["ShaderDeployMode"]  = SelectedShaderPacks.Count > 0 ? "Select" : "Off";
         s["SelectedShaderPacks"] = JsonSerializer.Serialize(SelectedShaderPacks);
+        s["UseCustomShaders"]  = UseCustomShaders ? "true" : "false";
         if (!string.IsNullOrWhiteSpace(AddonWatchFolder))
             s["AddonWatchFolder"] = AddonWatchFolder;
     }

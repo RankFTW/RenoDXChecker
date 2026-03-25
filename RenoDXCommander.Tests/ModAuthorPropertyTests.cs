@@ -65,8 +65,8 @@ public class ModAuthorPropertyTests
             {
                 var card = new GameCardViewModel { Maintainer = maintainer };
 
-                int expectedCount = maintainer
-                    .Split('&')
+                int expectedCount = System.Text.RegularExpressions.Regex
+                    .Split(maintainer, @"\s+and\s+|&", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
                     .Select(s => s.Trim())
                     .Count(s => s.Length > 0);
 
@@ -148,6 +148,22 @@ public class ModAuthorPropertyTests
     {
         var card = new GameCardViewModel { Maintainer = " Alice & Bob & " };
         Assert.Equal(new[] { "Alice", "Bob" }, card.AuthorList);
+        Assert.True(card.HasAuthors);
+    }
+
+    [Fact]
+    public void AuthorList_AndSeparator_SplitsCorrectly()
+    {
+        var card = new GameCardViewModel { Maintainer = "Jon and Forge" };
+        Assert.Equal(new[] { "Jon", "Forge" }, card.AuthorList);
+        Assert.True(card.HasAuthors);
+    }
+
+    [Fact]
+    public void AuthorList_MixedSeparators_SplitsCorrectly()
+    {
+        var card = new GameCardViewModel { Maintainer = "Alice & Bob and Charlie" };
+        Assert.Equal(new[] { "Alice", "Bob", "Charlie" }, card.AuthorList);
         Assert.True(card.HasAuthors);
     }
 }

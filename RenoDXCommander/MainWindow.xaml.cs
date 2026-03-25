@@ -106,6 +106,8 @@ public sealed partial class MainWindow : Window
         ShowPatchNotesIfNewVersionAsync().SafeFireAndForget("MainWindow.PatchNotes");
         // One-time DC removal warning (independent of patch notes)
         ShowDcRemovalWarningAsync().SafeFireAndForget("MainWindow.DcRemovalWarning");
+        // One-time legacy Program Files cleanup
+        ShowLegacyProgramFilesCleanupAsync().SafeFireAndForget("MainWindow.LegacyCleanup");
         // Register .addon64/.addon32 file associations (per-user, no admin)
         FileAssociationService.Register(crashReporter);
         // Watch Downloads folder for addon files
@@ -313,7 +315,7 @@ public sealed partial class MainWindow : Window
         {
             if (card.RequiresVulkanInstall)
             {
-                AuxInstallService.MergeRsVulkanIni(card.InstallPath);
+                AuxInstallService.MergeRsVulkanIni(card.InstallPath, card.GameName);
                 VulkanFootprintService.Create(card.InstallPath);
                 // Deploy shaders for Vulkan games (no DLL install, so shaders go with INI)
                 ViewModel.DeployShadersForCard(card.GameName);
@@ -507,7 +509,7 @@ public sealed partial class MainWindow : Window
         {
             if (card.RequiresVulkanInstall)
             {
-                AuxInstallService.MergeRsVulkanIni(card.InstallPath);
+                AuxInstallService.MergeRsVulkanIni(card.InstallPath, card.GameName);
                 VulkanFootprintService.Create(card.InstallPath);
                 // Deploy shaders for Vulkan games (no DLL install, so shaders go with INI)
                 ViewModel.DeployShadersForCard(card.GameName);
@@ -713,6 +715,9 @@ public sealed partial class MainWindow : Window
     private async Task ShowDcRemovalWarningAsync()
         => await _dialogService.ShowDcRemovalWarningAsync();
 
+    private async Task ShowLegacyProgramFilesCleanupAsync()
+        => await _dialogService.ShowLegacyProgramFilesCleanupAsync();
+
     private async Task ShowPatchNotesDialogAsync()
         => await _dialogService.ShowPatchNotesDialogAsync();
 
@@ -733,6 +738,9 @@ public sealed partial class MainWindow : Window
 
     private void OpenDownloadsFolder_Click(object sender, RoutedEventArgs e)
         => _settingsHandler.OpenDownloadsFolder_Click(sender, e);
+
+    private void CustomShadersToggle_Toggled(object sender, RoutedEventArgs e)
+        => _settingsHandler.CustomShadersToggle_Toggled(sender, e);
 
     private void SettingsBack_Click(object sender, RoutedEventArgs e)
         => _settingsHandler.SettingsBack_Click(sender, e);

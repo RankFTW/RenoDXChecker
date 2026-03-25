@@ -30,6 +30,7 @@ public class SettingsHandler
         _window.SkipUpdateToggle.IsOn = ViewModel.SkipUpdateCheck;
         _window.BetaOptInToggle.IsOn = ViewModel.BetaOptIn;
         _window.VerboseLoggingToggle.IsOn = ViewModel.VerboseLogging;
+        _window.CustomShadersToggle.IsOn = ViewModel.Settings.UseCustomShaders;
         _window.AboutVersionText.Text = $"v{CrashReporter.AppVersion}  ·  HDR mod manager by RankFTW";
         // Populate addon watch folder textbox
         _window.AddonWatchFolderBox.Text = ViewModel.Settings.AddonWatchFolder;
@@ -69,6 +70,15 @@ public class SettingsHandler
         if (sender is ToggleSwitch toggle)
         {
             ViewModel.VerboseLogging = toggle.IsOn;
+            ViewModel.SaveSettingsPublic();
+        }
+    }
+
+    public void CustomShadersToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleSwitch toggle)
+        {
+            ViewModel.Settings.UseCustomShaders = toggle.IsOn;
             ViewModel.SaveSettingsPublic();
         }
     }

@@ -52,6 +52,7 @@
                             ToolTipService.ToolTip="Rescan game library and fetch latest mod info"/>
                     <Button x:Name="ChooseShadersBtn" Content="Global Shaders"
                             Click="ChooseShadersButton_Click"
+                            IsEnabled="{x:Bind ViewModel.IsGlobalShaderButtonEnabled, Mode=OneWay}"
                             Background="{StaticResource SurfaceInputBrush}" Foreground="{StaticResource AccentTealBrush}"
                             BorderBrush="{StaticResource AccentTealBorderBrush}" BorderThickness="1"
                             CornerRadius="8" Padding="12,7" FontSize="12"
@@ -670,6 +671,23 @@
                                         CornerRadius="8" Padding="12,7" FontSize="12"
                                         HorizontalAlignment="Stretch"
                                         ToolTipService.ToolTip="Manually add a game folder"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- ── Custom Shaders ──────────────────────────────────────── -->
+                        <Border Background="{StaticResource SurfaceRaisedBrush}" CornerRadius="10" Padding="20,16"
+                                BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Custom Shaders" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource InlineDescriptionBrush}" LineHeight="18"
+                                           Text="Use your own shader and texture files from a custom directory instead of the built-in shader packs. Files are sourced from %LocalAppData%\RHI\reshade\Custom\."/>
+                                <ToggleSwitch x:Name="CustomShadersToggle" x:FieldModifier="internal"
+                                              Header="Use Custom Shaders"
+                                              Toggled="CustomShadersToggle_Toggled"
+                                              OnContent="Enabled — deploying from custom directories"
+                                              OffContent="Disabled — using shader packs"
+                                              Foreground="{StaticResource TextTertiaryBrush}" FontSize="12"/>
                             </StackPanel>
                         </Border>
 

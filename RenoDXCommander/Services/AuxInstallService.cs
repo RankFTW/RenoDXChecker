@@ -199,6 +199,7 @@ public class AuxInstallService : IAuxInstallService, IAuxFileService
     public static string RsIniPath => Path.Combine(InisDir, "reshade.ini");
     public static string RsVulkanIniPath => Path.Combine(InisDir, "reshade.vulkan.ini");
     public static string RsPresetIniPath => Path.Combine(InisDir, "ReShadePreset.ini");
+    public static string RsRdr2IniPath => Path.Combine(InisDir, "reshade.rdr2.ini");
     public static string UlIniPath => Path.Combine(InisDir, "relimiter.ini");
 
     /// <summary>
@@ -242,6 +243,24 @@ public class AuxInstallService : IAuxInstallService, IAuxFileService
                 catch (Exception ex)
                 {
                     CrashReporter.Log($"[AuxInstallService.EnsureInisDir] Failed to seed reshade.vulkan.ini — {ex.Message}");
+                }
+            }
+        }
+
+        // Seed bundled reshade.rdr2.ini if the user doesn't already have one
+        if (!File.Exists(RsRdr2IniPath))
+        {
+            var bundledRdr2 = Path.Combine(AppContext.BaseDirectory, "reshade.rdr2.ini");
+            if (File.Exists(bundledRdr2))
+            {
+                try
+                {
+                    File.Copy(bundledRdr2, RsRdr2IniPath, overwrite: false);
+                    CrashReporter.Log("[AuxInstallService.EnsureInisDir] Seeded default reshade.rdr2.ini from bundle");
+                }
+                catch (Exception ex)
+                {
+                    CrashReporter.Log($"[AuxInstallService.EnsureInisDir] Failed to seed reshade.rdr2.ini — {ex.Message}");
                 }
             }
         }
@@ -314,11 +333,16 @@ public class AuxInstallService : IAuxInstallService, IAuxFileService
     /// as reshade.ini. Uses the same merge logic as <see cref="MergeRsIni"/> — template
     /// keys overwrite, game-only keys are preserved. Falls back to the standard
     /// reshade.ini if the Vulkan template doesn't exist.
+    /// For Red Dead Redemption 2, uses the dedicated reshade.rdr2.ini template instead.
     /// </summary>
-    public static void MergeRsVulkanIni(string gameDir)
+    public static void MergeRsVulkanIni(string gameDir, string? gameName = null)
     {
-        // Fall back to standard reshade.ini if no Vulkan template exists
-        var templatePath = File.Exists(RsVulkanIniPath) ? RsVulkanIniPath : RsIniPath;
+        // Red Dead Redemption 2 uses a dedicated ini template
+        string templatePath;
+        if (gameName != null && IsRdr2(gameName) && File.Exists(RsRdr2IniPath))
+            templatePath = RsRdr2IniPath;
+        else
+            templatePath = File.Exists(RsVulkanIniPath) ? RsVulkanIniPath : RsIniPath;
 
         if (!File.Exists(templatePath))
             throw new FileNotFoundException("Neither reshade.vulkan.ini nor reshade.ini found in inis folder.", templatePath);
@@ -349,6 +373,11 @@ public class AuxInstallService : IAuxInstallService, IAuxFileService
 
         WriteIni(gamePath, gameIni);
     }
+
+    /// <summary>Returns true if the game name matches Red Dead Redemption 2 (case-insensitive).</summary>
+    private static bool IsRdr2(string gameName) =>
+        gameName.Contains("Red Dead Redemption 2", StringComparison.OrdinalIgnoreCase) ||
+        gameName.Equals("RDR2", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Copies reshade.ini from the inis folder to the given game directory (full overwrite, no merge).</summary>
     public static void CopyRsIni(string gameDir)
@@ -851,7 +880,7 @@ public class AuxInstallService : IAuxInstallService, IAuxFileService
     bool IAuxFileService.IsReShadeFile(string filePath) => IsReShadeFile(filePath);
     void IAuxFileService.EnsureInisDir() => EnsureInisDir();
     void IAuxFileService.MergeRsIni(string gameDir) => MergeRsIni(gameDir);
-    void IAuxFileService.MergeRsVulkanIni(string gameDir) => MergeRsVulkanIni(gameDir);
+    void IAuxFileService.MergeRsVulkanIni(string gameDir, string? gameName) => MergeRsVulkanIni(gameDir, gameName);
     void IAuxFileService.CopyRsIni(string gameDir) => CopyRsIni(gameDir);
     void IAuxFileService.CopyRsPresetIniIfPresent(string gameDir) => CopyRsPresetIniIfPresent(gameDir);
     string? IAuxFileService.ReadInstalledVersion(string installPath, string fileName) => ReadInstalledVersion(installPath, fileName);

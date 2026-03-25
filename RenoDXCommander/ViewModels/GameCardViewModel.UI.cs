@@ -300,6 +300,12 @@ public partial class GameCardViewModel
                 AuthorDonationUrls[key] = value;
     }
 
+    /// <summary>Splits an author string on '&amp;' or ' and ' (case-insensitive), trims, and drops empties.</summary>
+    private static IEnumerable<string> SplitAuthors(string raw) =>
+        System.Text.RegularExpressions.Regex.Split(raw, @"\s+and\s+|&", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+            .Select(a => a.Trim())
+            .Where(a => a.Length > 0);
+
     /// <summary>Resolves a single author segment to its display name.
     /// Strips parenthesised aliases (e.g. "oopydoopy (Jon)") before lookup.</summary>
     private static string ResolveAuthorName(string raw)
@@ -316,7 +322,7 @@ public partial class GameCardViewModel
         {
             // Luma mode: show the Luma mod author instead of the RenoDX author
             if (EffectiveLumaMode && LumaMod != null && !string.IsNullOrWhiteSpace(LumaMod.Author))
-                return LumaMod.Author.Split('&').Select(a => a.Trim()).Where(a => a.Length > 0).ToArray();
+                return SplitAuthors(LumaMod.Author).ToArray();
 
             // UE-Extended overrides everything — credit goes to Marat alone
             if (UseUeExtended || IsManifestUeExtended)
@@ -324,7 +330,7 @@ public partial class GameCardViewModel
 
             // Named mod with a maintainer from the wiki — resolve display names
             if (!string.IsNullOrWhiteSpace(Maintainer))
-                return Maintainer.Split('&').Select(a => a.Trim()).Where(a => a.Length > 0).Select(ResolveAuthorName).ToArray();
+                return SplitAuthors(Maintainer).Select(ResolveAuthorName).ToArray();
 
             // Generic engine mods without a named maintainer
             if (IsGenericMod)

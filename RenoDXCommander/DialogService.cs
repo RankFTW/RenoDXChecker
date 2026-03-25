@@ -420,6 +420,122 @@ public class DialogService
         }
     }
 
+    // ── Legacy Program Files Cleanup ─────────────────────────────────────────────
+
+    private static readonly string LegacyCleanupMarkerPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "RHI", "LegacyProgramFilesCleanupDone.txt");
+
+    /// <summary>
+    /// Checks for old RenoDXCommander / UPST folders in Program Files and offers
+    /// to delete them. Runs once — writes a marker file after completion.
+    /// </summary>
+    public async Task ShowLegacyProgramFilesCleanupAsync()
+    {
+        try
+        {
+            // Wait until XamlRoot is ready
+            while (_window.Content.XamlRoot == null)
+                await Task.Delay(200);
+
+            // Wait for UI to settle and any prior dialogs to finish
+            await Task.Delay(6000);
+
+            // Only show once ever
+            if (File.Exists(LegacyCleanupMarkerPath)) return;
+
+            var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            var legacyFolders = new[] { "RenoDXCommander", "UPST" }
+                .Select(name => Path.Combine(programFiles, name))
+                .Where(Directory.Exists)
+                .ToList();
+
+            // Nothing to clean up — write marker and bail
+            if (legacyFolders.Count == 0)
+            {
+                WriteCleanupMarker();
+                return;
+            }
+
+            var tcs = new TaskCompletionSource();
+            _dispatcherQueue.TryEnqueue(async () =>
+            {
+                try
+                {
+                    var folderNames = string.Join("\n", legacyFolders.Select(f => $"  • {f}"));
+                    var message = new TextBlock
+                    {
+                        Text = $"Old installation folders from a previous version of this app were found:\n\n" +
+                               $"{folderNames}\n\n" +
+                               "These are no longer needed. Would you like to remove them?",
+                        TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap,
+                        Foreground = Brush(ResourceKeys.TextSecondaryBrush),
+                        FontSize = 13,
+                    };
+
+                    var dlg = new ContentDialog
+                    {
+                        Title              = "🧹 Old Install Folders Found",
+                        Content            = message,
+                        PrimaryButtonText  = "Remove",
+                        CloseButtonText    = "Keep",
+                        XamlRoot           = _window.Content.XamlRoot,
+                        Background         = Brush(ResourceKeys.SurfaceToolbarBrush),
+                    };
+
+                    var result = await dlg.ShowAsync();
+
+                    if (result == ContentDialogResult.Primary)
+                    {
+                        foreach (var folder in legacyFolders)
+                        {
+                            try
+                            {
+                                Directory.Delete(folder, recursive: true);
+                                CrashReporter.Log($"[DialogService.LegacyCleanup] Deleted legacy folder: {folder}");
+                            }
+                            catch (UnauthorizedAccessException)
+                            {
+                                CrashReporter.Log($"[DialogService.LegacyCleanup] No permission to delete: {folder} — may need admin rights");
+                            }
+                            catch (Exception ex)
+                            {
+                                CrashReporter.Log($"[DialogService.LegacyCleanup] Failed to delete '{folder}' — {ex.Message}");
+                            }
+                        }
+                    }
+
+                    WriteCleanupMarker();
+                    tcs.TrySetResult();
+                }
+                catch (Exception ex)
+                {
+                    CrashReporter.Log($"[DialogService.LegacyCleanup] Dialog failed — {ex.Message}");
+                    tcs.TrySetException(ex);
+                }
+            });
+
+            await tcs.Task;
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"[DialogService.LegacyCleanup] Legacy cleanup check error — {ex.Message}");
+        }
+    }
+
+    private static void WriteCleanupMarker()
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(LegacyCleanupMarkerPath)!);
+            File.WriteAllText(LegacyCleanupMarkerPath, "Legacy Program Files cleanup done");
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"[DialogService.LegacyCleanup] Failed to write marker — {ex.Message}");
+        }
+    }
+
     // ── Game Notes Dialog ────────────────────────────────────────────────────────
 
     public async void NotesButton_Click(object sender, RoutedEventArgs e)

@@ -28,6 +28,7 @@ public class ShaderPackService : IShaderPackService
     public static readonly string TexturesDir = Path.Combine(AuxInstallService.RsStagingDir, "Textures");
 
     // User-defined custom shaders — placed by the user, never auto-downloaded
+    public const string CustomShaderSentinel = "__custom__";
     public static readonly string CustomDir = Path.Combine(AuxInstallService.RsStagingDir, "Custom");
     public static readonly string CustomShadersDir = Path.Combine(CustomDir, "Shaders");
     public static readonly string CustomTexturesDir = Path.Combine(CustomDir, "Textures");
@@ -1096,6 +1097,7 @@ public class ShaderPackService : IShaderPackService
     /// <summary>
     /// Synchronises the game-local reshade-shaders folder to match the current selection.
     /// Null/empty selection → remove managed shaders and restore originals.
+    /// Custom shader sentinel → deploy from user-managed custom directories.
     /// Non-empty selection → prune unselected pack files and deploy selected packs.
     /// </summary>
     public void SyncGameFolder(string gameDir, IEnumerable<string>? selectedPackIds = null)
@@ -1115,15 +1117,40 @@ public class ShaderPackService : IShaderPackService
             return;
         }
 
+        // ── Custom shader sentinel → deploy from user-managed directories ─────────
+        if (selectedPackIds.Contains(CustomShaderSentinel))
+        {
+            if (CrashReporter.VerboseLogging)
+                CrashReporter.Log($"[ShaderPackService.SyncGameFolder] Effective shader source: Custom directories (gameDir={gameDir})");
+
+            // Ensure custom directories exist (create if missing)
+            Directory.CreateDirectory(CustomShadersDir);
+            Directory.CreateDirectory(CustomTexturesDir);
+
+            // Wipe existing managed shaders completely before deploying custom content.
+            // PruneFiles only knows about pack files — custom files from a previous
+            // deployment would linger.  A full remove + fresh deploy is the clean path.
+            RemoveFromGameFolder(gameDir);
+
+            // Copy custom shaders and textures into the game's reshade-shaders folder
+            DeployFolderIfAbsent(CustomShadersDir, rsShaders);
+            DeployFolderIfAbsent(CustomTexturesDir, rsTextures);
+            WriteMarker(gameDir);
+            return;
+        }
+
         // Non-empty selection → prune unselected and deploy selected
+        if (CrashReporter.VerboseLogging)
+            CrashReporter.Log($"[ShaderPackService.SyncGameFolder] Effective shader source: Pack-based (gameDir={gameDir})");
+
         CrashReporter.Log($"[ShaderPackService.SyncGameFolder] gameDir={gameDir}, managed={IsManagedByRdxc(gameDir)}");
 
         if (IsManagedByRdxc(gameDir))
         {
-            var (selectShaders, selectTextures) = FilesForIds(selectedPackIds);
-            PruneFiles(rsShaders, allKnownShaders, selectShaders);
-            PruneFiles(rsTextures, allKnownTextures, selectTextures);
-
+            // Full wipe then redeploy — PruneFiles only knows about pack filenames,
+            // so custom shader files from a previous custom-mode deployment would
+            // linger.  A clean remove + fresh deploy handles the transition cleanly.
+            RemoveFromGameFolder(gameDir);
             DeployPacksIfAbsent(selectedPackIds, rsShaders, rsTextures);
             WriteMarker(gameDir);
         }

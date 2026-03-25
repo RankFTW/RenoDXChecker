@@ -13,5 +13,6 @@ copy /y "%SRC%\ReShade.Vulkan.ini" "%OUT%\" >nul
 copy /y "%SRC%\ReShade64.json" "%OUT%\" >nul
 copy /y "%SRC%\RHI_PatchNotes.md" "%OUT%\" >nul
 copy /y "%SRC%\relimiter.ini" "%OUT%\" >nul
+copy /y "%SRC%\reshade.rdr2.ini" "%OUT%\" >nul
 if not exist "%OUT%\Assets\icons" mkdir "%OUT%\Assets\icons"
 copy /y "%SRC%\Assets\icons\*.ico" "%OUT%\Assets\icons\" >nul

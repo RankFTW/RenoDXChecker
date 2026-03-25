@@ -1,3 +1,21 @@
+## v1.6.3
+
+### Bug Fixes
+
+**Author badges now split on "and" separator**
+- Games with multiple authors joined by "and" (e.g. "Jon and Forge") were displayed as a single badge with no donation link. Author strings are now split on both "&" and "and", so each author gets their own clickable badge linking to their Ko-fi page.
+
+**Update All button no longer lights up for excluded games**
+- The global Update All button was turning purple when updates were available for games excluded from Update All via overrides. The button now only reflects updates that would actually be acted on. Toggling an exclusion also immediately updates the button color.
+
+**Legacy install folder cleanup**
+- On first launch, RHI checks for old RenoDXCommander and UPST folders in Program Files from previous installs. If found, a dialog offers to remove them. Choosing "Keep" or "Remove" writes a marker so the prompt only appears once.
+
+**Red Dead Redemption 2 dedicated ReShade INI**
+- Red Dead Redemption 2 now uses a dedicated `reshade.rdr2.ini` configuration file instead of the generic `reshade.vulkan.ini`. When ReShade is installed for RDR2, this game-specific INI is deployed as `reshade.ini` in the game folder, ensuring optimal settings for RDR2's Vulkan renderer. The overlay key is set to END to avoid conflicts with RDR2's default keybindings.
+
+---
+
 ## v1.6.2
 
 ### Highlights

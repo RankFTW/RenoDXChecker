@@ -198,6 +198,38 @@ public class OverridesFlyoutBuilder
             }
         };
 
+        // ── Per-game Custom Shaders toggle ──
+        bool isPerGameCustom = currentShaderMode == "Custom";
+        // Default to ON when global UseCustomShaders is enabled and no per-game override exists
+        bool customDefault = isPerGameCustom ||
+            (ViewModel.Settings.UseCustomShaders && currentShaderMode == "Global"
+             && !ViewModel.GameNameServiceInstance.PerGameShaderMode.ContainsKey(gameName));
+        var customShadersToggle = new ToggleSwitch
+        {
+            Header = "Use Custom Shaders",
+            IsOn = customDefault,
+            OnContent = "Using custom shader directories",
+            OffContent = "Using shader packs",
+            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
+            FontSize = 12,
+        };
+        ToolTipService.SetToolTip(customShadersToggle,
+            "On = use shaders from the custom shader directories. Off = use shader packs (global or per-game).");
+
+        customShadersToggle.Toggled += (s, ev) =>
+        {
+            bool customOn = customShadersToggle.IsOn;
+            if (customOn)
+            {
+                ViewModel.SetPerGameShaderMode(capturedName, "Custom");
+            }
+            else
+            {
+                ViewModel.SetPerGameShaderMode(capturedName, "Global");
+            }
+            ViewModel.DeployShadersForCard(capturedName);
+        };
+
         selectShadersBtn.Click += async (s, ev) =>
         {
             List<string>? current = ViewModel.GameNameServiceInstance.PerGameShaderSelection.TryGetValue(gameName, out var existing)
@@ -281,9 +313,10 @@ public class OverridesFlyoutBuilder
         modeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         modeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        // Left: shader toggle + select button
+        // Left: shader toggle + custom shaders toggle + select button
         var shaderColumn = new StackPanel { Spacing = 8 };
         shaderColumn.Children.Add(shaderToggle);
+        shaderColumn.Children.Add(customShadersToggle);
         shaderColumn.Children.Add(selectShadersBtn);
         Grid.SetColumn(shaderColumn, 0);
 
@@ -496,6 +529,7 @@ public class OverridesFlyoutBuilder
             gameNameBox.Text = originalStoreName ?? gameName;
             wikiNameBox.Text = "";
             shaderToggle.IsOn = true;
+            customShadersToggle.IsOn = false;
             dllOverrideToggle.IsOn = false;
             rsToggle.IsOn = true;
             rdxToggle.IsOn = true;

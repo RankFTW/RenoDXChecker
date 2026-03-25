@@ -72,6 +72,11 @@ public partial class MainViewModel : ObservableObject
 
     public string UpdateButtonTooltip => "Update ReShade, RenoDX, and ReLimiter for all games";
 
+    /// <summary>
+    /// The global shader picker button is disabled while custom shaders are active.
+    /// </summary>
+    public bool IsGlobalShaderButtonEnabled => !Settings.UseCustomShaders;
+
     [ObservableProperty] private bool _lumaFeatureEnabled = true;
 
     [ObservableProperty] private AppPage currentPage = AppPage.GameView;
@@ -238,15 +243,24 @@ public partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// Resolves the effective shader pack selection for a game.
-    /// Per-game selection wins; otherwise falls back to the global selection.
+    /// Priority chain: per-game Custom → per-game Select → global custom → global packs.
     /// </summary>
-    private IEnumerable<string>? ResolveShaderSelection(string gameName, string? shaderModeOverride)
+    internal IEnumerable<string>? ResolveShaderSelection(string gameName, string? shaderModeOverride)
     {
-        // Per-game selection takes precedence when the game has a "Select" override
-        if (shaderModeOverride != null
+        // 1. Per-game "Custom" mode → custom shader sentinel
+        if (string.Equals(shaderModeOverride, "Custom", StringComparison.OrdinalIgnoreCase))
+            return new[] { ShaderPackService.CustomShaderSentinel };
+
+        // 2. Per-game "Select" mode → per-game pack selection
+        if (string.Equals(shaderModeOverride, "Select", StringComparison.OrdinalIgnoreCase)
             && _gameNameService.PerGameShaderSelection.TryGetValue(gameName, out var perGameSel))
             return perGameSel;
 
+        // 3. Global UseCustomShaders enabled → custom shader sentinel
+        if (_settingsViewModel.UseCustomShaders)
+            return new[] { ShaderPackService.CustomShaderSentinel };
+
+        // 4. Fallback → global pack selection
         return _settingsViewModel.SelectedShaderPacks;
     }
     private List<GameMod> _allMods = new();
@@ -385,6 +399,17 @@ public partial class MainViewModel : ObservableObject
                 or nameof(FilterMode) or nameof(SearchQuery) or nameof(ShowHidden))
             {
                 OnPropertyChanged(e.PropertyName);
+            }
+        };
+        // Raise IsGlobalShaderButtonEnabled when the custom-shaders toggle changes
+        // and re-deploy all shaders so every installed game reflects the new setting
+        _settingsViewModel.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName == nameof(SettingsViewModel.UseCustomShaders))
+            {
+                OnPropertyChanged(nameof(IsGlobalShaderButtonEnabled));
+                if (_hasInitialized && !_isLoadingSettings)
+                    DeployAllShaders();
             }
         };
         // Subscribe to installer events — on install we'll perform a full refresh
@@ -1008,9 +1033,10 @@ public partial class MainViewModel : ObservableObject
     }
 
     public bool AnyUpdateAvailable =>
-        _allCards.Any(c => c.Status    == GameStatus.UpdateAvailable ||
-                           c.RsStatus  == GameStatus.UpdateAvailable ||
-                           c.UlStatus  == GameStatus.UpdateAvailable);
+        _allCards.Any(c =>
+            (c.Status   == GameStatus.UpdateAvailable && !c.ExcludeFromUpdateAllRenoDx) ||
+            (c.RsStatus == GameStatus.UpdateAvailable && !c.ExcludeFromUpdateAllReShade) ||
+            (c.UlStatus == GameStatus.UpdateAvailable && !c.ExcludeFromUpdateAllUl));
 
     // Button colours — purple when updates available, dim when idle
     public string UpdateAllBtnBackground => AnyUpdateAvailable ? "#201838" : "#1E242C";
@@ -1029,6 +1055,7 @@ public partial class MainViewModel : ObservableObject
         SaveNameMappings();
         var card = _allCards.FirstOrDefault(c => c.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase));
         if (card != null) card.ExcludeFromUpdateAllReShade = set.Contains(gameName);
+        NotifyUpdateButtonChanged();
     }
 
     public void ToggleUpdateAllExclusionRenoDx(string gameName)
@@ -1038,6 +1065,7 @@ public partial class MainViewModel : ObservableObject
         SaveNameMappings();
         var card = _allCards.FirstOrDefault(c => c.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase));
         if (card != null) card.ExcludeFromUpdateAllRenoDx = set.Contains(gameName);
+        NotifyUpdateButtonChanged();
     }
 
     public void ToggleUpdateAllExclusionUl(string gameName)
@@ -1047,6 +1075,16 @@ public partial class MainViewModel : ObservableObject
         SaveNameMappings();
         var card = _allCards.FirstOrDefault(c => c.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase));
         if (card != null) card.ExcludeFromUpdateAllUl = set.Contains(gameName);
+        NotifyUpdateButtonChanged();
+    }
+
+    private void NotifyUpdateButtonChanged()
+    {
+        HasUpdatesAvailable = AnyUpdateAvailable;
+        OnPropertyChanged(nameof(AnyUpdateAvailable));
+        OnPropertyChanged(nameof(UpdateAllBtnBackground));
+        OnPropertyChanged(nameof(UpdateAllBtnForeground));
+        OnPropertyChanged(nameof(UpdateAllBtnBorder));
     }
     private void LoadNameMappings()
     {
@@ -2510,7 +2548,7 @@ public partial class MainViewModel : ObservableObject
             card.RsActionMessage = "Installing Vulkan ReShade...";
             try
             {
-                AuxInstallService.MergeRsVulkanIni(card.InstallPath);
+                AuxInstallService.MergeRsVulkanIni(card.InstallPath, card.GameName);
                 AuxInstallService.CopyRsPresetIniIfPresent(card.InstallPath);
                 VulkanFootprintService.Create(card.InstallPath);
                 _shaderPackService.SyncGameFolder(card.InstallPath,
@@ -2571,7 +2609,7 @@ public partial class MainViewModel : ObservableObject
             await Task.Run(() => InstallLayerAction());
 
             // 4. Deploy reshade.vulkan.ini (as reshade.ini) to game directory
-            AuxInstallService.MergeRsVulkanIni(card.InstallPath);
+            AuxInstallService.MergeRsVulkanIni(card.InstallPath, card.GameName);
 
             // 5. Deploy ReShadePreset.ini if present
             AuxInstallService.CopyRsPresetIniIfPresent(card.InstallPath);
