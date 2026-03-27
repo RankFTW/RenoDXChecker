@@ -29,9 +29,9 @@ public class VulkanRsActionLabelPropertyTests : IDisposable
     ///
     /// For any GameCardViewModel where RequiresVulkanInstall is true,
     /// given a boolean layerInstalled and a boolean reshadeIniExists:
-    /// - layerInstalled=true, reshadeIniExists=false → "Install Vulkan ReShade"
-    /// - layerInstalled=true, reshadeIniExists=true  → "Reinstall Vulkan ReShade"
-    /// - layerInstalled=false (either)               → "Install Vulkan Layer"
+    /// - layerInstalled=true, reshadeIniExists=false → "⬇  Install Vulkan ReShade"
+    /// - layerInstalled=true, reshadeIniExists=true  → "↺  Reinstall Vulkan ReShade"
+    /// - layerInstalled=false (either)               → "⬇  Install Vulkan Layer"
     /// </summary>
     [Property(MaxTest = 10)]
     public Property RsActionLabel_ReturnsCorrectLabel_ForVulkanGames()
@@ -75,9 +75,9 @@ public class VulkanRsActionLabelPropertyTests : IDisposable
 
                 string expected = (layerInstalled, reshadeIniExists) switch
                 {
-                    (true, false) => "Install Vulkan ReShade",
-                    (true, true)  => "Reinstall Vulkan ReShade",
-                    (false, _)    => "Install Vulkan Layer",
+                    (true, false) => "⬇  Install Vulkan ReShade",
+                    (true, true)  => "↺  Reinstall Vulkan ReShade",
+                    (false, _)    => "⬇  Install Vulkan Layer",
                 };
 
                 return (actual == expected).Label(

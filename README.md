@@ -38,7 +38,7 @@ Requires Windows 10/11 (x64) and [.NET 8 Desktop Runtime](https://dotnet.microso
 - **Graphics API detection** — PE header analysis detects DirectX 8/9/10/11/12, Vulkan, and OpenGL with API badges on game cards
 - **Engine detection** — Unreal, Unity, and custom engine names (via remote manifest) detected and displayed with icons
 - **32-bit / 64-bit detection** — automatic PE header detection with manifest override support
-- **Drag-and-drop** — drop a game `.exe` to add it, drop an `.addon64`/`.addon32` to install it, or drop an archive to extract and install addons
+- **Drag-and-drop** — drop a game `.exe` to add it, drop an `.addon64`/`.addon32` to install it, drop an archive to extract and install addons, or drop a Discord/browser URL link to download and install an addon
 - **Addon auto-detection** — watches your Downloads folder for new `renodx-*.addon64` / `.addon32` files and prompts to install
 
 ### Component Management

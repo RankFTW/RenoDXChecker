@@ -14,17 +14,20 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
     private readonly IAuxInstallService _auxInstaller;
     private readonly ICrashReporter _crashReporter;
     private readonly IAuxFileService _auxFileService;
+    private readonly IREFrameworkService _refService;
 
     public UpdateOrchestrationService(
         IModInstallService installer,
         IAuxInstallService auxInstaller,
         ICrashReporter crashReporter,
-        IAuxFileService auxFileService)
+        IAuxFileService auxFileService,
+        IREFrameworkService refService)
     {
         _installer = installer;
         _auxInstaller = auxInstaller;
         _crashReporter = crashReporter;
         _auxFileService = auxFileService;
+        _refService = refService;
     }
 
     /// <summary>
@@ -72,6 +75,7 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
                 {
                     card.InstalledRecord        = record;
                     card.InstalledAddonFileName = record.AddonFileName;
+                    card.RdxInstalledVersion    = AuxInstallService.ReadInstalledVersion(record.InstallPath, record.AddonFileName);
                     card.Status                 = GameStatus.Installed;
                     card.ActionMessage          = "✅ Updated!";
                     card.NotifyAll();
@@ -166,6 +170,48 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
         dispatcherQueue?.TryEnqueue(() => notifyUpdateState());
     }
 
+    public async Task UpdateAllREFrameworkAsync(
+        IReadOnlyList<GameCardViewModel> allCards,
+        Microsoft.UI.Dispatching.DispatcherQueue? dispatcherQueue,
+        Action notifyUpdateState)
+    {
+        var targets = UpdateAllEligible(allCards)
+            .Where(c => !c.ExcludeFromUpdateAllRef)
+            .Where(c => c.IsREEngineGame && c.RefStatus == GameStatus.UpdateAvailable)
+            .ToList();
+
+        foreach (var card in targets)
+        {
+            card.RefIsInstalling = true;
+            card.RefActionMessage = "Updating...";
+            try
+            {
+                var progress = new Progress<(string msg, double pct)>(p =>
+                {
+                    card.RefActionMessage = p.msg;
+                    card.RefProgress = p.pct;
+                });
+                var record = await _refService.InstallAsync(card.GameName, card.InstallPath, progress).ConfigureAwait(false);
+                dispatcherQueue?.TryEnqueue(() =>
+                {
+                    card.RefRecord = record;
+                    card.RefInstalledVersion = record.InstalledVersion;
+                    card.RefStatus = GameStatus.Installed;
+                    card.RefActionMessage = "✅ Updated!";
+                    card.NotifyAll();
+                });
+            }
+            catch (Exception ex)
+            {
+                card.RefActionMessage = $"❌ Failed: {ex.Message}";
+                _crashReporter.WriteCrashReport("UpdateAllREFramework", ex, note: $"Game: {card.GameName}");
+            }
+            finally { card.RefIsInstalling = false; }
+        }
+
+        dispatcherQueue?.TryEnqueue(() => notifyUpdateState());
+    }
+
     public async Task CheckForUpdatesAsync(
         List<GameCardViewModel> cards,
         List<InstalledModRecord> records,
@@ -219,6 +265,36 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
 
         await Task.WhenAll(auxTasks).ConfigureAwait(false);
         _crashReporter.Log("[UpdateOrchestrationService.CheckForUpdatesAsync] All checks complete");
+
+        // ── RE Framework update check ─────────────────────────────────────────
+        try
+        {
+            var refInstalled = cards
+                .Where(c => c.IsREEngineGame && c.IsRefInstalled && c.RefRecord != null)
+                .ToList();
+
+            _crashReporter.Log($"[UpdateOrchestrationService.CheckForUpdatesAsync] {refInstalled.Count} REF cards to check");
+
+            if (refInstalled.Count > 0)
+            {
+                // Single check — all cards share the same RE Framework version source
+                var firstVersion = refInstalled[0].RefRecord!.InstalledVersion;
+                var refUpdateAvailable = await _refService.CheckForUpdateAsync(firstVersion).ConfigureAwait(false);
+
+                if (refUpdateAvailable)
+                {
+                    dispatcherQueue?.TryEnqueue(() =>
+                    {
+                        foreach (var card in refInstalled)
+                            card.RefStatus = GameStatus.UpdateAvailable;
+                    });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _crashReporter.Log($"[UpdateOrchestrationService.CheckForUpdatesAsync] REF update check failed — {ex.Message}");
+        }
 
         dispatcherQueue?.TryEnqueue(() => notifyUpdateState());
     }

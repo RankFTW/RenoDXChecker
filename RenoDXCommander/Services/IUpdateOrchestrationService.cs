@@ -38,6 +38,14 @@ public interface IUpdateOrchestrationService
         Func<string, ManifestDllNames?>? manifestDllResolver = null);
 
     /// <summary>
+    /// Batch-updates all eligible RE Framework installations.
+    /// </summary>
+    Task UpdateAllREFrameworkAsync(
+        IReadOnlyList<GameCardViewModel> allCards,
+        Microsoft.UI.Dispatching.DispatcherQueue? dispatcherQueue,
+        Action notifyUpdateState);
+
+    /// <summary>
     /// Checks all installed mods and aux components for available updates.
     /// </summary>
     Task CheckForUpdatesAsync(

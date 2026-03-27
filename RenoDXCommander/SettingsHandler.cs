@@ -34,6 +34,9 @@ public class SettingsHandler
         _window.AboutVersionText.Text = $"v{CrashReporter.AppVersion}  ·  HDR mod manager by RankFTW";
         // Populate addon watch folder textbox
         _window.AddonWatchFolderBox.Text = ViewModel.Settings.AddonWatchFolder;
+        // Populate screenshot path and per-game toggle
+        _window.ScreenshotPathBox.Text = ViewModel.Settings.ScreenshotPath;
+        _window.PerGameScreenshotToggle.IsOn = ViewModel.Settings.PerGameScreenshotFolders;
     }
 
     public void SettingsBack_Click(object sender, RoutedEventArgs e)
@@ -81,6 +84,68 @@ public class SettingsHandler
             ViewModel.Settings.UseCustomShaders = toggle.IsOn;
             ViewModel.SaveSettingsPublic();
         }
+    }
+
+    public async void ApplyScreenshotPath_Click(object sender, RoutedEventArgs e)
+    {
+        var screenshotPath = _window.ScreenshotPathBox.Text?.Trim() ?? "";
+        var perGame = _window.PerGameScreenshotToggle.IsOn;
+
+        // Persist settings
+        ViewModel.Settings.ScreenshotPath = screenshotPath;
+        ViewModel.Settings.PerGameScreenshotFolders = perGame;
+        ViewModel.SaveSettingsPublic();
+
+        // If path is empty, clear persisted settings and return — no INI modifications
+        if (string.IsNullOrEmpty(screenshotPath))
+        {
+            return;
+        }
+
+        // Iterate all game cards and apply screenshot path to eligible games
+        int updatedCount = 0;
+        foreach (var card in ViewModel.AllCards)
+        {
+            if (string.IsNullOrEmpty(card.InstallPath)) continue;
+
+            var iniPath = System.IO.Path.Combine(card.InstallPath, "reshade.ini");
+            if (!System.IO.File.Exists(iniPath)) continue;
+
+            try
+            {
+                var savePath = perGame
+                    ? BuildSavePath(screenshotPath, card.GameName)
+                    : screenshotPath;
+
+                AuxInstallService.ApplyScreenshotPath(iniPath, savePath);
+                updatedCount++;
+            }
+            catch (Exception ex)
+            {
+                CrashReporter.Log($"[SettingsHandler.ApplyScreenshotPath_Click] Failed for '{card.GameName}' — {ex.Message}");
+            }
+        }
+
+        // Show confirmation dialog
+        var dialog = new ContentDialog
+        {
+            Title = "Screenshots",
+            Content = $"Updated {updatedCount} reshade.ini file{(updatedCount == 1 ? "" : "s")}.",
+            CloseButtonText = "OK",
+            XamlRoot = _window.Content.XamlRoot,
+        };
+        await dialog.ShowAsync();
+    }
+
+    /// <summary>
+    /// Builds the effective screenshot save path for a game, appending a sanitized
+    /// game name subfolder when per-game folders are enabled.
+    /// </summary>
+    private static string BuildSavePath(string basePath, string gameName)
+    {
+        var sanitized = AuxInstallService.SanitizeDirectoryName(gameName);
+        if (string.IsNullOrEmpty(sanitized)) return basePath;
+        return basePath + @"\" + sanitized;
     }
 
     public void OpenLogsFolder_Click(object sender, RoutedEventArgs e)

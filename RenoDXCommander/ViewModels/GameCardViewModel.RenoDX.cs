@@ -102,8 +102,8 @@ public partial class GameCardViewModel
 
     // ── Component table: RDX short status text + short action labels ─────────────
     public string RdxStatusText => IsInstalling ? "Installing…"
-        : Status == GameStatus.UpdateAvailable ? "Update"
-        : Status == GameStatus.Installed       ? "Installed"
+        : Status == GameStatus.UpdateAvailable ? (RdxInstalledVersion ?? "Update")
+        : Status == GameStatus.Installed       ? (RdxInstalledVersion ?? "Installed")
         : Mod?.SnapshotUrl != null             ? "Ready" : "—";
     public string RdxStatusColor => IsInstalling ? "#D4A856"
         : Status == GameStatus.UpdateAvailable ? "#B898E8"
@@ -221,6 +221,10 @@ public partial class GameCardViewModel
         OnPropertyChanged(nameof(InstalledFileLabelVisible));
         OnPropertyChanged(nameof(NoModVisibility));
         OnPropertyChanged(nameof(SwitchToLumaVisibility));
+    }
+    partial void OnRdxInstalledVersionChanged(string? value)
+    {
+        OnPropertyChanged(nameof(RdxStatusText));
     }
     partial void OnActionMessageChanged(string value) => OnPropertyChanged(nameof(MessageVisibility));
     partial void OnUseUeExtendedChanged(bool value) => OnPropertyChanged(nameof(GenericModLabel));

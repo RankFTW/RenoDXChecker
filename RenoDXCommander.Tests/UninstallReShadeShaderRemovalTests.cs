@@ -41,7 +41,7 @@ public class UninstallReShadeShaderRemovalTests : IDisposable
         var lumaService = new StubLumaService();
         var settingsVm = new SettingsViewModel();
         var filterVm = new FilterViewModel();
-        var updateOrch = new UpdateOrchestrationService(installer, auxInstaller, new CrashReporterService(), auxInstaller);
+        var updateOrch = new UpdateOrchestrationService(installer, auxInstaller, new CrashReporterService(), auxInstaller, new StubREFrameworkService());
         var dllOverride = new DllOverrideService(auxInstaller);
         var gameName = new GameNameService(gameDetection, installer, auxInstaller, lumaService);
         var rsUpdate = new StubReShadeUpdateService();
@@ -69,7 +69,8 @@ public class UninstallReShadeShaderRemovalTests : IDisposable
             updateOrch,
             dllOverride,
             gameName,
-            gameInit);
+            gameInit,
+            new StubREFrameworkService());
 
         // Inject cards via reflection
         var field = typeof(MainViewModel).GetField("_allCards", BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -209,7 +210,7 @@ public class UninstallReShadeShaderRemovalTests : IDisposable
 
     private class StubAuxInstallService : IAuxInstallService, IAuxFileService
     {
-        public Task<AuxInstalledRecord> InstallReShadeAsync(string gameName, string installPath, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null) => Task.FromResult(new AuxInstalledRecord());
+        public Task<AuxInstalledRecord> InstallReShadeAsync(string gameName, string installPath, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null, string? screenshotSavePath = null) => Task.FromResult(new AuxInstalledRecord());
         public Task<bool> CheckForUpdateAsync(AuxInstalledRecord record) => Task.FromResult(false);
         public void Uninstall(AuxInstalledRecord record) { }
         public void UninstallDllOnly(AuxInstalledRecord record) { }
@@ -225,8 +226,8 @@ public class UninstallReShadeShaderRemovalTests : IDisposable
         public bool IsReShadeFileStrict(string filePath) => false;
         public bool IsReShadeFile(string filePath) => false;
         public void EnsureInisDir() { }
-        public void MergeRsIni(string gameDir) { }
-        public void MergeRsVulkanIni(string gameDir, string? gameName = null) { }
+        public void MergeRsIni(string gameDir, string? screenshotSavePath = null) { }
+        public void MergeRsVulkanIni(string gameDir, string? gameName = null, string? screenshotSavePath = null) { }
         public void CopyRsIni(string gameDir) { }
         public void CopyRsPresetIniIfPresent(string gameDir) { }
         public string? ReadInstalledVersion(string installPath, string fileName) => null;
@@ -296,5 +297,14 @@ public class UninstallReShadeShaderRemovalTests : IDisposable
     {
         public Task<(string version, string url)?> CheckLatestVersionAsync() => Task.FromResult<(string, string)?>(null);
         public Task<bool> EnsureLatestAsync(IProgress<(string, double)>? progress = null) => Task.FromResult(false);
+    }
+
+    private class StubREFrameworkService : IREFrameworkService
+    {
+        public Task<REFrameworkInstalledRecord> InstallAsync(string gameName, string installPath, IProgress<(string message, double percent)>? progress = null) => Task.FromResult(new REFrameworkInstalledRecord());
+        public void Uninstall(string gameName, string installPath) { }
+        public Task<bool> CheckForUpdateAsync(string installedVersion) => Task.FromResult(false);
+        public Task<string?> GetLatestVersionAsync() => Task.FromResult<string?>(null);
+        public List<REFrameworkInstalledRecord> GetRecords() => new();
     }
 }

@@ -145,6 +145,7 @@ public sealed partial class MainWindow : Window
             _detailPanelBuilder.CurrentDetailCard.PropertyChanged -= _detailPanelBuilder.DetailCard_PropertyChanged;
 
         _addonFileWatcher.Dispose();
+        _windowStateManager.CleanupOleDragDrop();
         SingleInstanceService.Stop();
         ViewModel.SaveSettingsPublic(); // persist GridLayout and other settings
         _windowStateManager.SaveWindowBounds();
@@ -313,15 +314,16 @@ public sealed partial class MainWindow : Window
         if (string.IsNullOrEmpty(card.InstallPath)) return;
         try
         {
+            var screenshotPath = BuildScreenshotSavePath(card.GameName);
             if (card.RequiresVulkanInstall)
             {
-                AuxInstallService.MergeRsVulkanIni(card.InstallPath, card.GameName);
+                AuxInstallService.MergeRsVulkanIni(card.InstallPath, card.GameName, screenshotPath);
                 VulkanFootprintService.Create(card.InstallPath);
                 // Deploy shaders for Vulkan games (no DLL install, so shaders go with INI)
                 ViewModel.DeployShadersForCard(card.GameName);
             }
             else
-                AuxInstallService.MergeRsIni(card.InstallPath);
+                AuxInstallService.MergeRsIni(card.InstallPath, screenshotPath);
             AuxInstallService.CopyRsPresetIniIfPresent(card.InstallPath);
             bool presetDeployed = File.Exists(AuxInstallService.RsPresetIniPath);
             card.RsActionMessage = presetDeployed
@@ -473,6 +475,9 @@ public sealed partial class MainWindow : Window
             case "UL":
                 await ViewModel.InstallUlAsync(card);
                 break;
+            case "REF":
+                await ViewModel.InstallREFrameworkCommand.ExecuteAsync(card);
+                break;
         }
     }
 
@@ -498,6 +503,9 @@ public sealed partial class MainWindow : Window
             case "UL":
                 ViewModel.UninstallUl(card);
                 break;
+            case "REF":
+                ViewModel.UninstallREFrameworkCommand.Execute(card);
+                break;
         }
     }
 
@@ -507,15 +515,16 @@ public sealed partial class MainWindow : Window
         if (string.IsNullOrEmpty(card.InstallPath)) return;
         try
         {
+            var screenshotPath = BuildScreenshotSavePath(card.GameName);
             if (card.RequiresVulkanInstall)
             {
-                AuxInstallService.MergeRsVulkanIni(card.InstallPath, card.GameName);
+                AuxInstallService.MergeRsVulkanIni(card.InstallPath, card.GameName, screenshotPath);
                 VulkanFootprintService.Create(card.InstallPath);
                 // Deploy shaders for Vulkan games (no DLL install, so shaders go with INI)
                 ViewModel.DeployShadersForCard(card.GameName);
             }
             else
-                AuxInstallService.MergeRsIni(card.InstallPath);
+                AuxInstallService.MergeRsIni(card.InstallPath, screenshotPath);
             card.RsActionMessage = "✅ reshade.ini merged into game folder.";
         }
         catch (Exception ex)
@@ -560,9 +569,11 @@ public sealed partial class MainWindow : Window
                 card.InstallPath = folder;
                 ViewModel.SaveLibraryPublic();
             }
-            // Chain: RenoDX → ReShade (skip components that are N/A)
+            // Chain: RenoDX → RE Framework → ReShade (skip components that are N/A)
             if (card.Mod?.SnapshotUrl != null)
                 await ViewModel.InstallModCommand.ExecuteAsync(card);
+            if (card.RefRowVisibility == Visibility.Visible)
+                await ViewModel.InstallREFrameworkCommand.ExecuteAsync(card);
             if (card.ReShadeRowVisibility == Visibility.Visible)
                 await ViewModel.InstallReShadeCommand.ExecuteAsync(card);
         }
@@ -742,6 +753,9 @@ public sealed partial class MainWindow : Window
     private void CustomShadersToggle_Toggled(object sender, RoutedEventArgs e)
         => _settingsHandler.CustomShadersToggle_Toggled(sender, e);
 
+    private void ApplyScreenshotPath_Click(object sender, RoutedEventArgs e)
+        => _settingsHandler.ApplyScreenshotPath_Click(sender, e);
+
     private void SettingsBack_Click(object sender, RoutedEventArgs e)
         => _settingsHandler.SettingsBack_Click(sender, e);
 
@@ -896,6 +910,7 @@ public sealed partial class MainWindow : Window
         await ViewModel.UpdateAllReShadeAsync();
         await ViewModel.UpdateAllRenoDxAsync();
         await ViewModel.UpdateAllUlAsync();
+        await ViewModel.UpdateAllRefAsync();
     }
 
     private async void UpdateAllRenoDx_Click(object sender, RoutedEventArgs e)
@@ -909,6 +924,12 @@ public sealed partial class MainWindow : Window
 
     private void UninstallUlButton_Click(object sender, RoutedEventArgs e)
         => _installEventHandler.UninstallUlButton_Click(sender, e);
+
+    private void InstallRefButton_Click(object sender, RoutedEventArgs e)
+        => _installEventHandler.InstallRefButton_Click(sender, e);
+
+    private void UninstallRefButton_Click(object sender, RoutedEventArgs e)
+        => _installEventHandler.UninstallRefButton_Click(sender, e);
 
     private void UlIniButton_Click(object sender, RoutedEventArgs e)
     {
@@ -941,6 +962,12 @@ public sealed partial class MainWindow : Window
     {
         if (ViewModel.SelectedGame?.RsStatus == Models.GameStatus.Installed)
             await Windows.System.Launcher.LaunchUriAsync(new Uri("https://reshade.me"));
+    }
+
+    private async void DetailRefStatus_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (ViewModel.SelectedGame?.IsRefInstalled == true)
+            await Windows.System.Launcher.LaunchUriAsync(new Uri("https://github.com/praydog/REFramework-nightly/releases"));
     }
 
     private async void DetailRdxStatus_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
@@ -1080,6 +1107,20 @@ public sealed partial class MainWindow : Window
         (SolidColorBrush)Application.Current.Resources[key];
 
     // ── Helpers ───────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Builds the effective screenshot save path for a game based on current settings.
+    /// Returns null if no screenshot path is configured.
+    /// </summary>
+    private string? BuildScreenshotSavePath(string gameName)
+    {
+        var basePath = ViewModel.Settings.ScreenshotPath;
+        if (string.IsNullOrEmpty(basePath)) return null;
+        if (!ViewModel.Settings.PerGameScreenshotFolders) return basePath;
+        var sanitized = AuxInstallService.SanitizeDirectoryName(gameName);
+        if (string.IsNullOrEmpty(sanitized)) return basePath;
+        return basePath + @"\" + sanitized;
+    }
 
     private static GameCardViewModel? GetCardFromSender(object sender) => sender switch
     {

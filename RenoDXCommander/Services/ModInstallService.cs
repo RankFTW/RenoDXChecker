@@ -109,12 +109,18 @@ public class ModInstallService : IModInstallService
         {
             var cacheSize = new FileInfo(cachePath).Length;
             bool sizeOk   = !remoteSize.HasValue || remoteSize.Value == cacheSize;
-            if (sizeOk)
+            if (sizeOk && HasPeSignature(cachePath))
             {
                 progress?.Report(("Installing from cache...", 50));
                 File.Copy(cachePath, destPath, overwrite: true);
                 usedCache = true;
                 progress?.Report(("Installed from cache!", 100));
+            }
+            else if (!HasPeSignature(cachePath))
+            {
+                // Corrupted cache file (e.g. HTML error page) — delete it
+                CrashReporter.Log($"[ModInstallService.InstallAsync] Cached file '{cachePath}' is not a valid PE binary ({cacheSize} bytes) — deleting");
+                File.Delete(cachePath);
             }
         }
 
@@ -189,6 +195,16 @@ public class ModInstallService : IModInstallService
 
             if (File.Exists(cachePath)) File.Delete(cachePath);
             File.Move(tempPath, cachePath);
+
+            // Validate the downloaded file is a PE binary — reject HTML error pages
+            if (!HasPeSignature(cachePath))
+            {
+                var badSize = new FileInfo(cachePath).Length;
+                File.Delete(cachePath);
+                throw new InvalidOperationException(
+                    $"Downloaded file from '{resolvedUrl}' is not a valid addon ({badSize} bytes). The server may have returned an error page. Please try again.");
+            }
+
             File.Copy(cachePath, destPath, overwrite: true);
 
             // Record actual downloaded size if we didn't have it from HEAD
@@ -352,6 +368,15 @@ public class ModInstallService : IModInstallService
             var resp = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
             if (!resp.IsSuccessStatusCode) return false;
 
+            // Reject HTML responses — GitHub Pages may return a 200 with an HTML error
+            // page instead of the actual binary file.
+            var contentType = resp.Content.Headers.ContentType?.MediaType;
+            if (contentType != null && contentType.StartsWith("text/", StringComparison.OrdinalIgnoreCase))
+            {
+                CrashReporter.Log($"[ModInstallService.CheckForUpdateByDownloadAsync] Rejected response with Content-Type '{contentType}' from '{url}' — expected binary");
+                return false;
+            }
+
             using (var net  = await resp.Content.ReadAsStreamAsync())
             using (var file = File.Create(tempFile))
             {
@@ -362,6 +387,16 @@ public class ModInstallService : IModInstallService
             }
 
             var remoteSize = new FileInfo(tempFile).Length;
+
+            // Validate the downloaded file is a PE binary (MZ header) and not an HTML
+            // error page. GitHub Pages CDN can return 200 OK with HTML content.
+            if (!HasPeSignature(tempFile))
+            {
+                CrashReporter.Log($"[ModInstallService.CheckForUpdateByDownloadAsync] Downloaded file from '{url}' is not a valid PE binary ({remoteSize} bytes) — discarding");
+                File.Delete(tempFile);
+                return false;
+            }
+
             var remoteHash = await ComputeHashAsync(tempFile);
 
             // Compare against the stored install-time hash first — this is the most
@@ -499,6 +534,21 @@ public class ModInstallService : IModInstallService
         using var sha    = SHA256.Create();
         using var stream = File.OpenRead(path);
         return Convert.ToHexString(await sha.ComputeHashAsync(stream));
+    }
+
+    /// <summary>
+    /// Returns true if the file starts with the PE "MZ" magic bytes,
+    /// indicating it's a valid Windows executable/DLL rather than an HTML error page.
+    /// </summary>
+    private static bool HasPeSignature(string filePath)
+    {
+        try
+        {
+            using var fs = File.OpenRead(filePath);
+            if (fs.Length < 2) return false;
+            return fs.ReadByte() == 'M' && fs.ReadByte() == 'Z';
+        }
+        catch { return false; }
     }
 
     public static bool IsValidGameFolder(string path) =>

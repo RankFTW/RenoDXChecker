@@ -138,6 +138,89 @@ internal static class NativeInterop
     internal const uint MSGFLT_ALLOW = 1;
     internal const uint WM_COPYGLOBALDATA = 0x0049;
 
+    // ── OLE drag-and-drop registration ─────────────────────────────────────────
+
+    [DllImport("ole32.dll")]
+    internal static extern int OleInitialize(IntPtr pvReserved);
+
+    [DllImport("ole32.dll")]
+    internal static extern int RegisterDragDrop(IntPtr hwnd, IDropTarget pDropTarget);
+
+    [DllImport("ole32.dll")]
+    internal static extern int RevokeDragDrop(IntPtr hwnd);
+
+    // ── OLE COM interfaces ─────────────────────────────────────────────────────
+
+    [ComImport, Guid("00000122-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    internal interface IDropTarget
+    {
+        [PreserveSig] int DragEnter(IDataObject pDataObj, uint grfKeyState, POINTL pt, ref uint pdwEffect);
+        [PreserveSig] int DragOver(uint grfKeyState, POINTL pt, ref uint pdwEffect);
+        [PreserveSig] int DragLeave();
+        [PreserveSig] int Drop(IDataObject pDataObj, uint grfKeyState, POINTL pt, ref uint pdwEffect);
+    }
+
+    [ComImport, Guid("0000010e-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    internal interface IDataObject
+    {
+        [PreserveSig] int GetData(ref FORMATETC format, out STGMEDIUM medium);
+        [PreserveSig] int GetDataHere(ref FORMATETC format, ref STGMEDIUM medium);
+        [PreserveSig] int QueryGetData(ref FORMATETC format);
+        [PreserveSig] int SetData(ref FORMATETC formatIn, ref STGMEDIUM medium, [MarshalAs(UnmanagedType.Bool)] bool fRelease);
+    }
+
+    // ── OLE structs and constants ───────────────────────────────────────────────
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct POINTL
+    {
+        public int x;
+        public int y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct FORMATETC
+    {
+        public ushort cfFormat;
+        public IntPtr ptd;
+        public uint dwAspect;
+        public int lindex;
+        public uint tymed;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct STGMEDIUM
+    {
+        public uint tymed;
+        public IntPtr unionmember;
+        public IntPtr pUnkForRelease;
+    }
+
+    internal const ushort CF_TEXT = 1;
+    internal const ushort CF_UNICODETEXT = 13;
+    internal const ushort CF_HDROP = 15;
+
+    internal const uint DVASPECT_CONTENT = 1;
+    internal const uint TYMED_HGLOBAL = 1;
+
+    internal const uint DROPEFFECT_NONE = 0;
+    internal const uint DROPEFFECT_COPY = 1;
+
+    // ── Kernel32 helpers for reading STGMEDIUM data ─────────────────────────────
+
+    [DllImport("kernel32.dll")]
+    internal static extern IntPtr GlobalLock(IntPtr hMem);
+
+    [DllImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GlobalUnlock(IntPtr hMem);
+
+    [DllImport("kernel32.dll")]
+    internal static extern UIntPtr GlobalSize(IntPtr hMem);
+
+    [DllImport("ole32.dll")]
+    internal static extern void ReleaseStgMedium(ref STGMEDIUM pmedium);
+
     // ── Window activation ───────────────────────────────────────────────────────
 
     [DllImport("user32.dll")]

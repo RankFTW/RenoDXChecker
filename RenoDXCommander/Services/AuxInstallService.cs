@@ -290,7 +290,7 @@ public class AuxInstallService : IAuxInstallService, IAuxFileService
     /// already in the game's INI that are not in the template are preserved untouched.
     /// If no reshade.ini exists in the game folder, the template is copied as-is.
     /// </summary>
-    public static void MergeRsIni(string gameDir)
+    public static void MergeRsIni(string gameDir, string? screenshotSavePath = null)
     {
         if (!File.Exists(RsIniPath))
             throw new FileNotFoundException("reshade.ini not found in inis folder.", RsIniPath);
@@ -301,6 +301,10 @@ public class AuxInstallService : IAuxInstallService, IAuxFileService
         {
             // No existing INI — just copy the template
             File.Copy(RsIniPath, gamePath, overwrite: true);
+
+            // Apply screenshot path to the freshly copied file
+            if (screenshotSavePath != null)
+                ApplyScreenshotPath(gamePath, screenshotSavePath);
             return;
         }
 
@@ -326,6 +330,10 @@ public class AuxInstallService : IAuxInstallService, IAuxFileService
 
         // Write merged INI back
         WriteIni(gamePath, gameIni);
+
+        // Apply screenshot path after merge
+        if (screenshotSavePath != null)
+            ApplyScreenshotPath(gamePath, screenshotSavePath);
     }
 
     /// <summary>
@@ -335,7 +343,7 @@ public class AuxInstallService : IAuxInstallService, IAuxFileService
     /// reshade.ini if the Vulkan template doesn't exist.
     /// For Red Dead Redemption 2, uses the dedicated reshade.rdr2.ini template instead.
     /// </summary>
-    public static void MergeRsVulkanIni(string gameDir, string? gameName = null)
+    public static void MergeRsVulkanIni(string gameDir, string? gameName = null, string? screenshotSavePath = null)
     {
         // Red Dead Redemption 2 uses a dedicated ini template
         string templatePath;
@@ -352,6 +360,10 @@ public class AuxInstallService : IAuxInstallService, IAuxFileService
         if (!File.Exists(gamePath))
         {
             File.Copy(templatePath, gamePath, overwrite: true);
+
+            // Apply screenshot path to the freshly copied file
+            if (screenshotSavePath != null)
+                ApplyScreenshotPath(gamePath, screenshotSavePath);
             return;
         }
 
@@ -372,6 +384,10 @@ public class AuxInstallService : IAuxInstallService, IAuxFileService
         }
 
         WriteIni(gamePath, gameIni);
+
+        // Apply screenshot path after merge
+        if (screenshotSavePath != null)
+            ApplyScreenshotPath(gamePath, screenshotSavePath);
     }
 
     /// <summary>Returns true if the game name matches Red Dead Redemption 2 (case-insensitive).</summary>
@@ -416,10 +432,44 @@ public class AuxInstallService : IAuxInstallService, IAuxFileService
         File.Copy(UlIniPath, Path.Combine(deployPath, "relimiter.ini"), overwrite: true);
     }
 
+    // ── Directory name sanitization ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Strips characters that are invalid in Windows directory names from the input.
+    /// Invalid chars: &lt; &gt; : " / | ? *
+    /// </summary>
+    public static string SanitizeDirectoryName(string name)
+    {
+        char[] invalid = { '<', '>', ':', '"', '/', '|', '?', '*' };
+        return string.Concat(name.Where(c => !invalid.Contains(c)));
+    }
+
+    // ── Screenshot path application ───────────────────────────────────────────────
+
+    /// <summary>
+    /// Writes or updates the [SCREENSHOT] section in the given reshade.ini file,
+    /// setting SavePath to the specified value. All other sections/keys are preserved.
+    /// </summary>
+    public static void ApplyScreenshotPath(string iniFilePath, string savePath)
+    {
+        var ini = File.Exists(iniFilePath)
+            ? ParseIni(File.ReadAllLines(iniFilePath))
+            : new Dictionary<string, OrderedDict>(StringComparer.OrdinalIgnoreCase);
+
+        const string section = "SCREENSHOT";
+
+        if (!ini.ContainsKey(section))
+            ini[section] = new OrderedDict();
+
+        ini[section]["SavePath"] = savePath;
+
+        WriteIni(iniFilePath, ini);
+    }
+
     // ── INI parsing / writing helpers ─────────────────────────────────────────────
 
     /// <summary>Simple alias for an ordered key-value dictionary (preserves insertion order).</summary>
-    private class OrderedDict : Dictionary<string, string>
+    internal class OrderedDict : Dictionary<string, string>
     {
         public OrderedDict() : base(StringComparer.OrdinalIgnoreCase) { }
         public OrderedDict(IDictionary<string, string> d) : base(d, StringComparer.OrdinalIgnoreCase) { }
@@ -431,7 +481,7 @@ public class AuxInstallService : IAuxInstallService, IAuxFileService
     /// key=value pairs (comments, blank lines) are stored under a special "" key
     /// with a numeric suffix to preserve them on write-back.
     /// </summary>
-    private static Dictionary<string, OrderedDict> ParseIni(string[] lines)
+    internal static Dictionary<string, OrderedDict> ParseIni(string[] lines)
     {
         var result = new Dictionary<string, OrderedDict>(StringComparer.OrdinalIgnoreCase);
         var currentSection = ""; // keys before any section header go under ""
@@ -465,7 +515,7 @@ public class AuxInstallService : IAuxInstallService, IAuxFileService
     }
 
     /// <summary>Writes a parsed INI structure back to a file.</summary>
-    private static void WriteIni(string path, Dictionary<string, OrderedDict> ini)
+    internal static void WriteIni(string path, Dictionary<string, OrderedDict> ini)
     {
         using var writer = new StreamWriter(path, append: false, encoding: new System.Text.UTF8Encoding(false));
 
@@ -508,7 +558,8 @@ public class AuxInstallService : IAuxInstallService, IAuxFileService
         bool use32Bit = false,
         string? filenameOverride = null,
         IEnumerable<string>? selectedPackIds = null,
-        IProgress<(string message, double percent)>? progress = null)
+        IProgress<(string message, double percent)>? progress = null,
+        string? screenshotSavePath = null)
     {
         Directory.CreateDirectory(DownloadCacheDir);
 
@@ -548,7 +599,7 @@ public class AuxInstallService : IAuxInstallService, IAuxFileService
 
         // Deploy reshade.ini alongside the DLL.
         if (File.Exists(RsIniPath))
-            MergeRsIni(installPath);
+            MergeRsIni(installPath, screenshotSavePath);
         // Deploy ReShadePreset.ini alongside reshade.ini when the user has placed one in the inis folder.
         CopyRsPresetIniIfPresent(installPath);
 
@@ -579,9 +630,11 @@ public class AuxInstallService : IAuxInstallService, IAuxFileService
     // ── Version reading ───────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Reads the product version string from an installed ReShade file.
-    /// Returns a short human-readable version string (e.g. "6.7.3") or null
-    /// if the file doesn't exist or has no version info.
+    /// Reads the product version string from an installed file.
+    /// For RenoDX addons (.addon64/.addon32), returns the full version with the
+    /// leading "0." stripped (e.g. "0.12.461.2731" → "12.461.2731").
+    /// For ReShade and other files, returns a short version (e.g. "6.7.3").
+    /// Returns null if the file doesn't exist or has no version info.
     /// </summary>
     public static string? ReadInstalledVersion(string installPath, string fileName)
     {
@@ -591,13 +644,36 @@ public class AuxInstallService : IAuxInstallService, IAuxFileService
         {
             var info = FileVersionInfo.GetVersionInfo(filePath);
             var ver  = info.ProductVersion?.Trim();
+            if (string.IsNullOrEmpty(ver))
+                ver = info.FileVersion?.Trim();
             if (string.IsNullOrEmpty(ver)) return null;
 
-            // Trim build number: "0.12.461.2731" → "0.12.461"
-            // ReShade already ships as "6.7.3" (3 parts), so this is a no-op for it.
             var parts = ver.Split('.');
-            if (parts.Length > 3)
-                ver = string.Join(".", parts[0], parts[1], parts[2]);
+            var ext = Path.GetExtension(fileName);
+            var isAddon = ext.Equals(".addon64", StringComparison.OrdinalIgnoreCase)
+                       || ext.Equals(".addon32", StringComparison.OrdinalIgnoreCase);
+
+            if (isAddon)
+            {
+                // RenoDX version format: "0.YYYY.MMDD.HHMM" — drop the leading "0.",
+                // trim the year to 2 digits, keep month/day and hour/minute.
+                // Example: "0.2026.0325.2215" → "26.0325.2215"
+                if (parts.Length >= 2 && parts[0] == "0")
+                {
+                    var remaining = parts.Skip(1).ToArray();
+                    // Trim 4-digit year to last 2 digits
+                    if (remaining.Length > 0 && remaining[0].Length == 4)
+                        remaining[0] = remaining[0].Substring(2);
+                    ver = string.Join(".", remaining);
+                }
+            }
+            else
+            {
+                // ReShade already ships as "6.7.3" (3 parts), so this is a no-op for it.
+                // For other files with 4+ parts, trim to 3.
+                if (parts.Length > 3)
+                    ver = string.Join(".", parts[0], parts[1], parts[2]);
+            }
 
             return ver;
         }
@@ -879,8 +955,8 @@ public class AuxInstallService : IAuxInstallService, IAuxFileService
     bool IAuxFileService.IsReShadeFileStrict(string filePath) => IsReShadeFileStrict(filePath);
     bool IAuxFileService.IsReShadeFile(string filePath) => IsReShadeFile(filePath);
     void IAuxFileService.EnsureInisDir() => EnsureInisDir();
-    void IAuxFileService.MergeRsIni(string gameDir) => MergeRsIni(gameDir);
-    void IAuxFileService.MergeRsVulkanIni(string gameDir, string? gameName) => MergeRsVulkanIni(gameDir, gameName);
+    void IAuxFileService.MergeRsIni(string gameDir, string? screenshotSavePath) => MergeRsIni(gameDir, screenshotSavePath);
+    void IAuxFileService.MergeRsVulkanIni(string gameDir, string? gameName, string? screenshotSavePath) => MergeRsVulkanIni(gameDir, gameName, screenshotSavePath);
     void IAuxFileService.CopyRsIni(string gameDir) => CopyRsIni(gameDir);
     void IAuxFileService.CopyRsPresetIniIfPresent(string gameDir) => CopyRsPresetIniIfPresent(gameDir);
     string? IAuxFileService.ReadInstalledVersion(string installPath, string fileName) => ReadInstalledVersion(installPath, fileName);

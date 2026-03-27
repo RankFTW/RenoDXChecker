@@ -403,6 +403,35 @@
                                     </Border>
                                 </Grid>
 
+                                <!-- RE Framework row -->
+                                <Grid x:Name="DetailRefRow" x:FieldModifier="internal" ColumnSpacing="8" Visibility="Collapsed">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120"/>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="36"/>
+                                        <ColumnDefinition Width="36"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="RE Framework" FontSize="12"
+                                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="DetailRefStatus" x:FieldModifier="internal" Grid.Column="1" FontSize="12"
+                                               VerticalAlignment="Center"
+                                               PointerPressed="DetailRefStatus_PointerPressed"/>
+                                    <Button x:Name="DetailRefInstallBtn" x:FieldModifier="internal" Grid.Column="2"
+                                            Click="InstallRefButton_Click"
+                                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                            CornerRadius="8" FontSize="12" Height="32"/>
+                                    <Border Grid.Column="3"/>
+                                    <Button x:Name="DetailRefDeleteBtn" x:FieldModifier="internal" Grid.Column="4"
+                                            Click="UninstallRefButton_Click"
+                                            Background="{StaticResource AccentRedBgBrush}" Foreground="{StaticResource AccentRedBrush}"
+                                            BorderBrush="{StaticResource AccentPurpleBorderBrush}" BorderThickness="1"
+                                            CornerRadius="8" Width="36" Height="32" Padding="0"
+                                            ToolTipService.ToolTip="Remove RE Framework" Opacity="0" IsHitTestVisible="False">
+                                        <TextBlock Text="✕" FontSize="12" HorizontalAlignment="Center"/>
+                                    </Button>
+                                </Grid>
+
                                 <!-- ReShade row -->
                                 <Grid x:Name="DetailRsRow" x:FieldModifier="internal" ColumnSpacing="8">
                                     <Grid.ColumnDefinitions>
@@ -551,6 +580,12 @@
 
                                 <!-- Progress bars -->
                                 <StackPanel x:Name="DetailProgressSection" Spacing="4">
+                                    <ProgressBar x:Name="DetailRefProgress" x:FieldModifier="internal" Visibility="Collapsed"
+                                                 Maximum="100" Height="3" CornerRadius="2"
+                                                 Foreground="{StaticResource AccentBlueBrush}" Background="{StaticResource SurfaceToolbarBrush}"/>
+                                    <TextBlock x:Name="DetailRefMessage" x:FieldModifier="internal" FontSize="10" Foreground="{StaticResource AccentBlueBrush}"
+                                               Visibility="Collapsed" TextWrapping="Wrap"/>
+
                                     <ProgressBar x:Name="DetailRsProgress" x:FieldModifier="internal" Visibility="Collapsed"
                                                  Maximum="100" Height="3" CornerRadius="2"
                                                  Foreground="{StaticResource AccentTealDimBrush}" Background="{StaticResource SurfaceToolbarBrush}"/>
@@ -688,6 +723,37 @@
                                               OnContent="Enabled — deploying from custom directories"
                                               OffContent="Disabled — using shader packs"
                                               Foreground="{StaticResource TextTertiaryBrush}" FontSize="12"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- ── Screenshots ─────────────────────────────────────────── -->
+                        <Border Background="{StaticResource SurfaceRaisedBrush}" CornerRadius="10" Padding="20,16"
+                                BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Screenshots" FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock TextWrapping="Wrap" FontSize="11"
+                                           Foreground="{StaticResource InlineDescriptionBrush}" LineHeight="18"
+                                           Text="Set a screenshot save path that will be written to all managed reshade.ini files."/>
+                                <TextBox x:Name="ScreenshotPathBox" x:FieldModifier="internal"
+                                         PlaceholderText="D:\Screenshots"
+                                         FontSize="12"
+                                         Background="{StaticResource SurfaceInputBrush}"
+                                         Foreground="{StaticResource TextSecondaryBrush}"
+                                         BorderBrush="{StaticResource BorderSubtleBrush}"/>
+                                <ToggleSwitch x:Name="PerGameScreenshotToggle" x:FieldModifier="internal"
+                                              Header="Per-Game Subfolder"
+                                              OnContent="Enabled — each game gets its own subfolder"
+                                              OffContent="Disabled — all screenshots in one folder"
+                                              Foreground="{StaticResource TextTertiaryBrush}" FontSize="12"/>
+                                <Button x:Name="ApplyScreenshotPathBtn"
+                                        Content="Apply to All Games"
+                                        Click="ApplyScreenshotPath_Click"
+                                        Background="{StaticResource AccentBlueBgBrush}"
+                                        Foreground="{StaticResource AccentBlueBrush}"
+                                        BorderBrush="{StaticResource AccentBlueBorderBrush}" BorderThickness="1"
+                                        CornerRadius="8" Padding="12,7" FontSize="12"
+                                        HorizontalAlignment="Stretch"/>
                             </StackPanel>
                         </Border>
 

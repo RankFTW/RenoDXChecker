@@ -472,7 +472,7 @@ When Beta Opt-In is enabled in Settings, RHI checks both the stable release and 
 - Beta is only offered when its base version exceeds the latest stable, or when the current app is already on a beta and a newer beta is available
 - No update is offered if all candidates are at or below the current version
 
-The app encodes its beta status in the 4th component of the assembly version: `1.6.4.0` = stable, `1.6.4.1` = beta 1, etc.
+The app encodes its beta status in the 4th component of the assembly version: `1.6.5.0` = stable, `1.6.5.1` = beta 1, etc.
 
 ---
 

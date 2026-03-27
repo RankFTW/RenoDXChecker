@@ -1,3 +1,50 @@
+## v1.6.5
+
+### New Features
+
+**RE Framework support**
+- RHI now detects RE Engine games (Monster Hunter Wilds, Resident Evil series, Devil May Cry 5, Street Fighter 6, Dragon's Dogma 2, Pragmata, etc.) by checking for `re_chunk_000.pak` in the game directory. Detected games display an "RE Engine" badge.
+- One-click install, update, and uninstall of RE Framework (`dinput8.dll`) from praydog's GitHub nightly releases. Each game downloads its own game-specific build (e.g. DMC5.zip for Devil May Cry 5, RE4.zip for Resident Evil 4). The DLL is cached per game so reinstalls are instant.
+- Version tracking and auto-update checking — RHI fetches the latest nightly release tag on startup and flags installed copies that are behind. RE Framework is included in the Update All batch operation.
+- RE Framework status dot, install row, and progress indicator appear on game cards and the detail panel for RE Engine games, following the same layout as ReShade and ReLimiter. The version number is a clickable link to the REFramework nightly releases page.
+- Install All on RE Engine games now chains: RenoDX → RE Framework → ReShade.
+
+**Screenshot path settings**
+- A new Screenshots section in Settings lets you set a global screenshot save path that is written to all managed `reshade.ini` files as `[SCREENSHOT] SavePath=<path>`.
+- An optional per-game subfolder toggle appends the game name to the path, so each game's screenshots go to their own folder.
+- Click Apply to update all existing `reshade.ini` files at once. Newly deployed INIs also include the configured path automatically.
+
+**URL drag-and-drop install**
+- You can now drag a Discord or browser link to an `.addon64`/`.addon32` file directly onto the RHI window to download and install it. RHI validates the URL, downloads the file to the local cache with a progress dialog, verifies it's a valid PE binary, and routes it through the standard game-matching and install flow.
+- Also supports dragging `.url` shortcut files — RHI parses the URL from inside and processes it the same way.
+
+### Bug Fixes
+
+**RE Engine games not detected on existing installs**
+- Games that were cached before the RE Engine detection was added are now re-scanned automatically, so the RE Framework row appears without needing a manual refresh.
+
+**Update All button staying purple after all updates complete**
+- The Update All button could remain purple after completing all updates because the "any updates available" check was counting hidden games, games with DLL overrides, games with missing install paths, and Vulkan games (whose ReShade uses the global layer). These cards are skipped by Update All but were still contributing to the button state. The check now uses the same eligibility criteria as the actual update operation.
+
+**Cached addon files corrupted by HTML error pages**
+- The download-based update check for GitHub Pages-hosted mods (generic Unity, UE-extended) could save an HTML error page as the cached addon file when the CDN returned a 200 OK with HTML content instead of the binary. This resulted in ~48KB files replacing multi-MB addons in the download cache. Downloads are now validated with a PE signature check before caching, and corrupted cache entries are automatically deleted so a fresh download is triggered.
+
+**RE Framework status color mismatch**
+- The RE Framework version text was using a different shade of green than all other components. The installing and update-available colors were also inconsistent. All RE Framework status colors now match ReShade, ReLimiter, and RenoDX.
+
+### Changes
+
+**RenoDX version number now shows full build info**
+- The RenoDX version display now includes the hour/minute build number and drops the leading `0.` and century digits from the year. For example, `0.2026.0325.2215` is now shown as `26.0325.2215`.
+
+**Vulkan ReShade button icons**
+- The "Reinstall Vulkan ReShade", "Install Vulkan ReShade", and "Install Vulkan Layer" buttons now show the ↺ and ⬇ action icons matching all other component buttons.
+
+**Toggle switch labels removed in grid view overrides**
+- Removed the "Yes"/"No" text from the Global update inclusion toggle switches in the grid view overrides flyout to prevent text overflow.
+
+---
+
 ## v1.6.4
 
 ### New Features

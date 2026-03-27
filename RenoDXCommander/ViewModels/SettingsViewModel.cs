@@ -23,6 +23,8 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private List<string> _selectedShaderPacks = new();
     [ObservableProperty] private string _addonWatchFolder = "";
     [ObservableProperty] private bool _useCustomShaders;
+    [ObservableProperty] private string _screenshotPath = "";
+    [ObservableProperty] private bool _perGameScreenshotFolders;
 
     /// <summary>
     /// Optional callback invoked after any settings-specific property changes,
@@ -119,6 +121,12 @@ public partial class SettingsViewModel : ObservableObject
 
         if (s.TryGetValue("AddonWatchFolder", out var awfVal))
             AddonWatchFolder = awfVal ?? "";
+
+        if (s.TryGetValue("ScreenshotPath", out var spVal))
+            ScreenshotPath = spVal ?? "";
+
+        if (s.TryGetValue("PerGameScreenshotFolders", out var pgsfVal))
+            PerGameScreenshotFolders = pgsfVal == "true";
     }
 
     /// <summary>
@@ -136,6 +144,8 @@ public partial class SettingsViewModel : ObservableObject
         s["UseCustomShaders"]  = UseCustomShaders ? "true" : "false";
         if (!string.IsNullOrWhiteSpace(AddonWatchFolder))
             s["AddonWatchFolder"] = AddonWatchFolder;
+        s["ScreenshotPath"] = ScreenshotPath;
+        s["PerGameScreenshotFolders"] = PerGameScreenshotFolders ? "true" : "false";
     }
 
     public void LoadThemeAndDensity()

@@ -16,6 +16,7 @@ public partial class GameCardViewModel : ObservableObject
     [ObservableProperty] private double _installProgress = 0;
     [ObservableProperty] private string _actionMessage = "";
     [ObservableProperty] private string? _installedAddonFileName;
+    [ObservableProperty] private string? _rdxInstalledVersion;
     [ObservableProperty] private bool _isHidden = false;
     [ObservableProperty] private bool _isFavourite = false;
 
@@ -69,6 +70,13 @@ public partial class GameCardViewModel : ObservableObject
     [ObservableProperty] private string     _ulActionMessage = "";
     [ObservableProperty] private string?    _ulInstalledFile;
     [ObservableProperty] private string?    _ulInstalledVersion;
+
+    // ── RE Framework state ──────────────────────────────────────────────────────
+    [ObservableProperty] private GameStatus _refStatus  = GameStatus.NotInstalled;
+    [ObservableProperty] private bool       _refIsInstalling;
+    [ObservableProperty] private double     _refProgress;
+    [ObservableProperty] private string     _refActionMessage = "";
+    [ObservableProperty] private string?    _refInstalledVersion;
 
     // ── DLL Naming Override ─────────────────────────────────────────────────────
     [ObservableProperty] private bool _dllOverrideEnabled = false;
@@ -244,6 +252,21 @@ public partial class GameCardViewModel : ObservableObject
         // ── ReLimiter: UlIsInstalling dependents ─────────────────────
         NotifyOnce(nameof(UlProgressVisibility));
         NotifyOnce(nameof(IsUlNotInstalling));
+
+        // ── RE Framework: RefStatus dependents ───────────────────────
+        NotifyOnce(nameof(RefActionLabel));
+        NotifyOnce(nameof(RefDeleteVisibility));
+        NotifyOnce(nameof(RefStatusText));
+        NotifyOnce(nameof(RefStatusColor));
+        NotifyOnce(nameof(RefShortAction));
+        NotifyOnce(nameof(IsRefInstalled));
+        NotifyOnce(nameof(RefRowVisibility));
+        NotifyOnce(nameof(CardRefStatusDot));
+        NotifyOnce(nameof(CardRefInstallEnabled));
+
+        // ── RE Framework: RefIsInstalling dependents ─────────────────
+        NotifyOnce(nameof(RefProgressVisibility));
+        NotifyOnce(nameof(IsRefNotInstalling));
 
         // ── Vulkan / dual-API computed properties ────────────────────────
         NotifyOnce(nameof(IsVulkanOnly));

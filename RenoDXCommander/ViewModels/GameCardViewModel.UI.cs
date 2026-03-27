@@ -220,7 +220,8 @@ public partial class GameCardViewModel
     public Visibility DualBitInstallVisibility   => Visibility.Collapsed;
     public Visibility UpdateBadgeVisibility      => ((Status == GameStatus.UpdateAvailable && !ExcludeFromUpdateAllRenoDx)
                                                       || (RsStatus == GameStatus.UpdateAvailable && !ExcludeFromUpdateAllReShade)
-                                                      || (UlStatus == GameStatus.UpdateAvailable && !ExcludeFromUpdateAllUl))
+                                                      || (UlStatus == GameStatus.UpdateAvailable && !ExcludeFromUpdateAllUl)
+                                                      || (RefStatus == GameStatus.UpdateAvailable && !ExcludeFromUpdateAllRef))
                                                       ? Visibility.Visible : Visibility.Collapsed;
     public Visibility IsHiddenVisibility         => IsHidden ? Visibility.Visible : Visibility.Collapsed;
     public Visibility IsNotHiddenVisibility      => IsHidden ? Visibility.Collapsed : Visibility.Visible;

@@ -14,7 +14,8 @@ public interface IAuxInstallService
         bool use32Bit = false,
         string? filenameOverride = null,
         IEnumerable<string>? selectedPackIds = null,
-        IProgress<(string message, double percent)>? progress = null);
+        IProgress<(string message, double percent)>? progress = null,
+        string? screenshotSavePath = null);
 
     Task<bool> CheckForUpdateAsync(AuxInstalledRecord record);
 

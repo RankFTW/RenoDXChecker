@@ -1,3 +1,3 @@
 namespace RenoDXCommander.Models;
 
-public enum EngineType { Unknown, Unreal, UnrealLegacy, Unity }
+public enum EngineType { Unknown, Unreal, UnrealLegacy, Unity, REEngine }

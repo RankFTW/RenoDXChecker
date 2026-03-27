@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using RenoDXCommander.Services;
 using System.Runtime.InteropServices;
+using static RenoDXCommander.NativeInterop;
 
 namespace RenoDXCommander;
 
@@ -17,6 +18,7 @@ public class WindowStateManager
     private IntPtr _hwnd;
     private IntPtr _origWndProc;
     private NativeInterop.WndProcDelegate? _wndProcDelegate; // prevent GC
+    private OleDropTarget? _oleDropTarget; // prevent GC of COM drop target
 
     private static readonly string _windowSettingsPath = System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -47,14 +49,46 @@ public class WindowStateManager
 
     /// <summary>
     /// Enables Win32 drag-and-drop (WM_DROPFILES) and allows drag messages
-    /// through UIPI when running as admin.
+    /// through UIPI when running as admin. Also registers an OLE IDropTarget
+    /// to receive URL text drops from browsers and Discord.
     /// </summary>
     public void EnableDragAccept()
     {
-        NativeInterop.DragAcceptFiles(_hwnd, true);
         // Allow drag messages through UIPI when running as admin
         NativeInterop.ChangeWindowMessageFilterEx(_hwnd, NativeInterop.WM_DROPFILES, NativeInterop.MSGFLT_ALLOW, IntPtr.Zero);
         NativeInterop.ChangeWindowMessageFilterEx(_hwnd, NativeInterop.WM_COPYGLOBALDATA, NativeInterop.MSGFLT_ALLOW, IntPtr.Zero);
+
+        // Try OLE IDropTarget first — this handles BOTH file drops (CF_HDROP) and
+        // URL text drops (CF_UNICODETEXT) from browsers/Discord. We must NOT call
+        // DragAcceptFiles before RegisterDragDrop because DragAcceptFiles internally
+        // registers its own drop target, causing RegisterDragDrop to fail with
+        // DRAGDROP_E_ALREADYREGISTERED (0x80040101).
+        try
+        {
+            int oleHr = NativeInterop.OleInitialize(IntPtr.Zero);
+            // S_OK (0) or S_FALSE (1, already initialized) are both acceptable
+            if (oleHr < 0)
+            {
+                _crashReporter.Log($"[WindowStateManager.EnableDragAccept] OleInitialize failed with HRESULT 0x{oleHr:X8} — falling back to WM_DROPFILES only");
+                NativeInterop.DragAcceptFiles(_hwnd, true);
+                return;
+            }
+
+            _oleDropTarget = new OleDropTarget(this);
+            int regHr = NativeInterop.RegisterDragDrop(_hwnd, _oleDropTarget);
+            if (regHr != 0)
+            {
+                _crashReporter.Log($"[WindowStateManager.EnableDragAccept] RegisterDragDrop failed with HRESULT 0x{regHr:X8} — falling back to WM_DROPFILES only");
+                _oleDropTarget = null;
+                NativeInterop.DragAcceptFiles(_hwnd, true);
+            }
+        }
+        catch (Exception ex)
+        {
+            _crashReporter.Log($"[WindowStateManager.EnableDragAccept] OLE registration failed — {ex.Message}. Falling back to WM_DROPFILES only");
+            _oleDropTarget = null;
+            NativeInterop.DragAcceptFiles(_hwnd, true);
+        }
     }
 
     internal IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
@@ -107,6 +141,29 @@ public class WindowStateManager
                 foreach (var path in paths)
                 {
                     var ext = Path.GetExtension(path)?.ToLowerInvariant() ?? "";
+
+                    // .url shortcut files — parse the URL inside and route to ProcessDroppedUrl
+                    if (ext == ".url")
+                    {
+                        try
+                        {
+                            var url = DragDropHandler.ParseUrlFromShortcutFile(path);
+                            if (!string.IsNullOrEmpty(url))
+                            {
+                                _crashReporter.Log($"[WindowStateManager.HandleWin32Drop] Parsed URL from .url file '{Path.GetFileName(path)}': {url}");
+                                await _dragDropHandler.ProcessDroppedUrl(url);
+                            }
+                            else
+                            {
+                                _crashReporter.Log($"[WindowStateManager.HandleWin32Drop] No URL found in .url file '{Path.GetFileName(path)}' — skipping");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _crashReporter.Log($"[WindowStateManager.HandleWin32Drop] Error processing .url file '{Path.GetFileName(path)}' — {ex.Message}");
+                        }
+                        continue;
+                    }
 
                     if (ext is ".addon64" or ".addon32"
                         && Path.GetFileName(path).StartsWith("renodx-", StringComparison.OrdinalIgnoreCase))
@@ -200,6 +257,34 @@ public class WindowStateManager
         catch { }
     }
 
+    /// <summary>
+    /// Revokes the OLE drop target registration for this window.
+    /// Should be called during window close/cleanup. Logs a warning if revoke fails
+    /// but does not throw, allowing shutdown to continue.
+    /// </summary>
+    public void CleanupOleDragDrop()
+    {
+        if (_oleDropTarget == null)
+            return;
+
+        try
+        {
+            int hr = NativeInterop.RevokeDragDrop(_hwnd);
+            if (hr != 0)
+            {
+                _crashReporter.Log($"[WindowStateManager.CleanupOleDragDrop] RevokeDragDrop failed with HRESULT 0x{hr:X8} — continuing shutdown");
+            }
+        }
+        catch (Exception ex)
+        {
+            _crashReporter.Log($"[WindowStateManager.CleanupOleDragDrop] RevokeDragDrop threw — {ex.Message}. Continuing shutdown");
+        }
+        finally
+        {
+            _oleDropTarget = null;
+        }
+    }
+
     public void SaveWindowBounds()
     {
         try
@@ -217,5 +302,293 @@ public class WindowStateManager
             System.IO.File.WriteAllText(_windowSettingsPath, json);
         }
         catch { }
+    }
+
+    // ── OLE IDropTarget implementation ──────────────────────────────────────────
+
+    /// <summary>
+    /// COM-visible implementation of <see cref="NativeInterop.IDropTarget"/> that receives
+    /// OLE drag-and-drop data (URLs from browsers/Discord via CF_UNICODETEXT, or file paths
+    /// via CF_HDROP). Local file paths take priority over URL text per Requirement 1.3.
+    /// </summary>
+    [ComVisible(true)]
+    internal class OleDropTarget : NativeInterop.IDropTarget
+    {
+        private readonly WindowStateManager _owner;
+        private bool _acceptedDrag;
+
+        public OleDropTarget(WindowStateManager owner)
+        {
+            _owner = owner;
+        }
+
+        public int DragEnter(NativeInterop.IDataObject pDataObj, uint grfKeyState, POINTL pt, ref uint pdwEffect)
+        {
+            _acceptedDrag = false;
+
+            // Check for CF_HDROP (local file paths)
+            if (HasFormat(pDataObj, CF_HDROP))
+            {
+                _acceptedDrag = true;
+                pdwEffect = DROPEFFECT_COPY;
+                return 0; // S_OK
+            }
+
+            // Check for CF_UNICODETEXT (URL text from browsers/Discord)
+            if (HasFormat(pDataObj, CF_UNICODETEXT))
+            {
+                _acceptedDrag = true;
+                pdwEffect = DROPEFFECT_COPY;
+                return 0;
+            }
+
+            pdwEffect = DROPEFFECT_NONE;
+            return 0;
+        }
+
+        public int DragOver(uint grfKeyState, POINTL pt, ref uint pdwEffect)
+        {
+            pdwEffect = _acceptedDrag ? DROPEFFECT_COPY : DROPEFFECT_NONE;
+            return 0; // S_OK
+        }
+
+        public int DragLeave()
+        {
+            _acceptedDrag = false;
+            return 0; // S_OK
+        }
+
+        public int Drop(NativeInterop.IDataObject pDataObj, uint grfKeyState, POINTL pt, ref uint pdwEffect)
+        {
+            pdwEffect = DROPEFFECT_NONE;
+
+            if (!_acceptedDrag)
+                return 0;
+
+            try
+            {
+                // CF_HDROP takes priority — local files always win (Req 1.3)
+                if (HasFormat(pDataObj, CF_HDROP))
+                {
+                    var filePaths = ExtractHdrop(pDataObj);
+                    if (filePaths != null && filePaths.Count > 0)
+                    {
+                        pdwEffect = DROPEFFECT_COPY;
+                        _owner._crashReporter.Log($"[OleDropTarget.Drop] Received {filePaths.Count} file(s) via CF_HDROP — routing to HandleWin32Drop logic");
+
+                        _owner._window.DispatcherQueue.TryEnqueue(async () =>
+                        {
+                            foreach (var path in filePaths)
+                            {
+                                var ext = Path.GetExtension(path)?.ToLowerInvariant() ?? "";
+
+                                if (ext is ".addon64" or ".addon32"
+                                    && Path.GetFileName(path).StartsWith("renodx-", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    try { await _owner._dragDropHandler.ProcessDroppedAddon(path); }
+                                    catch (Exception ex) { _owner._crashReporter.Log($"[OleDropTarget.Drop] Addon error — {ex.Message}"); }
+                                    continue;
+                                }
+
+                                if (DragDropHandler.AllowedExtensions.Contains(ext) && ext != ".exe"
+                                    && ext is not ".addon64" and not ".addon32")
+                                {
+                                    try { await _owner._dragDropHandler.ProcessDroppedArchive(path); }
+                                    catch (Exception ex) { _owner._crashReporter.Log($"[OleDropTarget.Drop] Archive error — {ex.Message}"); }
+                                    continue;
+                                }
+
+                                if (ext.Equals(".exe", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    try { await _owner._dragDropHandler.ProcessDroppedExe(path); }
+                                    catch (Exception ex) { _owner._crashReporter.Log($"[OleDropTarget.Drop] Exe error — {ex.Message}"); }
+                                }
+                            }
+                        });
+
+                        return 0;
+                    }
+                }
+
+                // Fall back to CF_UNICODETEXT — extract URL text
+                var text = ExtractUnicodeText(pDataObj);
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    // Try CF_TEXT as last resort
+                    text = ExtractAnsiText(pDataObj);
+                }
+
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    // Discord and browsers may include extra text, newlines, or whitespace.
+                    // Try each line to find a valid HTTP(S) URL with an addon extension.
+                    var lines = text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var line in lines)
+                    {
+                        var url = line.Trim();
+                        if (string.IsNullOrEmpty(url))
+                            continue;
+
+                        _owner._crashReporter.Log($"[OleDropTarget.Drop] Checking text line as URL: '{url}'");
+
+                        if (Uri.TryCreate(url, UriKind.Absolute, out var uri)
+                            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+                        {
+                            var filename = DragDropHandler.ExtractFileNameFromUrl(url);
+                            if (filename != null)
+                            {
+                                var ext = Path.GetExtension(filename);
+                                if (ext != null && (ext.Equals(".addon64", StringComparison.OrdinalIgnoreCase)
+                                                 || ext.Equals(".addon32", StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    pdwEffect = DROPEFFECT_COPY;
+                                    _owner._window.DispatcherQueue.TryEnqueue(async () =>
+                                    {
+                                        try
+                                        {
+                                            await _owner._dragDropHandler.ProcessDroppedUrl(url);
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            _owner._crashReporter.Log($"[OleDropTarget.Drop] ProcessDroppedUrl error — {ex.Message}");
+                                        }
+                                    });
+                                    return 0;
+                                }
+                            }
+                        }
+                    }
+
+                    _owner._crashReporter.Log($"[OleDropTarget.Drop] Dropped text does not contain a valid addon URL — ignored");
+                }
+            }
+            catch (Exception ex)
+            {
+                _owner._crashReporter.Log($"[OleDropTarget.Drop] Unexpected error — {ex.Message}");
+            }
+
+            return 0;
+        }
+
+        // ── Helpers ─────────────────────────────────────────────────────────────
+
+        /// <summary>Returns true if the data object supports the given clipboard format.</summary>
+        private static bool HasFormat(NativeInterop.IDataObject dataObj, ushort cfFormat)
+        {
+            var fmt = new FORMATETC
+            {
+                cfFormat = cfFormat,
+                ptd = IntPtr.Zero,
+                dwAspect = DVASPECT_CONTENT,
+                lindex = -1,
+                tymed = TYMED_HGLOBAL,
+            };
+            return dataObj.QueryGetData(ref fmt) == 0; // S_OK
+        }
+
+        /// <summary>Extracts file paths from CF_HDROP data.</summary>
+        private static List<string>? ExtractHdrop(NativeInterop.IDataObject dataObj)
+        {
+            var fmt = new FORMATETC
+            {
+                cfFormat = CF_HDROP,
+                ptd = IntPtr.Zero,
+                dwAspect = DVASPECT_CONTENT,
+                lindex = -1,
+                tymed = TYMED_HGLOBAL,
+            };
+
+            if (dataObj.GetData(ref fmt, out var medium) != 0)
+                return null;
+
+            try
+            {
+                var hDrop = medium.unionmember;
+                uint fileCount = NativeInterop.DragQueryFile(hDrop, 0xFFFFFFFF, null, 0);
+                var paths = new List<string>((int)fileCount);
+
+                for (uint i = 0; i < fileCount; i++)
+                {
+                    uint size = NativeInterop.DragQueryFile(hDrop, i, null, 0) + 1;
+                    var buffer = new char[size];
+                    NativeInterop.DragQueryFile(hDrop, i, buffer, size);
+                    paths.Add(new string(buffer, 0, (int)(size - 1)));
+                }
+
+                return paths;
+            }
+            finally
+            {
+                NativeInterop.ReleaseStgMedium(ref medium);
+            }
+        }
+
+        /// <summary>Extracts a Unicode string from CF_UNICODETEXT data.</summary>
+        private static string? ExtractUnicodeText(NativeInterop.IDataObject dataObj)
+        {
+            var fmt = new FORMATETC
+            {
+                cfFormat = CF_UNICODETEXT,
+                ptd = IntPtr.Zero,
+                dwAspect = DVASPECT_CONTENT,
+                lindex = -1,
+                tymed = TYMED_HGLOBAL,
+            };
+
+            if (dataObj.GetData(ref fmt, out var medium) != 0)
+                return null;
+
+            try
+            {
+                var ptr = GlobalLock(medium.unionmember);
+                if (ptr == IntPtr.Zero) return null;
+                try
+                {
+                    return Marshal.PtrToStringUni(ptr);
+                }
+                finally
+                {
+                    GlobalUnlock(medium.unionmember);
+                }
+            }
+            finally
+            {
+                NativeInterop.ReleaseStgMedium(ref medium);
+            }
+        }
+
+        /// <summary>Extracts an ANSI string from CF_TEXT data.</summary>
+        private static string? ExtractAnsiText(NativeInterop.IDataObject dataObj)
+        {
+            var fmt = new FORMATETC
+            {
+                cfFormat = CF_TEXT,
+                ptd = IntPtr.Zero,
+                dwAspect = DVASPECT_CONTENT,
+                lindex = -1,
+                tymed = TYMED_HGLOBAL,
+            };
+
+            if (dataObj.GetData(ref fmt, out var medium) != 0)
+                return null;
+
+            try
+            {
+                var ptr = GlobalLock(medium.unionmember);
+                if (ptr == IntPtr.Zero) return null;
+                try
+                {
+                    return Marshal.PtrToStringAnsi(ptr);
+                }
+                finally
+                {
+                    GlobalUnlock(medium.unionmember);
+                }
+            }
+            finally
+            {
+                NativeInterop.ReleaseStgMedium(ref medium);
+            }
+        }
     }
 }

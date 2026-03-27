@@ -158,9 +158,12 @@ public class CardBuilder
         var rsDotPanel = UIFactory.MakeStatusDot("RS", card.CardRsStatusDot);
         var ulDotPanel = UIFactory.MakeStatusDot("UL", card.CardUlStatusDot);
         ulDotPanel.Visibility = card.UlRowVisibility;
+        var refDotPanel = UIFactory.MakeStatusDot("REF", card.CardRefStatusDot);
+        refDotPanel.Visibility = card.RefRowVisibility;
         dotsPanel.Children.Add(rdxDotPanel);
         dotsPanel.Children.Add(rsDotPanel);
         dotsPanel.Children.Add(ulDotPanel);
+        dotsPanel.Children.Add(refDotPanel);
 
         StackPanel? lumaDotPanel = null;
         if (card.CardLumaVisible)
@@ -338,6 +341,13 @@ public class CardBuilder
                             if (ulDotPanel.Children[0] is Microsoft.UI.Xaml.Shapes.Ellipse ulEllipse)
                                 ulEllipse.Fill = UIFactory.GetBrush(c.CardUlStatusDot);
                             break;
+                        case nameof(c.CardRefStatusDot):
+                            if (refDotPanel.Children[0] is Microsoft.UI.Xaml.Shapes.Ellipse refEllipse)
+                                refEllipse.Fill = UIFactory.GetBrush(c.CardRefStatusDot);
+                            break;
+                        case nameof(c.RefRowVisibility):
+                            refDotPanel.Visibility = c.RefRowVisibility;
+                            break;
                         case nameof(c.CardLumaStatusDot):
                             if (lumaDotPanel?.Children[0] is Microsoft.UI.Xaml.Shapes.Ellipse lumaEllipse)
                                 lumaEllipse.Fill = UIFactory.GetBrush(c.CardLumaStatusDot);
@@ -348,6 +358,7 @@ public class CardBuilder
                             rdxDotPanel.Visibility = effectiveLuma ? Visibility.Collapsed : Visibility.Visible;
                             rsDotPanel.Visibility = effectiveLuma ? Visibility.Collapsed : Visibility.Visible;
                             ulDotPanel.Visibility = c.UlRowVisibility;
+                            refDotPanel.Visibility = c.RefRowVisibility;
                             // Add/remove Luma dot
                             if (c.CardLumaVisible && lumaDotPanel == null)
                             {
@@ -413,6 +424,29 @@ public class CardBuilder
         panel.Children.Add(UIFactory.MakeSeparator());
 
         // ── Component rows ──
+
+        // RE Framework row (above ReShade, visible only for RE Engine games)
+        var refRow = BuildComponentRow(card, "RE Framework", "REF",
+            card.RefStatusText, card.RefStatusColor, card.RefShortAction,
+            card.CardRefInstallEnabled, card.IsRefInstalled,
+            showCopyConfig: false, copyConfigVisible: false,
+            copyConfigTooltip: null,
+            btnBackground: card.RefBtnBackground, btnForeground: card.RefBtnForeground, btnBorderBrush: card.RefBtnBorderBrush);
+        refRow.Visibility = card.RefRowVisibility;
+        // Make REF status text a clickable link to the REFramework nightly releases
+        var refStatusBlock = refRow.Children.OfType<TextBlock>().FirstOrDefault(t => t.Tag as string == "StatusText");
+        if (refStatusBlock != null)
+        {
+            if (card.IsRefInstalled)
+                refStatusBlock.TextDecorations = Windows.UI.Text.TextDecorations.Underline;
+            refStatusBlock.PointerPressed += async (s, e) =>
+            {
+                if (card.IsRefInstalled)
+                    await Windows.System.Launcher.LaunchUriAsync(
+                        new Uri("https://github.com/praydog/REFramework-nightly/releases"));
+            };
+        }
+        panel.Children.Add(refRow);
 
         // ReShade row
         var rsRow = BuildComponentRow(card, "ReShade", "RS",
@@ -587,8 +621,18 @@ public class CardBuilder
                     rsRow.Visibility = c.ReShadeRowVisibility;
                     ulRow.Visibility = c.UlRowVisibility;
                     rdxRow.Visibility = c.RenoDxRowVisibility;
+                    refRow.Visibility = c.RefRowVisibility;
 
                     // Update each component row's status/buttons
+                    UpdateComponentRow(refRow, c.RefStatusText, c.RefStatusColor, c.RefShortAction,
+                        c.CardRefInstallEnabled, c.IsRefInstalled, false,
+                        c.RefBtnBackground, c.RefBtnForeground, c.RefBtnBorderBrush);
+                    // Keep REF status underline in sync
+                    var refSb = refRow.Children.OfType<TextBlock>().FirstOrDefault(t => t.Tag as string == "StatusText");
+                    if (refSb != null)
+                        refSb.TextDecorations = c.IsRefInstalled
+                            ? Windows.UI.Text.TextDecorations.Underline
+                            : Windows.UI.Text.TextDecorations.None;
                     UpdateComponentRow(rsRow, c.RsStatusText, c.RsStatusColor, c.RsShortAction,
                         c.CardRsInstallEnabled, c.IsRsInstalled, c.RsIniExists,
                         c.RsBtnBackground, c.RsBtnForeground, c.RsBtnBorderBrush);

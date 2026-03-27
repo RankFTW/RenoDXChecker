@@ -32,6 +32,19 @@ public class ModUpdateDetectionPreservationTests : IDisposable
         try { Directory.Delete(_tempRoot, recursive: true); } catch { }
     }
 
+    /// <summary>
+    /// Creates a byte array that starts with the PE "MZ" magic bytes so it passes
+    /// the HasPeSignature validation in ModInstallService.
+    /// </summary>
+    private static byte[] MakePeBytes(int size, int seed)
+    {
+        var bytes = new byte[Math.Max(size, 2)];
+        new Random(seed).NextBytes(bytes);
+        bytes[0] = (byte)'M';
+        bytes[1] = (byte)'Z';
+        return bytes;
+    }
+
     // ── Property 2a ──────────────────────────────────────────────────────────────
     /// <summary>
     /// Property 2a: For all marat569.github.io URL paths, CheckForUpdateAsync uses
@@ -56,8 +69,7 @@ public class ModUpdateDetectionPreservationTests : IDisposable
 
         return Prop.ForAll(Arb.From(genSize), (int fileSize) =>
         {
-            var fileBytes = new byte[fileSize];
-            new Random(fileSize).NextBytes(fileBytes);
+            var fileBytes = MakePeBytes(fileSize, fileSize);
 
             var gameDir = Path.Combine(_tempRoot, $"Game2a_same_{fileSize}");
             Directory.CreateDirectory(gameDir);
@@ -97,13 +109,11 @@ public class ModUpdateDetectionPreservationTests : IDisposable
 
         return Prop.ForAll(Arb.From(genSize), (int localSize) =>
         {
-            var localBytes = new byte[localSize];
-            new Random(localSize).NextBytes(localBytes);
+            var localBytes = MakePeBytes(localSize, localSize);
 
             // Remote file is a different size (local + 100 bytes)
             var remoteSize = localSize + 100;
-            var remoteBytes = new byte[remoteSize];
-            new Random(remoteSize).NextBytes(remoteBytes);
+            var remoteBytes = MakePeBytes(remoteSize, remoteSize);
 
             var gameDir = Path.Combine(_tempRoot, $"Game2a_diff_{localSize}");
             Directory.CreateDirectory(gameDir);

@@ -20,6 +20,7 @@ public partial class MainViewModel : ObservableObject
     public HttpClient HttpClient => _http;
     private readonly IModInstallService _installer;
     private readonly IAuxInstallService _auxInstaller;
+    private readonly IREFrameworkService _refService;
     private readonly ICrashReporter _crashReporter;
     private readonly IWikiService _wikiService;
     private readonly IManifestService _manifestService;
@@ -70,7 +71,7 @@ public partial class MainViewModel : ObservableObject
         set => _settingsViewModel.LastSeenVersion = value;
     }
 
-    public string UpdateButtonTooltip => "Update ReShade, RenoDX, and ReLimiter for all games";
+    public string UpdateButtonTooltip => "Update ReShade, RenoDX, ReLimiter, and RE Framework for all games";
 
     /// <summary>
     /// The global shader picker button is disabled while custom shaders are active.
@@ -263,6 +264,21 @@ public partial class MainViewModel : ObservableObject
         // 4. Fallback → global pack selection
         return _settingsViewModel.SelectedShaderPacks;
     }
+
+    /// <summary>
+    /// Builds the effective screenshot save path for a game based on current settings.
+    /// Returns null if no screenshot path is configured.
+    /// </summary>
+    internal string? BuildScreenshotSavePath(string gameName)
+    {
+        var basePath = _settingsViewModel.ScreenshotPath;
+        if (string.IsNullOrEmpty(basePath)) return null;
+        if (!_settingsViewModel.PerGameScreenshotFolders) return basePath;
+        var sanitized = AuxInstallService.SanitizeDirectoryName(gameName);
+        if (string.IsNullOrEmpty(sanitized)) return basePath;
+        return basePath + @"\" + sanitized;
+    }
+
     private List<GameMod> _allMods = new();
     private Dictionary<string, string> _genericNotes = new(StringComparer.OrdinalIgnoreCase);
     private List<GameCardViewModel> _allCards = new();
@@ -362,11 +378,13 @@ public partial class MainViewModel : ObservableObject
         IUpdateOrchestrationService updateOrchestrationService,
         IDllOverrideService dllOverrideService,
         IGameNameService gameNameService,
-        IGameInitializationService gameInitializationService)
+        IGameInitializationService gameInitializationService,
+        IREFrameworkService refService)
     {
         _http = http;
         _installer = installer;
         _auxInstaller = auxInstaller;
+        _refService = refService;
         _crashReporter = crashReporter;
         _wikiService = wikiService;
         _manifestService = manifestService;
@@ -812,7 +830,7 @@ public partial class MainViewModel : ObservableObject
         // game, override to DX11. Both engines statically link opengl32.dll as a
         // fallback renderer but default to DirectX on Windows.
         if (bestDetected == GraphicsApiType.OpenGL
-            && engine is EngineType.Unreal or EngineType.Unity)
+            && engine is EngineType.Unreal or EngineType.Unity or EngineType.REEngine)
             return GraphicsApiType.DirectX11;
 
         if (bestDetected != GraphicsApiType.Unknown)
@@ -825,6 +843,7 @@ public partial class MainViewModel : ObservableObject
             EngineType.Unreal       => GraphicsApiType.DirectX11,
             EngineType.UnrealLegacy => GraphicsApiType.DirectX9,
             EngineType.Unity        => GraphicsApiType.DirectX11,
+            EngineType.REEngine     => GraphicsApiType.DirectX12,
             _                       => GraphicsApiType.Unknown,
         };
     }
@@ -954,6 +973,7 @@ public partial class MainViewModel : ObservableObject
                        : label.Equals("Unreal Engine", StringComparison.OrdinalIgnoreCase)     ? EngineType.Unreal
                        : label.StartsWith("Unreal (Legacy)", StringComparison.OrdinalIgnoreCase) ? EngineType.UnrealLegacy
                        : label.Equals("Unity", StringComparison.OrdinalIgnoreCase)              ? EngineType.Unity
+                       : label.Equals("RE Engine", StringComparison.OrdinalIgnoreCase)          ? EngineType.REEngine
                        : EngineType.Unknown;
 
         return label;
@@ -1034,9 +1054,13 @@ public partial class MainViewModel : ObservableObject
 
     public bool AnyUpdateAvailable =>
         _allCards.Any(c =>
-            (c.Status   == GameStatus.UpdateAvailable && !c.ExcludeFromUpdateAllRenoDx) ||
-            (c.RsStatus == GameStatus.UpdateAvailable && !c.ExcludeFromUpdateAllReShade) ||
-            (c.UlStatus == GameStatus.UpdateAvailable && !c.ExcludeFromUpdateAllUl));
+            !c.IsHidden && !c.DllOverrideEnabled
+            && !string.IsNullOrEmpty(c.InstallPath)
+            && Directory.Exists(c.InstallPath)
+            && ((c.Status   == GameStatus.UpdateAvailable && !c.ExcludeFromUpdateAllRenoDx) ||
+                (c.RsStatus == GameStatus.UpdateAvailable && !c.ExcludeFromUpdateAllReShade && !c.RequiresVulkanInstall) ||
+                (c.UlStatus == GameStatus.UpdateAvailable && !c.ExcludeFromUpdateAllUl) ||
+                (c.RefStatus == GameStatus.UpdateAvailable && !c.ExcludeFromUpdateAllRef)));
 
     // Button colours — purple when updates available, dim when idle
     public string UpdateAllBtnBackground => AnyUpdateAvailable ? "#201838" : "#1E242C";
@@ -1358,6 +1382,7 @@ public partial class MainViewModel : ObservableObject
             _installer.RemoveRecord(card.InstalledRecord);
             card.InstalledRecord        = null;
             card.InstalledAddonFileName = null;
+            card.RdxInstalledVersion    = null;
             card.Status                 = GameStatus.Available;
         }
 
@@ -1877,9 +1902,11 @@ public partial class MainViewModel : ObservableObject
                            : (useUeExt && engine == EngineType.Unknown) ? "Unreal Engine"
                            : engine == EngineType.Unreal       ? "Unreal Engine"
                            : engine == EngineType.UnrealLegacy ? "Unreal (Legacy)"
-                           : engine == EngineType.Unity        ? "Unity" : "",
+                           : engine == EngineType.Unity        ? "Unity"
+                           : engine == EngineType.REEngine     ? "RE Engine" : "",
             Notes          = effectiveMod != null ? BuildNotes(game.Name, effectiveMod, fallback, _genericNotes, isNativeHdr) : "",
             InstalledAddonFileName = record?.AddonFileName,
+            RdxInstalledVersion = record != null ? AuxInstallService.ReadInstalledVersion(record.InstallPath, record.AddonFileName) : null,
             IsExternalOnly  = _wikiExclusions.Contains(game.Name)
                               ? true
                               : effectiveMod?.SnapshotUrl == null &&
@@ -1913,6 +1940,7 @@ public partial class MainViewModel : ObservableObject
             RsStatus        = rsRecManual != null ? GameStatus.Installed : GameStatus.NotInstalled,
             RsInstalledFile = rsRecManual?.InstalledAs,
             RsInstalledVersion = rsRecManual != null ? AuxInstallService.ReadInstalledVersion(rsRecManual.InstallPath, rsRecManual.InstalledAs) : null,
+            IsREEngineGame     = engine == EngineType.REEngine,
         };
 
         card.IsDualApiGame = GraphicsApiDetector.IsDualApi(card.DetectedApis);
@@ -1941,6 +1969,20 @@ public partial class MainViewModel : ObservableObject
                 card.UlStatus = GameStatus.Installed;
                 card.UlInstalledFile = ulFileName;
                 card.UlInstalledVersion = ReadUlInstalledVersion(card.Is32Bit);
+            }
+        }
+
+        // RE Framework record matching for manually added game
+        if (card.IsREEngineGame)
+        {
+            var refRecords = _refService.GetRecords();
+            var refRec = refRecords.FirstOrDefault(r =>
+                r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase));
+            if (refRec != null)
+            {
+                card.RefRecord = refRec;
+                card.RefStatus = GameStatus.Installed;
+                card.RefInstalledVersion = refRec.InstalledVersion;
             }
         }
 
@@ -1988,6 +2030,7 @@ public partial class MainViewModel : ObservableObject
             {
                 card.InstalledRecord        = record;
                 card.InstalledAddonFileName = record.AddonFileName;
+                card.RdxInstalledVersion    = AuxInstallService.ReadInstalledVersion(record.InstallPath, record.AddonFileName);
                 card.Status                 = GameStatus.Installed;
                 card.ActionMessage          = "✅ Installed! Press Home in-game to open ReShade.";
                 _crashReporter.Log($"[MainViewModel.InstallModAsync] Install complete: {card.GameName} — {record.AddonFileName}");
@@ -2034,6 +2077,7 @@ public partial class MainViewModel : ObservableObject
         _installer.Uninstall(card.InstalledRecord);
         card.InstalledRecord        = null;
         card.InstalledAddonFileName = null;
+        card.RdxInstalledVersion    = null;
         card.Status                 = GameStatus.Available;
         card.ActionMessage          = "Mod removed.";
         // Clear the addon file cache so the next Refresh doesn't think a file is still there.
@@ -2614,7 +2658,8 @@ public partial class MainViewModel : ObservableObject
                         ? mRs
                         : ResolveAutoReShadeFilename(card.DetectedApis)),
                 selectedPackIds: ResolveShaderSelection(card.GameName, card.ShaderModeOverride),
-                progress:       progress);
+                progress:       progress,
+                screenshotSavePath: BuildScreenshotSavePath(card.GameName));
             DispatcherQueue?.TryEnqueue(() =>
             {
                 card.RsRecord           = record;
@@ -2646,7 +2691,7 @@ public partial class MainViewModel : ObservableObject
             card.RsActionMessage = "Installing Vulkan ReShade...";
             try
             {
-                AuxInstallService.MergeRsVulkanIni(card.InstallPath, card.GameName);
+                AuxInstallService.MergeRsVulkanIni(card.InstallPath, card.GameName, BuildScreenshotSavePath(card.GameName));
                 AuxInstallService.CopyRsPresetIniIfPresent(card.InstallPath);
                 VulkanFootprintService.Create(card.InstallPath);
                 _shaderPackService.SyncGameFolder(card.InstallPath,
@@ -2707,7 +2752,7 @@ public partial class MainViewModel : ObservableObject
             await Task.Run(() => InstallLayerAction());
 
             // 4. Deploy reshade.vulkan.ini (as reshade.ini) to game directory
-            AuxInstallService.MergeRsVulkanIni(card.InstallPath, card.GameName);
+            AuxInstallService.MergeRsVulkanIni(card.InstallPath, card.GameName, BuildScreenshotSavePath(card.GameName));
 
             // 5. Deploy ReShadePreset.ini if present
             AuxInstallService.CopyRsPresetIniIfPresent(card.InstallPath);
@@ -2802,6 +2847,66 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    // ── RE Framework commands ─────────────────────────────────────────────────────
+
+    [RelayCommand]
+    public async Task InstallREFrameworkAsync(GameCardViewModel? card)
+    {
+        if (card == null) return;
+
+        if (string.IsNullOrEmpty(card.InstallPath) || !Directory.Exists(card.InstallPath))
+        {
+            card.RefActionMessage = "No install path — use 📁 to pick the game folder.";
+            return;
+        }
+
+        card.RefIsInstalling = true;
+        card.RefActionMessage = "Starting RE Framework download...";
+        try
+        {
+            var progress = new Progress<(string msg, double pct)>(p =>
+            {
+                card.RefActionMessage = p.msg;
+                card.RefProgress = p.pct;
+            });
+            var record = await _refService.InstallAsync(card.GameName, card.InstallPath, progress);
+            DispatcherQueue?.TryEnqueue(() =>
+            {
+                card.RefRecord = record;
+                card.RefInstalledVersion = record.InstalledVersion;
+                card.RefStatus = GameStatus.Installed;
+                card.RefActionMessage = "✅ RE Framework installed!";
+                card.NotifyAll();
+            });
+        }
+        catch (Exception ex)
+        {
+            card.RefActionMessage = $"❌ RE Framework Failed: {ex.Message}";
+            _crashReporter.WriteCrashReport("InstallREFrameworkAsync", ex, note: $"Game: {card.GameName}");
+        }
+        finally { card.RefIsInstalling = false; }
+    }
+
+    [RelayCommand]
+    public void UninstallREFramework(GameCardViewModel? card)
+    {
+        if (card == null || card.RefRecord == null) return;
+        try
+        {
+            _refService.Uninstall(card.GameName, card.InstallPath);
+            card.RefRecord = null;
+            card.RefInstalledVersion = null;
+            card.RefStatus = GameStatus.NotInstalled;
+            card.RefActionMessage = "RE Framework removed.";
+            card.NotifyAll();
+        }
+        catch (Exception ex)
+        {
+            card.RefActionMessage = $"❌ Uninstall failed: {ex.Message}";
+            _crashReporter.WriteCrashReport("UninstallREFramework", ex, note: $"Game: {card.GameName}");
+        }
+    }
+
     // ── Luma Framework commands ───────────────────────────────────────────────────
 
     /// <summary>Fuzzy-matches a game name against the Luma completed mods list.
@@ -2877,6 +2982,7 @@ public partial class MainViewModel : ObservableObject
                     _installer.Uninstall(card.InstalledRecord);
                     card.InstalledRecord = null;
                     card.InstalledAddonFileName = null;
+                    card.RdxInstalledVersion = null;
                     card.Status = GameStatus.Available;
                 }
                 catch (Exception ex) { _crashReporter.Log($"[MainViewModel.ToggleLumaMode] RenoDX uninstall failed — {ex.Message}"); }
@@ -3071,6 +3177,20 @@ public partial class MainViewModel : ObservableObject
             OnPropertyChanged(nameof(UpdateAllBtnForeground));
             OnPropertyChanged(nameof(UpdateAllBtnBorder));
         });
+    }
+
+    public async Task UpdateAllRefAsync()
+    {
+        await _updateOrchestrationService.UpdateAllREFrameworkAsync(
+            _allCards, DispatcherQueue,
+            () =>
+            {
+                HasUpdatesAvailable = AnyUpdateAvailable;
+                OnPropertyChanged(nameof(AnyUpdateAvailable));
+                OnPropertyChanged(nameof(UpdateAllBtnBackground));
+                OnPropertyChanged(nameof(UpdateAllBtnForeground));
+                OnPropertyChanged(nameof(UpdateAllBtnBorder));
+            });
     }
 
     // ── Init ──
@@ -3455,6 +3575,9 @@ public partial class MainViewModel : ObservableObject
         var genericUnreal = MakeGenericUnreal();
         var genericUnity  = MakeGenericUnity();
 
+        // Load RE Framework install records for matching to cards
+        var refRecords = _refService.GetRecords();
+
         // Thread-safe caches populated during parallel detection, saved to library afterwards.
         var newEngineTypeCache   = new ConcurrentDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var newResolvedPathCache = new ConcurrentDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -3468,7 +3591,9 @@ public partial class MainViewModel : ObservableObject
             var rootKey = game.InstallPath.TrimEnd('\\', '/').ToLowerInvariant();
 
             // Use cached engine detection when available — avoids expensive filesystem traversals.
+            // Skip cache for "Unknown" engines so newly added engine detectors (e.g. REEngine) can re-scan.
             if (_engineTypeCache.TryGetValue(rootKey, out var cachedEngine)
+                && !string.Equals(cachedEngine, nameof(EngineType.Unknown), StringComparison.OrdinalIgnoreCase)
                 && _resolvedPathCache.TryGetValue(rootKey, out var cachedPath)
                 && Directory.Exists(cachedPath))
             {
@@ -3840,9 +3965,11 @@ public partial class MainViewModel : ObservableObject
                                        : (useUeExt && engine == EngineType.Unknown) ? "Unreal Engine"
                                        : engine == EngineType.Unreal       ? "Unreal Engine"
                                        : engine == EngineType.UnrealLegacy ? "Unreal (Legacy)"
-                                       : engine == EngineType.Unity        ? "Unity" : "",
+                                       : engine == EngineType.Unity        ? "Unity"
+                                       : engine == EngineType.REEngine     ? "RE Engine" : "",
                 Notes                  = effectiveMod != null ? BuildNotes(game.Name, effectiveMod, fallback, genericNotes, isNativeHdr) : "",
                 InstalledAddonFileName = record?.AddonFileName,
+                RdxInstalledVersion = record != null ? AuxInstallService.ReadInstalledVersion(record.InstallPath, record.AddonFileName) : null,
                 IsHidden               = _hiddenGames.Contains(game.Name),
                 IsFavourite            = _favouriteGames.Contains(game.Name),
                 IsManuallyAdded        = game.IsManuallyAdded,
@@ -3877,6 +4004,7 @@ public partial class MainViewModel : ObservableObject
                 RsStatus               = rsRec != null ? GameStatus.Installed : GameStatus.NotInstalled,
                 RsInstalledFile        = rsRec?.InstalledAs,
                 RsInstalledVersion     = rsRec != null ? AuxInstallService.ReadInstalledVersion(rsRec.InstallPath, rsRec.InstalledAs) : null,
+                IsREEngineGame         = engine == EngineType.REEngine,
             });
 
             // ── Luma matching ──────────────────────────────────────────────────────
@@ -3909,6 +4037,19 @@ public partial class MainViewModel : ObservableObject
                     newCard.UlStatus = GameStatus.Installed;
                     newCard.UlInstalledFile = ulFileName;
                     newCard.UlInstalledVersion = ReadUlInstalledVersion(newCard.Is32Bit);
+                }
+            }
+
+            // ── RE Framework record matching ───────────────────────────────────
+            if (newCard.IsREEngineGame)
+            {
+                var refRec = refRecords.FirstOrDefault(r =>
+                    r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase));
+                if (refRec != null)
+                {
+                    newCard.RefRecord = refRec;
+                    newCard.RefStatus = GameStatus.Installed;
+                    newCard.RefInstalledVersion = refRec.InstalledVersion;
                 }
             }
 

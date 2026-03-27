@@ -193,6 +193,28 @@ public class DetailPanelBuilder
     {
         bool isLumaMode = card.LumaFeatureEnabled && card.IsLumaMode;
 
+        // RE Framework row — visible only for RE Engine games when not in Luma mode
+        _window.DetailRefRow.Visibility = card.RefRowVisibility;
+        if (card.RefRowVisibility == Visibility.Visible)
+        {
+            _window.DetailRefStatus.Text = card.RefStatusText;
+            _window.DetailRefStatus.Foreground = UIFactory.GetBrush(card.RefStatusColor);
+            _window.DetailRefStatus.TextDecorations = card.IsRefInstalled
+                ? Windows.UI.Text.TextDecorations.Underline
+                : Windows.UI.Text.TextDecorations.None;
+            _window.DetailRefInstallBtn.Tag = card;
+            _window.DetailRefInstallBtn.Content = card.RefActionLabel;
+            _window.DetailRefInstallBtn.IsEnabled = card.IsRefNotInstalling;
+            _window.DetailRefInstallBtn.Background = UIFactory.GetBrush(card.RefBtnBackground);
+            _window.DetailRefInstallBtn.Foreground = UIFactory.GetBrush(card.RefBtnForeground);
+            _window.DetailRefInstallBtn.BorderBrush = UIFactory.GetBrush(card.RefBtnBorderBrush);
+            _window.DetailRefInstallBtn.BorderThickness = new Thickness(1);
+            _window.DetailRefDeleteBtn.Tag = card;
+            var refShow = card.RefDeleteVisibility == Visibility.Visible;
+            _window.DetailRefDeleteBtn.Opacity = refShow ? 1 : 0;
+            _window.DetailRefDeleteBtn.IsHitTestVisible = refShow;
+        }
+
         // ReShade row
         _window.DetailRsRow.Visibility = isLumaMode ? Visibility.Collapsed : Visibility.Visible;
         if (!isLumaMode)
@@ -374,6 +396,10 @@ public class DetailPanelBuilder
         _window.DetailNoModMsg.Visibility = card.NoModVisibility;
 
         // Progress bars
+        _window.DetailRefProgress.Visibility = card.RefRowVisibility == Visibility.Visible ? card.RefProgressVisibility : Visibility.Collapsed;
+        _window.DetailRefProgress.Value = card.RefProgress;
+        _window.DetailRefMessage.Visibility = card.RefRowVisibility == Visibility.Visible ? card.RefMessageVisibility : Visibility.Collapsed;
+        _window.DetailRefMessage.Text = card.RefActionMessage;
         _window.DetailRsProgress.Visibility = card.RsProgressVisibility;
         _window.DetailRsProgress.Value = card.RsProgress;
         _window.DetailRsMessage.Visibility = card.RsMessageVisibility;

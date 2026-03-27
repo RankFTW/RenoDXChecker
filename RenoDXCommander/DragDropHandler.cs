@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using RenoDXCommander.Models;
 using RenoDXCommander.Services;
 using RenoDXCommander.ViewModels;
+using System.Net.Http;
 using System.Text.RegularExpressions;
 
 namespace RenoDXCommander;
@@ -73,69 +74,171 @@ public class DragDropHandler
             e.DragUIOverride.IsCaptionVisible = true;
             e.DragUIOverride.IsGlyphVisible = true;
         }
+        else if (e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+        {
+            e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
+            e.DragUIOverride.Caption = "Drop URL to download addon";
+            e.DragUIOverride.IsCaptionVisible = true;
+            e.DragUIOverride.IsGlyphVisible = true;
+        }
     }
 
     public async void Grid_Drop(object sender, DragEventArgs e)
     {
-        if (!e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems))
-            return;
-
-        var items = await e.DataView.GetStorageItemsAsync();
-        foreach (var item in items)
+        // ── Path 1: StorageItems (files) ──────────────────────────────────────
+        if (e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems))
         {
-            if (item is not Windows.Storage.StorageFile file) continue;
-
-            var ext = file.FileType?.ToLowerInvariant() ?? "";
-
-            // Early validation: skip files with disallowed extensions
-            if (!IsAllowedExtension(file.Path))
+            var items = await e.DataView.GetStorageItemsAsync();
+            foreach (var item in items)
             {
-                _crashReporter.Log($"[DragDropHandler.Grid_Drop] Skipping file with disallowed extension '{ext}' — '{file.Name}'");
-                continue;
-            }
+                if (item is not Windows.Storage.StorageFile file) continue;
 
-            // Handle .addon64 / .addon32 files — install RenoDX addon to a game
-            if (ext is ".addon64" or ".addon32"
-                && Path.GetFileName(file.Path).StartsWith("renodx-", StringComparison.OrdinalIgnoreCase))
-            {
+                var ext = file.FileType?.ToLowerInvariant() ?? "";
+
+                // .url shortcut files — parse the URL inside and route to ProcessDroppedUrl
+                if (ext == ".url")
+                {
+                    try
+                    {
+                        var url = ParseUrlFromShortcutFile(file.Path);
+                        if (!string.IsNullOrEmpty(url))
+                        {
+                            _crashReporter.Log($"[DragDropHandler.Grid_Drop] Parsed URL from .url file '{file.Name}': {url}");
+                            await ProcessDroppedUrl(url);
+                        }
+                        else
+                        {
+                            _crashReporter.Log($"[DragDropHandler.Grid_Drop] No URL in .url file content for '{file.Name}' — trying Text data format");
+                            // Discord often provides the URL as Text alongside the .url StorageFile
+                            if (e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                            {
+                                var text = await e.DataView.GetTextAsync();
+                                if (!string.IsNullOrWhiteSpace(text))
+                                {
+                                    var textUrl = text.Trim();
+                                    if (Uri.TryCreate(textUrl, UriKind.Absolute, out var uri)
+                                        && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+                                    {
+                                        _crashReporter.Log($"[DragDropHandler.Grid_Drop] Got URL from Text data: {textUrl}");
+                                        await ProcessDroppedUrl(textUrl);
+                                        continue;
+                                    }
+                                }
+                            }
+
+                            // Last resort: if filename is like "renodx-game.addon64.url",
+                            // try reading the .url file as a WebUri
+                            if (e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.WebLink))
+                            {
+                                try
+                                {
+                                    var webUri = await e.DataView.GetWebLinkAsync();
+                                    if (webUri != null)
+                                    {
+                                        _crashReporter.Log($"[DragDropHandler.Grid_Drop] Got URL from WebLink data: {webUri.AbsoluteUri}");
+                                        await ProcessDroppedUrl(webUri.AbsoluteUri);
+                                        continue;
+                                    }
+                                }
+                                catch { }
+                            }
+
+                            _crashReporter.Log($"[DragDropHandler.Grid_Drop] Could not extract URL for .url file '{file.Name}' — skipping");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _crashReporter.Log($"[DragDropHandler.Grid_Drop] Error processing .url file '{file.Name}' — {ex.Message}");
+                    }
+                    continue;
+                }
+
+                // Early validation: skip files with disallowed extensions
+                if (!IsAllowedExtension(file.Path))
+                {
+                    _crashReporter.Log($"[DragDropHandler.Grid_Drop] Skipping file with disallowed extension '{ext}' — '{file.Name}'");
+                    continue;
+                }
+
+                // Handle .addon64 / .addon32 files — install RenoDX addon to a game
+                if (ext is ".addon64" or ".addon32"
+                    && Path.GetFileName(file.Path).StartsWith("renodx-", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        await ProcessDroppedAddon(file.Path);
+                    }
+                    catch (Exception ex)
+                    {
+                        _crashReporter.Log($"[DragDropHandler.Grid_Drop] DragDrop addon error processing '{file.Path}' — {ex.Message}");
+                    }
+                    continue;
+                }
+
+                // Handle archive files — extract and look for .addon64/.addon32 inside
+                if (ArchiveExtensions.Contains(ext))
+                {
+                    try
+                    {
+                        await ProcessDroppedArchive(file.Path);
+                    }
+                    catch (Exception ex)
+                    {
+                        _crashReporter.Log($"[DragDropHandler.Grid_Drop] DragDrop archive error processing '{file.Path}' — {ex.Message}");
+                    }
+                    continue;
+                }
+
+                // Handle .exe files — add game
+                if (!ext.Equals(".exe", StringComparison.OrdinalIgnoreCase)) continue;
+
+                var exePath = file.Path;
+                _crashReporter.Log($"[DragDropHandler.Grid_Drop] Received exe '{exePath}'");
+
                 try
                 {
-                    await ProcessDroppedAddon(file.Path);
+                    await ProcessDroppedExe(exePath);
                 }
                 catch (Exception ex)
                 {
-                    _crashReporter.Log($"[DragDropHandler.Grid_Drop] DragDrop addon error processing '{file.Path}' — {ex.Message}");
+                    _crashReporter.Log($"[DragDropHandler.Grid_Drop] Error processing '{exePath}' — {ex.Message}");
                 }
-                continue;
             }
+            return;
+        }
 
-            // Handle archive files — extract and look for .addon64/.addon32 inside
-            if (ArchiveExtensions.Contains(ext))
-            {
-                try
-                {
-                    await ProcessDroppedArchive(file.Path);
-                }
-                catch (Exception ex)
-                {
-                    _crashReporter.Log($"[DragDropHandler.Grid_Drop] DragDrop archive error processing '{file.Path}' — {ex.Message}");
-                }
-                continue;
-            }
-
-            // Handle .exe files — add game
-            if (!ext.Equals(".exe", StringComparison.OrdinalIgnoreCase)) continue;
-
-            var exePath = file.Path;
-            _crashReporter.Log($"[DragDropHandler.Grid_Drop] Received exe '{exePath}'");
-
+        // ── Path 2: Text/URI (URL dragged directly from browser/Discord) ──────
+        if (e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+        {
             try
             {
-                await ProcessDroppedExe(exePath);
+                var text = await e.DataView.GetTextAsync();
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    var url = text.Trim();
+                    _crashReporter.Log($"[DragDropHandler.Grid_Drop] Received text drop: '{url}'");
+
+                    if (Uri.TryCreate(url, UriKind.Absolute, out var uri)
+                        && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+                    {
+                        var filename = ExtractFileNameFromUrl(url);
+                        if (filename != null)
+                        {
+                            var ext = Path.GetExtension(filename);
+                            if (ext != null && (ext.Equals(".addon64", StringComparison.OrdinalIgnoreCase)
+                                             || ext.Equals(".addon32", StringComparison.OrdinalIgnoreCase)))
+                            {
+                                await ProcessDroppedUrl(url);
+                                return;
+                            }
+                        }
+                        _crashReporter.Log($"[DragDropHandler.Grid_Drop] URL does not point to an addon file — ignored");
+                    }
+                }
             }
             catch (Exception ex)
             {
-                _crashReporter.Log($"[DragDropHandler.Grid_Drop] Error processing '{exePath}' — {ex.Message}");
+                _crashReporter.Log($"[DragDropHandler.Grid_Drop] Error processing text drop — {ex.Message}");
             }
         }
     }
@@ -554,6 +657,7 @@ public class DragDropHandler
             // Update card status
             targetCard.Status = GameStatus.Installed;
             targetCard.InstalledAddonFileName = addonFileName;
+            targetCard.RdxInstalledVersion = AuxInstallService.ReadInstalledVersion(targetCard.InstallPath, addonFileName);
             targetCard.NotifyAll();
 
             var successDialog = new ContentDialog
@@ -761,5 +865,343 @@ public class DragDropHandler
         cleaned = Regex.Replace(cleaned, @"(?<=[a-z])(?=[A-Z])", " ");
         cleaned = Regex.Replace(cleaned, @"\s+", " ").Trim();
         return cleaned;
+    }
+
+    // ── .url shortcut file parsing ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Parses a Windows .url shortcut file and extracts the URL from the
+    /// [InternetShortcut] section. Returns null if the file cannot be read,
+    /// has no [InternetShortcut] section, or has no URL= line with a value.
+    /// </summary>
+    public static string? ParseUrlFromShortcutFile(string filePath)
+    {
+        try
+        {
+            var lines = File.ReadAllLines(filePath);
+
+            // ── Standard INI format: [InternetShortcut]\nURL=... ──────────────
+            bool inSection = false;
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+
+                // Detect section headers
+                if (trimmed.StartsWith('['))
+                {
+                    inSection = trimmed.Equals("[InternetShortcut]", StringComparison.OrdinalIgnoreCase);
+                    continue;
+                }
+
+                if (inSection && trimmed.StartsWith("URL=", StringComparison.OrdinalIgnoreCase))
+                {
+                    var url = trimmed.Substring(4).Trim();
+                    return string.IsNullOrEmpty(url) ? null : url;
+                }
+            }
+
+            // ── Fallback: raw URL as file content (Discord/browser temp files) ─
+            // Some apps write just the URL as the file content without INI headers.
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (!string.IsNullOrEmpty(trimmed)
+                    && Uri.TryCreate(trimmed, UriKind.Absolute, out var uri)
+                    && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+                {
+                    return trimmed;
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // File read errors — fall through to filename-based extraction
+        }
+
+        // ── Last resort: extract URL info from the filename itself ─────────────
+        // Discord names .url files like "renodx-crimsondesert.addon64.url" — the
+        // filename minus ".url" is the addon filename, but we don't have the full
+        // URL. Return null so the caller can handle this case.
+        return null;
+    }
+
+    // ── URL drop processing (stubs — full implementation in Task 5) ─────────────
+
+    /// <summary>
+    /// Extracts the filename from a URL path component, stripping query parameters
+    /// and fragment identifiers. Returns null if the URL is not parseable or has no
+    /// path filename.
+    /// </summary>
+    public static string? ExtractFileNameFromUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return null;
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            return null;
+
+        var path = uri.LocalPath;
+        if (string.IsNullOrEmpty(path) || path == "/")
+            return null;
+
+        var filename = Path.GetFileName(path);
+        if (string.IsNullOrEmpty(filename))
+            return null;
+
+        return Uri.UnescapeDataString(filename);
+    }
+
+    /// <summary>
+    /// Shared HttpClient for URL downloads. Static to follow best practices
+    /// (avoid socket exhaustion).
+    /// </summary>
+    private static readonly HttpClient s_httpClient = new();
+
+    /// <summary>
+    /// Returns true if the file starts with the PE "MZ" magic bytes,
+    /// indicating it's a valid Windows executable/DLL rather than an HTML error page.
+    /// </summary>
+    private static bool HasPeSignature(string filePath)
+    {
+        try
+        {
+            using var fs = File.OpenRead(filePath);
+            if (fs.Length < 2) return false;
+            return fs.ReadByte() == 'M' && fs.ReadByte() == 'Z';
+        }
+        catch { return false; }
+    }
+
+    /// <summary>
+    /// Processes a URL dropped onto the window. Validates the URL, downloads the addon
+    /// to the cache, PE-validates it, then routes to ProcessDroppedAddon.
+    /// </summary>
+    public async Task ProcessDroppedUrl(string url)
+    {
+        _crashReporter.Log($"[DragDropHandler.ProcessDroppedUrl] Received URL: {url}");
+
+        // ── Step 1: Validate URL is parseable ─────────────────────────────────────
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            _crashReporter.Log($"[DragDropHandler.ProcessDroppedUrl] Invalid URL: {url}");
+            var errDialog = new ContentDialog
+            {
+                Title = "❌ Invalid URL",
+                Content = "The dropped URL could not be parsed. Please check the link and try again.",
+                CloseButtonText = "OK",
+                XamlRoot = _window.Content.XamlRoot,
+                RequestedTheme = ElementTheme.Dark,
+            };
+            await errDialog.ShowAsync();
+            return;
+        }
+
+        // ── Step 2: Extract filename and validate extension ───────────────────────
+        var filename = ExtractFileNameFromUrl(url);
+        if (string.IsNullOrEmpty(filename))
+        {
+            _crashReporter.Log($"[DragDropHandler.ProcessDroppedUrl] Could not extract filename from URL: {url}");
+            var errDialog = new ContentDialog
+            {
+                Title = "❌ Invalid URL",
+                Content = "Could not determine a filename from the dropped URL.",
+                CloseButtonText = "OK",
+                XamlRoot = _window.Content.XamlRoot,
+                RequestedTheme = ElementTheme.Dark,
+            };
+            await errDialog.ShowAsync();
+            return;
+        }
+
+        var ext = Path.GetExtension(filename);
+        if (!ext.Equals(".addon64", StringComparison.OrdinalIgnoreCase)
+            && !ext.Equals(".addon32", StringComparison.OrdinalIgnoreCase))
+        {
+            _crashReporter.Log($"[DragDropHandler.ProcessDroppedUrl] Unsupported extension '{ext}' for file '{filename}' from URL: {url}");
+            var errDialog = new ContentDialog
+            {
+                Title = "❌ Unsupported File Type",
+                Content = $"Only .addon64 and .addon32 files are supported.\n\nThe URL points to: {filename}",
+                CloseButtonText = "OK",
+                XamlRoot = _window.Content.XamlRoot,
+                RequestedTheme = ElementTheme.Dark,
+            };
+            await errDialog.ShowAsync();
+            return;
+        }
+
+        // ── Step 3: Prepare download paths ────────────────────────────────────────
+        var cacheDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "RHI", "downloads");
+        Directory.CreateDirectory(cacheDir);
+
+        var tempPath = Path.Combine(cacheDir, filename + ".tmp");
+        var cachePath = Path.Combine(cacheDir, filename);
+
+        // ── Step 4: Show progress dialog and download ─────────────────────────────
+        var progressText = new TextBlock
+        {
+            Text = $"Downloading {filename}...",
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
+            FontSize = 13,
+        };
+        var progressBar = new ProgressBar
+        {
+            Minimum = 0,
+            Maximum = 100,
+            Value = 0,
+            Height = 6,
+            IsIndeterminate = true,
+        };
+        var progressDialog = new ContentDialog
+        {
+            Title = "⬇ Downloading Addon",
+            Content = new StackPanel
+            {
+                Spacing = 12,
+                Children = { progressText, progressBar },
+            },
+            XamlRoot = _window.Content.XamlRoot,
+            RequestedTheme = ElementTheme.Dark,
+        };
+
+        // Show dialog non-blocking
+        var dialogTask = progressDialog.ShowAsync();
+
+        try
+        {
+            try
+            {
+                var response = await s_httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    _crashReporter.Log($"[DragDropHandler.ProcessDroppedUrl] HTTP {(int)response.StatusCode} for URL: {url}");
+                    progressDialog.Hide();
+                    var errDialog = new ContentDialog
+                    {
+                        Title = "❌ Download Failed",
+                        Content = $"The server returned HTTP {(int)response.StatusCode}.\n\nURL: {url}",
+                        CloseButtonText = "OK",
+                        XamlRoot = _window.Content.XamlRoot,
+                        RequestedTheme = ElementTheme.Dark,
+                    };
+                    await errDialog.ShowAsync();
+                    return;
+                }
+
+                var totalBytes = response.Content.Headers.ContentLength;
+                long downloaded = 0;
+                var buffer = new byte[1024 * 1024]; // 1 MB
+
+                if (totalBytes.HasValue)
+                {
+                    progressBar.IsIndeterminate = false;
+                }
+
+                using (var netStream = await response.Content.ReadAsStreamAsync())
+                using (var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 1024 * 1024, useAsync: true))
+                {
+                    int read;
+                    while ((read = await netStream.ReadAsync(buffer)) > 0)
+                    {
+                        await fileStream.WriteAsync(buffer.AsMemory(0, read));
+                        downloaded += read;
+
+                        if (totalBytes.HasValue && totalBytes.Value > 0)
+                        {
+                            var pct = (double)downloaded / totalBytes.Value * 100;
+                            _window.DispatcherQueue.TryEnqueue(() =>
+                            {
+                                progressBar.Value = pct;
+                                progressText.Text = $"Downloading {filename}... {downloaded / 1024} KB ({pct:F0}%)";
+                            });
+                        }
+                        else
+                        {
+                            _window.DispatcherQueue.TryEnqueue(() =>
+                            {
+                                progressText.Text = $"Downloading {filename}... {downloaded / 1024} KB";
+                            });
+                        }
+                    }
+                }
+
+                _crashReporter.Log($"[DragDropHandler.ProcessDroppedUrl] Downloaded {downloaded} bytes to '{tempPath}'");
+            }
+            catch (HttpRequestException ex)
+            {
+                _crashReporter.Log($"[DragDropHandler.ProcessDroppedUrl] Network error downloading '{url}' — {ex.Message}");
+                progressDialog.Hide();
+                var errDialog = new ContentDialog
+                {
+                    Title = "❌ Download Failed",
+                    Content = $"A network error occurred while downloading the addon.\n\n{ex.Message}",
+                    CloseButtonText = "OK",
+                    XamlRoot = _window.Content.XamlRoot,
+                    RequestedTheme = ElementTheme.Dark,
+                };
+                await errDialog.ShowAsync();
+                return;
+            }
+            catch (TaskCanceledException ex)
+            {
+                _crashReporter.Log($"[DragDropHandler.ProcessDroppedUrl] Download timed out for '{url}' — {ex.Message}");
+                progressDialog.Hide();
+                var errDialog = new ContentDialog
+                {
+                    Title = "❌ Download Timed Out",
+                    Content = "The download timed out. Please check your connection and try again.",
+                    CloseButtonText = "OK",
+                    XamlRoot = _window.Content.XamlRoot,
+                    RequestedTheme = ElementTheme.Dark,
+                };
+                await errDialog.ShowAsync();
+                return;
+            }
+
+            // ── Step 5: Rename temp file to final filename ────────────────────────
+            if (File.Exists(cachePath))
+                File.Delete(cachePath);
+            File.Move(tempPath, cachePath);
+
+            // ── Step 6: PE-validate the downloaded file ───────────────────────────
+            if (!HasPeSignature(cachePath))
+            {
+                _crashReporter.Log($"[DragDropHandler.ProcessDroppedUrl] Downloaded file '{filename}' is not a valid PE binary — deleting");
+                try { File.Delete(cachePath); } catch { }
+                progressDialog.Hide();
+                var errDialog = new ContentDialog
+                {
+                    Title = "❌ Invalid Addon File",
+                    Content = "The downloaded file is not a valid addon binary. The server may have returned an error page.",
+                    CloseButtonText = "OK",
+                    XamlRoot = _window.Content.XamlRoot,
+                    RequestedTheme = ElementTheme.Dark,
+                };
+                await errDialog.ShowAsync();
+                return;
+            }
+
+            // ── Step 7: Dismiss progress and route to existing install flow ───────
+            progressDialog.Hide();
+            _crashReporter.Log($"[DragDropHandler.ProcessDroppedUrl] PE validation passed for '{filename}', routing to ProcessDroppedAddon");
+            await ProcessDroppedAddon(cachePath);
+        }
+        finally
+        {
+            // Clean up temp file if it still exists (e.g. on error before rename)
+            try
+            {
+                if (File.Exists(tempPath))
+                    File.Delete(tempPath);
+            }
+            catch (Exception ex)
+            {
+                _crashReporter.Log($"[DragDropHandler.ProcessDroppedUrl] Failed to clean up temp file '{tempPath}' — {ex.Message}");
+            }
+        }
     }
 }

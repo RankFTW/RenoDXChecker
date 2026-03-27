@@ -62,7 +62,9 @@
     "Superhot",
 	"BeamNG.drive",
 	"Stardew Valley",
-	"Hades II"
+	"Hades II",
+	"Control",
+	"Control Ultimate Edition"
   ],
   "engineOverrides": {
     "Cities: Skylines": "Unity",
@@ -70,7 +72,9 @@
 	"Satisfactory": "Unreal",
     "Terraria": "Scrungus Engine",
 	"The Elder Scrolls III: Morrowind": "Creation Engine",
-	"Crimson Desert": "BlackSpace Engine"
+	"Crimson Desert": "BlackSpace Engine",
+	"Control": "Northlight Engine",
+	"Control Ultimate Edition": "Northlight Engine"
   },
   "graphicsApiOverrides": {
 	"Baldur's Gate 3": "DX12, VLK",
@@ -85,7 +89,8 @@
   },
   "dllNameOverrides": {
 	"The Elder Scrolls III: Morrowind": { "reshade": "opengl32.dll", "dc": "" },
-	"Terraria": { "reshade": "dbghelp.dll", "dc": "" }
+	"Terraria": { "reshade": "dbghelp.dll", "dc": "" },
+	"Borderlands: The Pre-Sequel": { "reshade": "d3d9.dll", "dc": "" }
   },
   "wikiNameOverrides": {	
 	"Assassin's Creed": "Assassin's Creed™: Director's Cut Edition",
@@ -107,7 +112,11 @@
 	"Red Dead Redemption 2": "Red Dead Redemption 2 (Vulkan)",
 	"Persona 5 Royal": "Persona 5 Royal (Remake from Ersh's)",
 	"Minecraft for Windows": "Minecraft: Bedrock Edition",
-	"Hades II": "Hades 2"
+	"Hades II": "Hades 2",
+	"Devil May Cry 5": "Devil May Cry V",
+	"Borderlands: The Pre-Sequel": "Borderlands 2 & The Pre-Sequel",
+	"Borderlands 2": "Borderlands 2 & The Pre-Sequel",
+	"Dying Light": "Dying Light"
   },
   "wikiStatusOverrides": {
     "Code Vein II": "✅",	
@@ -144,7 +153,13 @@
 	"The Witcher 3: Wild Hunt - Game of the Year Edition": "bin\\x64_dx12",
 	"Hades II": "Ship",
 	"Crimson Desert": "bin64",
-	"SILENT HILL 2": "SHProto\\Binaries\\Win64"
+	"SILENT HILL 2": "SHProto\\Binaries\\Win64",
+	"HITMAN 3": "Retail",
+	"FarCry 6": "bin",
+	"ARMORED CORE™ VI FIRES OF RUBICON™": "Game",
+	"Kingdom Come: Deliverance II": "Bin\\Win64MasterMasterSteamPGO",
+	"Indiana Jones and the Great Circle": "",
+	"Borderlands: The Pre-Sequel": "Binaries\\Win32"
   },
   "snapshotOverrides": {
 	"Assassin's Creed": "https://clshortfuse.github.io/renodx/renodx-asscreed1.addon32",
@@ -302,9 +317,10 @@
     "Forge": "https://ko-fi.com/forge87682",
     "Voosh": "https://ko-fi.com/notvoosh",
     "Musa": "https://ko-fi.com/musaqh",
-    "Pumbo": "https://ko-fi.com/pumbo",
+	"Pumbo": "https://ko-fi.com/realpumbo",
     "Nukem": "https://ko-fi.com/nukem9",
     "Lilium": "https://ko-fi.com/endlesslyflowering",
-    "Bit Viper": "https://ko-fi.com/bitviper"
+    "Bit Viper": "https://ko-fi.com/bitviper",
+	"Ritsu": "https://ko-fi.com/ritsucecil"
   }
 }

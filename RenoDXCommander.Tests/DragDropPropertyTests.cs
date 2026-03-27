@@ -38,7 +38,7 @@ public class DragDropPropertyTests
         select $@"{dir}\{exeName}";
 
     private static readonly Gen<EngineType> GenEngineType =
-        Gen.Elements(EngineType.Unknown, EngineType.Unreal, EngineType.UnrealLegacy, EngineType.Unity);
+        Gen.Elements(EngineType.Unknown, EngineType.Unreal, EngineType.UnrealLegacy, EngineType.Unity, EngineType.REEngine);
 
     // ── Property 6a: InferGameRoot returns non-null non-empty string ───────────────
     // Feature: codebase-optimization, Property 6: InferGameRoot and InferGameName produce non-empty results

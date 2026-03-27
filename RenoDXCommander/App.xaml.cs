@@ -74,6 +74,7 @@ public partial class App : Application
         services.AddSingleton<ICrashReporter, CrashReporterService>();
         services.AddSingleton<IAuxFileService>(sp => sp.GetRequiredService<IAuxInstallService>() as AuxInstallService
             ?? throw new InvalidOperationException("IAuxInstallService must be AuxInstallService"));
+        services.AddSingleton<IREFrameworkService, REFrameworkService>();
 
         // ViewModels
         services.AddSingleton<SettingsViewModel>();

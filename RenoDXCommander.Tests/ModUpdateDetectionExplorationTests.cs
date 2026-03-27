@@ -74,6 +74,8 @@ public class ModUpdateDetectionExplorationTests : IDisposable
         var realFileSize = 50_000L;
         var realFileBytes = new byte[realFileSize];
         new System.Random(42).NextBytes(realFileBytes);
+        realFileBytes[0] = (byte)'M';
+        realFileBytes[1] = (byte)'Z';
 
         // Compressed Content-Length that HEAD will return — differs from real size
         // This simulates GitHub Pages CDN returning gzip-compressed Content-Length
@@ -136,10 +138,14 @@ public class ModUpdateDetectionExplorationTests : IDisposable
                 // Local file (old version)
                 var localBytes = new byte[fileSize];
                 new System.Random(42).NextBytes(localBytes);
+                localBytes[0] = (byte)'M';
+                localBytes[1] = (byte)'Z';
 
                 // Remote file (new version) — same size, different content
                 var remoteBytes = new byte[fileSize];
                 new System.Random(99).NextBytes(remoteBytes);
+                remoteBytes[0] = (byte)'M';
+                remoteBytes[1] = (byte)'Z';
 
                 var snapshotUrl = $"https://clshortfuse.github.io/renodx/{addonFileName}";
 

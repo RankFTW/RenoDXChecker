@@ -30,9 +30,9 @@ public partial class GameCardViewModel
             if (RequiresVulkanInstall)
             {
                 bool layerInstalled = IsLayerInstalledFunc();
-                if (layerInstalled && IsVulkanRsActive) return "Reinstall Vulkan ReShade";
-                if (layerInstalled) return "Install Vulkan ReShade";
-                return "Install Vulkan Layer";
+                if (layerInstalled && IsVulkanRsActive) return "↺  Reinstall Vulkan ReShade";
+                if (layerInstalled) return "⬇  Install Vulkan ReShade";
+                return "⬇  Install Vulkan Layer";
             }
             return RsStatus == GameStatus.UpdateAvailable ? "⬆  Update ReShade"
                  : RsStatus == GameStatus.Installed       ? "↺  Reinstall ReShade"

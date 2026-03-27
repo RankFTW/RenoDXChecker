@@ -1061,6 +1061,15 @@ public class GameDetectionService : IGameDetectionService
             return (unityExeFolder ?? rootPath, EngineType.Unity);
         }
 
+        // --- RE Engine ---
+        // re_chunk_000.pak is the signature file for all RE Engine games
+        var reChunk = FindFileShallow(rootPath, "re_chunk_000.pak", maxDepth: MaxScanDepth / 2);
+        if (reChunk != null)
+        {
+            var reExeFolder = FindShallowExeFolder(rootPath);
+            return (reExeFolder ?? rootPath, EngineType.REEngine);
+        }
+
         // --- Generic fallback ---
         var exeFolder = FindShallowExeFolder(rootPath);
         return (exeFolder ?? rootPath, EngineType.Unknown);

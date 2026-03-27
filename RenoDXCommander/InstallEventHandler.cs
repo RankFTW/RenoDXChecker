@@ -32,9 +32,11 @@ public class InstallEventHandler
             card.InstallPath = folder;
             ViewModel.SaveLibraryPublic();
         }
-        // Chain: RenoDX → ReShade (skip components that are N/A)
+        // Chain: RenoDX → RE Framework → ReShade (skip components that are N/A)
         if (card.Mod?.SnapshotUrl != null)
             await ViewModel.InstallModCommand.ExecuteAsync(card);
+        if (card.RefRowVisibility == Visibility.Visible)
+            await ViewModel.InstallREFrameworkCommand.ExecuteAsync(card);
         if (card.ReShadeRowVisibility == Visibility.Visible)
             await ViewModel.InstallReShadeCommand.ExecuteAsync(card);
     }
@@ -126,6 +128,26 @@ public class InstallEventHandler
     {
         if ((sender as FrameworkElement)?.Tag is GameCardViewModel card)
             ViewModel.UninstallUl(card);
+    }
+
+    public async void InstallRefButton_Click(object sender, RoutedEventArgs e)
+    {
+        var card = (sender as FrameworkElement)?.Tag as GameCardViewModel;
+        if (card == null) return;
+        if (string.IsNullOrEmpty(card.InstallPath) || !System.IO.Directory.Exists(card.InstallPath))
+        {
+            var folder = await _pickFolderAsync(null);
+            if (folder == null) return;
+            card.InstallPath = folder;
+            ViewModel.SaveLibraryPublic();
+        }
+        await ViewModel.InstallREFrameworkCommand.ExecuteAsync(card);
+    }
+
+    public void UninstallRefButton_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is GameCardViewModel card)
+            ViewModel.UninstallREFrameworkCommand.Execute(card);
     }
 
     public async void InstallLumaButton_Click(object sender, RoutedEventArgs e)

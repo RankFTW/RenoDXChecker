@@ -15,8 +15,8 @@ public interface IAuxFileService
     bool IsReShadeFileStrict(string filePath);
     bool IsReShadeFile(string filePath);
     void EnsureInisDir();
-    void MergeRsIni(string gameDir);
-    void MergeRsVulkanIni(string gameDir, string? gameName = null);
+    void MergeRsIni(string gameDir, string? screenshotSavePath = null);
+    void MergeRsVulkanIni(string gameDir, string? gameName = null, string? screenshotSavePath = null);
     void CopyRsIni(string gameDir);
     void CopyRsPresetIniIfPresent(string gameDir);
 

@@ -371,8 +371,8 @@ public class OverridesFlyoutBuilder
         {
             Header = "ReShade",
             IsOn = !ViewModel.IsUpdateAllExcludedReShade(gameName),
-            OnContent = "Yes",
-            OffContent = "No",
+            OnContent = "",
+            OffContent = "",
             Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
             FontSize = 11,
             MinWidth = 0,
@@ -381,8 +381,8 @@ public class OverridesFlyoutBuilder
         {
             Header = "RenoDX",
             IsOn = !ViewModel.IsUpdateAllExcludedRenoDx(gameName),
-            OnContent = "Yes",
-            OffContent = "No",
+            OnContent = "",
+            OffContent = "",
             Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
             FontSize = 11,
             MinWidth = 0,
@@ -391,8 +391,8 @@ public class OverridesFlyoutBuilder
         {
             Header = "ReLimiter",
             IsOn = !ViewModel.IsUpdateAllExcludedUl(gameName),
-            OnContent = "Yes",
-            OffContent = "No",
+            OnContent = "",
+            OffContent = "",
             Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
             FontSize = 11,
             MinWidth = 0,
