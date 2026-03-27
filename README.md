@@ -16,7 +16,7 @@ ReShade HDR Installer would not be possible without the hard work of the entire 
 
 ## Download
 
-Grab the latest installer from the [Releases page](https://github.com/RankFTW/RenoDXChecker/releases/tag/RDXC).
+Grab the latest installer from the [Releases page](https://github.com/RankFTW/RHI/releases).
 
 Requires Windows 10/11 (x64) and [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0).
 
@@ -33,31 +33,42 @@ Requires Windows 10/11 (x64) and [.NET 8 Desktop Runtime](https://dotnet.microso
 
 ## Features
 
-- **8-store game detection** — Steam, GOG, Epic, EA App, Ubisoft Connect, Xbox/Game Pass, Battle.net, Rockstar. New games appear automatically on every launch.
-- **Graphics API detection** — scans game executables via PE header analysis to detect DirectX 8/9/10/11/12, Vulkan, and OpenGL. API badges shown on game cards.
-- **Vulkan ReShade support** — installs ReShade as a global Vulkan implicit layer for Vulkan-rendered games, with per-game INI and shader deployment
-- **One-click install/update/uninstall** for ReShade, ReLimiter, RenoDX addons, and Luma Framework mods
-- **ReLimiter support** — install and manage the ReLimiter frame pacing addon per-game (32-bit and 64-bit), downloaded from GitHub on demand with automatic update detection. Automatically selects the correct addon based on game bitness.
-- **Version display** — installed ReShade version numbers shown directly on the component row
-- **Shader pack management** — 7 HDR shader packs with five deploy modes (Off, Minimum, All, User, Select) plus a per-game shader selection picker
-- **Auto-save overrides** — all per-game settings save immediately when changed, no Save button needed
-- **Per-game overrides** — DLL naming, shader mode/selection, rendering path, wiki name mapping, wiki exclusion, per-component Update All inclusion, reset overrides
-- **Automatic ReShade DLL naming** — installs ReShade as `opengl32.dll` for OpenGL-only games and `d3d9.dll` for DirectX 9 games, so ReShade loads correctly without manual DLL override configuration
-- **Seamless refresh** — after initial boot, refresh updates everything in the background without blanking the UI
-- **Startup shader deployment** — on launch, shaders are automatically synced to all installed game folders for backwards compatibility
+### Game Detection
+- **8-store auto-detection** — Steam, GOG, Epic, EA App, Ubisoft Connect, Xbox/Game Pass, Battle.net, Rockstar
+- **Graphics API detection** — PE header analysis detects DirectX 8/9/10/11/12, Vulkan, and OpenGL with API badges on game cards
+- **Engine detection** — Unreal, Unity, and custom engine names (via remote manifest) detected and displayed with icons
+- **32-bit / 64-bit detection** — automatic PE header detection with manifest override support
 - **Drag-and-drop** — drop a game `.exe` to add it, drop an `.addon64`/`.addon32` to install it, or drop an archive to extract and install addons
-- **Remote manifest** — game-specific overrides updated server-side without app releases, including engine overrides, DLL name overrides, and API overrides
+- **Addon auto-detection** — watches your Downloads folder for new `renodx-*.addon64` / `.addon32` files and prompts to install
+
+### Component Management
+- **One-click install/update/uninstall** for ReShade, ReLimiter, RenoDX, and Luma Framework
+- **ReLimiter** — frame pacing addon with 32-bit and 64-bit support, downloaded from GitHub on demand with automatic update detection
+- **Automatic ReShade DLL naming** — installs as `opengl32.dll` for OpenGL-only games and `d3d9.dll` for DX9 games without manual configuration
+- **Vulkan ReShade** — global implicit layer support with per-game INI, shader deployment, and rendering path toggle for dual-API games
+- **Luma Framework** — auto-detects compatible games, manages install/uninstall with Luma-specific notes and author badges
 - **UE-Extended & Native HDR** — automatic detection and addon assignment for Unreal Engine games
-- **Engine detection** — Unreal, Unity, and custom engine names detected and displayed with icons
-- **ReShadePreset.ini auto-deploy** — place a preset in the RHI inis folder to have it copied to every game install automatically
 - **Foreign DLL protection** — detects DXVK, Special K, ENB, etc. before overwriting
+
+### Shader Packs
+- **37+ shader packs** in three categories: Essential (Lilium HDR), Recommended, and Extra (community packs)
+- **Per-game shader overrides** — different games can use different shader subsets
+- **Startup deployment** — shaders auto-synced to all installed game folders on launch
+
+### Customisation
+- **Per-game overrides** — DLL naming, shader mode/selection, rendering path, wiki name mapping, wiki exclusion, per-component Update All inclusion
+- **Auto-save** — all per-game settings save immediately when changed
+- **Remote manifest** — game-specific overrides updated server-side without app releases (engine, DLL names, API, bitness, notes, and more)
+- **INI presets** — bundled `reshade.ini`, `reshade.vulkan.ini`, `relimiter.ini`, and optional `ReShadePreset.ini` with merge-on-deploy
+- **AddonPath support** — addon installs respect the `AddonPath` setting in `reshade.ini`
+
+### UI & Updates
+- **Detail View and Grid View** — switch between a sidebar+panel layout and a card grid with manage popouts
+- **Search and filter chips** — All Games, Favourites, Installed, Unreal, Unity, Other, RenoDX, Luma, Hidden
+- **Update All** — bulk update ReShade, RenoDX, and ReLimiter across all eligible games in one click
 - **Auto-update** — checks for new RHI versions on launch with stable and beta channels
-- **Settings page** — shader mode, deploy actions, preferences, logs, about, and credits all in one place
-- **Addon auto-detection** — watches your Downloads folder for new `renodx-*.addon64` / `.addon32` files and prompts you to install them. Configurable watch folder in Settings.
-- **AddonPath support** — addon installs respect the `AddonPath` setting in `reshade.ini`, deploying addons to the configured folder instead of the game root
-- **Luma author badges** — games in Luma mode show the Luma mod author (from the Luma wiki) in place of the RenoDX author badge
-- **Filter mode persistence** — your selected filter tab is saved and automatically restored when you reopen the app
-- **Toolbar redesign** — consistent teal accent styling with grouped sections separated by vertical dividers. Update button lights up purple when updates are available.
+- **Mod author badges** — clickable Ko-fi donation links for mod authors
+- **Version display** — installed ReShade and ReLimiter version numbers shown on component rows
 
 ---
 
@@ -74,7 +85,7 @@ Requires Windows 10/11 (x64) and [.NET 8 Desktop Runtime](https://dotnet.microso
 | Foreign DLL blocking install | Choose **Overwrite** in the dialog, or cancel to keep the existing file |
 | Games/mods out of sync | Settings → **Full Refresh** to clear all caches |
 
-For detailed documentation on shader packs, Luma Framework, per-game overrides, game detection methods, and more, see the [Detailed Guide](https://github.com/RankFTW/rdxc-manifest/tree/main?tab=readme-ov-file#upst--detailed-guide).
+For detailed documentation, see the [Detailed Guide](docs/DETAILED_GUIDE.md).
 
 ---
 
