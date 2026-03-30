@@ -639,14 +639,26 @@ public class AuxInstallService : IAuxInstallService, IAuxFileService
     public static string? ReadInstalledVersion(string installPath, string fileName)
     {
         var filePath = Path.Combine(installPath, fileName);
-        if (!File.Exists(filePath)) return null;
+        if (!File.Exists(filePath))
+        {
+            CrashReporter.Log($"[AuxInstallService.ReadInstalledVersion] File not found: '{filePath}'");
+            return null;
+        }
         try
         {
             var info = FileVersionInfo.GetVersionInfo(filePath);
             var ver  = info.ProductVersion?.Trim();
             if (string.IsNullOrEmpty(ver))
                 ver = info.FileVersion?.Trim();
-            if (string.IsNullOrEmpty(ver)) return null;
+            if (string.IsNullOrEmpty(ver))
+            {
+                // No PE version resources — fall back to file last-modified date
+                // formatted like RenoDX versions: "YY.MMDD.HHMM"
+                var lastWrite = File.GetLastWriteTimeUtc(filePath);
+                ver = $"{lastWrite:yy}.{lastWrite:MMdd}.{lastWrite:HHmm}";
+                CrashReporter.Log($"[AuxInstallService.ReadInstalledVersion] No PE version in '{filePath}', using file date: {ver}");
+                return ver;
+            }
 
             var parts = ver.Split('.');
             var ext = Path.GetExtension(fileName);

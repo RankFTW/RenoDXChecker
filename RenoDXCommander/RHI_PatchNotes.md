@@ -1,3 +1,50 @@
+## v1.6.6
+
+### Bug Fixes
+
+**RE Framework now downloads the correct game-specific build**
+- Each RE Engine game now downloads its own RE Framework build (e.g. DMC5.zip for Devil May Cry 5, RE4.zip for Resident Evil 4) instead of using a single generic download for all games. Game names with trademark symbols (e.g. Street Fighter™ 6) are now matched correctly.
+
+**Drag-and-drop no longer deletes third-party ReShade addons**
+- Installing a RenoDX mod via drag-and-drop was deleting all non-ReLimiter `.addon64`/`.addon32` files from the game folder, including third-party addons like `ShaderToggler.addon64`. The cleanup now only removes `renodx-` prefixed files.
+
+**Corrupt cached addon files no longer reused**
+- The PE validation check now rejects files under 100 KB, preventing truncated or corrupt downloads (e.g. the 48 KB Unity generic mod) from being cached and reused. Users with a bad cache should delete `%LocalAppData%\RHI\downloads\` to force a fresh download.
+
+**Add Game folder picker crash on some systems**
+- The WinUI folder picker could throw a COMException on certain Windows configurations when adding a game manually. The picker now falls back to the native COM file dialog if the standard picker fails.
+
+**Drag-and-drop version number now reads from correct path**
+- Version numbers for mods installed via drag-and-drop were not displayed when the game uses a custom `AddonPath` in `reshade.ini`. The version is now read from the actual addon deploy folder.
+
+**Discord/Nexus mod version numbers now displayed**
+- External-only games (Discord/Nexus mods) were hardcoded to show "Installed" instead of the version number. They now show the version from PE info when available, matching wiki-installed mods.
+
+**Version fallback for addons without PE version info**
+- Addon files that lack embedded PE version resources (common with Discord-distributed mods) now display the file's last-modified date in `YY.MMDD.HHMM` format as a fallback, matching the RenoDX version style.
+
+**ReLimiter version number not shown immediately after install**
+- The ReLimiter version number was showing "Installed" instead of the version until a refresh. The install flow now falls back to reading the version from the metadata file when the remote version hasn't been fetched yet.
+
+### Changes
+
+**Component version numbers centered in detail panel**
+- The version numbers for RE Framework, ReShade, ReLimiter, RenoDX, and Luma are now horizontally centered in the detail panel, aligning them on a common vertical axis.
+
+**Consistent purple update styling across all components**
+- ReLimiter and RE Framework install buttons and status text now turn purple when an update is available, matching the existing ReShade and RenoDX styling. Previously ReLimiter used amber text with blue buttons, and RE Framework used static blue buttons.
+
+**ReLimiter available in Luma mode**
+- ReLimiter can now be installed and managed when a game is in Luma mode. The ReLimiter row and status dot are always visible. When switching a game out of Luma mode, ReLimiter is automatically uninstalled alongside the Luma files.
+
+**Status messages auto-fade after 4 seconds**
+- Install, update, and removal confirmation messages now automatically disappear after 4 seconds. Error messages remain visible. Multiple messages across different components fade independently.
+
+**Colored status messages**
+- Install/update success messages now display in green with a ✅ icon. Removal messages display in red with a ✖ icon. Progress and default messages remain blue.
+
+---
+
 ## v1.6.5
 
 ### New Features

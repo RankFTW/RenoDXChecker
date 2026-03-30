@@ -308,7 +308,7 @@ public class DetailPanelBuilder
             _window.DetailRdxInstallBtn.Tag = card;
             if (card.IsExternalOnly)
             {
-                _window.DetailRdxStatus.Text = card.IsRdxInstalled ? "Installed" : "";
+                _window.DetailRdxStatus.Text = card.IsRdxInstalled ? (card.RdxInstalledVersion ?? "Installed") : "";
                 _window.DetailRdxStatus.Foreground = UIFactory.GetBrush("#5ECB7D");
                 _window.DetailRdxStatus.TextDecorations = card.IsRdxInstalled
                     ? Windows.UI.Text.TextDecorations.Underline
@@ -400,22 +400,27 @@ public class DetailPanelBuilder
         _window.DetailRefProgress.Value = card.RefProgress;
         _window.DetailRefMessage.Visibility = card.RefRowVisibility == Visibility.Visible ? card.RefMessageVisibility : Visibility.Collapsed;
         _window.DetailRefMessage.Text = card.RefActionMessage;
+        _window.DetailRefMessage.Foreground = UIFactory.GetBrush(GetMessageColor(card.RefActionMessage));
         _window.DetailRsProgress.Visibility = card.RsProgressVisibility;
         _window.DetailRsProgress.Value = card.RsProgress;
         _window.DetailRsMessage.Visibility = card.RsMessageVisibility;
         _window.DetailRsMessage.Text = card.RsActionMessage;
+        _window.DetailRsMessage.Foreground = UIFactory.GetBrush(GetMessageColor(card.RsActionMessage));
         _window.DetailUlProgress.Visibility = card.UlRowVisibility == Visibility.Visible ? card.UlProgressVisibility : Visibility.Collapsed;
         _window.DetailUlProgress.Value = card.UlProgress;
         _window.DetailUlMessage.Visibility = card.UlRowVisibility == Visibility.Visible ? card.UlMessageVisibility : Visibility.Collapsed;
         _window.DetailUlMessage.Text = card.UlActionMessage;
+        _window.DetailUlMessage.Foreground = UIFactory.GetBrush(GetMessageColor(card.UlActionMessage));
         _window.DetailRdxProgress.Visibility = card.ProgressVisibility;
         _window.DetailRdxProgress.Value = card.InstallProgress;
         _window.DetailRdxMessage.Visibility = card.MessageVisibility;
         _window.DetailRdxMessage.Text = card.ActionMessage;
+        _window.DetailRdxMessage.Foreground = UIFactory.GetBrush(GetMessageColor(card.ActionMessage));
         _window.DetailLumaProgress.Visibility = card.LumaProgressVisibility;
         _window.DetailLumaProgress.Value = card.LumaProgress;
         _window.DetailLumaMessage.Visibility = card.LumaMessageVisibility;
         _window.DetailLumaMessage.Text = card.LumaActionMessage;
+        _window.DetailLumaMessage.Foreground = UIFactory.GetBrush(GetMessageColor(card.LumaActionMessage));
     }
 
     public void DetailCard_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -450,6 +455,12 @@ public class DetailPanelBuilder
             }
         });
     }
+
+    /// <summary>Returns a color hex string based on message content: green for installs, red for removals, blue default.</summary>
+    private static string GetMessageColor(string message) =>
+        message.Contains('✅') ? "#5ECB7D"
+        : message.Contains('✖') ? "#E06060"
+        : "#7AACDD";
 
     public void BuildOverridesPanel(GameCardViewModel card)
     {

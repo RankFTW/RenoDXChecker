@@ -233,6 +233,9 @@ public sealed partial class MainWindow : Window
                     UpdateBtn.Foreground  = UIFactory.GetBrush(ViewModel.UpdateAllBtnForeground);
                     UpdateBtn.BorderBrush = UIFactory.GetBrush(ViewModel.UpdateAllBtnBorder);
                     break;
+                case nameof(ViewModel.CurrentPage):
+                    UpdatePageVisibility();
+                    break;
             }
         });
     }
@@ -1164,12 +1167,39 @@ public sealed partial class MainWindow : Window
         }
 
         // Standard picker for the no-suggested-path case (Add Game, etc.)
-        var picker = new FolderPicker { SuggestedStartLocation = PickerLocationId.ComputerFolder };
-        picker.FileTypeFilter.Add("*");
-        var hwnd2 = WindowNative.GetWindowHandle(this);
-        InitializeWithWindow.Initialize(picker, hwnd2);
-        var folder = await picker.PickSingleFolderAsync();
-        return folder?.Path;
+        try
+        {
+            var picker = new FolderPicker { SuggestedStartLocation = PickerLocationId.ComputerFolder };
+            picker.FileTypeFilter.Add("*");
+            var hwnd2 = WindowNative.GetWindowHandle(this);
+            InitializeWithWindow.Initialize(picker, hwnd2);
+            var folder = await picker.PickSingleFolderAsync();
+            return folder?.Path;
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"[MainWindow.PickFolderAsync] Standard picker failed — {ex.Message}. Falling back to COM dialog.");
+            // Fall back to COM dialog without a suggested path
+            try
+            {
+                return await Task.Run(() =>
+                {
+                    var dialog = (NativeInterop.IFileOpenDialog)new NativeInterop.FileOpenDialogClass();
+                    dialog.SetOptions(NativeInterop.FOS.FOS_PICKFOLDERS | NativeInterop.FOS.FOS_FORCEFILESYSTEM);
+                    var hwnd = WindowNative.GetWindowHandle(this);
+                    int hr = dialog.Show(hwnd);
+                    if (hr != 0) return null;
+                    dialog.GetResult(out NativeInterop.IShellItem result);
+                    result.GetDisplayName(NativeInterop.SIGDN.SIGDN_FILESYSPATH, out string path);
+                    return path;
+                });
+            }
+            catch (Exception ex2)
+            {
+                CrashReporter.Log($"[MainWindow.PickFolderAsync] COM fallback also failed — {ex2.Message}");
+                return null;
+            }
+        }
     }
 
     // ── Page visibility management ──────────────────────────────────────────────

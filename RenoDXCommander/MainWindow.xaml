@@ -415,7 +415,7 @@
                                     <TextBlock Grid.Column="0" Text="RE Framework" FontSize="12"
                                                Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
                                     <TextBlock x:Name="DetailRefStatus" x:FieldModifier="internal" Grid.Column="1" FontSize="12"
-                                               VerticalAlignment="Center"
+                                               VerticalAlignment="Center" HorizontalTextAlignment="Center"
                                                PointerPressed="DetailRefStatus_PointerPressed"/>
                                     <Button x:Name="DetailRefInstallBtn" x:FieldModifier="internal" Grid.Column="2"
                                             Click="InstallRefButton_Click"
@@ -444,7 +444,7 @@
                                     <TextBlock Grid.Column="0" Text="ReShade" FontSize="12"
                                                Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
                                     <TextBlock x:Name="DetailRsStatus" x:FieldModifier="internal" Grid.Column="1" FontSize="12"
-                                               VerticalAlignment="Center"
+                                               VerticalAlignment="Center" HorizontalTextAlignment="Center"
                                                PointerPressed="DetailRsStatus_PointerPressed"/>
                                     <Button x:Name="DetailRsInstallBtn" x:FieldModifier="internal" Grid.Column="2"
                                             Click="InstallRsButton_Click"
@@ -480,7 +480,7 @@
                                     <TextBlock Grid.Column="0" Text="ReLimiter" FontSize="12"
                                                Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
                                     <TextBlock x:Name="DetailUlStatus" x:FieldModifier="internal" Grid.Column="1" FontSize="12"
-                                               VerticalAlignment="Center"
+                                               VerticalAlignment="Center" HorizontalTextAlignment="Center"
                                                PointerPressed="DetailUlStatus_PointerPressed"/>
                                     <Button x:Name="DetailUlInstallBtn" x:FieldModifier="internal" Grid.Column="2"
                                             Click="InstallUlButton_Click"
@@ -516,7 +516,7 @@
                                     <TextBlock Grid.Column="0" Text="RenoDX" FontSize="12"
                                                Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" FontWeight="SemiBold"/>
                                     <TextBlock x:Name="DetailRdxStatus" x:FieldModifier="internal" Grid.Column="1" FontSize="12"
-                                               VerticalAlignment="Center"
+                                               VerticalAlignment="Center" HorizontalTextAlignment="Center"
                                                PointerPressed="DetailRdxStatus_PointerPressed"/>
                                     <Button x:Name="DetailRdxInstallBtn" x:FieldModifier="internal" Grid.Column="2"
                                             Click="InstallButton_Click"
@@ -553,7 +553,7 @@
                                     <TextBlock Grid.Column="0" Text="Luma" FontSize="12"
                                                Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" FontWeight="SemiBold"/>
                                     <TextBlock x:Name="DetailLumaStatus" x:FieldModifier="internal" Grid.Column="1" FontSize="12"
-                                               VerticalAlignment="Center"/>
+                                               VerticalAlignment="Center" HorizontalTextAlignment="Center"/>
                                     <Button x:Name="DetailLumaInstallBtn" x:FieldModifier="internal" Grid.Column="2"
                                             Click="InstallLumaButton_Click"
                                             HorizontalAlignment="Stretch" VerticalAlignment="Stretch"

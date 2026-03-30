@@ -18,9 +18,9 @@ public partial class GameCardViewModel
         : RefStatus == GameStatus.Installed ? "↺  Reinstall RE Framework"
         : "⬇  Install RE Framework";
 
-    public string RefBtnBackground  => "#182840";
-    public string RefBtnForeground  => "#7AACDD";
-    public string RefBtnBorderBrush => "#2A4468";
+    public string RefBtnBackground  => RefStatus == GameStatus.UpdateAvailable ? "#201838" : "#182840";
+    public string RefBtnForeground  => RefStatus == GameStatus.UpdateAvailable ? "#B898E8" : "#7AACDD";
+    public string RefBtnBorderBrush => RefStatus == GameStatus.UpdateAvailable ? "#3A2860" : "#2A4468";
 
     public Visibility RefProgressVisibility => RefIsInstalling ? Visibility.Visible : Visibility.Collapsed;
     public Visibility RefMessageVisibility  => string.IsNullOrEmpty(RefActionMessage) ? Visibility.Collapsed : Visibility.Visible;
@@ -57,6 +57,9 @@ public partial class GameCardViewModel
     private void NotifyRefStatusDependents()
     {
         OnPropertyChanged(nameof(RefActionLabel));
+        OnPropertyChanged(nameof(RefBtnBackground));
+        OnPropertyChanged(nameof(RefBtnForeground));
+        OnPropertyChanged(nameof(RefBtnBorderBrush));
         OnPropertyChanged(nameof(RefDeleteVisibility));
         OnPropertyChanged(nameof(RefStatusText));
         OnPropertyChanged(nameof(RefStatusColor));

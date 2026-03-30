@@ -41,6 +41,7 @@ public class REFrameworkService : IREFrameworkService
         ["Resident Evil Requiem"]                = "RE9.zip",
         ["Resident Evil Requiem"]                = "RE9.zip",
         ["Street Fighter 6"]                    = "SF6.zip",
+        ["Street Fighter™ 6"]                   = "SF6.zip",
         ["Monster Hunter Stories 3"]            = "MHSTORIES3.zip",
     };
 
@@ -168,10 +169,15 @@ public class REFrameworkService : IREFrameworkService
         if (GameZipMap.TryGetValue(gameName, out var zip))
             return zip;
 
+        // Strip ™®© and retry exact match
+        var stripped = gameName.Replace("™", "").Replace("®", "").Replace("©", "").Trim();
+        if (stripped != gameName && GameZipMap.TryGetValue(stripped, out zip))
+            return zip;
+
         // Try partial matching for common variations (e.g. "RESIDENT EVIL 2" vs "Resident Evil 2")
         foreach (var kvp in GameZipMap)
         {
-            if (gameName.Contains(kvp.Key, StringComparison.OrdinalIgnoreCase))
+            if (stripped.Contains(kvp.Key, StringComparison.OrdinalIgnoreCase))
                 return kvp.Value;
         }
 

@@ -118,6 +118,28 @@ public partial class GameCardViewModel : ObservableObject
     public bool IsManifestUeExtended { get; set; }
 
     /// <summary>
+    /// Per-property fade tokens — ensures only the latest message for each property is cleared.
+    /// </summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> _fadeTokens = new();
+
+    /// <summary>
+    /// Sets an action message property and automatically clears it after a delay.
+    /// Each property tracks its own token so multiple messages across different properties fade independently.
+    /// </summary>
+    public void FadeMessage(Action<string> setter, string message, int delayMs = 4000, [System.Runtime.CompilerServices.CallerArgumentExpression(nameof(setter))] string? key = null)
+    {
+        var tokenKey = key ?? "default";
+        var token = _fadeTokens.AddOrUpdate(tokenKey, 1, (_, old) => old + 1);
+        setter(message);
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(delayMs);
+            if (_fadeTokens.TryGetValue(tokenKey, out var current) && current == token)
+                setter("");
+        });
+    }
+
+    /// <summary>
     /// Refreshes all computed properties. Called by external code after bulk state changes.
     /// Uses a <see cref="HashSet{T}"/> guard to ensure each property is notified at most once,
     /// even though the underlying Notify*Dependents methods share overlapping property sets.

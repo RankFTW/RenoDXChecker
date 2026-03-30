@@ -17,9 +17,9 @@ public partial class GameCardViewModel
         : UlStatus == GameStatus.Installed ? "↺  Reinstall ReLimiter"
         : "⬇  Install ReLimiter";
 
-    public string UlBtnBackground  => "#182840";
-    public string UlBtnForeground  => "#7AACDD";
-    public string UlBtnBorderBrush => "#2A4468";
+    public string UlBtnBackground  => UlStatus == GameStatus.UpdateAvailable ? "#201838" : "#182840";
+    public string UlBtnForeground  => UlStatus == GameStatus.UpdateAvailable ? "#B898E8" : "#7AACDD";
+    public string UlBtnBorderBrush => UlStatus == GameStatus.UpdateAvailable ? "#3A2860" : "#2A4468";
 
     public Visibility UlProgressVisibility => UlIsInstalling ? Visibility.Visible : Visibility.Collapsed;
     public Visibility UlMessageVisibility  => string.IsNullOrEmpty(UlActionMessage) ? Visibility.Collapsed : Visibility.Visible;
@@ -30,7 +30,7 @@ public partial class GameCardViewModel
         : UlStatus == GameStatus.Installed ? (UlInstalledVersion ?? "Installed")
         : "Ready";
     public string UlStatusColor => UlIsInstalling ? "#D4A856"
-        : UlStatus == GameStatus.UpdateAvailable ? "#E8A33D"
+        : UlStatus == GameStatus.UpdateAvailable ? "#B898E8"
         : UlStatus == GameStatus.Installed ? "#5ECB7D"
         : "#A0AABB";
     public string UlShortAction => UlIsInstalling ? "…"
@@ -51,15 +51,18 @@ public partial class GameCardViewModel
     public bool CardUlInstallEnabled => !UlIsInstalling;
 
     /// <summary>
-    /// ReLimiter row is visible when NOT in Luma mode.
+    /// ReLimiter row is always visible (available in both standard and Luma modes).
     /// </summary>
-    public Visibility UlRowVisibility => EffectiveLumaMode ? Visibility.Collapsed : Visibility.Visible;
+    public Visibility UlRowVisibility => Visibility.Visible;
 
     // ── Targeted notification: UlStatus changed ───────────────────────────────────
     private void NotifyUlStatusDependents()
     {
         OnPropertyChanged(nameof(UlStatusDot));
         OnPropertyChanged(nameof(UlActionLabel));
+        OnPropertyChanged(nameof(UlBtnBackground));
+        OnPropertyChanged(nameof(UlBtnForeground));
+        OnPropertyChanged(nameof(UlBtnBorderBrush));
         OnPropertyChanged(nameof(UlDeleteVisibility));
         OnPropertyChanged(nameof(UlStatusText));
         OnPropertyChanged(nameof(UlStatusColor));

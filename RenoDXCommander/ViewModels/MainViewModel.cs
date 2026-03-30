@@ -2032,7 +2032,7 @@ public partial class MainViewModel : ObservableObject
                 card.InstalledAddonFileName = record.AddonFileName;
                 card.RdxInstalledVersion    = AuxInstallService.ReadInstalledVersion(record.InstallPath, record.AddonFileName);
                 card.Status                 = GameStatus.Installed;
-                card.ActionMessage          = "✅ Installed! Press Home in-game to open ReShade.";
+                card.FadeMessage(m => card.ActionMessage = m, "✅ Installed! Press Home in-game to open ReShade.");
                 _crashReporter.Log($"[MainViewModel.InstallModAsync] Install complete: {card.GameName} — {record.AddonFileName}");
                 // Update the addon file cache so the next Refresh finds the installed file
                 // instead of using the stale "no addon" entry from before the install.
@@ -2079,7 +2079,8 @@ public partial class MainViewModel : ObservableObject
         card.InstalledAddonFileName = null;
         card.RdxInstalledVersion    = null;
         card.Status                 = GameStatus.Available;
-        card.ActionMessage          = "Mod removed.";
+        card.ActionMessage          = "✖ Mod removed.";
+        card.FadeMessage(m => card.ActionMessage = m, card.ActionMessage);
         // Clear the addon file cache so the next Refresh doesn't think a file is still there.
         if (!string.IsNullOrEmpty(card.InstallPath))
             _addonFileCache[card.InstallPath.ToLowerInvariant()] = "";
@@ -2155,11 +2156,13 @@ public partial class MainViewModel : ObservableObject
             DispatcherQueue?.TryEnqueue(() =>
             {
                 card.UlInstalledFile = GetUlFileName(card.Is32Bit);
-                card.UlInstalledVersion = _latestUlVersion?.TrimStart('v', 'V');
+                card.UlInstalledVersion = _latestUlVersion?.TrimStart('v', 'V')
+                    ?? ReadUlInstalledVersion(card.Is32Bit);
                 card.UlStatus = GameStatus.Installed;
                 card.UlActionMessage = "✅ ReLimiter installed!";
                 card.UlIsInstalling = false;
                 card.NotifyAll();
+                card.FadeMessage(m => card.UlActionMessage = m, card.UlActionMessage);
             });
         }
         catch (Exception ex)
@@ -2568,8 +2571,9 @@ public partial class MainViewModel : ObservableObject
             card.UlInstalledFile = null;
             card.UlInstalledVersion = null;
             card.UlStatus = GameStatus.NotInstalled;
-            card.UlActionMessage = "ReLimiter removed.";
+            card.UlActionMessage = "✖ ReLimiter removed.";
             card.NotifyAll();
+            card.FadeMessage(m => card.UlActionMessage = m, card.UlActionMessage);
         }
         catch (Exception ex)
         {
@@ -2668,6 +2672,7 @@ public partial class MainViewModel : ObservableObject
                 card.RsStatus           = GameStatus.Installed;
                 card.RsActionMessage    = "✅ ReShade installed!";
                 card.NotifyAll();
+                card.FadeMessage(m => card.RsActionMessage = m, card.RsActionMessage);
             });
         }
         catch (Exception ex)
@@ -2705,6 +2710,7 @@ public partial class MainViewModel : ObservableObject
                     card.RsStatus        = GameStatus.Installed;
                     card.RsActionMessage = "✅ Vulkan ReShade installed!";
                     card.NotifyAll();
+                    card.FadeMessage(m => card.RsActionMessage = m, card.RsActionMessage);
                 };
                 if (DispatchUiAction != null) DispatchUiAction(updateCard);
                 else DispatcherQueue?.TryEnqueue(() => updateCard());
@@ -2776,6 +2782,7 @@ public partial class MainViewModel : ObservableObject
                 card.RsStatus        = GameStatus.Installed;
                 card.RsActionMessage = "✅ ReShade installed (Vulkan Layer)!";
                 card.NotifyAll();
+                card.FadeMessage(m => card.RsActionMessage = m, card.RsActionMessage);
             };
             if (DispatchUiAction != null) DispatchUiAction(updateCard);
             else DispatcherQueue?.TryEnqueue(() => updateCard());
@@ -2804,8 +2811,9 @@ public partial class MainViewModel : ObservableObject
             card.RsInstalledFile    = null;
             card.RsInstalledVersion = null;
             card.RsStatus           = GameStatus.NotInstalled;
-            card.RsActionMessage    = "ReShade removed.";
+            card.RsActionMessage    = "✖ ReShade removed.";
             card.NotifyAll();
+            card.FadeMessage(m => card.RsActionMessage = m, card.RsActionMessage);
         }
         catch (Exception ex)
         {
@@ -2837,8 +2845,9 @@ public partial class MainViewModel : ObservableObject
 
             // 5. Update card status — do NOT touch the global Vulkan layer
             card.RsStatus        = GameStatus.NotInstalled;
-            card.RsActionMessage = "Vulkan ReShade removed.";
+            card.RsActionMessage = "✖ Vulkan ReShade removed.";
             card.NotifyAll();
+            card.FadeMessage(m => card.RsActionMessage = m, card.RsActionMessage);
         }
         catch (Exception ex)
         {
@@ -2877,6 +2886,7 @@ public partial class MainViewModel : ObservableObject
                 card.RefStatus = GameStatus.Installed;
                 card.RefActionMessage = "✅ RE Framework installed!";
                 card.NotifyAll();
+                card.FadeMessage(m => card.RefActionMessage = m, card.RefActionMessage);
             });
         }
         catch (Exception ex)
@@ -2897,8 +2907,9 @@ public partial class MainViewModel : ObservableObject
             card.RefRecord = null;
             card.RefInstalledVersion = null;
             card.RefStatus = GameStatus.NotInstalled;
-            card.RefActionMessage = "RE Framework removed.";
+            card.RefActionMessage = "✖ RE Framework removed.";
             card.NotifyAll();
+            card.FadeMessage(m => card.RefActionMessage = m, card.RefActionMessage);
         }
         catch (Exception ex)
         {
@@ -3056,6 +3067,16 @@ public partial class MainViewModel : ObservableObject
 
             // Always clear the persisted record if it exists on disk
             LumaService.RemoveRecordByPath(card.InstallPath);
+
+            // Uninstall ReLimiter when leaving Luma mode
+            if (card.IsUlInstalled)
+            {
+                try
+                {
+                    UninstallUl(card);
+                }
+                catch (Exception ex) { _crashReporter.Log($"[MainViewModel.ToggleLumaMode] ReLimiter uninstall failed — {ex.Message}"); }
+            }
         }
 
         SaveNameMappings();
@@ -3086,6 +3107,7 @@ public partial class MainViewModel : ObservableObject
             card.LumaRecord = record;
             card.LumaStatus = GameStatus.Installed;
             card.LumaActionMessage = "Luma installed!";
+            card.FadeMessage(m => card.LumaActionMessage = m, card.LumaActionMessage);
         }
         catch (Exception ex)
         {
@@ -3108,8 +3130,9 @@ public partial class MainViewModel : ObservableObject
             _lumaService.Uninstall(card.LumaRecord);
             card.LumaRecord = null;
             card.LumaStatus = GameStatus.NotInstalled;
-            card.LumaActionMessage = "Luma removed.";
+            card.LumaActionMessage = "✖ Luma removed.";
             card.NotifyAll();
+            card.FadeMessage(m => card.LumaActionMessage = m, card.LumaActionMessage);
         }
         catch (Exception ex)
         {

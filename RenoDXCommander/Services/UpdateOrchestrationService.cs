@@ -79,6 +79,7 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
                     card.Status                 = GameStatus.Installed;
                     card.ActionMessage          = "✅ Updated!";
                     card.NotifyAll();
+                    card.FadeMessage(m => card.ActionMessage = m, card.ActionMessage);
                 });
             }
             catch (Exception ex)
@@ -157,6 +158,7 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
                     card.RsStatus           = GameStatus.Installed;
                     card.RsActionMessage    = "✅ Updated!";
                     card.NotifyAll();
+                    card.FadeMessage(m => card.RsActionMessage = m, card.RsActionMessage);
                 });
             }
             catch (Exception ex)
@@ -199,6 +201,7 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
                     card.RefStatus = GameStatus.Installed;
                     card.RefActionMessage = "✅ Updated!";
                     card.NotifyAll();
+                    card.FadeMessage(m => card.RefActionMessage = m, card.RefActionMessage);
                 });
             }
             catch (Exception ex)

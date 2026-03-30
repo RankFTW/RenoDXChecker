@@ -114,7 +114,7 @@ public class ModInstallService : IModInstallService
                 progress?.Report(("Installing from cache...", 50));
                 File.Copy(cachePath, destPath, overwrite: true);
                 usedCache = true;
-                progress?.Report(("Installed from cache!", 100));
+                progress?.Report(("✅ Installed from cache!", 100));
             }
             else if (!HasPeSignature(cachePath))
             {
@@ -545,7 +545,9 @@ public class ModInstallService : IModInstallService
         try
         {
             using var fs = File.OpenRead(filePath);
-            if (fs.Length < 2) return false;
+            // Real addon DLLs are at least 100 KB — reject tiny files that happen to
+            // start with MZ (e.g. truncated downloads, partial HTML with MZ prefix).
+            if (fs.Length < 100 * 1024) return false;
             return fs.ReadByte() == 'M' && fs.ReadByte() == 'Z';
         }
         catch { return false; }
