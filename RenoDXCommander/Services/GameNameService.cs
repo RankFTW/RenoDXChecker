@@ -31,6 +31,8 @@ public class GameNameService : IGameNameService
     private HashSet<string> _lumaDisabledGames = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, string> _folderOverrides = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, string> _vulkanRenderingPaths = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, string> _bitnessOverrides = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, List<string>> _apiOverrides = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Maps current (renamed) game name → original store-detected name.</summary>
     private Dictionary<string, string> _originalDetectedNames = new(StringComparer.OrdinalIgnoreCase);
@@ -52,6 +54,10 @@ public class GameNameService : IGameNameService
     public Dictionary<string, string> FolderOverrides => _folderOverrides;
     /// <summary>Per-game Vulkan rendering path preferences. Key = game name, Value = "DirectX" or "Vulkan".</summary>
     public Dictionary<string, string> VulkanRenderingPaths => _vulkanRenderingPaths;
+    /// <summary>Per-game bitness overrides. Key = game name, Value = "32" or "64". Absent = auto-detect.</summary>
+    public Dictionary<string, string> BitnessOverrides => _bitnessOverrides;
+    /// <summary>Per-game API overrides. Key = game name, Value = list of GraphicsApiType names that are ON. Absent = auto-detect.</summary>
+    public Dictionary<string, List<string>> ApiOverrides => _apiOverrides;
     public Dictionary<string, string> OriginalDetectedNames => _originalDetectedNames;
 
     public GameNameService(
@@ -89,6 +95,8 @@ public class GameNameService : IGameNameService
         _gameRenames            = new(StringComparer.OrdinalIgnoreCase);
         _folderOverrides        = new(StringComparer.OrdinalIgnoreCase);
         _vulkanRenderingPaths   = new(StringComparer.OrdinalIgnoreCase);
+        _bitnessOverrides       = new(StringComparer.OrdinalIgnoreCase);
+        _apiOverrides           = new(StringComparer.OrdinalIgnoreCase);
         _lumaEnabledGames       = new(StringComparer.OrdinalIgnoreCase);
         _lumaDisabledGames      = new(StringComparer.OrdinalIgnoreCase);
         _hiddenGames            ??= new(StringComparer.OrdinalIgnoreCase);
@@ -186,6 +194,17 @@ public class GameNameService : IGameNameService
         _vulkanRenderingPaths = new(Load<Dictionary<string, string>>("VulkanRenderingPaths",
             new(StringComparer.OrdinalIgnoreCase)), StringComparer.OrdinalIgnoreCase);
 
+        _bitnessOverrides = new(Load<Dictionary<string, string>>("BitnessOverrides",
+            new(StringComparer.OrdinalIgnoreCase)), StringComparer.OrdinalIgnoreCase);
+
+        var apiOvDict = Load<Dictionary<string, List<string>>?>("ApiOverrides", null);
+        _apiOverrides = new(StringComparer.OrdinalIgnoreCase);
+        if (apiOvDict != null)
+        {
+            foreach (var kv in apiOvDict)
+                _apiOverrides[kv.Key] = kv.Value;
+        }
+
         _hiddenGames = new HashSet<string>(
             Load<List<string>>("HiddenGames", _hiddenGames?.ToList() ?? new()), StringComparer.OrdinalIgnoreCase);
 
@@ -243,6 +262,8 @@ public class GameNameService : IGameNameService
                 s["ManifestDllOptOuts"]  = JsonSerializer.Serialize(dllOverrideService.ManifestDllOverrideOptOuts.ToList());
                 s["FolderOverrides"]     = JsonSerializer.Serialize(_folderOverrides);
                 s["VulkanRenderingPaths"] = JsonSerializer.Serialize(_vulkanRenderingPaths);
+                s["BitnessOverrides"]    = JsonSerializer.Serialize(_bitnessOverrides);
+                s["ApiOverrides"]        = JsonSerializer.Serialize(_apiOverrides);
                 s["HiddenGames"]         = JsonSerializer.Serialize(_hiddenGames?.ToList() ?? new List<string>());
                 s["FavouriteGames"]      = JsonSerializer.Serialize(_favouriteGames?.ToList() ?? new List<string>());
                 s["GridLayout"]          = isGridLayout ? "1" : "0";
@@ -345,6 +366,8 @@ public class GameNameService : IGameNameService
         MigrateDict(_perGameShaderMode, oldName, newName);
         MigrateDict(_perGameShaderSelection, oldName, newName);
         MigrateDict(_nameMappings, oldName, newName);
+        MigrateDict(_bitnessOverrides, oldName, newName);
+        MigrateDict(_apiOverrides, oldName, newName);
 
         // Migrate DLL override config
         dllOverrideService.MigrateOverride(oldName, newName);

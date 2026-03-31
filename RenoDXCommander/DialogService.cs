@@ -151,7 +151,7 @@ public class DialogService
                         TextWrapping = TextWrapping.Wrap,
                         Foreground   = Brush(ResourceKeys.TextSecondaryBrush),
                         FontSize     = 14,
-                        Text         = $"A new version of RDXC is available!\n\n" +
+                        Text         = $"A new version of RHI is available!\n\n" +
                                        $"Installed:  v{updateInfo.CurrentVersion}\n" +
                                        $"Available:  v{updateInfo.DisplayVersion ?? updateInfo.RemoteVersion.ToString()}\n\n" +
                                        "Would you like to update now?",

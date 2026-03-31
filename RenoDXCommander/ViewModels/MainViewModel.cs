@@ -49,6 +49,7 @@ public partial class MainViewModel : ObservableObject
     public IGameNameService GameNameServiceInstance => _gameNameService;
     public IUpdateOrchestrationService UpdateOrchestrationServiceInstance => _updateOrchestrationService;
     public IGameInitializationService GameInitializationServiceInstance => _gameInitializationService;
+    public IPeHeaderService PeHeaderServiceInstance => _peHeaderService;
 
     public bool SkipUpdateCheck
     {
@@ -542,6 +543,10 @@ public partial class MainViewModel : ObservableObject
     private Dictionary<string, string> _perGameShaderMode => _gameNameService.PerGameShaderMode;
     /// <summary>Per-game Vulkan rendering path preferences. Key = game name, Value = "DirectX" or "Vulkan".</summary>
     private Dictionary<string, string> _vulkanRenderingPaths => _gameNameService.VulkanRenderingPaths;
+    /// <summary>Per-game bitness overrides. Key = game name, Value = "32" or "64". Absent = auto-detect.</summary>
+    private Dictionary<string, string> _bitnessOverrides => _gameNameService.BitnessOverrides;
+    /// <summary>Per-game API overrides. Key = game name, Value = list of GraphicsApiType names that are ON. Absent = auto-detect.</summary>
+    private Dictionary<string, List<string>> _apiOverrides => _gameNameService.ApiOverrides;
     /// <summary>Session-scoped flag — true after the global Vulkan layer warning has been shown once this session.</summary>
     private bool _vulkanLayerWarningShownThisSession = false;
 
@@ -563,6 +568,38 @@ public partial class MainViewModel : ObservableObject
             card.VulkanRenderingPath = renderingPath;
             card.NotifyAll();
         }
+    }
+
+    // ── Bitness Override ─────────────────────────────────────────────────────────
+
+    /// <summary>Returns the persisted bitness override for a game, or null if no override set.</summary>
+    public string? GetBitnessOverride(string gameName)
+        => _bitnessOverrides.TryGetValue(gameName, out var value) ? value : null;
+
+    /// <summary>Sets the per-game bitness override. Null or "Auto" removes the override; "32" or "64" sets it.</summary>
+    public void SetBitnessOverride(string gameName, string? value)
+    {
+        if (value == null || value.Equals("Auto", StringComparison.OrdinalIgnoreCase))
+            _bitnessOverrides.Remove(gameName);
+        else
+            _bitnessOverrides[gameName] = value;
+        SaveNameMappings();
+    }
+
+    // ── API Override ─────────────────────────────────────────────────────────────
+
+    /// <summary>Returns the persisted API override for a game, or null if no override set.</summary>
+    public List<string>? GetApiOverride(string gameName)
+        => _apiOverrides.TryGetValue(gameName, out var apis) ? apis : null;
+
+    /// <summary>Sets the per-game API override. Null removes the override; otherwise stores the list of enabled API names.</summary>
+    public void SetApiOverride(string gameName, List<string>? apis)
+    {
+        if (apis == null)
+            _apiOverrides.Remove(gameName);
+        else
+            _apiOverrides[gameName] = apis;
+        SaveNameMappings();
     }
 
     // ── DLL Naming Override ───────────────────────────────────────────────────────
@@ -719,11 +756,18 @@ public partial class MainViewModel : ObservableObject
         => MatchesGameSet(gameName, _ueExtendedGames);
 
     /// <summary>
-    /// Returns the effective Is32Bit flag for a game, giving manifest overrides priority over PE header auto-detection.
-    /// Manifest thirtyTwoBitGames forces 32-bit; sixtyFourBitGames forces 64-bit (overrides incorrect detection).
+    /// Returns the effective Is32Bit flag for a game.
+    /// Priority: user bitness override → manifest overrides → PE header auto-detection.
     /// </summary>
-    private bool ResolveIs32Bit(string gameName, MachineType detectedMachine)
+    internal bool ResolveIs32Bit(string gameName, MachineType detectedMachine)
     {
+        // User bitness override takes highest priority
+        if (_bitnessOverrides.TryGetValue(gameName, out var bitnessOverride))
+        {
+            if (bitnessOverride == "32") return true;
+            if (bitnessOverride == "64") return false;
+        }
+
         if (_manifest32BitGames.Count > 0 && MatchesGameSet(gameName, _manifest32BitGames))
             return true;
         if (_manifest64BitGames.Count > 0 && MatchesGameSet(gameName, _manifest64BitGames))
@@ -737,8 +781,28 @@ public partial class MainViewModel : ObservableObject
     /// engine DLLs, subdirectory exes, D3D12 Agility SDK folders, and finally
     /// the engine type as a last-resort heuristic.
     /// </summary>
-    private GraphicsApiType DetectGraphicsApi(string installPath, EngineType engine = EngineType.Unknown, string? gameName = null)
+    internal GraphicsApiType DetectGraphicsApi(string installPath, EngineType engine = EngineType.Unknown, string? gameName = null)
     {
+        // User API override takes top priority — derive primary API from the override set
+        if (gameName != null && _apiOverrides.TryGetValue(gameName, out var apiOverrideList))
+        {
+            var overrideSet = new HashSet<GraphicsApiType>();
+            foreach (var name in apiOverrideList)
+            {
+                if (Enum.TryParse<GraphicsApiType>(name, out var apiType))
+                    overrideSet.Add(apiType);
+            }
+            if (overrideSet.Count == 0)
+                return GraphicsApiType.Unknown;
+            if (overrideSet.Count == 1)
+                return overrideSet.First();
+            // Prefer highest DX version when both DX and Vulkan are present
+            var dxApis = overrideSet.Where(a => a != GraphicsApiType.Vulkan && a != GraphicsApiType.OpenGL && a != GraphicsApiType.Unknown);
+            if (dxApis.Any())
+                return dxApis.OrderByDescending(a => a).First();
+            return overrideSet.First();
+        }
+
         // Manifest override takes top priority (for games where auto-detection fails).
         // Supports comma-separated values (e.g. "DX12, VLK") — returns the first
         // non-Vulkan API for the primary badge (prefers DX for display), falling
@@ -853,8 +917,21 @@ public partial class MainViewModel : ObservableObject
     /// and returns the union of all detected graphics APIs. This handles games
     /// like Baldur's Gate 3 that ship separate DX and Vulkan executables.
     /// </summary>
-    private HashSet<GraphicsApiType> _DetectAllApisForCard(string installPath, string? gameName = null)
+    internal HashSet<GraphicsApiType> _DetectAllApisForCard(string installPath, string? gameName = null)
     {
+        // User API override takes priority — return the override set instead of scanning
+        if (gameName != null && _apiOverrides.TryGetValue(gameName, out var apiOverrideList))
+        {
+            var overrideSet = new HashSet<GraphicsApiType>();
+            foreach (var name in apiOverrideList)
+            {
+                if (Enum.TryParse<GraphicsApiType>(name, out var apiType))
+                    overrideSet.Add(apiType);
+                // Unrecognized values are silently skipped
+            }
+            return overrideSet;
+        }
+
         var result = new HashSet<GraphicsApiType>();
 
         // Manifest override — merge multi-API tags (e.g. "DX12, VLK")

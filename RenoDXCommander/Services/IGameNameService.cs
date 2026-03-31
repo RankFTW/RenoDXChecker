@@ -56,6 +56,12 @@ public interface IGameNameService
     /// <summary>Per-game Vulkan rendering path preferences. Key = game name, Value = "DirectX" or "Vulkan".</summary>
     Dictionary<string, string> VulkanRenderingPaths { get; }
 
+    /// <summary>Per-game bitness overrides. Key = game name, Value = "32" or "64". Absent = auto-detect.</summary>
+    Dictionary<string, string> BitnessOverrides { get; }
+
+    /// <summary>Per-game API overrides. Key = game name, Value = list of GraphicsApiType names that are ON. Absent = auto-detect.</summary>
+    Dictionary<string, List<string>> ApiOverrides { get; }
+
     /// <summary>Maps current (renamed) game name to original store-detected name.</summary>
     Dictionary<string, string> OriginalDetectedNames { get; }
 

@@ -295,6 +295,10 @@ public partial class GameCardViewModel : ObservableObject
         NotifyOnce(nameof(RequiresVulkanInstall));
         NotifyOnce(nameof(ShowRenderingPathToggle));
 
+        // ── Graphics API badge computed properties ───────────────────────
+        NotifyOnce(nameof(HasGraphicsApiBadge));
+        NotifyOnce(nameof(GraphicsApiLabel));
+
         // ── Properties not covered by targeted methods ────────────────────────
         NotifyOnce(nameof(DualBitInstallVisibility));
         NotifyOnce(nameof(InstalledFileLabel));

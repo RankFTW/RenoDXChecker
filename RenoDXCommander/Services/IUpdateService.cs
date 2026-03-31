@@ -1,7 +1,7 @@
 namespace RenoDXCommander.Services;
 
 /// <summary>
-/// Checks GitHub Releases for a newer version of RDXC and downloads the installer.
+/// Checks GitHub Releases for a newer version of RHI and downloads the installer.
 /// </summary>
 public interface IUpdateService
 {

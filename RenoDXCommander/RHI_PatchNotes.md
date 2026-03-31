@@ -1,3 +1,31 @@
+## v1.6.7
+
+### New Features
+
+**Per-game bitness override**
+- You can now manually override the auto-detected bitness (32-bit / 64-bit) for any game. A new Bitness dropdown in the overrides panel lets you choose Auto, 32-bit, or 64-bit. This addresses cases where PE header analysis misidentifies a game's architecture. The override persists across restarts and is cleared by Reset Overrides.
+
+**Per-game graphics API override**
+- You can now manually toggle which graphics APIs a game uses. A new Graphics API section in the overrides panel shows toggle switches for DirectX 8, DirectX 9, DirectX 10, DX11/DX12, Vulkan, and OpenGL. This is useful for correcting misdetected APIs or suppressing one API on a dual-API game. Overrides persist across restarts and are cleared by Reset Overrides.
+
+### Bug Fixes
+
+**Update dialog still said "RDXC"**
+- The self-update notification dialog now correctly says "A new version of RHI is available" instead of the old RDXC branding.
+
+### Changes
+
+**Overrides panel layout condensed to 3 rows**
+- The overrides panel has been reorganized from 5 rows down to 3. The DLL naming override has been moved into the top row alongside wiki exclusion. The Rendering Path dropdown has been removed since the new API toggles make it redundant. Bitness and API overrides share a new row between shaders/global updates and the reset button.
+
+**API toggles use horizontal card layout**
+- The graphics API toggles are displayed in a horizontal wrapping layout with bordered cards, matching the style of the Global update inclusion toggles.
+
+**DLL naming override text simplified**
+- The toggle off-text now reads "Override ReShade filename" instead of "Using default filenames". The "ReShade filename" header above the dropdown has been removed to save vertical space.
+
+---
+
 ## v1.6.6
 
 ### Bug Fixes

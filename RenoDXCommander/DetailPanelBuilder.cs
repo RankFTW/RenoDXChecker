@@ -431,6 +431,27 @@ public class DetailPanelBuilder
             if (_currentDetailCard == null) return;
             UpdateDetailComponentRows(_currentDetailCard);
 
+            // Refresh 32-bit badge when bitness changes
+            if (e.PropertyName is "Is32Bit" or "Is32BitBadgeVisibility")
+            {
+                _window.Detail32BitBadge.Visibility = _currentDetailCard.Is32Bit
+                    ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            // Refresh Graphics API badge when API changes
+            if (e.PropertyName is "HasGraphicsApiBadge" or "GraphicsApiLabel")
+            {
+                if (_currentDetailCard.HasGraphicsApiBadge)
+                {
+                    _window.DetailGraphicsApiText.Text = _currentDetailCard.GraphicsApiLabel;
+                    _window.DetailGraphicsApiBadge.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    _window.DetailGraphicsApiBadge.Visibility = Visibility.Collapsed;
+                }
+            }
+
             // Refresh addon file badge when install state changes
             if (e.PropertyName is "InstalledAddonFileName" or "Status" or "ActionMessage")
             {
@@ -530,6 +551,70 @@ public class DetailPanelBuilder
             }
         };
 
+        // ── DLL naming override (placed in Top Row right column) ───────────
+        bool isDllOverride = _window.ViewModel.HasDllOverride(gameName);
+        var existingCfg = _window.ViewModel.GetDllOverride(gameName);
+        bool is32Bit = card.Is32Bit;
+        var defaultRsName = is32Bit ? "ReShade32.dll" : "ReShade64.dll";
+
+        var dllOverrideToggle = new ToggleSwitch
+        {
+            Header = "DLL naming override",
+            IsOn = isDllOverride,
+            IsEnabled = !isLumaMode,
+            OnContent = "Custom filenames enabled",
+            OffContent = "Override ReShade filename",
+            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
+            FontSize = 12,
+        };
+        ToolTipService.SetToolTip(dllOverrideToggle,
+            "Override the filenames ReShade is installed as. " +
+            "When enabled, existing RS files are renamed to the custom filenames.");
+        var existingRsName = existingCfg?.ReShadeFileName ?? "";
+
+        var rsNameBox = new ComboBox
+        {
+            IsEditable = true,
+            PlaceholderText = defaultRsName,
+            Header = (object?)null,
+            FontSize = 12,
+            IsEnabled = isDllOverride,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            ItemsSource = DllOverrideConstants.CommonDllNames,
+        };
+        if (!string.IsNullOrEmpty(existingRsName))
+        {
+            if (DllOverrideConstants.CommonDllNames.Contains(existingRsName, StringComparer.OrdinalIgnoreCase))
+                rsNameBox.SelectedItem = DllOverrideConstants.CommonDllNames.First(n => n.Equals(existingRsName, StringComparison.OrdinalIgnoreCase));
+            else
+            {
+                var capturedRs = existingRsName;
+                rsNameBox.Loaded += (s, e) => rsNameBox.Text = capturedRs;
+            }
+        }
+        dllOverrideToggle.Toggled += (s, ev) =>
+        {
+            rsNameBox.IsEnabled = dllOverrideToggle.IsOn;
+
+            // Auto-save: persist DLL override state immediately
+            bool nowOn = dllOverrideToggle.IsOn;
+            bool wasOn = _window.ViewModel.HasDllOverride(capturedName);
+            if (nowOn == wasOn) return;
+            var targetCard = _window.ViewModel.AllCards.FirstOrDefault(c =>
+                c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
+            if (targetCard == null) return;
+            if (nowOn)
+            {
+                var rsText = rsNameBox.SelectedItem as string ?? rsNameBox.Text;
+                var rsName = !string.IsNullOrWhiteSpace(rsText) ? rsText.Trim() : rsNameBox.PlaceholderText;
+                _window.ViewModel.EnableDllOverride(targetCard, rsName, "");
+            }
+            else
+            {
+                _window.ViewModel.DisableDllOverride(targetCard);
+            }
+        };
+
         // ── Top Row Grid (3 columns: Star | Auto | Star) ─────────────────────
         var topRowGrid = new Grid { ColumnSpacing = 0 };
         topRowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -585,51 +670,15 @@ public class DetailPanelBuilder
         };
 
         // ── Rendering Path (dual-API games only) ─────────────────────────────────
+        // Rendering Path ComboBox removed — API toggles make it redundant.
+        // Keep the variable for reset handler compatibility.
         ComboBox? renderPathCombo = null;
-        if (card.IsDualApiGame)
-        {
-            var renderPathItems = new[] { "DirectX", "Vulkan" };
-            renderPathCombo = new ComboBox
-            {
-                Header = "Rendering Path",
-                ItemsSource = renderPathItems,
-                SelectedItem = card.VulkanRenderingPath,
-                FontSize = 12,
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-            };
-            ToolTipService.SetToolTip(renderPathCombo,
-                "Choose which rendering path ReShade targets. " +
-                "DirectX uses per-game DLL injection. Vulkan uses a global implicit layer.");
-
-            renderPathCombo.SelectionChanged += (s, e) =>
-            {
-                var selected = renderPathCombo.SelectedItem as string;
-
-                // Auto-save: persist rendering path immediately
-                var newRenderPath = selected ?? "DirectX";
-                var oldRenderPath = _window.ViewModel.GetVulkanRenderingPath(capturedName);
-                if (newRenderPath != oldRenderPath)
-                {
-                    // Switching from DirectX → Vulkan: clean up DX install artifacts
-                    if (newRenderPath == "Vulkan" && !string.IsNullOrEmpty(card.InstallPath))
-                    {
-                        if (card.RsRecord != null)
-                            _window.ViewModel.UninstallReShadeCommand.Execute(card);
-                        var iniPath = Path.Combine(card.InstallPath, "reshade.ini");
-                        if (File.Exists(iniPath))
-                            try { File.Delete(iniPath); } catch (Exception ex) { CrashReporter.Log($"[DetailPanelBuilder] Failed to delete reshade.ini at '{iniPath}' — {ex.Message}"); }
-                        _window.ViewModel.ShaderPackServiceInstance.RemoveFromGameFolder(card.InstallPath);
-                        _window.ViewModel.ShaderPackServiceInstance.RestoreOriginalIfPresent(card.InstallPath);
-                    }
-                    _window.ViewModel.SetVulkanRenderingPath(capturedName, newRenderPath);
-                }
-            };
-        }
 
         var topRightColumn = new StackPanel { Spacing = 8 };
         topRightColumn.Children.Add(wikiExcludeToggle);
-        if (renderPathCombo != null)
-            topRightColumn.Children.Add(renderPathCombo);
+        // DLL naming override moved here from the old Bottom Row
+        topRightColumn.Children.Add(dllOverrideToggle);
+        topRightColumn.Children.Add(rsNameBox);
         Grid.SetColumn(topRightColumn, 2);
         topRowGrid.Children.Add(topRightColumn);
 
@@ -764,70 +813,6 @@ public class DetailPanelBuilder
             }
         };
 
-        // ── DLL naming override ──────────────────────────────────────────────
-        bool isDllOverride = _window.ViewModel.HasDllOverride(gameName);
-        var existingCfg = _window.ViewModel.GetDllOverride(gameName);
-        bool is32Bit = card.Is32Bit;
-        var defaultRsName = is32Bit ? "ReShade32.dll" : "ReShade64.dll";
-
-        var dllOverrideToggle = new ToggleSwitch
-        {
-            Header = "DLL naming override",
-            IsOn = isDllOverride,
-            IsEnabled = !isLumaMode,
-            OnContent = "Custom filenames enabled",
-            OffContent = "Using default filenames",
-            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
-            FontSize = 12,
-        };
-        ToolTipService.SetToolTip(dllOverrideToggle,
-            "Override the filenames ReShade is installed as. " +
-            "When enabled, existing RS files are renamed to the custom filenames.");
-        var existingRsName = existingCfg?.ReShadeFileName ?? "";
-
-        var rsNameBox = new ComboBox
-        {
-            IsEditable = true,
-            PlaceholderText = defaultRsName,
-            Header = "ReShade filename",
-            FontSize = 12,
-            IsEnabled = isDllOverride,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            ItemsSource = DllOverrideConstants.CommonDllNames,
-        };
-        if (!string.IsNullOrEmpty(existingRsName))
-        {
-            if (DllOverrideConstants.CommonDllNames.Contains(existingRsName, StringComparer.OrdinalIgnoreCase))
-                rsNameBox.SelectedItem = DllOverrideConstants.CommonDllNames.First(n => n.Equals(existingRsName, StringComparison.OrdinalIgnoreCase));
-            else
-            {
-                var capturedRs = existingRsName;
-                rsNameBox.Loaded += (s, e) => rsNameBox.Text = capturedRs;
-            }
-        }
-        dllOverrideToggle.Toggled += (s, ev) =>
-        {
-            rsNameBox.IsEnabled = dllOverrideToggle.IsOn;
-
-            // Auto-save: persist DLL override state immediately
-            bool nowOn = dllOverrideToggle.IsOn;
-            bool wasOn = _window.ViewModel.HasDllOverride(capturedName);
-            if (nowOn == wasOn) return;
-            var targetCard = _window.ViewModel.AllCards.FirstOrDefault(c =>
-                c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
-            if (targetCard == null) return;
-            if (nowOn)
-            {
-                var rsText = rsNameBox.SelectedItem as string ?? rsNameBox.Text;
-                var rsName = !string.IsNullOrWhiteSpace(rsText) ? rsText.Trim() : rsNameBox.PlaceholderText;
-                _window.ViewModel.EnableDllOverride(targetCard, rsName, "");
-            }
-            else
-            {
-                _window.ViewModel.DisableDllOverride(targetCard);
-            }
-        };
-
         // ── Shaders section (left column of Middle Row) ──────────────────────
         var shadersLabel = new TextBlock
         {
@@ -875,6 +860,166 @@ public class DetailPanelBuilder
             if (string.IsNullOrWhiteSpace(rsName)) return;
             _window.ViewModel.UpdateDllOverrideNames(targetCard, rsName, "");
         };
+
+        // ── Bitness Override ComboBox (left column of Bitness & API Row) ─────────
+        var bitnessLabel = new TextBlock
+        {
+            Text = "Bitness",
+            FontSize = 12,
+            Foreground = UIFactory.Brush(ResourceKeys.TextPrimaryBrush),
+            Margin = new Thickness(0, 0, 0, 8),
+        };
+
+        var bitnessItems = new[] { "Auto", "32-bit", "64-bit" };
+        var currentBitnessOverride = _window.ViewModel.GetBitnessOverride(gameName);
+        var defaultBitnessSelection = currentBitnessOverride switch
+        {
+            "32" => "32-bit",
+            "64" => "64-bit",
+            _ => "Auto",
+        };
+
+        var bitnessCombo = new ComboBox
+        {
+            ItemsSource = bitnessItems,
+            SelectedItem = defaultBitnessSelection,
+            FontSize = 12,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        ToolTipService.SetToolTip(bitnessCombo,
+            "Override the auto-detected bitness for this game. " +
+            "Auto uses PE header detection. 32-bit or 64-bit forces the value.");
+
+        bitnessCombo.SelectionChanged += (s, e) =>
+        {
+            var selected = bitnessCombo.SelectedItem as string;
+            string? overrideValue = selected switch
+            {
+                "32-bit" => "32",
+                "64-bit" => "64",
+                _ => null,
+            };
+
+            _window.ViewModel.SetBitnessOverride(capturedName, overrideValue);
+
+            // Update card.Is32Bit based on selection
+            var targetCard = _window.ViewModel.AllCards.FirstOrDefault(c =>
+                c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
+            if (targetCard != null)
+            {
+                if (overrideValue == "32")
+                    targetCard.Is32Bit = true;
+                else if (overrideValue == "64")
+                    targetCard.Is32Bit = false;
+                else
+                {
+                    // "Auto" — re-resolve from auto-detection
+                    var detectedMachine = _window.ViewModel.PeHeaderServiceInstance.DetectGameArchitecture(targetCard.InstallPath);
+                    targetCard.Is32Bit = _window.ViewModel.ResolveIs32Bit(capturedName, detectedMachine);
+                }
+
+                // Update DLL naming section placeholder text to match new bitness
+                rsNameBox.PlaceholderText = targetCard.Is32Bit ? "ReShade32.dll" : "ReShade64.dll";
+
+                targetCard.NotifyAll();
+            }
+        };
+
+        var bitnessPanel = new StackPanel { Spacing = 8 };
+        bitnessPanel.Children.Add(bitnessLabel);
+        bitnessPanel.Children.Add(bitnessCombo);
+
+        // ── API Override ToggleSwitches (right column of Bitness & API Row) ──────
+        var apiLabel = new TextBlock
+        {
+            Text = "Graphics API",
+            FontSize = 12,
+            Foreground = UIFactory.Brush(ResourceKeys.TextPrimaryBrush),
+            Margin = new Thickness(0, 0, 0, 8),
+        };
+
+        // Each entry maps a display label to one or more GraphicsApiType enum names.
+        // "DX11/DX12" is a combined toggle that controls both DirectX11 and DirectX12.
+        var apiToggleDefs = new (string Label, string[] EnumNames)[]
+        {
+            ("DirectX8",  new[] { "DirectX8" }),
+            ("DirectX9",  new[] { "DirectX9" }),
+            ("DirectX10", new[] { "DirectX10" }),
+            ("DX11/DX12", new[] { "DirectX11", "DirectX12" }),
+            ("Vulkan",    new[] { "Vulkan" }),
+            ("OpenGL",    new[] { "OpenGL" }),
+        };
+        var existingApiOverride = _window.ViewModel.GetApiOverride(gameName);
+        var apiToggles = new Dictionary<string, (ToggleSwitch Toggle, string[] EnumNames)>();
+        var apiTogglePanel = new Controls.WrapPanel { HorizontalSpacing = 8, VerticalSpacing = 8 };
+
+        foreach (var (label, enumNames) in apiToggleDefs)
+        {
+            bool isOn;
+            if (existingApiOverride != null)
+                isOn = enumNames.Any(n => existingApiOverride.Contains(n, StringComparer.OrdinalIgnoreCase));
+            else
+                isOn = enumNames.Any(n => card.DetectedApis.Contains(Enum.Parse<GraphicsApiType>(n)));
+
+            var toggle = new ToggleSwitch
+            {
+                Header = label,
+                IsOn = isOn,
+                OnContent = "On",
+                OffContent = "Off",
+                Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
+                FontSize = 11,
+                MinWidth = 0,
+            };
+
+            toggle.Toggled += (s, ev) =>
+            {
+                // Collect all enabled API enum names from current toggle states
+                var enabledApis = new List<string>();
+                foreach (var kvp in apiToggles)
+                {
+                    if (kvp.Value.Toggle.IsOn)
+                        enabledApis.AddRange(kvp.Value.EnumNames);
+                }
+
+                // Persist the override
+                _window.ViewModel.SetApiOverride(capturedName, enabledApis);
+
+                // Update card properties
+                var targetCard = _window.ViewModel.AllCards.FirstOrDefault(c =>
+                    c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
+                if (targetCard != null)
+                {
+                    var newApis = new HashSet<GraphicsApiType>();
+                    foreach (var name in enabledApis)
+                    {
+                        if (Enum.TryParse<GraphicsApiType>(name, out var apiType))
+                            newApis.Add(apiType);
+                    }
+                    targetCard.DetectedApis = newApis;
+                    targetCard.IsDualApiGame = GraphicsApiDetector.IsDualApi(newApis);
+                    targetCard.GraphicsApi = _window.ViewModel.DetectGraphicsApi(
+                        targetCard.InstallPath, EngineType.Unknown, capturedName);
+                    targetCard.NotifyAll();
+                }
+            };
+
+            var toggleBorder = new Border
+            {
+                Child = toggle,
+                BorderBrush = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(8, 6, 8, 6),
+            };
+
+            apiToggles[label] = (toggle, enumNames);
+            apiTogglePanel.Children.Add(toggleBorder);
+        }
+
+        var apiPanel = new StackPanel { Spacing = 8 };
+        apiPanel.Children.Add(apiLabel);
+        apiPanel.Children.Add(apiTogglePanel);
 
         // ── Global update inclusion toggles (Middle Row right column) ──────────────
         var rsToggle = new ToggleSwitch
@@ -996,11 +1141,28 @@ public class DetailPanelBuilder
         _window.OverridesPanel.Children.Add(middleRowGrid);
         _window.OverridesPanel.Children.Add(UIFactory.MakeSeparator());
 
-        // ── Bottom Row: DLL naming override ──────────────────────────────────
-        var dllSection = new StackPanel { Spacing = 8 };
-        dllSection.Children.Add(dllOverrideToggle);
-        dllSection.Children.Add(rsNameBox);
-        _window.OverridesPanel.Children.Add(dllSection);
+        // ── Bitness & API Row Grid (3 columns: Star | Auto divider | Star) ──
+        var bitnessApiGrid = new Grid { ColumnSpacing = 0 };
+        bitnessApiGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        bitnessApiGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        bitnessApiGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        Grid.SetColumn(bitnessPanel, 0);
+        var bitnessApiDivider = new Border
+        {
+            Width = 1,
+            Background = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Margin = new Thickness(12, 0, 12, 0),
+        };
+        Grid.SetColumn(bitnessApiDivider, 1);
+        Grid.SetColumn(apiPanel, 2);
+
+        bitnessApiGrid.Children.Add(bitnessPanel);
+        bitnessApiGrid.Children.Add(bitnessApiDivider);
+        bitnessApiGrid.Children.Add(apiPanel);
+
+        _window.OverridesPanel.Children.Add(bitnessApiGrid);
         _window.OverridesPanel.Children.Add(UIFactory.MakeSeparator());
 
         // ── Button row (Reset only — auto-save replaces Save button) ──────────
@@ -1070,6 +1232,43 @@ public class DetailPanelBuilder
             // Disable wiki exclusion
             if (_window.ViewModel.IsWikiExcluded(capturedName))
                 _window.ViewModel.ToggleWikiExclusion(capturedName);
+
+            // Reset bitness override to Auto
+            bitnessCombo.SelectedItem = "Auto";
+            _window.ViewModel.SetBitnessOverride(capturedName, null);
+
+            // Reset API overrides
+            _window.ViewModel.SetApiOverride(capturedName, null);
+
+            // Revert card properties to auto-detected values
+            {
+                var targetCard = _window.ViewModel.AllCards.FirstOrDefault(c =>
+                    c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
+                if (targetCard != null)
+                {
+                    // Re-resolve bitness from PE header auto-detection
+                    var detectedMachine = _window.ViewModel.PeHeaderServiceInstance.DetectGameArchitecture(targetCard.InstallPath);
+                    targetCard.Is32Bit = _window.ViewModel.ResolveIs32Bit(capturedName, detectedMachine);
+
+                    // Re-detect APIs from scanning (overrides are now cleared)
+                    targetCard.DetectedApis = _window.ViewModel._DetectAllApisForCard(targetCard.InstallPath, capturedName);
+                    targetCard.IsDualApiGame = GraphicsApiDetector.IsDualApi(targetCard.DetectedApis);
+                    targetCard.GraphicsApi = _window.ViewModel.DetectGraphicsApi(
+                        targetCard.InstallPath, EngineType.Unknown, capturedName);
+
+                    // Reset API toggles to reflect auto-detected state
+                    foreach (var kvp in apiToggles)
+                    {
+                        kvp.Value.Toggle.IsOn = kvp.Value.EnumNames
+                            .Any(n => Enum.TryParse<GraphicsApiType>(n, out var apiType) && targetCard.DetectedApis.Contains(apiType));
+                    }
+
+                    // Update DLL naming placeholder to match new bitness
+                    rsNameBox.PlaceholderText = targetCard.Is32Bit ? "ReShade32.dll" : "ReShade64.dll";
+
+                    targetCard.NotifyAll();
+                }
+            }
 
             CrashReporter.Log($"[DetailPanelBuilder.BuildOverridesPanel] Overrides reset for: {capturedName}");
 
