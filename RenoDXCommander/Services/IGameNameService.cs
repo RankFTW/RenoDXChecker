@@ -75,7 +75,8 @@ public interface IGameNameService
         IDllOverrideService dllOverrideService,
         SettingsViewModel settingsViewModel,
         Action<bool> setIsGridLayout,
-        Action<string> setFilterMode);
+        Action<string> setFilterMode,
+        Action<List<CustomFilter>> setCustomFilters);
 
     /// <summary>Persists all settings to disk.</summary>
     void SaveNameMappings(
@@ -83,7 +84,8 @@ public interface IGameNameService
         SettingsViewModel settingsViewModel,
         bool isGridLayout,
         bool isLoadingSettings,
-        string filterMode);
+        string filterMode,
+        List<CustomFilter> customFilters);
 
     // ── Name mapping CRUD ─────────────────────────────────────────────────────
 

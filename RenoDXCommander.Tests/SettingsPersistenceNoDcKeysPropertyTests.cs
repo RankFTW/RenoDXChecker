@@ -104,7 +104,8 @@ public class SettingsPersistenceNoDcKeysPropertyTests : IDisposable
                     settingsVm,
                     isGridLayout: false,
                     isLoadingSettings: false,
-                    filterMode: "All");
+                    filterMode: "All",
+                    customFilters: new List<CustomFilter>());
 
                 // Assert: read back the persisted file and check the DC key is gone
                 string json = "";

@@ -60,7 +60,7 @@
 
                     <Border Width="1" Height="20" Background="{StaticResource BorderSubtleBrush}" Margin="4,0"/>
 
-                    <Button x:Name="UpdateBtn" Content="Update"
+                    <Button x:Name="UpdateBtn" Content="Update All"
                             Click="UpdateAllButton_Click"
                             Background="{StaticResource SurfaceInputBrush}"
                             Foreground="{StaticResource TextTertiaryBrush}"
@@ -81,6 +81,7 @@
                                 <MenuFlyoutItem Text="Discord" Click="SupportDiscord_Click"/>
                                 <MenuFlyoutItem Text="Guide" Click="SupportGuide_Click"/>
                                 <MenuFlyoutItem Text="Ko-fi" Click="SupportKofi_Click"/>
+                                <MenuFlyoutItem Text="About" Click="AboutButton_Click"/>
                             </MenuFlyout>
                         </Button.Flyout>
                     </Button>
@@ -106,7 +107,7 @@
 
             <!-- Loading overlay -->
             <StackPanel x:Name="LoadingPanel" x:FieldModifier="internal" VerticalAlignment="Center" HorizontalAlignment="Center"
-                        Spacing="16" Visibility="Visible" Canvas.ZIndex="10">
+                        Spacing="16" Visibility="Collapsed" Canvas.ZIndex="10">
                 <ProgressRing x:Name="LoadingRing" IsActive="True" Width="48" Height="48"
                               Foreground="{StaticResource AccentBlueBrush}"/>
                 <TextBlock x:Name="LoadingTitle" Text="Loading..." FontSize="16"
@@ -116,7 +117,7 @@
             </StackPanel>
 
             <!--  GAME VIEW PANEL  -->
-            <Grid x:Name="GameViewPanel" x:FieldModifier="internal" Visibility="Collapsed" Background="{StaticResource SurfaceBaseBrush}">
+            <Grid x:Name="GameViewPanel" x:FieldModifier="internal" Visibility="Visible" Background="{StaticResource SurfaceBaseBrush}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="300"/>  <!-- Sidebar -->
                     <ColumnDefinition Width="*"/>    <!-- Detail Panel -->
@@ -134,13 +135,32 @@
 
                         <!-- Search box -->
                         <Border Grid.Row="0" Padding="10,8,10,4" Background="{StaticResource SurfaceToolbarBrush}">
-                            <TextBox x:Name="SearchBox"
-                                     PlaceholderText="Search games..."
-                                     TextChanged="SearchBox_TextChanged"
-                                     Background="{StaticResource SurfaceInputBrush}" Foreground="{StaticResource TextSecondaryBrush}"
-                                     BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1"
-                                     CornerRadius="8" Padding="10,7"
-                                     FontSize="12"/>
+                            <Grid ColumnSpacing="4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="SearchBox" Grid.Column="0"
+                                         PlaceholderText="Search games..."
+                                         TextChanged="SearchBox_TextChanged"
+                                         Background="{StaticResource SurfaceInputBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                         BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1"
+                                         CornerRadius="8" Padding="10,7"
+                                         FontSize="12"/>
+                                <Button x:Name="SaveFilterButton" Grid.Column="1"
+                                        Content="+"
+                                        Click="SaveFilterButton_Click"
+                                        Visibility="Collapsed"
+                                        Background="{StaticResource SurfaceInputBrush}"
+                                        Foreground="{StaticResource AccentTealBrush}"
+                                        BorderBrush="{StaticResource AccentTealBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="8" Padding="8,6"
+                                        MinWidth="0" MinHeight="0"
+                                        FontSize="14" FontWeight="Bold"
+                                        VerticalAlignment="Center"
+                                        ToolTipService.ToolTip="Save current search as a custom filter"/>
+                            </Grid>
                         </Border>
 
                         <!-- Filter chips -->
@@ -187,6 +207,9 @@
                                             Background="{StaticResource ChipDefaultBrush}" Foreground="{StaticResource ChipTextBrush}"
                                             BorderThickness="0" CornerRadius="7" Padding="10,5" FontSize="11"/>
                                 </StackPanel>
+                                <!-- Custom filter chips (populated programmatically) -->
+                                <controls:WrapPanel x:Name="CustomFilterChipPanel" x:FieldModifier="internal"
+                                                    HorizontalSpacing="4" VerticalSpacing="4"/>
                             </StackPanel>
                         </Border>
 
@@ -245,6 +268,10 @@
                                 </DataTemplate>
                             </ListView.ItemTemplate>
                         </ListView>
+
+                        <!-- Skeleton rows overlay (removed programmatically after first load) -->
+                        <StackPanel x:Name="SkeletonRowPanel" Grid.Row="3" Spacing="4" Padding="4"
+                                    Visibility="Visible"/>
                     </Grid>
                 </Border>
 
@@ -667,6 +694,13 @@
                                             HorizontalSpacing="12" VerticalSpacing="12"
                                             Margin="16"/>
                     </ScrollViewer>
+
+                    <!-- Skeleton detail panel overlay (removed programmatically after first load) -->
+                    <ScrollViewer x:Name="SkeletonDetailScrollViewer" VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled" Visibility="Visible">
+                        <StackPanel x:Name="SkeletonDetailPanel" Spacing="16"
+                                    Padding="24,18,24,24"/>
+                    </ScrollViewer>
                 </Grid>
             </Grid>
 
@@ -891,6 +925,38 @@
                                 </TextBlock>
                             </StackPanel>
                         </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+
+            <!-- end SettingsPanel -->
+
+            <!--  ABOUT PANEL  -->
+            <Grid x:Name="AboutPanel" x:FieldModifier="internal" Visibility="Collapsed" Background="{StaticResource SurfaceBaseBrush}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Back button bar -->
+                <Border Grid.Row="0" Padding="24,12,24,10" Background="Transparent"
+                        BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="0,0,0,1">
+                    <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                        <Button Content="← Back to Games"
+                                Click="AboutBack_Click"
+                                Background="{StaticResource SurfaceOverlayBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                BorderBrush="{StaticResource BorderDefaultBrush}" BorderThickness="1"
+                                CornerRadius="8" Padding="12,6" FontSize="12"/>
+                        <TextBlock Text="About" FontSize="20" FontWeight="Bold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Scrollable about content -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Padding="32,24,32,40" Spacing="14" MaxWidth="800"
+                                HorizontalAlignment="Center">
 
                         <!-- ── About ───────────────────────────────────────────────── -->
                         <Border Background="{StaticResource SurfaceRaisedBrush}" CornerRadius="10" Padding="20,16"
@@ -1130,7 +1196,7 @@
                 </ScrollViewer>
             </Grid>
 
-            <!-- end SettingsPanel -->
+            <!-- end AboutPanel -->
         </Grid>
 
         <!-- end Row 1 content area -->
@@ -1144,19 +1210,26 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Spacing="12">
-                    <TextBlock x:Name="StatusBarText" Text=""
-                               FontSize="11" Foreground="{StaticResource TextDisabledBrush}"/>
-                </StackPanel>
+                <TextBlock Grid.Column="0" x:Name="StatusBarText" Text=""
+                           FontSize="11" Foreground="{StaticResource TextDisabledBrush}"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" MaxLines="1"/>
                 <TextBlock Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center"
                            FontSize="10" Foreground="{StaticResource AccentAmberDimBrush}"
+                           TextTrimming="CharacterEllipsis" MaxLines="1"
                            Text="⚠ Single-player only — ReShade with addon support may trigger anti-cheat in online/multiplayer games"/>
-                <Button Grid.Column="2" Content="Patch Notes"
-                        Click="PatchNotesLink_Click"
-                        Background="Transparent" BorderThickness="0"
-                        Foreground="{StaticResource TextDisabledBrush}" FontSize="11"
-                        Padding="8,2" VerticalAlignment="Center" HorizontalAlignment="Right"
-                        ToolTipService.ToolTip="View recent patch notes"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right"
+                            VerticalAlignment="Center" Spacing="8">
+                    <TextBlock x:Name="StatusBarVersionText" x:FieldModifier="internal"
+                               FontSize="11" Foreground="{StaticResource TextDisabledBrush}"
+                               VerticalAlignment="Center"/>
+                    <Button Content="Patch Notes"
+                            Click="PatchNotesLink_Click"
+                            Background="Transparent" BorderThickness="0"
+                            Foreground="{StaticResource TextDisabledBrush}" FontSize="11"
+                            Padding="8,2" VerticalAlignment="Center"
+                            ToolTipService.ToolTip="View recent patch notes"/>
+                </StackPanel>
             </Grid>
         </Border>
 

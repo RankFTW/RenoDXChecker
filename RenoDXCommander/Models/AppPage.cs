@@ -11,7 +11,12 @@ public enum AppPage
     GameView,
 
     /// <summary>
-    /// The global settings, about, and credits page.
+    /// The global settings page.
     /// </summary>
-    Settings
+    Settings,
+
+    /// <summary>
+    /// The About page with app info, credits, and links.
+    /// </summary>
+    About
 }

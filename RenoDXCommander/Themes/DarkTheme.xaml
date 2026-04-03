@@ -11,6 +11,8 @@
     <!-- ── Base surfaces ─────────────────────────────────────────────────── -->
     <Color x:Key="SurfaceBase">#FF121518</Color>          <!-- main background -->
     <Color x:Key="SurfaceRaised">#FF181D23</Color>        <!-- cards, panels -->
+    <Color x:Key="SkeletonBase">#FF1A2028</Color>         <!-- skeleton fill (resting) -->
+    <Color x:Key="SkeletonHighlight">#FF252D38</Color>    <!-- skeleton fill (shimmer peak) -->
     <Color x:Key="SurfaceOverlay">#FF1E242C</Color>       <!-- overlays, modals -->
     <Color x:Key="SurfaceHeader">#FF0F1318</Color>        <!-- header bar -->
     <Color x:Key="SurfaceStatusBar">#FF0D1015</Color>     <!-- status bar -->
@@ -81,6 +83,10 @@
     <SolidColorBrush x:Key="SurfaceToolbarBrush"        Color="{StaticResource SurfaceToolbar}"/>
     <SolidColorBrush x:Key="SurfaceInputBrush"          Color="{StaticResource SurfaceInput}"/>
     <SolidColorBrush x:Key="SurfaceComponentTableBrush" Color="{StaticResource SurfaceComponentTable}"/>
+
+    <!-- Skeleton shimmer -->
+    <SolidColorBrush x:Key="SkeletonBaseBrush"      Color="{StaticResource SkeletonBase}"/>
+    <SolidColorBrush x:Key="SkeletonHighlightBrush"  Color="{StaticResource SkeletonHighlight}"/>
 
     <!-- Borders -->
     <SolidColorBrush x:Key="BorderSubtleBrush"  Color="{StaticResource BorderSubtle}"/>

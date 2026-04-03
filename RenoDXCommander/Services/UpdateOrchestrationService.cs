@@ -110,6 +110,7 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
             .Where(c => !c.ExcludeFromUpdateAllReShade)
             .Where(c => c.RsStatus == GameStatus.Installed || c.RsStatus == GameStatus.UpdateAvailable)
             .Where(c => !c.RequiresVulkanInstall) // Vulkan games use the global layer — not a per-game DLL
+            .Where(c => !c.IsLumaMode) // Luma games use an older ReShade version — skip global updates
             .ToList();
 
         foreach (var card in targets)

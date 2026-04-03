@@ -1,5 +1,6 @@
 // MainWindow.Events.cs — Button click handlers and user-initiated event handlers.
 
+using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -528,6 +529,12 @@ public sealed partial class MainWindow
     private void SettingsBack_Click(object sender, RoutedEventArgs e)
         => _settingsHandler.SettingsBack_Click(sender, e);
 
+    private void AboutButton_Click(object sender, RoutedEventArgs e)
+        => ViewModel.NavigateToAboutCommand.Execute(null);
+
+    private void AboutBack_Click(object sender, RoutedEventArgs e)
+        => ViewModel.NavigateToGameViewCommand.Execute(null);
+
     // ── Detail panel handlers ─────────────────────────────────────────────────────
 
     private void DetailScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -543,6 +550,136 @@ public sealed partial class MainWindow
         ViewModel.SearchQuery = SearchBox.Text;
         // Always show the clear (✕) button
         VisualStateManager.GoToState(SearchBox, "ButtonVisible", true);
+
+        // Show/hide the save filter button based on whether there's a non-whitespace query
+        SaveFilterButton.Visibility = string.IsNullOrWhiteSpace(SearchBox.Text)
+            ? Microsoft.UI.Xaml.Visibility.Collapsed
+            : Microsoft.UI.Xaml.Visibility.Visible;
+
+        // Refresh custom chip styles (active filter may have been deactivated by the query change)
+        RebuildCustomFilterChips();
+    }
+
+    private async void SaveFilterButton_Click(object sender, RoutedEventArgs e)
+    {
+        var currentQuery = SearchBox.Text?.Trim() ?? "";
+        if (string.IsNullOrEmpty(currentQuery)) return;
+
+        var nameBox = new TextBox { PlaceholderText = "Filter name", Width = 350 };
+        var errorText = new TextBlock
+        {
+            Text = "",
+            Foreground = Brush(ResourceKeys.AccentRedBrush),
+            Visibility = Visibility.Collapsed,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 4, 0, 0),
+        };
+
+        var dialog = new ContentDialog
+        {
+            Title = "Save Custom Filter",
+            Content = new StackPanel
+            {
+                Spacing = 8,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = $"Save the current search \"{currentQuery}\" as a custom filter:",
+                        TextWrapping = TextWrapping.Wrap,
+                        Foreground = Brush(ResourceKeys.TextSecondaryBrush),
+                    },
+                    nameBox,
+                    errorText,
+                }
+            },
+            PrimaryButtonText = "Save",
+            CloseButtonText = "Cancel",
+            XamlRoot = Content.XamlRoot,
+            Background = Brush(ResourceKeys.SurfaceToolbarBrush),
+        };
+
+        // Validate inline before closing the dialog
+        dialog.PrimaryButtonClick += (s, args) =>
+        {
+            var name = nameBox.Text?.Trim() ?? "";
+            if (string.IsNullOrEmpty(name))
+            {
+                errorText.Text = "Please enter a filter name.";
+                errorText.Visibility = Visibility.Visible;
+                args.Cancel = true;
+                return;
+            }
+            if (ViewModel.Filter.CustomFilterNameExists(name))
+            {
+                errorText.Text = $"A filter named \"{name}\" already exists.";
+                errorText.Visibility = Visibility.Visible;
+                args.Cancel = true;
+                return;
+            }
+        };
+
+        var result = await dialog.ShowAsync();
+        if (result != ContentDialogResult.Primary) return;
+
+        var filterName = nameBox.Text?.Trim() ?? "";
+        if (string.IsNullOrEmpty(filterName)) return;
+
+        ViewModel.Filter.AddCustomFilter(filterName, currentQuery);
+        RebuildCustomFilterChips();
+    }
+
+    /// <summary>
+    /// Rebuilds the custom filter chip UI from <see cref="FilterViewModel.CustomFilters"/>.
+    /// </summary>
+    private void RebuildCustomFilterChips()
+    {
+        CustomFilterChipPanel.Children.Clear();
+
+        foreach (var filter in ViewModel.Filter.CustomFilters)
+        {
+            var chipName = filter.Name;
+            bool isActive = string.Equals(ViewModel.Filter.ActiveCustomFilterName, chipName, StringComparison.OrdinalIgnoreCase);
+
+            var chip = new Button
+            {
+                Content = chipName,
+                Tag = chipName,
+                Background = new SolidColorBrush(
+                    ((SolidColorBrush)Application.Current.Resources[
+                        isActive ? ResourceKeys.ChipActiveBrush : ResourceKeys.ChipDefaultBrush]).Color),
+                Foreground = isActive
+                    ? new SolidColorBrush(Microsoft.UI.Colors.White)
+                    : (SolidColorBrush)Application.Current.Resources[ResourceKeys.ChipTextBrush],
+                BorderThickness = new Thickness(0),
+                CornerRadius = new CornerRadius(7),
+                Padding = new Thickness(10, 5, 10, 5),
+                FontSize = 11,
+            };
+
+            chip.Click += CustomFilterChip_Click;
+
+            // Right-click context menu with "Delete" option (Req 5.1–5.5)
+            var flyout = new MenuFlyout();
+            var deleteItem = new MenuFlyoutItem { Text = "Delete" };
+            deleteItem.Click += (s, args) =>
+            {
+                ViewModel.Filter.RemoveCustomFilter(chipName);
+                RebuildCustomFilterChips();
+            };
+            flyout.Items.Add(deleteItem);
+            chip.ContextFlyout = flyout;
+
+            CustomFilterChipPanel.Children.Add(chip);
+        }
+    }
+
+    private void CustomFilterChip_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not string name) return;
+
+        ViewModel.Filter.ActivateCustomFilter(name);
+        RebuildCustomFilterChips();
     }
 
     // ── Manual add game ───────────────────────────────────────────────────────────

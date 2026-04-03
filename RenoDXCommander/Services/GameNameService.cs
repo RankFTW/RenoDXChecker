@@ -82,7 +82,8 @@ public class GameNameService : IGameNameService
         IDllOverrideService dllOverrideService,
         SettingsViewModel settingsViewModel,
         Action<bool> setIsGridLayout,
-        Action<string> setFilterMode)
+        Action<string> setFilterMode,
+        Action<List<CustomFilter>> setCustomFilters)
     {
         _nameMappings              = new(StringComparer.OrdinalIgnoreCase);
         _wikiExclusions            = new(StringComparer.OrdinalIgnoreCase);
@@ -217,6 +218,9 @@ public class GameNameService : IGameNameService
         if (s.TryGetValue("FilterMode", out var fmVal) && !string.IsNullOrWhiteSpace(fmVal))
             setFilterMode(fmVal);
 
+        var customFilters = Load<List<CustomFilter>>("CustomFilters", new());
+        setCustomFilters(customFilters);
+
         CrashReporter.Log($"[GameNameService.LoadNameMappings] Loaded {_gameRenames.Count} renames, {dllOverrides.Count} DLL overrides, {_folderOverrides.Count} folder overrides");
 
         return s;
@@ -228,7 +232,8 @@ public class GameNameService : IGameNameService
         SettingsViewModel settingsViewModel,
         bool isGridLayout,
         bool isLoadingSettings,
-        string filterMode)
+        string filterMode,
+        List<CustomFilter> customFilters)
     {
         if (isLoadingSettings) return;
 
@@ -268,6 +273,7 @@ public class GameNameService : IGameNameService
                 s["FavouriteGames"]      = JsonSerializer.Serialize(_favouriteGames?.ToList() ?? new List<string>());
                 s["GridLayout"]          = isGridLayout ? "1" : "0";
                 s["FilterMode"]          = filterMode;
+                s["CustomFilters"]       = JsonSerializer.Serialize(customFilters);
                 SettingsViewModel.SaveSettingsFile(s);
                 return;
             }

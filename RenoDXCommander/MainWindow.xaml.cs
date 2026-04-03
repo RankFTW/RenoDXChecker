@@ -43,6 +43,7 @@ public sealed partial class MainWindow : Window
         ViewModel = viewModel;
         _crashReporter = crashReporter;
         InitializeComponent();
+        InitializeSkeletons();
         _cardBuilder = new CardBuilder(this);
         _detailPanelBuilder = new DetailPanelBuilder(this);
         _overridesFlyoutBuilder = new OverridesFlyoutBuilder(this, crashReporter);
@@ -102,9 +103,14 @@ public sealed partial class MainWindow : Window
         GameList.ItemsSource = ViewModel.DisplayedGames;
         // Apply initial visibility
         UpdatePageVisibility();
+        // Show version in status bar
+        StatusBarVersionText.Text = $"v{Services.CrashReporter.AppVersion}";
         // Always show the ✕ clear button on search box
         SearchBox.Loaded += (_, _) => VisualStateManager.GoToState(SearchBox, "ButtonVisible", false);
         ViewModel.InitializeAsync().SafeFireAndForget("MainWindow.Init");
+        // Rebuild custom filter chips when the collection changes
+        ViewModel.Filter.CustomFilters.CollectionChanged += (_, _) =>
+            DispatcherQueue.TryEnqueue(RebuildCustomFilterChips);
         // Silent update check — runs in background, shows dialog only if update found
         CheckForAppUpdateAsync().SafeFireAndForget("MainWindow.UpdateCheck");
         // Show patch notes on first launch after update

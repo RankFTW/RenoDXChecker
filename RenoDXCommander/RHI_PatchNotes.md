@@ -1,3 +1,56 @@
+## v1.6.9
+
+### 📢 Coming Next
+
+**Display Commander is returning** — the next update will bring back Display Commander with full integration into RHI.
+
+### New Features
+
+**Skeleton loading screen**
+- The app now shows a skeleton loading screen on launch instead of a centered spinner. The sidebar and detail panel areas display animated placeholder shapes that mimic the real layout, so the UI feels responsive from the moment you open it. The placeholders pulse with a subtle shimmer animation and are replaced by real content once loading finishes.
+
+**Universal keyword search**
+- The search bar now matches across all game card properties — not just game name and maintainer. You can search by store (Steam, GOG, Epic), engine (Unreal, Unity), graphics API (DX11, VLK, DirectX12), bitness (32-bit, 64-bit), mod name, mod author, Luma mod name/author, Vulkan rendering path, and RE Engine/RE Framework games.
+
+**Custom filter chips**
+- Save any search query as a named filter chip by clicking the "+" button next to the search bar. Custom chips act as real independent filters — click to activate, click again to toggle off, switch between them freely. They combine with the search box and built-in filter chips. Right-click a custom chip to delete it. Custom filters persist across sessions.
+
+**About page**
+- All informational content (app description, credits & acknowledgements, disclaimers, and links) has been moved from the Settings page to a dedicated About page. Access it from the Help flyout → About. The Settings page now contains only actionable configuration sections.
+
+### Bug Fixes
+
+**Luma games showing false ReShade update indicator**
+- Games in Luma mode no longer show a green update dot on the sidebar card. Luma uses its own bundled ReShade version, so the version mismatch with the latest ReShade is expected and no longer triggers update indicators.
+
+**Luma games included in ReShade global updates**
+- Games in Luma mode are now automatically excluded from Update All ReShade operations. This prevents Luma's bundled ReShade from being overwritten by the latest version.
+
+### Changes
+
+**Search now covers display API labels**
+- Searching "DX11", "VLK", "OGL", or "DX9" now matches the short labels shown on game cards, in addition to the full enum names like "DirectX11". Dual-API games are also searchable by either API in their detected set.
+
+**RE Engine games searchable**
+- Typing "RE Engine" or "RE Framework" in the search bar now finds all RE Engine games.
+
+**Graphics API override simplified to dropdown**
+- The six individual API toggle switches have been replaced with a single dropdown selector (Auto, DirectX8, DirectX9, DirectX10, DX11/DX12, Vulkan, OpenGL). "Auto" uses the auto-detected value from PE header scanning.
+
+**Graphics API and Bitness overrides consolidated**
+- The Graphics API dropdown is now in the same section as the Bitness dropdown, stacked vertically in the left panel of the overrides row.
+
+**Wiki exclusion moved to wiki section**
+- The wiki exclusion toggle has been moved from the right column into the left column, directly below the wiki mod name field. The header text has been removed for a more compact layout.
+
+**Overrides panel condensed**
+- The bottom row of the overrides panel has been simplified from a two-column layout to a single stacked section for Bitness and Graphics API.
+
+**Version number in status bar**
+- The app version number is now displayed in the bottom-right corner of the status bar, next to the Patch Notes button.
+
+---
+
 ## v1.6.8
 
 ### Bug Fixes

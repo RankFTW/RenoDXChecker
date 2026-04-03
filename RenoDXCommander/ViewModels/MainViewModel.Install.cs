@@ -213,6 +213,9 @@ public partial class MainViewModel
     public void NavigateToGameView() => CurrentPage = AppPage.GameView;
 
     [RelayCommand]
+    public void NavigateToAbout() => CurrentPage = AppPage.About;
+
+    [RelayCommand]
     public void ToggleShowHidden()
     {
         _filterViewModel.ShowHidden = !_filterViewModel.ShowHidden;

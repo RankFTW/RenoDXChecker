@@ -402,6 +402,8 @@ public partial class MainViewModel : ObservableObject
         _dllOverrideService.OverridesChanged = () => SaveNameMappings();
         // Wire up FilterViewModel to persist filter mode on change
         _filterViewModel.FilterModeChanged = () => SaveNameMappings();
+        // Wire up FilterViewModel to persist custom filters on change
+        _filterViewModel.CustomFiltersChanged = () => SaveNameMappings();
         // Initialize FilterViewModel with the DisplayedGames collection
         _filterViewModel.Initialize(DisplayedGames);
         // Forward FilterViewModel property changes so UI bindings on MainViewModel still work

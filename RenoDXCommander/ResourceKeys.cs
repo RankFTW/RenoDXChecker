@@ -35,6 +35,13 @@ public static class ResourceKeys
     /// <summary>Resource key for the component table surface colour.</summary>
     public const string SurfaceComponentTable = "SurfaceComponentTable";
 
+    // ── Color keys: Skeleton ────────────────────────────────────────────
+
+    /// <summary>Resource key for the skeleton base colour (resting state).</summary>
+    public const string SkeletonBase = "SkeletonBase";
+    /// <summary>Resource key for the skeleton highlight colour (shimmer peak).</summary>
+    public const string SkeletonHighlight = "SkeletonHighlight";
+
     // ── Color keys: Borders ─────────────────────────────────────────────
 
     /// <summary>Resource key for the subtle border colour.</summary>
@@ -180,6 +187,13 @@ public static class ResourceKeys
     public const string SurfaceInputBrush = "SurfaceInputBrush";
     /// <summary>Brush resource key for the component table surface.</summary>
     public const string SurfaceComponentTableBrush = "SurfaceComponentTableBrush";
+
+    // ── Brush keys: Skeleton ────────────────────────────────────────────
+
+    /// <summary>Brush resource key for the skeleton base fill.</summary>
+    public const string SkeletonBaseBrush = "SkeletonBaseBrush";
+    /// <summary>Brush resource key for the skeleton highlight fill.</summary>
+    public const string SkeletonHighlightBrush = "SkeletonHighlightBrush";
 
     // ── Brush keys: Borders ─────────────────────────────────────────────
 

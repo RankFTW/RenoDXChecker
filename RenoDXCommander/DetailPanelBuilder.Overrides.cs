@@ -159,6 +159,24 @@ public partial class DetailPanelBuilder
         wikiResetRow.Children.Add(resetBtn);
         topLeftColumn.Children.Add(wikiResetRow);
 
+        // Wiki exclusion toggle (compact, no header — placed below wiki name)
+        var wikiExcludeToggle = new ToggleSwitch
+        {
+            IsOn = _window.ViewModel.IsWikiExcluded(gameName),
+            OnContent = "Excluded from wiki lookups",
+            OffContent = "Included in wiki lookups",
+            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
+            FontSize = 11,
+        };
+        ToolTipService.SetToolTip(wikiExcludeToggle,
+            "When enabled, this game will not be looked up on the RenoDX wiki. Useful for games that share a name with an unrelated wiki entry.");
+        wikiExcludeToggle.Toggled += (s, ev) =>
+        {
+            if (wikiExcludeToggle.IsOn != _window.ViewModel.IsWikiExcluded(capturedName))
+                _window.ViewModel.ToggleWikiExclusion(capturedName);
+        };
+        topLeftColumn.Children.Add(wikiExcludeToggle);
+
         Grid.SetColumn(topLeftColumn, 0);
         topRowGrid.Children.Add(topLeftColumn);
 
@@ -173,32 +191,12 @@ public partial class DetailPanelBuilder
         Grid.SetColumn(topRowDivider, 1);
         topRowGrid.Children.Add(topRowDivider);
 
-        // Column 2: Wiki Exclusion toggle (+ Rendering Path ComboBox added by task 1.3)
-        var wikiExcludeToggle = new ToggleSwitch
-        {
-            Header = "Wiki exclusion",
-            IsOn = _window.ViewModel.IsWikiExcluded(gameName),
-            OnContent = "Excluded from wiki lookups",
-            OffContent = "Included in wiki lookups",
-            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
-            FontSize = 12,
-        };
-        ToolTipService.SetToolTip(wikiExcludeToggle,
-            "When enabled, this game will not be looked up on the RenoDX wiki. Useful for games that share a name with an unrelated wiki entry.");
-
-        // Auto-save: Wiki exclusion toggle
-        wikiExcludeToggle.Toggled += (s, ev) =>
-        {
-            if (wikiExcludeToggle.IsOn != _window.ViewModel.IsWikiExcluded(capturedName))
-                _window.ViewModel.ToggleWikiExclusion(capturedName);
-        };
-
         // ── Rendering Path (dual-API games only) ─────────────────────────────────
         // Rendering Path ComboBox removed — API toggles make it redundant.
         ComboBox? renderPathCombo = null;
 
+        // Column 2: DLL naming override
         var topRightColumn = new StackPanel { Spacing = 8 };
-        topRightColumn.Children.Add(wikiExcludeToggle);
         // DLL naming override moved here from the old Bottom Row
         topRightColumn.Children.Add(dllOverrideToggle);
         topRightColumn.Children.Add(rsNameBox);
@@ -449,7 +447,7 @@ public partial class DetailPanelBuilder
         bitnessPanel.Children.Add(bitnessLabel);
         bitnessPanel.Children.Add(bitnessCombo);
 
-        // ── API Override ToggleSwitches (right column of Bitness & API Row) ──────
+        // ── API Override ComboBox (single selection, placed in left panel below bitness) ──────
         var apiLabel = new TextBlock
         {
             Text = "Graphics API",
@@ -458,94 +456,90 @@ public partial class DetailPanelBuilder
             Margin = new Thickness(0, 0, 0, 8),
         };
         ToolTipService.SetToolTip(apiLabel,
-            "Override the detected graphics APIs for this game.\n\n" +
-            "Only one API drives ReShade's DLL filename at a time, even if multiple are selected.\n" +
-            "Priority: DX11/12 → Vulkan → OpenGL → DX10 → DX9 → DX8.\n\n" +
+            "Override the detected graphics API for this game.\n\n" +
+            "Auto uses the auto-detected value from PE header scanning.\n" +
             "User overrides set here take precedence over manifest and auto-detected values.\n" +
             "Reset Overrides reverts to auto-detection.");
 
-        // Each entry maps a display label to one or more GraphicsApiType enum names.
-        // "DX11/DX12" is a combined toggle that controls both DirectX11 and DirectX12.
-        var apiToggleDefs = new (string Label, string[] EnumNames)[]
-        {
-            ("DirectX8",  new[] { "DirectX8" }),
-            ("DirectX9",  new[] { "DirectX9" }),
-            ("DirectX10", new[] { "DirectX10" }),
-            ("DX11/DX12", new[] { "DirectX11", "DirectX12" }),
-            ("Vulkan",    new[] { "Vulkan" }),
-            ("OpenGL",    new[] { "OpenGL" }),
-        };
+        var apiDropdownItems = new[] { "Auto", "DirectX8", "DirectX9", "DirectX10", "DX11/DX12", "Vulkan", "OpenGL" };
         var existingApiOverride = _window.ViewModel.GetApiOverride(gameName);
-        var apiToggles = new Dictionary<string, (ToggleSwitch Toggle, string[] EnumNames)>();
-        var apiTogglePanel = new Controls.WrapPanel { HorizontalSpacing = 8, VerticalSpacing = 8 };
 
-        foreach (var (label, enumNames) in apiToggleDefs)
+        // Determine current selection
+        string defaultApiSelection = "Auto";
+        if (existingApiOverride != null && existingApiOverride.Count > 0)
         {
-            bool isOn;
-            if (existingApiOverride != null)
-                isOn = enumNames.Any(n => existingApiOverride.Contains(n, StringComparer.OrdinalIgnoreCase));
-            else
-                isOn = enumNames.Any(n => card.DetectedApis.Contains(Enum.Parse<GraphicsApiType>(n)));
+            // Map stored override back to dropdown label
+            if (existingApiOverride.Contains("DirectX11", StringComparer.OrdinalIgnoreCase)
+                || existingApiOverride.Contains("DirectX12", StringComparer.OrdinalIgnoreCase))
+                defaultApiSelection = "DX11/DX12";
+            else if (existingApiOverride.Contains("Vulkan", StringComparer.OrdinalIgnoreCase))
+                defaultApiSelection = "Vulkan";
+            else if (existingApiOverride.Contains("OpenGL", StringComparer.OrdinalIgnoreCase))
+                defaultApiSelection = "OpenGL";
+            else if (existingApiOverride.Contains("DirectX10", StringComparer.OrdinalIgnoreCase))
+                defaultApiSelection = "DirectX10";
+            else if (existingApiOverride.Contains("DirectX9", StringComparer.OrdinalIgnoreCase))
+                defaultApiSelection = "DirectX9";
+            else if (existingApiOverride.Contains("DirectX8", StringComparer.OrdinalIgnoreCase))
+                defaultApiSelection = "DirectX8";
+        }
 
-            var toggle = new ToggleSwitch
+        var apiCombo = new ComboBox
+        {
+            ItemsSource = apiDropdownItems,
+            SelectedItem = defaultApiSelection,
+            FontSize = 12,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+
+        apiCombo.SelectionChanged += (s, ev) =>
+        {
+            var selected = apiCombo.SelectedItem as string;
+
+            // Map dropdown label to enum names for persistence
+            List<string>? apiEnumNames = selected switch
             {
-                Header = label,
-                IsOn = isOn,
-                OnContent = "On",
-                OffContent = "Off",
-                Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
-                FontSize = 11,
-                MinWidth = 0,
+                "DirectX8" => new() { "DirectX8" },
+                "DirectX9" => new() { "DirectX9" },
+                "DirectX10" => new() { "DirectX10" },
+                "DX11/DX12" => new() { "DirectX11", "DirectX12" },
+                "Vulkan" => new() { "Vulkan" },
+                "OpenGL" => new() { "OpenGL" },
+                _ => null, // "Auto" clears the override
             };
 
-            toggle.Toggled += (s, ev) =>
+            _window.ViewModel.SetApiOverride(capturedName, apiEnumNames);
+
+            // Update card properties
+            var targetCard = _window.ViewModel.AllCards.FirstOrDefault(c =>
+                c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
+            if (targetCard != null)
             {
-                // Collect all enabled API enum names from current toggle states
-                var enabledApis = new List<string>();
-                foreach (var kvp in apiToggles)
-                {
-                    if (kvp.Value.Toggle.IsOn)
-                        enabledApis.AddRange(kvp.Value.EnumNames);
-                }
-
-                // Persist the override
-                _window.ViewModel.SetApiOverride(capturedName, enabledApis);
-
-                // Update card properties
-                var targetCard = _window.ViewModel.AllCards.FirstOrDefault(c =>
-                    c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
-                if (targetCard != null)
+                if (apiEnumNames != null)
                 {
                     var newApis = new HashSet<GraphicsApiType>();
-                    foreach (var name in enabledApis)
+                    foreach (var name in apiEnumNames)
                     {
                         if (Enum.TryParse<GraphicsApiType>(name, out var apiType))
                             newApis.Add(apiType);
                     }
                     targetCard.DetectedApis = newApis;
-                    targetCard.IsDualApiGame = GraphicsApiDetector.IsDualApi(newApis);
-                    targetCard.GraphicsApi = _window.ViewModel.DetectGraphicsApi(
-                        targetCard.InstallPath, EngineType.Unknown, capturedName);
-                    targetCard.NotifyAll();
                 }
-            };
+                else
+                {
+                    // "Auto" — re-detect from scanning
+                    targetCard.DetectedApis = _window.ViewModel._DetectAllApisForCard(targetCard.InstallPath, capturedName);
+                }
+                targetCard.IsDualApiGame = GraphicsApiDetector.IsDualApi(targetCard.DetectedApis);
+                targetCard.GraphicsApi = _window.ViewModel.DetectGraphicsApi(
+                    targetCard.InstallPath, EngineType.Unknown, capturedName);
+                targetCard.NotifyAll();
+            }
+        };
 
-            var toggleBorder = new Border
-            {
-                Child = toggle,
-                BorderBrush = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(8, 6, 8, 6),
-            };
-
-            apiToggles[label] = (toggle, enumNames);
-            apiTogglePanel.Children.Add(toggleBorder);
-        }
-
-        var apiPanel = new StackPanel { Spacing = 8 };
-        apiPanel.Children.Add(apiLabel);
-        apiPanel.Children.Add(apiTogglePanel);
+        // Add API dropdown to bitness panel (below bitness combo)
+        bitnessPanel.Children.Add(apiLabel);
+        bitnessPanel.Children.Add(apiCombo);
 
         // ── Global update inclusion toggles (Middle Row right column) ──────────────
         var rsToggle = new ToggleSwitch
@@ -682,11 +676,9 @@ public partial class DetailPanelBuilder
             Margin = new Thickness(12, 0, 12, 0),
         };
         Grid.SetColumn(bitnessApiDivider, 1);
-        Grid.SetColumn(apiPanel, 2);
 
         bitnessApiGrid.Children.Add(bitnessPanel);
         bitnessApiGrid.Children.Add(bitnessApiDivider);
-        bitnessApiGrid.Children.Add(apiPanel);
 
         _window.OverridesPanel.Children.Add(bitnessApiGrid);
         _window.OverridesPanel.Children.Add(UIFactory.MakeSeparator());
@@ -764,6 +756,7 @@ public partial class DetailPanelBuilder
             _window.ViewModel.SetBitnessOverride(capturedName, null);
 
             // Reset API overrides
+            apiCombo.SelectedItem = "Auto";
             _window.ViewModel.SetApiOverride(capturedName, null);
 
             // Revert card properties to auto-detected values
@@ -781,13 +774,6 @@ public partial class DetailPanelBuilder
                     targetCard.IsDualApiGame = GraphicsApiDetector.IsDualApi(targetCard.DetectedApis);
                     targetCard.GraphicsApi = _window.ViewModel.DetectGraphicsApi(
                         targetCard.InstallPath, EngineType.Unknown, capturedName);
-
-                    // Reset API toggles to reflect auto-detected state
-                    foreach (var kvp in apiToggles)
-                    {
-                        kvp.Value.Toggle.IsOn = kvp.Value.EnumNames
-                            .Any(n => Enum.TryParse<GraphicsApiType>(n, out var apiType) && targetCard.DetectedApis.Contains(apiType));
-                    }
 
                     // Update DLL naming placeholder to match new bitness
                     rsNameBox.PlaceholderText = targetCard.Is32Bit ? "ReShade32.dll" : "ReShade64.dll";

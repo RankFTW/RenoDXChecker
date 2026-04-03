@@ -28,15 +28,26 @@ public partial class FilterViewModel : ObservableObject
     /// </summary>
     public Action? FilterModeChanged { get; set; }
 
+    /// <summary>
+    /// Callback invoked after CustomFilters list is modified (add/remove).
+    /// MainViewModel sets this to trigger SaveNameMappings.
+    /// </summary>
+    public Action? CustomFiltersChanged { get; set; }
+
     [ObservableProperty] private string _searchQuery = "";
     [ObservableProperty] private string _filterMode = "Detected";
+    [ObservableProperty] private ObservableCollection<CustomFilter> _customFilters = new();
+    [ObservableProperty] private string? _activeCustomFilterName;
     [ObservableProperty] private bool _showHidden = false;
     [ObservableProperty] private int _totalGames;
     [ObservableProperty] private int _installedCount;
     [ObservableProperty] private int _hiddenCount;
     [ObservableProperty] private int _favouriteCount;
 
-    partial void OnSearchQueryChanged(string value) => ApplyFilter();
+    partial void OnSearchQueryChanged(string value)
+    {
+        ApplyFilter();
+    }
     partial void OnShowHiddenChanged(bool value) => ApplyFilter();
 
     /// <summary>
@@ -166,19 +177,131 @@ public partial class FilterViewModel : ObservableObject
         ApplyFilter();
     }
 
+    /// <summary>
+    /// Adds a custom filter with the given name and query.
+    /// Returns false if name is empty/whitespace or a duplicate (case-insensitive).
+    /// </summary>
+    public bool AddCustomFilter(string name, string query)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return false;
+
+        if (CustomFilterNameExists(name))
+            return false;
+
+        CustomFilters.Add(new CustomFilter { Name = name, Query = query });
+        CustomFiltersChanged?.Invoke();
+        return true;
+    }
+
+    /// <summary>
+    /// Removes a custom filter by name. If it was the active custom filter,
+    /// resets to "Detected" filter and clears SearchQuery.
+    /// </summary>
+    public void RemoveCustomFilter(string name)
+    {
+        var filter = CustomFilters.FirstOrDefault(f => f.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        if (filter == null) return;
+
+        bool wasActive = ActiveCustomFilterName != null
+            && ActiveCustomFilterName.Equals(name, StringComparison.OrdinalIgnoreCase);
+
+        CustomFilters.Remove(filter);
+
+        if (wasActive)
+        {
+            ActiveCustomFilterName = null;
+            ApplyFilter();
+        }
+
+        CustomFiltersChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Activates a custom filter chip: applies the stored query as a filter layer
+    /// independent of the search box. Clicking the already-active filter deactivates it.
+    /// </summary>
+    public void ActivateCustomFilter(string name)
+    {
+        // Toggle: clicking the active filter deactivates it
+        if (ActiveCustomFilterName != null
+            && ActiveCustomFilterName.Equals(name, StringComparison.OrdinalIgnoreCase))
+        {
+            DeactivateCustomFilter();
+            ApplyFilter();
+            return;
+        }
+
+        var filter = CustomFilters.FirstOrDefault(f => f.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        if (filter == null) return;
+
+        ActiveCustomFilterName = filter.Name;
+        ApplyFilter();
+    }
+
+    /// <summary>
+    /// Deactivates the currently active custom filter chip.
+    /// </summary>
+    public void DeactivateCustomFilter()
+    {
+        ActiveCustomFilterName = null;
+    }
+
+    /// <summary>
+    /// Returns true if a custom filter with the given name already exists (case-insensitive).
+    /// </summary>
+    public bool CustomFilterNameExists(string name)
+    {
+        return CustomFilters.Any(f => f.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    internal static bool MatchesUniversalSearch(GameCardViewModel card, string query)
+    {
+        return card.GameName.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || card.Maintainer.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || card.Source.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || card.EngineHint.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || card.GraphicsApi.ToString().Contains(query, StringComparison.OrdinalIgnoreCase)
+            || card.GraphicsApiLabel.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || card.DetectedApis.Any(a => a.ToString().Contains(query, StringComparison.OrdinalIgnoreCase))
+            || (card.Is32Bit ? "32-bit" : "64-bit").Contains(query, StringComparison.OrdinalIgnoreCase)
+            || (card.IsREEngineGame && "RE Engine".Contains(query, StringComparison.OrdinalIgnoreCase))
+            || (card.IsREEngineGame && "RE Framework".Contains(query, StringComparison.OrdinalIgnoreCase))
+            || (card.Mod?.Name?.Contains(query, StringComparison.OrdinalIgnoreCase) == true)
+            || (card.Mod?.Maintainer?.Contains(query, StringComparison.OrdinalIgnoreCase) == true)
+            || (card.LumaMod?.Name?.Contains(query, StringComparison.OrdinalIgnoreCase) == true)
+            || (card.LumaMod?.Author?.Contains(query, StringComparison.OrdinalIgnoreCase) == true)
+            || card.VulkanRenderingPath.Contains(query, StringComparison.OrdinalIgnoreCase);
+    }
+
     public void ApplyFilter()
     {
         if (_displayedGames == null) return;
 
         var query = SearchQuery.Trim();
         var filters = _activeFilters;
+
+        // If a custom filter is active, get its stored query for an additional filter pass
+        string? customQuery = null;
+        if (ActiveCustomFilterName is not null)
+        {
+            var active = CustomFilters.FirstOrDefault(
+                f => f.Name.Equals(ActiveCustomFilterName, StringComparison.OrdinalIgnoreCase));
+            customQuery = active?.Query?.Trim();
+        }
+
         var filtered = _allCards.Where(c =>
         {
-            // Search match first
+            // Search box match
             var matchSearch = string.IsNullOrEmpty(query)
-                || c.GameName.Contains(query, StringComparison.OrdinalIgnoreCase)
-                || c.Maintainer.Contains(query, StringComparison.OrdinalIgnoreCase);
+                || MatchesUniversalSearch(c, query);
             if (!matchSearch) return false;
+
+            // Custom filter match (independent of search box)
+            if (!string.IsNullOrEmpty(customQuery))
+            {
+                if (!MatchesUniversalSearch(c, customQuery)) return false;
+            }
 
             // Hidden tab always shows hidden games regardless of the ShowHidden toggle
             if (filters.Contains("Hidden")) return c.IsHidden;

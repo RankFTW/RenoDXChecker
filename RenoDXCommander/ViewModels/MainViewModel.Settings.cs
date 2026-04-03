@@ -205,7 +205,7 @@ public partial class MainViewModel
             && !string.IsNullOrEmpty(c.InstallPath)
             && Directory.Exists(c.InstallPath)
             && ((c.Status   == GameStatus.UpdateAvailable && !c.ExcludeFromUpdateAllRenoDx) ||
-                (c.RsStatus == GameStatus.UpdateAvailable && !c.ExcludeFromUpdateAllReShade && !c.RequiresVulkanInstall) ||
+                (c.RsStatus == GameStatus.UpdateAvailable && !c.ExcludeFromUpdateAllReShade && !c.RequiresVulkanInstall && !c.IsLumaMode) ||
                 (c.UlStatus == GameStatus.UpdateAvailable && !c.ExcludeFromUpdateAllUl) ||
                 (c.RefStatus == GameStatus.UpdateAvailable && !c.ExcludeFromUpdateAllRef)));
 
@@ -257,7 +257,13 @@ public partial class MainViewModel
                 _dllOverrideService,
                 _settingsViewModel,
                 grid => IsGridLayout = grid,
-                val => _filterViewModel.RestoreFilterMode(val));
+                val => _filterViewModel.RestoreFilterMode(val),
+                filters =>
+                {
+                    _filterViewModel.CustomFilters.Clear();
+                    foreach (var f in filters)
+                        _filterViewModel.CustomFilters.Add(f);
+                });
             _crashReporter.Log("[MainViewModel.LoadNameMappings] Delegated to GameNameService");
         }
         finally
@@ -342,7 +348,8 @@ public partial class MainViewModel
             _settingsViewModel,
             IsGridLayout,
             _isLoadingSettings,
-            _filterViewModel.FilterMode);
+            _filterViewModel.FilterMode,
+            _filterViewModel.CustomFilters.ToList());
     }
 
     private void LoadThemeAndDensity()

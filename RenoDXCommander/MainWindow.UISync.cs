@@ -26,12 +26,12 @@ public sealed partial class MainWindow
                     var loading = ViewModel.IsLoading;
                     // After initial boot, keep the game view visible during refreshes
                     bool silent = ViewModel.HasInitialized;
-                    if (ViewModel.CurrentPage != AppPage.Settings && !silent)
+                    if (!loading && !silent && ViewModel.CurrentPage == AppPage.GameView)
                     {
-                        LoadingPanel.Visibility = loading ? Visibility.Visible  : Visibility.Collapsed;
-                        GameViewPanel.Visibility = loading ? Visibility.Collapsed : Visibility.Visible;
+                        RemoveSkeletons();
+                        GameViewPanel.Visibility = Visibility.Visible; // already visible, but ensure
                     }
-                    if (!silent) LoadingRing.IsActive = loading;
+                    // LoadingPanel stays Collapsed always — skeleton replaces it
                     RefreshBtn.IsEnabled = !loading;
                     if (!silent) StatusDot.Fill = new SolidColorBrush(loading
                         ? ((SolidColorBrush)Application.Current.Resources[ResourceKeys.AccentAmberBrush]).Color
@@ -41,6 +41,7 @@ public sealed partial class MainWindow
                         if (!silent) ViewModel.MarkInitialized();
                         TryRestoreSelection();
                         RefreshFilterButtonStyles();
+                        RebuildCustomFilterChips();
                     }
                     break;
                 case nameof(ViewModel.StatusText):
@@ -80,25 +81,11 @@ public sealed partial class MainWindow
 
     private void UpdatePageVisibility()
     {
-        // Show the correct panel based on current page and loading state
-        if (ViewModel.CurrentPage == AppPage.Settings)
-        {
-            GameViewPanel.Visibility = Visibility.Collapsed;
-            SettingsPanel.Visibility = Visibility.Visible;
-            LoadingPanel.Visibility = Visibility.Collapsed;
-        }
-        else if (ViewModel.IsLoading)
-        {
-            GameViewPanel.Visibility = Visibility.Collapsed;
-            SettingsPanel.Visibility = Visibility.Collapsed;
-            // LoadingPanel is already Visible by default
-        }
-        else
-        {
-            GameViewPanel.Visibility = Visibility.Visible;
-            SettingsPanel.Visibility = Visibility.Collapsed;
-            LoadingPanel.Visibility = Visibility.Collapsed;
-        }
+        // Show the correct panel based on current page and loading state.
+        // LoadingPanel stays Collapsed always — skeleton loading replaces it.
+        GameViewPanel.Visibility = ViewModel.CurrentPage == AppPage.GameView ? Visibility.Visible : Visibility.Collapsed;
+        SettingsPanel.Visibility = ViewModel.CurrentPage == AppPage.Settings ? Visibility.Visible : Visibility.Collapsed;
+        AboutPanel.Visibility    = ViewModel.CurrentPage == AppPage.About    ? Visibility.Visible : Visibility.Collapsed;
 
         // Auto-select first game if nothing is selected
         if (GameList.SelectedItem == null && ViewModel.DisplayedGames.Count > 0)
