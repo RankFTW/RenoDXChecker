@@ -5,19 +5,23 @@ using FsCheck.Xunit;
 namespace RenoDXCommander.Tests;
 
 /// <summary>
-/// Property-based test verifying that UI handler classes have no Display Commander methods.
+/// Property-based test verifying that UI handler classes have no legacy Display Commander methods.
 /// Feature: dc-removal, Property 6: UI handler classes have no DC methods
 /// **Validates: Requirements 8.2, 8.3**
+/// NOTE: Updated for display-commander-reintegration spec. The new DC LITE
+/// reintegration intentionally adds InstallDcButton_Click and UninstallDcButton_Click
+/// back to InstallEventHandler. This test now only checks that LEGACY DC mode
+/// methods remain absent.
 /// </summary>
 public class UiHandlerNoDcMethodsPropertyTests
 {
     /// <summary>
-    /// DC method names that must not exist on InstallEventHandler.
+    /// Legacy DC method names that must not exist on InstallEventHandler.
+    /// InstallDcButton_Click and UninstallDcButton_Click are intentionally
+    /// back as part of the DC LITE reintegration and are NOT listed here.
     /// </summary>
     private static readonly string[] InstallEventHandlerDcMethods =
     [
-        "InstallDcButton_Click",
-        "UninstallDcButton_Click",
         "DeployDcModeButton_Click",
     ];
 

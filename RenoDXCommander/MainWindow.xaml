@@ -141,7 +141,7 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBox x:Name="SearchBox" Grid.Column="0"
-                                         PlaceholderText="Search games..."
+                                         PlaceholderText="Filter games..."
                                          TextChanged="SearchBox_TextChanged"
                                          Background="{StaticResource SurfaceInputBrush}" Foreground="{StaticResource TextSecondaryBrush}"
                                          BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1"
@@ -448,7 +448,8 @@
                                                Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
                                     <TextBlock x:Name="DetailRefStatus" x:FieldModifier="internal" Grid.Column="1" FontSize="12"
                                                VerticalAlignment="Center" HorizontalTextAlignment="Center"
-                                               PointerPressed="DetailRefStatus_PointerPressed"/>
+                                               PointerPressed="DetailRefStatus_PointerPressed"
+                                               PointerEntered="LinkText_PointerEntered" PointerExited="LinkText_PointerExited"/>
                                     <Button x:Name="DetailRefInstallBtn" x:FieldModifier="internal" Grid.Column="2"
                                             Click="InstallRefButton_Click"
                                             HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
@@ -477,7 +478,8 @@
                                                Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
                                     <TextBlock x:Name="DetailRsStatus" x:FieldModifier="internal" Grid.Column="1" FontSize="12"
                                                VerticalAlignment="Center" HorizontalTextAlignment="Center"
-                                               PointerPressed="DetailRsStatus_PointerPressed"/>
+                                               PointerPressed="DetailRsStatus_PointerPressed"
+                                               PointerEntered="LinkText_PointerEntered" PointerExited="LinkText_PointerExited"/>
                                     <Button x:Name="DetailRsInstallBtn" x:FieldModifier="internal" Grid.Column="2"
                                             Click="InstallRsButton_Click"
                                             HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
@@ -500,6 +502,58 @@
                                     </Button>
                                 </Grid>
 
+                                <!-- RenoDX row -->
+                                <Grid x:Name="DetailRdxRow" x:FieldModifier="internal" ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120"/>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="36"/>
+                                        <ColumnDefinition Width="36"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="RenoDX" FontSize="12"
+                                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="DetailRdxStatus" x:FieldModifier="internal" Grid.Column="1" FontSize="12"
+                                               VerticalAlignment="Center" HorizontalTextAlignment="Center"
+                                               PointerPressed="DetailRdxStatus_PointerPressed"
+                                               PointerEntered="LinkText_PointerEntered" PointerExited="LinkText_PointerExited"/>
+                                    <Button x:Name="DetailRdxInstallBtn" x:FieldModifier="internal" Grid.Column="2"
+                                            Click="InstallButton_Click"
+                                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                            CornerRadius="8" FontSize="12" Height="32"/>
+                                    <Button x:Name="DetailUeExtendedBtn" x:FieldModifier="internal" Grid.Column="3"
+                                            Click="UeExtendedFlyoutItem_Click"
+                                            Background="{StaticResource SurfaceOverlayBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                            BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
+                                            CornerRadius="8" Width="36" Height="32" Padding="0"
+                                            Opacity="0" IsHitTestVisible="False"
+                                            ToolTipService.ToolTip="Toggle UE Extended">
+                                        <TextBlock Text="UE" FontSize="9" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                    </Button>
+                                    <Button x:Name="DetailRdxDeleteBtn" x:FieldModifier="internal" Grid.Column="4"
+                                            Click="UninstallButton_Click"
+                                            Background="{StaticResource AccentRedBgBrush}" Foreground="{StaticResource AccentRedBrush}"
+                                            BorderBrush="{StaticResource AccentPurpleBorderBrush}" BorderThickness="1"
+                                            CornerRadius="8" Width="36" Height="32" Padding="0"
+                                            ToolTipService.ToolTip="Remove RenoDX mod" Opacity="0" IsHitTestVisible="False">
+                                        <TextBlock Text="✕" FontSize="12" HorizontalAlignment="Center"/>
+                                    </Button>
+                                </Grid>
+
+                                <!-- Labeled separator: choose one limiter -->
+                                <Grid Margin="0,4,0,4" ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120"/>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="36"/>
+                                        <ColumnDefinition Width="36"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="2" Text="———  Choose one from below  ———" FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+
                                 <!-- ReLimiter row -->
                                 <Grid x:Name="DetailUlRow" x:FieldModifier="internal" ColumnSpacing="8" Visibility="Collapsed">
                                     <Grid.ColumnDefinitions>
@@ -513,7 +567,8 @@
                                                Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
                                     <TextBlock x:Name="DetailUlStatus" x:FieldModifier="internal" Grid.Column="1" FontSize="12"
                                                VerticalAlignment="Center" HorizontalTextAlignment="Center"
-                                               PointerPressed="DetailUlStatus_PointerPressed"/>
+                                               PointerPressed="DetailUlStatus_PointerPressed"
+                                               PointerEntered="LinkText_PointerEntered" PointerExited="LinkText_PointerExited"/>
                                     <Button x:Name="DetailUlInstallBtn" x:FieldModifier="internal" Grid.Column="2"
                                             Click="InstallUlButton_Click"
                                             HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
@@ -536,8 +591,8 @@
                                     </Button>
                                 </Grid>
 
-                                <!-- RenoDX row -->
-                                <Grid x:Name="DetailRdxRow" x:FieldModifier="internal" ColumnSpacing="8">
+                                <!-- Display Commander row -->
+                                <Grid x:Name="DetailDcRow" x:FieldModifier="internal" ColumnSpacing="8" Visibility="Collapsed">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="120"/>
                                         <ColumnDefinition Width="80"/>
@@ -545,30 +600,30 @@
                                         <ColumnDefinition Width="36"/>
                                         <ColumnDefinition Width="36"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="RenoDX" FontSize="12"
-                                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" FontWeight="SemiBold"/>
-                                    <TextBlock x:Name="DetailRdxStatus" x:FieldModifier="internal" Grid.Column="1" FontSize="12"
+                                    <TextBlock Grid.Column="0" Text="Display Commander" FontSize="12"
+                                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="DetailDcStatus" x:FieldModifier="internal" Grid.Column="1" FontSize="12"
                                                VerticalAlignment="Center" HorizontalTextAlignment="Center"
-                                               PointerPressed="DetailRdxStatus_PointerPressed"/>
-                                    <Button x:Name="DetailRdxInstallBtn" x:FieldModifier="internal" Grid.Column="2"
-                                            Click="InstallButton_Click"
+                                               PointerPressed="DetailDcStatus_PointerPressed"
+                                               PointerEntered="LinkText_PointerEntered" PointerExited="LinkText_PointerExited"/>
+                                    <Button x:Name="DetailDcInstallBtn" x:FieldModifier="internal" Grid.Column="2"
+                                            Click="InstallDcButton_Click"
                                             HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                             CornerRadius="8" FontSize="12" Height="32"/>
-                                    <Button x:Name="DetailUeExtendedBtn" x:FieldModifier="internal" Grid.Column="3"
-                                            Click="UeExtendedFlyoutItem_Click"
+                                    <Button x:Name="DetailDcIniBtn" x:FieldModifier="internal" Grid.Column="3"
+                                            Click="DcIniButton_Click"
                                             Background="{StaticResource SurfaceOverlayBrush}" Foreground="{StaticResource TextSecondaryBrush}"
                                             BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
                                             CornerRadius="8" Width="36" Height="32" Padding="0"
-                                            Opacity="0" IsHitTestVisible="False"
-                                            ToolTipService.ToolTip="Toggle UE Extended">
-                                        <TextBlock Text="UE" FontSize="9" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                            ToolTipService.ToolTip="Copy DisplayCommander.ini to game folder">
+                                        <TextBlock Text="📋" FontSize="12" HorizontalAlignment="Center"/>
                                     </Button>
-                                    <Button x:Name="DetailRdxDeleteBtn" x:FieldModifier="internal" Grid.Column="4"
-                                            Click="UninstallButton_Click"
+                                    <Button x:Name="DetailDcDeleteBtn" x:FieldModifier="internal" Grid.Column="4"
+                                            Click="UninstallDcButton_Click"
                                             Background="{StaticResource AccentRedBgBrush}" Foreground="{StaticResource AccentRedBrush}"
                                             BorderBrush="{StaticResource AccentPurpleBorderBrush}" BorderThickness="1"
                                             CornerRadius="8" Width="36" Height="32" Padding="0"
-                                            ToolTipService.ToolTip="Remove RenoDX mod" Opacity="0" IsHitTestVisible="False">
+                                            ToolTipService.ToolTip="Remove Display Commander" Opacity="0" IsHitTestVisible="False">
                                         <TextBlock Text="✕" FontSize="12" HorizontalAlignment="Center"/>
                                     </Button>
                                 </Grid>
@@ -628,6 +683,11 @@
                                                  Maximum="100" Height="3" CornerRadius="2"
                                                  Foreground="{StaticResource AccentBlueBrush}" Background="{StaticResource SurfaceToolbarBrush}"/>
                                     <TextBlock x:Name="DetailUlMessage" x:FieldModifier="internal" FontSize="10" Foreground="{StaticResource AccentBlueBrush}"
+                                               Visibility="Collapsed" TextWrapping="Wrap"/>
+                                    <ProgressBar x:Name="DetailDcProgress" x:FieldModifier="internal" Visibility="Collapsed"
+                                                 Maximum="100" Height="3" CornerRadius="2"
+                                                 Foreground="{StaticResource AccentBlueBrush}" Background="{StaticResource SurfaceToolbarBrush}"/>
+                                    <TextBlock x:Name="DetailDcMessage" x:FieldModifier="internal" FontSize="10" Foreground="{StaticResource AccentBlueBrush}"
                                                Visibility="Collapsed" TextWrapping="Wrap"/>
                                     <ProgressBar x:Name="DetailRdxProgress" x:FieldModifier="internal" Visibility="Collapsed"
                                                  Maximum="100" Height="3" CornerRadius="2"

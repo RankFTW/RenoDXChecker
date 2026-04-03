@@ -184,6 +184,9 @@ public sealed partial class MainWindow
             case "UL":
                 await ViewModel.InstallUlAsync(card);
                 break;
+            case "DC":
+                await ViewModel.InstallDcAsync(card);
+                break;
             case "REF":
                 await ViewModel.InstallREFrameworkCommand.ExecuteAsync(card);
                 break;
@@ -211,6 +214,9 @@ public sealed partial class MainWindow
                 break;
             case "UL":
                 ViewModel.UninstallUl(card);
+                break;
+            case "DC":
+                ViewModel.UninstallDc(card);
                 break;
             case "REF":
                 ViewModel.UninstallREFrameworkCommand.Execute(card);
@@ -254,6 +260,22 @@ public sealed partial class MainWindow
         catch (Exception ex)
         {
             card.UlActionMessage = $"❌ {ex.Message}";
+        }
+    }
+
+    internal void CardCopyDcIni_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: GameCardViewModel card }) return;
+        if (string.IsNullOrEmpty(card.InstallPath)) return;
+        try
+        {
+            AuxInstallService.CopyDcIni(card.InstallPath);
+            card.DcActionMessage = "✅ DisplayCommander.ini copied to game folder.";
+            card.FadeMessage(m => card.DcActionMessage = m, card.DcActionMessage);
+        }
+        catch (Exception ex)
+        {
+            card.DcActionMessage = $"❌ {ex.Message}";
         }
     }
 
@@ -627,6 +649,12 @@ public sealed partial class MainWindow
 
         ViewModel.Filter.AddCustomFilter(filterName, currentQuery);
         RebuildCustomFilterChips();
+
+        // Clear search box and auto-select the new filter
+        SearchBox.Text = "";
+        SaveFilterButton.Visibility = Visibility.Collapsed;
+        ViewModel.Filter.ActivateCustomFilter(filterName);
+        RebuildCustomFilterChips();
     }
 
     /// <summary>
@@ -647,10 +675,10 @@ public sealed partial class MainWindow
                 Tag = chipName,
                 Background = new SolidColorBrush(
                     ((SolidColorBrush)Application.Current.Resources[
-                        isActive ? ResourceKeys.ChipActiveBrush : ResourceKeys.ChipDefaultBrush]).Color),
+                        isActive ? ResourceKeys.CustomChipActiveBrush : ResourceKeys.CustomChipDefaultBrush]).Color),
                 Foreground = isActive
                     ? new SolidColorBrush(Microsoft.UI.Colors.White)
-                    : (SolidColorBrush)Application.Current.Resources[ResourceKeys.ChipTextBrush],
+                    : (SolidColorBrush)Application.Current.Resources[ResourceKeys.CustomChipTextBrush],
                 BorderThickness = new Thickness(0),
                 CornerRadius = new CornerRadius(7),
                 Padding = new Thickness(10, 5, 10, 5),
@@ -786,6 +814,7 @@ public sealed partial class MainWindow
         await ViewModel.UpdateAllReShadeAsync();
         await ViewModel.UpdateAllRenoDxAsync();
         await ViewModel.UpdateAllUlAsync();
+        await ViewModel.UpdateAllDcAsync();
         await ViewModel.UpdateAllRefAsync();
     }
 
@@ -800,6 +829,12 @@ public sealed partial class MainWindow
 
     private void UninstallUlButton_Click(object sender, RoutedEventArgs e)
         => _installEventHandler.UninstallUlButton_Click(sender, e);
+
+    private void InstallDcButton_Click(object sender, RoutedEventArgs e)
+        => _installEventHandler.InstallDcButton_Click(sender, e);
+
+    private void UninstallDcButton_Click(object sender, RoutedEventArgs e)
+        => _installEventHandler.UninstallDcButton_Click(sender, e);
 
     private void InstallRefButton_Click(object sender, RoutedEventArgs e)
         => _installEventHandler.InstallRefButton_Click(sender, e);
@@ -822,6 +857,22 @@ public sealed partial class MainWindow
         }
     }
 
+    private void DcIniButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: GameCardViewModel card }) return;
+        if (string.IsNullOrEmpty(card.InstallPath)) return;
+        try
+        {
+            AuxInstallService.CopyDcIni(card.InstallPath);
+            card.DcActionMessage = "✅ DisplayCommander.ini copied to game folder.";
+            card.FadeMessage(m => card.DcActionMessage = m, card.DcActionMessage);
+        }
+        catch (Exception ex)
+        {
+            card.DcActionMessage = $"❌ {ex.Message}";
+        }
+    }
+
     private async void DetailUlStatus_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
         var card = ViewModel.SelectedGame;
@@ -832,6 +883,16 @@ public sealed partial class MainWindow
         else if (card.UlStatus == Models.GameStatus.Installed || card.UlStatus == Models.GameStatus.UpdateAvailable)
             await Windows.System.Launcher.LaunchUriAsync(
                 new Uri("https://github.com/RankFTW/Ultra-Limiter?tab=readme-ov-file#ultra-limiter--comprehensive-feature-guide"));
+    }
+
+    private async void DetailDcStatus_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        var card = ViewModel.SelectedGame;
+        if (card == null) return;
+
+        if (card.IsDcInstalled)
+            await Windows.System.Launcher.LaunchUriAsync(
+                new Uri("https://github.com/pmnoxx/display-commander/releases/tag/latest_build"));
     }
 
     private async void DetailRsStatus_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
@@ -860,6 +921,32 @@ public sealed partial class MainWindow
 
     private void LumaToggle_Click(object sender, RoutedEventArgs e)
         => _installEventHandler.LumaToggle_Click(sender, e);
+
+    // ── Shared cursor handlers for clickable link text ────────────────────────────
+    private static readonly Microsoft.UI.Input.InputCursor _handCursor =
+        Microsoft.UI.Input.InputSystemCursor.Create(Microsoft.UI.Input.InputSystemCursorShape.Hand);
+    private static readonly Microsoft.UI.Input.InputCursor _arrowCursor =
+        Microsoft.UI.Input.InputSystemCursor.Create(Microsoft.UI.Input.InputSystemCursorShape.Arrow);
+
+    private void LinkText_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (sender is TextBlock tb && tb.TextDecorations == Windows.UI.Text.TextDecorations.Underline)
+        {
+            var prop = typeof(UIElement).GetProperty("ProtectedCursor",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            prop?.SetValue(tb, _handCursor);
+        }
+    }
+
+    private void LinkText_PointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (sender is FrameworkElement fe)
+        {
+            var prop = typeof(UIElement).GetProperty("ProtectedCursor",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            prop?.SetValue(fe, _arrowCursor);
+        }
+    }
 
     private void SwitchToLumaButton_Click(object sender, RoutedEventArgs e)
         => _installEventHandler.SwitchToLumaButton_Click(sender, e);

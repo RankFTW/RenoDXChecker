@@ -698,6 +698,10 @@ public partial class MainViewModel
     public async Task InstallUlAsync(GameCardViewModel card)
     {
         if (string.IsNullOrEmpty(card.InstallPath)) return;
+
+        // Mutual exclusion guard: ReLimiter cannot be installed when DC is installed
+        if (card.IsDcInstalled) return;
+
         card.UlIsInstalling = true;
         card.UlActionMessage = "Downloading ReLimiter...";
         card.UlProgress = 0;
@@ -901,6 +905,282 @@ public partial class MainViewModel
             _crashReporter.WriteCrashReport("UninstallUl", ex, note: $"Game: {card.GameName}");
         }
     }
+
+    // ── Display Commander commands ────────────────────────────────────────────────
+
+    private const string DcFileName64 = "zzz_display_commander_lite.addon64";
+    private const string DcFileName32 = "zzz_display_commander_lite.addon32";
+    private const string DcReleasesUrl =
+        "https://github.com/pmnoxx/display-commander/releases/tag/latest_build";
+    private const string DcReleasesApiUrl =
+        "https://api.github.com/repos/pmnoxx/display-commander/releases/tags/latest_build";
+
+    internal static string GetDcFileName(bool is32Bit) =>
+        is32Bit ? DcFileName32 : DcFileName64;
+
+    internal static string GetDcCachePath(bool is32Bit) =>
+        Path.Combine(ModInstallService.DownloadCacheDir, GetDcFileName(is32Bit));
+
+    /// <summary>
+    /// Resolves the effective DC filename for a game using the priority chain:
+    /// user DLL override > manifest override > default LITE variant filename.
+    /// </summary>
+    internal string ResolveDcFileName(GameCardViewModel card)
+    {
+        // Priority 1: user DLL override
+        if (card.DllOverrideEnabled)
+        {
+            var overrideCfg = GetDllOverride(card.GameName);
+            if (overrideCfg != null && !string.IsNullOrEmpty(overrideCfg.DcFileName))
+                return overrideCfg.DcFileName;
+        }
+
+        // Priority 2: manifest override
+        var manifestNames = GetManifestDllNames(card.GameName);
+        if (manifestNames?.Dc is { Length: > 0 } mDc)
+            return mDc;
+
+        // Priority 3: default
+        return GetDcFileName(card.Is32Bit);
+    }
+
+    private static readonly string DcMetaPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "RHI", "dc_meta.json");
+
+    /// <summary>
+    /// Downloads Display Commander to the cache directory if not already present.
+    /// Fetches the latest release info from GitHub if not already cached from an update check.
+    /// </summary>
+    private async Task EnsureDcCachedAsync(bool is32Bit, IProgress<(string msg, double pct)>? progress = null)
+    {
+        if (File.Exists(GetDcCachePath(is32Bit)))
+        {
+            progress?.Report(("Installing from cache...", 50));
+            return;
+        }
+
+        // If we don't have a download URL yet (fresh install, not from update check), fetch it
+        var currentUrl = is32Bit ? _latestDcDownloadUrl32 : _latestDcDownloadUrl;
+        if (string.IsNullOrEmpty(currentUrl))
+        {
+            await FetchLatestDcReleaseInfoAsync(is32Bit);
+            currentUrl = is32Bit ? _latestDcDownloadUrl32 : _latestDcDownloadUrl;
+        }
+
+        var url = currentUrl;
+        if (string.IsNullOrEmpty(url))
+        {
+            throw new InvalidOperationException("Could not determine Display Commander download URL from GitHub releases.");
+        }
+
+        Directory.CreateDirectory(ModInstallService.DownloadCacheDir);
+        var tempPath = GetDcCachePath(is32Bit) + ".tmp";
+
+        progress?.Report(("Downloading...", 0));
+        var resp = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+        resp.EnsureSuccessStatusCode();
+
+        var total = resp.Content.Headers.ContentLength ?? -1L;
+        long downloaded = 0;
+        var buffer = new byte[1024 * 1024];
+
+        using (var net = await resp.Content.ReadAsStreamAsync())
+        using (var file = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 1024, useAsync: true))
+        {
+            int read;
+            while ((read = await net.ReadAsync(buffer)) > 0)
+            {
+                await file.WriteAsync(buffer.AsMemory(0, read));
+                downloaded += read;
+                if (total > 0)
+                    progress?.Report(($"Downloading... {downloaded / 1024} KB", (double)downloaded / total * 100));
+            }
+        }
+
+        if (File.Exists(GetDcCachePath(is32Bit))) File.Delete(GetDcCachePath(is32Bit));
+        File.Move(tempPath, GetDcCachePath(is32Bit));
+
+        // Save version metadata for update detection
+        if (!string.IsNullOrEmpty(_latestDcVersion))
+            SaveDcMeta(_latestDcVersion, is32Bit);
+        progress?.Report(("Downloaded!", 100));
+    }
+
+    private async Task FetchLatestDcReleaseInfoAsync(bool is32Bit)
+    {
+        try
+        {
+            using var apiReq = new HttpRequestMessage(HttpMethod.Get, DcReleasesApiUrl);
+            apiReq.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+            apiReq.Headers.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue { NoCache = true };
+
+            var apiResp = await _http.SendAsync(apiReq, HttpCompletionOption.ResponseContentRead);
+            if (!apiResp.IsSuccessStatusCode) return;
+
+            var json = await apiResp.Content.ReadAsStringAsync();
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+
+            if (doc.RootElement.TryGetProperty("tag_name", out var tagEl))
+            {
+                var tag = tagEl.GetString();
+                // DC uses a fixed "latest_build" tag — try the release name for a real version
+                if (tag == "latest_build" && doc.RootElement.TryGetProperty("name", out var nameEl))
+                    _latestDcVersion = nameEl.GetString();
+                else
+                    _latestDcVersion = tag;
+            }
+
+            var targetFileName = GetDcFileName(is32Bit);
+            if (doc.RootElement.TryGetProperty("assets", out var assets))
+            {
+                foreach (var asset in assets.EnumerateArray())
+                {
+                    if (asset.TryGetProperty("name", out var name) &&
+                        name.GetString()?.Equals(targetFileName, StringComparison.OrdinalIgnoreCase) == true &&
+                        asset.TryGetProperty("browser_download_url", out var urlEl))
+                    {
+                        if (is32Bit)
+                            _latestDcDownloadUrl32 = urlEl.GetString();
+                        else
+                            _latestDcDownloadUrl = urlEl.GetString();
+                        break;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _crashReporter.Log($"[FetchLatestDcReleaseInfoAsync] Failed — {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Downloads Display Commander from GitHub (or uses cache) and deploys to the game folder.
+    /// Creates an AuxInstalledRecord with AddonType "DisplayCommander".
+    /// Mutual exclusion: returns early if ReLimiter is already installed.
+    /// </summary>
+    public async Task InstallDcAsync(GameCardViewModel card)
+    {
+        if (string.IsNullOrEmpty(card.InstallPath)) return;
+
+        // Mutual exclusion guard: DC cannot be installed when ReLimiter is installed
+        if (card.IsUlInstalled) return;
+
+        card.DcIsInstalling = true;
+        card.DcActionMessage = "Downloading Display Commander...";
+        card.DcProgress = 0;
+        try
+        {
+            // Force fresh download on reinstall (but not update — the check already cached the new file)
+            if (card.DcStatus == GameStatus.Installed)
+            {
+                if (File.Exists(GetDcCachePath(card.Is32Bit))) File.Delete(GetDcCachePath(card.Is32Bit));
+            }
+
+            // Download to cache if not already cached
+            await EnsureDcCachedAsync(card.Is32Bit, new Progress<(string msg, double pct)>(p =>
+            {
+                DispatcherQueue?.TryEnqueue(() =>
+                {
+                    card.DcActionMessage = p.msg;
+                    card.DcProgress = p.pct;
+                });
+            }));
+
+            // Resolve the target filename using the priority chain
+            var targetFileName = ResolveDcFileName(card);
+
+            var deployPath = ModInstallService.GetAddonDeployPath(card.InstallPath);
+            var destPath = Path.Combine(deployPath, targetFileName);
+            File.Copy(GetDcCachePath(card.Is32Bit), destPath, overwrite: true);
+
+            // Save version metadata after successful install
+            if (!string.IsNullOrEmpty(_latestDcVersion))
+                SaveDcMeta(_latestDcVersion, card.Is32Bit);
+
+            // Create and persist AuxInstalledRecord for DC tracking
+            var dcRecord = new AuxInstalledRecord
+            {
+                GameName    = card.GameName,
+                InstallPath = card.InstallPath,
+                AddonType   = "DisplayCommander",
+                InstalledAs = targetFileName,
+                InstalledAt = DateTime.UtcNow,
+            };
+            _auxInstaller.SaveAuxRecord(dcRecord);
+
+            DispatcherQueue?.TryEnqueue(() =>
+            {
+                card.DcInstalledFile = targetFileName;
+                // Try PE file version first, then cached version, then meta
+                var peVersion = Services.AuxInstallService.ReadInstalledVersion(
+                    ModInstallService.GetAddonDeployPath(card.InstallPath), targetFileName);
+                var cachedVersion = _latestDcVersion?.TrimStart('v', 'V');
+                // Don't use the tag name "latest_build" as a version
+                if (cachedVersion == "latest_build") cachedVersion = null;
+                card.DcInstalledVersion = peVersion ?? cachedVersion ?? ReadDcInstalledVersion(card.Is32Bit);
+                card.DcStatus = GameStatus.Installed;
+                card.DcActionMessage = "✅ Display Commander installed!";
+                card.DcIsInstalling = false;
+                card.NotifyAll();
+                card.FadeMessage(m => card.DcActionMessage = m, card.DcActionMessage);
+            });
+        }
+        catch (Exception ex)
+        {
+            DispatcherQueue?.TryEnqueue(() =>
+            {
+                card.DcActionMessage = $"❌ Install failed: {ex.Message}";
+                card.DcIsInstalling = false;
+                card.NotifyAll();
+            });
+            _crashReporter.WriteCrashReport("InstallDc", ex, note: $"Game: {card.GameName}");
+        }
+    }
+
+    public void UninstallDc(GameCardViewModel card)
+    {
+        if (string.IsNullOrEmpty(card.InstallPath)) return;
+        try
+        {
+            // Remove the DC file using the filename it was installed as
+            if (!string.IsNullOrEmpty(card.DcInstalledFile))
+            {
+                var deployPath = ModInstallService.GetAddonDeployPath(card.InstallPath);
+                var filePath = Path.Combine(deployPath, card.DcInstalledFile);
+                if (File.Exists(filePath))
+                    File.Delete(filePath);
+
+                // Also check the game folder directly if AddonPath was different
+                var directPath = Path.Combine(card.InstallPath, card.DcInstalledFile);
+                if (File.Exists(directPath))
+                    File.Delete(directPath);
+            }
+
+            // Remove the AuxInstalledRecord for DisplayCommander
+            var dcRecord = _auxInstaller.FindRecord(card.GameName, card.InstallPath, "DisplayCommander");
+            if (dcRecord != null)
+                _auxInstaller.RemoveRecord(dcRecord);
+
+            card.DcInstalledFile = null;
+            card.DcInstalledVersion = null;
+            card.DcStatus = GameStatus.NotInstalled;
+            card.DcActionMessage = "✖ Display Commander removed.";
+            card.NotifyAll();
+            card.FadeMessage(m => card.DcActionMessage = m, card.DcActionMessage);
+        }
+        catch (Exception ex)
+        {
+            card.DcActionMessage = $"❌ Uninstall failed: {ex.Message}";
+            _crashReporter.WriteCrashReport("UninstallDc", ex, note: $"Game: {card.GameName}");
+        }
+    }
+
+    // Cached latest DC release info from the update check
+    private string? _latestDcVersion;
+    private string? _latestDcDownloadUrl;
+    private string? _latestDcDownloadUrl32;
 
     // ── ReShade helpers ──────────────────────────────────────────────────────────
 

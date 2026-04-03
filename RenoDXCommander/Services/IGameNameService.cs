@@ -38,6 +38,9 @@ public interface IGameNameService
     /// <summary>Games excluded from batch ReLimiter updates.</summary>
     HashSet<string> UpdateAllExcludedUl { get; }
 
+    /// <summary>Games excluded from batch Display Commander updates.</summary>
+    HashSet<string> UpdateAllExcludedDc { get; }
+
     /// <summary>Per-game shader mode settings.</summary>
     Dictionary<string, string> PerGameShaderMode { get; }
 

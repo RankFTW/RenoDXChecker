@@ -60,6 +60,7 @@ public partial class AuxInstallService : IAuxInstallService, IAuxFileService
     public static string RsPresetIniPath => Path.Combine(InisDir, "ReShadePreset.ini");
     public static string RsRdr2IniPath => Path.Combine(InisDir, "reshade.rdr2.ini");
     public static string UlIniPath => Path.Combine(InisDir, "relimiter.ini");
+    public static string DcIniPath => Path.Combine(InisDir, "DisplayCommander.ini");
 
     /// <summary>
     /// Ensures the inis directory exists and seeds the default reshade.ini if missing.
@@ -138,6 +139,24 @@ public partial class AuxInstallService : IAuxInstallService, IAuxFileService
                 catch (Exception ex)
                 {
                     CrashReporter.Log($"[AuxInstallService.EnsureInisDir] Failed to seed relimiter.ini — {ex.Message}");
+                }
+            }
+        }
+
+        // Seed bundled DisplayCommander.ini if the user doesn't already have one
+        if (!File.Exists(DcIniPath))
+        {
+            var bundledDc = Path.Combine(AppContext.BaseDirectory, "DisplayCommander.ini");
+            if (File.Exists(bundledDc))
+            {
+                try
+                {
+                    File.Copy(bundledDc, DcIniPath, overwrite: false);
+                    CrashReporter.Log("[AuxInstallService.EnsureInisDir] Seeded default DisplayCommander.ini from bundle");
+                }
+                catch (Exception ex)
+                {
+                    CrashReporter.Log($"[AuxInstallService.EnsureInisDir] Failed to seed DisplayCommander.ini — {ex.Message}");
                 }
             }
         }

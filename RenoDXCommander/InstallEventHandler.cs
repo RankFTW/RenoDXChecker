@@ -130,6 +130,26 @@ public class InstallEventHandler
             ViewModel.UninstallUl(card);
     }
 
+    public async void InstallDcButton_Click(object sender, RoutedEventArgs e)
+    {
+        var card = (sender as FrameworkElement)?.Tag as GameCardViewModel;
+        if (card == null) return;
+        if (string.IsNullOrEmpty(card.InstallPath) || !System.IO.Directory.Exists(card.InstallPath))
+        {
+            var folder = await _pickFolderAsync(null);
+            if (folder == null) return;
+            card.InstallPath = folder;
+            ViewModel.SaveLibraryPublic();
+        }
+        await ViewModel.InstallDcAsync(card);
+    }
+
+    public void UninstallDcButton_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is GameCardViewModel card)
+            ViewModel.UninstallDc(card);
+    }
+
     public async void InstallRefButton_Click(object sender, RoutedEventArgs e)
     {
         var card = (sender as FrameworkElement)?.Tag as GameCardViewModel;

@@ -4,7 +4,7 @@ namespace RenoDXCommander.Services;
 
 /// <summary>
 /// Watches the user's Downloads folder for new .addon64/.addon32 files
-/// and raises an event when one appears.
+/// and archive files (.zip, .7z, .rar) containing renodx addons.
 /// </summary>
 public sealed class AddonFileWatcher : IDisposable
 {
@@ -12,8 +12,16 @@ public sealed class AddonFileWatcher : IDisposable
     private readonly ICrashReporter _crashReporter;
     private string _watchPath;
 
+    private static readonly HashSet<string> ArchiveExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".zip", ".7z", ".rar"
+    };
+
     /// <summary>Raised on the thread-pool when a new addon file is detected.</summary>
     public event Action<string>? AddonFileDetected;
+
+    /// <summary>Raised on the thread-pool when an archive containing renodx files is detected.</summary>
+    public event Action<string>? ArchiveFileDetected;
 
     public AddonFileWatcher(ICrashReporter crashReporter)
     {
@@ -76,15 +84,36 @@ public sealed class AddonFileWatcher : IDisposable
     private void ScheduleCheck(string path)
     {
         var ext = Path.GetExtension(path);
-        if (!string.Equals(ext, ".addon64", StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(ext, ".addon32", StringComparison.OrdinalIgnoreCase))
-            return;
 
-        var fileName = Path.GetFileName(path);
-        if (!fileName.StartsWith("renodx-", StringComparison.OrdinalIgnoreCase))
-            return;
+        // Check for addon files
+        if (string.Equals(ext, ".addon64", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(ext, ".addon32", StringComparison.OrdinalIgnoreCase))
+        {
+            var fileName = Path.GetFileName(path);
+            if (!fileName.StartsWith("renodx-", StringComparison.OrdinalIgnoreCase))
+                return;
 
-        _crashReporter.Log($"[AddonFileWatcher] Detected addon file: {Path.GetFileName(path)}");
+            _crashReporter.Log($"[AddonFileWatcher] Detected addon file: {Path.GetFileName(path)}");
+            WaitAndRaise(path, AddonFileDetected);
+            return;
+        }
+
+        // Check for archive files containing "renodx" in the name
+        if (ArchiveExtensions.Contains(ext))
+        {
+            var fileName = Path.GetFileName(path);
+            if (!fileName.Contains("renodx", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            _crashReporter.Log($"[AddonFileWatcher] Detected archive with renodx: {fileName}");
+            WaitAndRaise(path, ArchiveFileDetected);
+            return;
+        }
+    }
+
+    private void WaitAndRaise(string path, Action<string>? handler)
+    {
+        if (handler == null) return;
 
         // Wait for the file to exist and be unlocked (browser may still be writing)
         _ = Task.Run(async () =>
@@ -95,10 +124,9 @@ public sealed class AddonFileWatcher : IDisposable
                 try
                 {
                     if (!File.Exists(path)) continue;
-                    // Try opening to confirm it's not locked
                     using var fs = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read);
                     _crashReporter.Log($"[AddonFileWatcher] File ready: {Path.GetFileName(path)}");
-                    AddonFileDetected?.Invoke(path);
+                    handler.Invoke(path);
                     return;
                 }
                 catch (IOException) { /* still locked, retry */ }

@@ -1,8 +1,78 @@
+## v1.7.0
+
+### New Features
+
+**Display Commander reintegrated**
+- Display Commander (DC) is back as a frame rate limiter option alongside ReLimiter. Install, reinstall, update, and uninstall DC with one click from the detail panel. DC uses the LITE variant downloaded from GitHub and supports both 32-bit and 64-bit games.
+
+**Mutual exclusion between ReLimiter and DC**
+- Only one frame rate limiter can be installed per game at a time. When one is installed, the other's install button is greyed out. Removing one re-enables the other.
+
+**DC update detection and Update All**
+- DC is checked for updates on startup alongside other components. When an update is available, the sidebar badge and purple update styling appear. Update All now includes DC for eligible games.
+
+**Automatic archive install from downloads folder**
+- The watch folder now detects .zip, .7z, and .rar archives containing "renodx" in the filename. When a matching archive appears (e.g. from a Nexus Mods download), RHI automatically extracts it, finds the addon files inside, and starts the install flow — no drag-and-drop needed.
+
+**DC DLL naming override**
+- A dedicated DC filename override toggle lets you rename the DC addon file for specific games (e.g. to winmm.dll or d3d9.dll). Works independently from the ReShade override. Each dropdown filters out the other component's current filename to prevent conflicts.
+
+**DC global update exclusion**
+- Per-game DC update exclusion toggle in the overrides panel lets you pin a specific DC version on certain games, excluding them from Update All.
+
+**DC detection on game scan**
+- RHI detects existing DC installations when scanning game folders, including files with custom DLL override names via tracking records.
+
+**DC INI deploy button**
+- Display Commander now has a 📋 button to copy DisplayCommander.ini to the game folder, matching the existing ReShade and ReLimiter INI deploy buttons. The bundled INI is seeded to the app data folder on first launch.
+
+### Bug Fixes
+
+**DLL override disable no longer deletes ReShade**
+- Turning off the ReShade DLL naming override now renames the file back to dxgi.dll instead of deleting it.
+
+**Loading overlay stuck after navigating to Settings**
+- Going to Settings and back during initial loading no longer leaves the spinner and status text stuck on screen.
+
+### Changes
+
+**Component row order updated**
+- The detail panel component order is now: ReShade → RenoDX → ReLimiter → DC. ReLimiter and DC are separated from the rows above by a labeled divider ("Choose one from below").
+
+**Grid view card updated**
+- The grid view card flyout now matches the detail panel: same component order (ReShade → RenoDX → separator → ReLimiter → DC), mutual exclusion greying, and "Choose one from below" separator. The overrides flyout now includes DC DLL override, DC update exclusion, bitness override, and API override — matching the detail panel feature-for-feature.
+
+**Hand cursor on clickable links**
+- Version numbers and author donation links in the detail panel now show a hand cursor on hover when they're clickable.
+
+**DLL naming overrides section updated**
+- The section header is now "DLL naming overrides" (plural). The ReShade and DC override toggles are independent — each can be enabled without the other. Dropdowns show "Select ReShade DLL name" / "Select DC DLL name" as placeholder text.
+
+**Global update inclusion grid**
+- The update inclusion toggles (ReShade, RenoDX, ReLimiter, DC) now use a 2×2 grid layout instead of a horizontal row to prevent overflow.
+
+**Faster startup**
+- Shader pack checks now run in parallel instead of sequentially, cutting ~10 seconds from launch.
+- Game folder shader syncs run in parallel.
+- Graphics API detection results are cached to disk — subsequent launches skip PE header scanning entirely.
+- Xbox/WindowsApps game paths are skipped during API detection (always access-denied, wasted time on retries).
+- Full Refresh clears all caches and rescans everything fresh.
+
+**Search box placeholder updated**
+- The search box now says "Filter games..." instead of "Search games..." to better reflect its purpose.
+
+**Custom filter auto-select**
+- Saving a custom filter now clears the search box and automatically activates the new filter chip.
+
+**Custom filter chips visually distinct**
+- Custom filter chips now use a teal color scheme (matching the toolbar buttons) to distinguish them from the built-in filter chips.
+
+**Update button renamed**
+- The toolbar Update button now reads "Update All" to clarify its batch operation.
+
+---
+
 ## v1.6.9
-
-### 📢 Coming Next
-
-**Display Commander is returning** — the next update will bring back Display Commander with full integration into RHI.
 
 ### New Features
 

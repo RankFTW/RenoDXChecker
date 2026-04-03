@@ -125,6 +125,8 @@ public sealed partial class MainWindow : Window
         _addonFileWatcher = new AddonFileWatcher(crashReporter);
         _addonFileWatcher.AddonFileDetected += path =>
             DispatcherQueue.TryEnqueue(() => HandleAddonFile(path));
+        _addonFileWatcher.ArchiveFileDetected += path =>
+            DispatcherQueue.TryEnqueue(() => HandleArchiveFile(path));
         // Apply saved watch folder if configured
         var savedFolder = ViewModel.Settings.AddonWatchFolder;
         if (!string.IsNullOrWhiteSpace(savedFolder))
@@ -185,6 +187,25 @@ public sealed partial class MainWindow : Window
         catch (Exception ex)
         {
             _crashReporter.Log($"[MainWindow.HandleAddonFile] Failed — {ex.Message}");
+        }
+    }
+
+    internal async void HandleArchiveFile(string filePath)
+    {
+        try
+        {
+            _crashReporter.Log($"[MainWindow.HandleArchiveFile] Processing '{Path.GetFileName(filePath)}'");
+
+            while (ViewModel.IsLoading)
+                await Task.Delay(200);
+
+            NativeInterop.SetForegroundWindow(WinRT.Interop.WindowNative.GetWindowHandle(this));
+
+            await _dragDropHandler.ProcessDroppedArchive(filePath);
+        }
+        catch (Exception ex)
+        {
+            _crashReporter.Log($"[MainWindow.HandleArchiveFile] Failed — {ex.Message}");
         }
     }
 

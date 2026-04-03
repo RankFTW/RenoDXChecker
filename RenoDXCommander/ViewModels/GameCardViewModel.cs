@@ -57,6 +57,7 @@ public partial class GameCardViewModel : ObservableObject
     public bool ExcludeFromUpdateAllReShade { get; set; }
     public bool ExcludeFromUpdateAllRenoDx  { get; set; }
     public bool ExcludeFromUpdateAllUl      { get; set; }
+    public bool ExcludeFromUpdateAllDc      { get; set; }
     /// <summary>Per-game shader selection override: null = follow global selection.</summary>
     public string? ShaderModeOverride { get; set; }
 
@@ -70,6 +71,14 @@ public partial class GameCardViewModel : ObservableObject
     [ObservableProperty] private string     _ulActionMessage = "";
     [ObservableProperty] private string?    _ulInstalledFile;
     [ObservableProperty] private string?    _ulInstalledVersion;
+
+    // ── Display Commander state ──────────────────────────────────────────────
+    [ObservableProperty] private GameStatus _dcStatus  = GameStatus.NotInstalled;
+    [ObservableProperty] private bool       _dcIsInstalling;
+    [ObservableProperty] private double     _dcProgress;
+    [ObservableProperty] private string     _dcActionMessage = "";
+    [ObservableProperty] private string?    _dcInstalledFile;
+    [ObservableProperty] private string?    _dcInstalledVersion;
 
     // ── RE Framework state ──────────────────────────────────────────────────────
     [ObservableProperty] private GameStatus _refStatus  = GameStatus.NotInstalled;
@@ -267,6 +276,7 @@ public partial class GameCardViewModel : ObservableObject
         NotifyOnce(nameof(UlStatusColor));
         NotifyOnce(nameof(UlShortAction));
         NotifyOnce(nameof(IsUlInstalled));
+        NotifyOnce(nameof(UlInstallEnabled));
         NotifyOnce(nameof(UlRowVisibility));
         NotifyOnce(nameof(CardUlStatusDot));
         NotifyOnce(nameof(CardUlInstallEnabled));
@@ -274,6 +284,26 @@ public partial class GameCardViewModel : ObservableObject
         // ── ReLimiter: UlIsInstalling dependents ─────────────────────
         NotifyOnce(nameof(UlProgressVisibility));
         NotifyOnce(nameof(IsUlNotInstalling));
+
+        // ── Display Commander: DcStatus dependents ───────────────────
+        NotifyOnce(nameof(DcStatusDot));
+        NotifyOnce(nameof(DcActionLabel));
+        NotifyOnce(nameof(DcBtnBackground));
+        NotifyOnce(nameof(DcBtnForeground));
+        NotifyOnce(nameof(DcBtnBorderBrush));
+        NotifyOnce(nameof(DcDeleteVisibility));
+        NotifyOnce(nameof(DcStatusText));
+        NotifyOnce(nameof(DcStatusColor));
+        NotifyOnce(nameof(DcShortAction));
+        NotifyOnce(nameof(IsDcInstalled));
+        NotifyOnce(nameof(DcInstallEnabled));
+        NotifyOnce(nameof(DcRowVisibility));
+        NotifyOnce(nameof(CardDcStatusDot));
+        NotifyOnce(nameof(CardDcInstallEnabled));
+
+        // ── Display Commander: DcIsInstalling dependents ─────────────
+        NotifyOnce(nameof(DcProgressVisibility));
+        NotifyOnce(nameof(IsDcNotInstalling));
 
         // ── RE Framework: RefStatus dependents ───────────────────────
         NotifyOnce(nameof(RefActionLabel));

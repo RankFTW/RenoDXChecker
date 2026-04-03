@@ -113,6 +113,14 @@ public partial class MainViewModel
         _originalDetectedNames.Clear();
 
         _crashReporter.Log($"[MainViewModel.InitializeAsync] Started (forceRescan={forceRescan})");
+
+        // Clear API caches on full refresh so all detection runs fresh
+        if (forceRescan)
+        {
+            _gameApiCache.Clear();
+            GraphicsApiDetector.ClearCache();
+        }
+
         try
         {
 
@@ -266,6 +274,8 @@ public partial class MainViewModel
             _crashReporter.Log($"[MainViewModel.InitializeAsync] Building cards for {allGames.Count} games...");
             _allCards = await Task.Run(() => BuildCards(allGames, records, auxRecords, addonCache, _genericNotes));
             _crashReporter.Log($"[MainViewModel.InitializeAsync] BuildCards complete: {_allCards.Count} cards");
+            GraphicsApiDetector.SaveCache();
+            SaveGameApiCache();
 
             // Apply manifest DLL name overrides to any existing installs whose filenames don't match
             ApplyManifestDllRenames();
@@ -330,21 +340,17 @@ public partial class MainViewModel
                 // Deploy shaders to all installed game locations
                 try
                 {
-                    foreach (var card in _allCards)
-                    {
-                        if (string.IsNullOrEmpty(card.InstallPath)) continue;
-
-                        bool rsInstalled = card.RequiresVulkanInstall
+                    var syncTasks = _allCards
+                        .Where(card => !string.IsNullOrEmpty(card.InstallPath))
+                        .Where(card => card.RequiresVulkanInstall
                             ? VulkanFootprintService.Exists(card.InstallPath)
-                            : card.RsStatus == GameStatus.Installed || card.RsStatus == GameStatus.UpdateAvailable;
-
-                        var effectiveSelection = ResolveShaderSelection(card.GameName, card.ShaderModeOverride);
-
-                        if (rsInstalled)
+                            : card.RsStatus == GameStatus.Installed || card.RsStatus == GameStatus.UpdateAvailable)
+                        .Select(card =>
                         {
-                            _shaderPackService.SyncGameFolder(card.InstallPath, effectiveSelection);
-                        }
-                    }
+                            var effectiveSelection = ResolveShaderSelection(card.GameName, card.ShaderModeOverride);
+                            return Task.Run(() => _shaderPackService.SyncGameFolder(card.InstallPath, effectiveSelection));
+                        });
+                    await Task.WhenAll(syncTasks);
                 }
                 catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] SyncShaders failed — {ex.Message}"); }
                 finally
@@ -533,10 +539,13 @@ public partial class MainViewModel
         _engineTypeCache   = new Dictionary<string, string>(newEngineTypeCache, StringComparer.OrdinalIgnoreCase);
         _resolvedPathCache = new Dictionary<string, string>(newResolvedPathCache, StringComparer.OrdinalIgnoreCase);
         _bitnessCache      = new Dictionary<string, MachineType>(newBitnessCache, StringComparer.OrdinalIgnoreCase);
-        var newAddonFileCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var newAddonFileCache = new ConcurrentDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var safeAddonCache = new ConcurrentDictionary<string, bool>(addonCache, StringComparer.OrdinalIgnoreCase);
+        var cardBag = new ConcurrentBag<GameCardViewModel>();
 
-        foreach (var (game, installPath, engine, mod, origFallback, detectedMachine, engineOverrideLabel) in gameInfos)
+        Parallel.ForEach(gameInfos, (item) =>
         {
+            var (game, installPath, engine, mod, origFallback, detectedMachine, engineOverrideLabel) = item;
             // Always show every detected game — even if no wiki mod exists.
             // The card will have no install button if there's no snapshot URL,
             // but a RenoDX addon already on disk will still be detected and shown.
@@ -600,14 +609,14 @@ public partial class MainViewModel
                     addonOnDisk = ScanForInstalledAddon(installPath, effectiveMod);
                 }
             }
-            else if (addonCache.TryGetValue(cacheKey, out _))
+            else if (safeAddonCache.TryGetValue(cacheKey, out _))
             {
                 addonOnDisk = ScanForInstalledAddon(installPath, effectiveMod);
             }
             else
             {
                 addonOnDisk = ScanForInstalledAddon(installPath, effectiveMod);
-                addonCache[cacheKey] = addonOnDisk != null;
+                safeAddonCache[cacheKey] = addonOnDisk != null;
             }
             newAddonFileCache[cacheKey] = addonOnDisk ?? "";
 
@@ -803,7 +812,7 @@ public partial class MainViewModel
                 }
             }
 
-            cards.Add(new GameCardViewModel
+            var newCard = new GameCardViewModel
             {
                 GameName               = game.Name,
                 Mod                    = effectiveMod,
@@ -852,6 +861,7 @@ public partial class MainViewModel
                 ExcludeFromUpdateAllReShade = _gameNameService.UpdateAllExcludedReShade.Contains(game.Name),
                 ExcludeFromUpdateAllRenoDx  = _gameNameService.UpdateAllExcludedRenoDx.Contains(game.Name),
                 ExcludeFromUpdateAllUl      = _gameNameService.UpdateAllExcludedUl.Contains(game.Name),
+                ExcludeFromUpdateAllDc      = _gameNameService.UpdateAllExcludedDc.Contains(game.Name),
                 ShaderModeOverride     = _perGameShaderMode.TryGetValue(game.Name, out var smBc) ? smBc : null,
                 Is32Bit                = ResolveIs32Bit(game.Name, detectedMachine),
                 GraphicsApi            = DetectGraphicsApi(installPath, engine, game.Name),
@@ -865,11 +875,14 @@ public partial class MainViewModel
                 RsInstalledFile        = rsRec?.InstalledAs,
                 RsInstalledVersion     = rsRec != null ? AuxInstallService.ReadInstalledVersion(rsRec.InstallPath, rsRec.InstalledAs) : null,
                 IsREEngineGame         = engine == EngineType.REEngine,
-            });
+            };
 
             // ── Luma matching ──────────────────────────────────────────────────────
-            var newCard = cards[^1];
             newCard.IsDualApiGame = GraphicsApiDetector.IsDualApi(newCard.DetectedApis);
+
+            // Cache the API detection results for subsequent launches
+            if (!string.IsNullOrEmpty(installPath))
+                CacheGameApi(installPath, newCard.GraphicsApi, newCard.DetectedApis);
 
             // For Vulkan games, RS is installed when reshade.ini exists in the game folder.
             if (newCard.RequiresVulkanInstall)
@@ -897,6 +910,51 @@ public partial class MainViewModel
                     newCard.UlStatus = GameStatus.Installed;
                     newCard.UlInstalledFile = ulFileName;
                     newCard.UlInstalledVersion = ReadUlInstalledVersion(newCard.Is32Bit);
+                }
+            }
+
+            // ── Display Commander detection ────────────────────────────────────
+            if (!string.IsNullOrEmpty(installPath) && Directory.Exists(installPath))
+            {
+                var dcDeployPath = ModInstallService.GetAddonDeployPath(installPath);
+                var dcFileName = GetDcFileName(newCard.Is32Bit);
+
+                // Check for default DC LITE addon files on disk
+                if (File.Exists(Path.Combine(dcDeployPath, dcFileName))
+                    || File.Exists(Path.Combine(installPath, dcFileName)))
+                {
+                    newCard.DcStatus = GameStatus.Installed;
+                    newCard.DcInstalledFile = dcFileName;
+                    // Try PE file version first, fall back to meta
+                    var dcFilePath = File.Exists(Path.Combine(dcDeployPath, dcFileName))
+                        ? Path.Combine(dcDeployPath, dcFileName)
+                        : Path.Combine(installPath, dcFileName);
+                    var peVer = AuxInstallService.ReadInstalledVersion(
+                        Path.GetDirectoryName(dcFilePath)!, Path.GetFileName(dcFilePath));
+                    var metaVer = ReadDcInstalledVersion(newCard.Is32Bit);
+                    if (metaVer == "latest_build") metaVer = null;
+                    newCard.DcInstalledVersion = peVer ?? metaVer;
+                }
+                else
+                {
+                    // Check for DC with custom DLL override name via AuxInstalledRecord
+                    var dcRec = auxRecords.FirstOrDefault(r =>
+                        r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase) &&
+                        r.AddonType == "DisplayCommander");
+                    if (dcRec != null && File.Exists(Path.Combine(dcRec.InstallPath, dcRec.InstalledAs)))
+                    {
+                        newCard.DcStatus = GameStatus.Installed;
+                        newCard.DcInstalledFile = dcRec.InstalledAs;
+                        var peVer2 = AuxInstallService.ReadInstalledVersion(dcRec.InstallPath, dcRec.InstalledAs);
+                        var metaVer2 = ReadDcInstalledVersion(newCard.Is32Bit);
+                        if (metaVer2 == "latest_build") metaVer2 = null;
+                        newCard.DcInstalledVersion = peVer2 ?? metaVer2;
+                    }
+                    else if (dcRec != null)
+                    {
+                        // Record exists but file not on disk — stale record
+                        _auxInstaller.RemoveRecord(dcRec);
+                    }
                 }
             }
 
@@ -937,12 +995,15 @@ public partial class MainViewModel
                 }
             }
 
-            }
+            cardBag.Add(newCard);
+            });
+
+        cards.AddRange(cardBag);
         ApplyCardOverrides(cards);
         ApplyManifestCardOverrides(_manifest, cards);
 
         // Persist the addon file cache for next launch.
-        _addonFileCache = newAddonFileCache;
+        _addonFileCache = new Dictionary<string, string>(newAddonFileCache, StringComparer.OrdinalIgnoreCase);
 
         return cards;
     }

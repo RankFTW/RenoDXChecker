@@ -243,33 +243,31 @@ public class OverridesFlyoutBuilder
             }
         };
 
-        // ── DLL naming override ──
+        // ── DLL naming overrides ──
         bool isDllOverride = ViewModel.HasDllOverride(gameName);
         var existingCfg = ViewModel.GetDllOverride(gameName);
         bool is32Bit = card.Is32Bit;
-        var defaultRsName = is32Bit ? "ReShade32.dll" : "ReShade64.dll";
 
         var dllOverrideToggle = new ToggleSwitch
         {
-            Header = "DLL naming override",
+            Header = "DLL naming overrides",
             IsOn = isDllOverride,
             IsEnabled = !isLumaMode,
             OnContent = "Custom filenames enabled",
-            OffContent = "Using default filenames",
+            OffContent = "Override ReShade filename",
             Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
-            FontSize = 12,
+            FontSize = 11,
         };
         ToolTipService.SetToolTip(dllOverrideToggle,
-            "Override the filename ReShade is installed as. " +
-            "When enabled, existing RS files are renamed to the custom filename.");
+            "Override the filenames ReShade is installed as. When enabled, existing RS files are renamed to the custom filenames.");
         var existingRsName = existingCfg?.ReShadeFileName ?? "";
-        // Initial filter for RS name box
+
         var rsNameBox = new ComboBox
         {
             IsEditable = true,
-            PlaceholderText = defaultRsName,
-            Header = "ReShade filename",
-            FontSize = 12,
+            PlaceholderText = "Select ReShade DLL name",
+            Header = (object?)null,
+            FontSize = 11,
             IsEnabled = isDllOverride,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             ItemsSource = DllOverrideConstants.CommonDllNames,
@@ -284,27 +282,269 @@ public class OverridesFlyoutBuilder
                 rsNameBox.Loaded += (s, e) => rsNameBox.Text = capturedRs;
             }
         }
+
+        // ── DC DLL naming override ──
+        var existingDcName = existingCfg?.DcFileName ?? "";
+        bool isDcDllOverrideOn = isDllOverride && !string.IsNullOrEmpty(existingDcName);
+
+        var dcDllToggle = new ToggleSwitch
+        {
+            Header = (object?)null,
+            IsOn = isDcDllOverrideOn,
+            IsEnabled = !isLumaMode,
+            OnContent = "Custom DC filename",
+            OffContent = "Override DC filename",
+            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
+            FontSize = 11,
+        };
+        ToolTipService.SetToolTip(dcDllToggle,
+            "Override the filename Display Commander is installed as. When enabled, existing DC files are renamed to the custom filename.");
+
+        var dcNameBox = new ComboBox
+        {
+            IsEditable = true,
+            PlaceholderText = "Select DC DLL name",
+            FontSize = 11,
+            IsEnabled = isDcDllOverrideOn,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            ItemsSource = DetailPanelBuilder.DcDllOverrideNames,
+        };
+        if (!string.IsNullOrEmpty(existingDcName))
+        {
+            if (DetailPanelBuilder.DcDllOverrideNames.Contains(existingDcName, StringComparer.OrdinalIgnoreCase))
+                dcNameBox.SelectedItem = DetailPanelBuilder.DcDllOverrideNames.First(n => n.Equals(existingDcName, StringComparison.OrdinalIgnoreCase));
+            else
+            {
+                var capturedDc = existingDcName;
+                dcNameBox.Loaded += (s, e) => dcNameBox.Text = capturedDc;
+            }
+        }
+
+        // Track previous DC selection for revert on foreign DLL conflict cancel
+        string? _previousDcSelection = dcNameBox.SelectedItem as string;
+
+        // ── Cross-exclusion: filter out the other component's current name ──
+        bool _updatingDropdowns = false;
+
+        void UpdateDcDropdownItems()
+        {
+            if (_updatingDropdowns) return;
+            _updatingDropdowns = true;
+            try
+            {
+                var rsCurrentName = dllOverrideToggle.IsOn
+                    ? (rsNameBox.SelectedItem as string ?? rsNameBox.Text ?? "").Trim()
+                    : Services.AuxInstallService.RsNormalName;
+                var filtered = string.IsNullOrEmpty(rsCurrentName)
+                    ? DetailPanelBuilder.DcDllOverrideNames
+                    : DetailPanelBuilder.DcDllOverrideNames.Where(n => !n.Equals(rsCurrentName, StringComparison.OrdinalIgnoreCase)).ToArray();
+                var currentDc = dcNameBox.SelectedItem as string;
+                dcNameBox.ItemsSource = filtered;
+                if (currentDc != null && filtered.Contains(currentDc, StringComparer.OrdinalIgnoreCase))
+                    dcNameBox.SelectedItem = filtered.First(n => n.Equals(currentDc, StringComparison.OrdinalIgnoreCase));
+            }
+            finally { _updatingDropdowns = false; }
+        }
+
+        void UpdateRsDropdownItems()
+        {
+            if (_updatingDropdowns) return;
+            _updatingDropdowns = true;
+            try
+            {
+                var dcCurrentName = dcDllToggle.IsOn
+                    ? (dcNameBox.SelectedItem as string ?? "").Trim()
+                    : "";
+                var filtered = string.IsNullOrEmpty(dcCurrentName)
+                    ? DllOverrideConstants.CommonDllNames
+                    : DllOverrideConstants.CommonDllNames.Where(n => !n.Equals(dcCurrentName, StringComparison.OrdinalIgnoreCase)).ToArray();
+                var currentRs = rsNameBox.SelectedItem as string ?? rsNameBox.Text;
+                rsNameBox.ItemsSource = filtered;
+                if (!string.IsNullOrEmpty(currentRs) && filtered.Contains(currentRs, StringComparer.OrdinalIgnoreCase))
+                    rsNameBox.SelectedItem = filtered.First(n => n.Equals(currentRs, StringComparison.OrdinalIgnoreCase));
+            }
+            finally { _updatingDropdowns = false; }
+        }
+
+        // Initial filter
+        UpdateDcDropdownItems();
+        UpdateRsDropdownItems();
+
         dllOverrideToggle.Toggled += (s, ev) =>
         {
             rsNameBox.IsEnabled = dllOverrideToggle.IsOn;
 
-            // Auto-save: persist DLL override state immediately
-            bool nowOn = dllOverrideToggle.IsOn;
-            bool wasOn = ViewModel.HasDllOverride(capturedName);
-            if (nowOn == wasOn) return;
             var targetCard = ViewModel.AllCards.FirstOrDefault(c =>
                 c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
             if (targetCard == null) return;
-            if (nowOn)
+
+            if (dllOverrideToggle.IsOn)
             {
+                // Turning RS override ON — only proceed if a real DLL name is selected
                 var rsText = rsNameBox.SelectedItem as string ?? rsNameBox.Text;
-                var rsName = !string.IsNullOrWhiteSpace(rsText) ? rsText.Trim() : rsNameBox.PlaceholderText;
-                ViewModel.EnableDllOverride(targetCard, rsName, "");
+                if (string.IsNullOrWhiteSpace(rsText))
+                {
+                    // No name selected — don't rename anything, just enable the dropdown
+                    return;
+                }
+                var rsName = rsText.Trim();
+                var dcName = dcDllToggle.IsOn ? (dcNameBox.SelectedItem as string ?? "") : "";
+                ViewModel.EnableDllOverride(targetCard, rsName, dcName);
             }
             else
             {
-                ViewModel.DisableDllOverride(targetCard);
+                // Turning RS override OFF — revert RS file to default, preserve DC
+                var existingCfgNow = ViewModel.GetDllOverride(capturedName);
+                var dcName = dcDllToggle.IsOn ? (dcNameBox.SelectedItem as string ?? "") : "";
+
+                // Rename RS back to default if it was custom-named
+                if (existingCfgNow != null && !string.IsNullOrWhiteSpace(existingCfgNow.ReShadeFileName)
+                    && targetCard.RsRecord != null && !string.IsNullOrEmpty(targetCard.InstallPath))
+                {
+                    var defaultRsName = Services.AuxInstallService.RsNormalName;
+                    var oldPath = System.IO.Path.Combine(targetCard.InstallPath, existingCfgNow.ReShadeFileName);
+                    var newPath = System.IO.Path.Combine(targetCard.InstallPath, defaultRsName);
+                    try
+                    {
+                        if (System.IO.File.Exists(oldPath) && !oldPath.Equals(newPath, StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (System.IO.File.Exists(newPath)) System.IO.File.Delete(newPath);
+                            System.IO.File.Move(oldPath, newPath);
+                            targetCard.RsRecord.InstalledAs = defaultRsName;
+                            targetCard.RsInstalledFile = defaultRsName;
+                        }
+                    }
+                    catch { }
+                }
+
+                if (!string.IsNullOrEmpty(dcName))
+                {
+                    // DC override still active — update config with empty RS, keep DC
+                    ViewModel.UpdateDllOverrideNames(targetCard, "", dcName);
+                    targetCard.DllOverrideEnabled = true;
+                }
+                else
+                {
+                    // Neither override active — remove the config entirely
+                    ViewModel.DisableDllOverride(targetCard);
+                }
+                targetCard.NotifyAll();
+                // Clear the dropdown so it shows placeholder text
+                rsNameBox.SelectedIndex = -1;
+                if (rsNameBox.IsEditable) rsNameBox.Text = "";
             }
+        };
+
+        // ── Auto-save: DC DLL toggle ──
+        dcDllToggle.Toggled += (s, ev) =>
+        {
+            dcNameBox.IsEnabled = dcDllToggle.IsOn;
+            var targetCard = ViewModel.AllCards.FirstOrDefault(c =>
+                c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
+            if (targetCard == null) return;
+
+            if (dcDllToggle.IsOn)
+            {
+                // Turning DC override ON — set DC name, preserve RS
+                var rsText = rsNameBox.SelectedItem as string ?? rsNameBox.Text;
+                var rsName = dllOverrideToggle.IsOn ? (!string.IsNullOrWhiteSpace(rsText) ? rsText.Trim() : "") : "";
+                var dcName = dcNameBox.SelectedItem as string ?? "";
+                ViewModel.EnableDllOverride(targetCard, rsName, dcName);
+            }
+            else
+            {
+                // Turning DC override OFF — revert DC file to default, preserve RS
+                var existingCfgNow = ViewModel.GetDllOverride(capturedName);
+                if (existingCfgNow != null && !string.IsNullOrWhiteSpace(existingCfgNow.DcFileName)
+                    && !string.IsNullOrEmpty(targetCard.DcInstalledFile) && !string.IsNullOrEmpty(targetCard.InstallPath))
+                {
+                    var defaultDcName = targetCard.Is32Bit
+                        ? "zzz_display_commander_lite.addon32"
+                        : "zzz_display_commander_lite.addon64";
+                    var deployPath = Services.ModInstallService.GetAddonDeployPath(targetCard.InstallPath);
+                    var oldPath = System.IO.Path.Combine(deployPath, targetCard.DcInstalledFile);
+                    var newPath = System.IO.Path.Combine(deployPath, defaultDcName);
+                    try
+                    {
+                        if (System.IO.File.Exists(oldPath) && !oldPath.Equals(newPath, StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (System.IO.File.Exists(newPath)) System.IO.File.Delete(newPath);
+                            System.IO.File.Move(oldPath, newPath);
+                            targetCard.DcInstalledFile = defaultDcName;
+                        }
+                    }
+                    catch { }
+                }
+
+                var rsName = dllOverrideToggle.IsOn
+                    ? (!string.IsNullOrWhiteSpace(rsNameBox.SelectedItem as string ?? rsNameBox.Text)
+                        ? (rsNameBox.SelectedItem as string ?? rsNameBox.Text).Trim()
+                        : "")
+                    : "";
+
+                if (!string.IsNullOrEmpty(rsName))
+                {
+                    // RS override still active — update config with empty DC, keep RS
+                    ViewModel.UpdateDllOverrideNames(targetCard, rsName, "");
+                    targetCard.DllOverrideEnabled = true;
+                }
+                else
+                {
+                    // Neither override active — remove the config entirely
+                    ViewModel.DisableDllOverride(targetCard);
+                }
+                targetCard.NotifyAll();
+                // Clear the dropdown so it shows placeholder text
+                dcNameBox.SelectedIndex = -1;
+                if (dcNameBox.IsEditable) dcNameBox.Text = "";
+            }
+        };
+
+        // ── Auto-save: DC name box on dropdown selection (with foreign DLL check) ──
+        dcNameBox.SelectionChanged += async (s, e) =>
+        {
+            if (!dcDllToggle.IsOn) return;
+            var targetCard = ViewModel.AllCards.FirstOrDefault(c =>
+                c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
+            if (targetCard == null) return;
+            var dcName = dcNameBox.SelectedItem as string;
+            if (string.IsNullOrWhiteSpace(dcName)) return;
+
+            // Check for foreign DLL conflict before proceeding
+            bool allowed = await ViewModel.DllOverrideServiceInstance
+                .CheckDcForeignDllConflictAsync(targetCard, dcName);
+            if (!allowed)
+            {
+                // Revert dropdown to previous selection
+                if (_previousDcSelection != null)
+                    dcNameBox.SelectedItem = DetailPanelBuilder.DcDllOverrideNames.FirstOrDefault(n =>
+                        n.Equals(_previousDcSelection, StringComparison.OrdinalIgnoreCase));
+                else
+                    dcNameBox.SelectedIndex = -1;
+                return;
+            }
+
+            _previousDcSelection = dcName;
+            var rsText = rsNameBox.SelectedItem as string ?? rsNameBox.Text;
+            var rsName = !string.IsNullOrWhiteSpace(rsText) ? rsText.Trim() : "";
+            ViewModel.UpdateDllOverrideNames(targetCard, rsName, dcName);
+            UpdateRsDropdownItems();
+        };
+
+        // ── Auto-save: DC name box on Enter (manual typed name) ──
+        dcNameBox.KeyDown += (s, e) =>
+        {
+            if (e.Key != Windows.System.VirtualKey.Enter) return;
+            if (!dcDllToggle.IsOn) return;
+            var targetCard = ViewModel.AllCards.FirstOrDefault(c =>
+                c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
+            if (targetCard == null) return;
+            var dcName = (dcNameBox.SelectedItem as string ?? dcNameBox.Text)?.Trim();
+            if (string.IsNullOrWhiteSpace(dcName)) return;
+            var rsText = rsNameBox.SelectedItem as string ?? rsNameBox.Text;
+            var rsName = !string.IsNullOrWhiteSpace(rsText) ? rsText.Trim() : "";
+            ViewModel.UpdateDllOverrideNames(targetCard, rsName, dcName);
+            UpdateRsDropdownItems();
         };
 
         // ── Inline row: [Global Shaders + Select btn | divider | DLL override + RS name] ──
@@ -330,10 +570,12 @@ public class OverridesFlyoutBuilder
         };
         Grid.SetColumn(modeDivider, 1);
 
-        // Right: DLL override toggle + RS name combo
+        // Right: DLL override toggle + RS name combo + DC toggle + DC name combo
         var dllColumn = new StackPanel { Spacing = 4 };
         dllColumn.Children.Add(dllOverrideToggle);
         dllColumn.Children.Add(rsNameBox);
+        dllColumn.Children.Add(dcDllToggle);
+        dllColumn.Children.Add(dcNameBox);
         Grid.SetColumn(dllColumn, 2);
 
         modeGrid.Children.Add(shaderColumn);
@@ -351,8 +593,14 @@ public class OverridesFlyoutBuilder
                 c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
             if (targetCard == null) return;
             var rsText = rsNameBox.SelectedItem as string ?? rsNameBox.Text;
-            var rsName = !string.IsNullOrWhiteSpace(rsText) ? rsText.Trim() : rsNameBox.PlaceholderText;
-            ViewModel.UpdateDllOverrideNames(targetCard, rsName, "");
+            var rsName = !string.IsNullOrWhiteSpace(rsText) ? rsText.Trim() : "";
+            if (string.IsNullOrEmpty(rsName)) return;
+            var dcName = dcDllToggle.IsOn ? (dcNameBox.SelectedItem as string ?? dcNameBox.Text ?? "") : "";
+
+            if (ViewModel.HasDllOverride(capturedName))
+                ViewModel.UpdateDllOverrideNames(targetCard, rsName, dcName);
+            else
+                ViewModel.EnableDllOverride(targetCard, rsName, dcName);
         };
         // ── Auto-save: RS name box on dropdown selection ──
         rsNameBox.SelectionChanged += (s, e) =>
@@ -363,8 +611,142 @@ public class OverridesFlyoutBuilder
             if (targetCard == null) return;
             var rsName = rsNameBox.SelectedItem as string;
             if (string.IsNullOrWhiteSpace(rsName)) return;
-            ViewModel.UpdateDllOverrideNames(targetCard, rsName, "");
+            var dcName = dcDllToggle.IsOn ? (dcNameBox.SelectedItem as string ?? dcNameBox.Text ?? "") : "";
+
+            if (ViewModel.HasDllOverride(capturedName))
+                ViewModel.UpdateDllOverrideNames(targetCard, rsName, dcName);
+            else
+                ViewModel.EnableDllOverride(targetCard, rsName, dcName);
+
+            UpdateDcDropdownItems();
         };
+
+        // ── Bitness & API Override ──
+        var bitnessItems = new[] { "Auto", "32-bit", "64-bit" };
+        var currentBitnessOverride = ViewModel.GetBitnessOverride(gameName);
+        var defaultBitnessSelection = currentBitnessOverride switch
+        {
+            "32" => "32-bit",
+            "64" => "64-bit",
+            _ => "Auto",
+        };
+
+        var bitnessCombo = new ComboBox
+        {
+            ItemsSource = bitnessItems,
+            SelectedItem = defaultBitnessSelection,
+            FontSize = 11,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        ToolTipService.SetToolTip(bitnessCombo,
+            "Override the auto-detected bitness for this game.");
+
+        bitnessCombo.SelectionChanged += (s, e) =>
+        {
+            var selected = bitnessCombo.SelectedItem as string;
+            string? overrideValue = selected switch
+            {
+                "32-bit" => "32",
+                "64-bit" => "64",
+                _ => null,
+            };
+            ViewModel.SetBitnessOverride(capturedName, overrideValue);
+            var targetCard = ViewModel.AllCards.FirstOrDefault(c =>
+                c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
+            if (targetCard != null)
+            {
+                if (overrideValue == "32") targetCard.Is32Bit = true;
+                else if (overrideValue == "64") targetCard.Is32Bit = false;
+                else
+                {
+                    var detectedMachine = ViewModel.PeHeaderServiceInstance.DetectGameArchitecture(targetCard.InstallPath);
+                    targetCard.Is32Bit = ViewModel.ResolveIs32Bit(capturedName, detectedMachine);
+                }
+                targetCard.NotifyAll();
+            }
+        };
+
+        var apiDropdownItems = new[] { "Auto", "DirectX8", "DirectX9", "DirectX10", "DX11/DX12", "Vulkan", "OpenGL" };
+        var existingApiOverride = ViewModel.GetApiOverride(gameName);
+        string defaultApiSelection = "Auto";
+        if (existingApiOverride != null && existingApiOverride.Count > 0)
+        {
+            if (existingApiOverride.Contains("DirectX11", StringComparer.OrdinalIgnoreCase)
+                || existingApiOverride.Contains("DirectX12", StringComparer.OrdinalIgnoreCase))
+                defaultApiSelection = "DX11/DX12";
+            else if (existingApiOverride.Contains("Vulkan", StringComparer.OrdinalIgnoreCase))
+                defaultApiSelection = "Vulkan";
+            else if (existingApiOverride.Contains("OpenGL", StringComparer.OrdinalIgnoreCase))
+                defaultApiSelection = "OpenGL";
+            else if (existingApiOverride.Contains("DirectX10", StringComparer.OrdinalIgnoreCase))
+                defaultApiSelection = "DirectX10";
+            else if (existingApiOverride.Contains("DirectX9", StringComparer.OrdinalIgnoreCase))
+                defaultApiSelection = "DirectX9";
+            else if (existingApiOverride.Contains("DirectX8", StringComparer.OrdinalIgnoreCase))
+                defaultApiSelection = "DirectX8";
+        }
+
+        var apiCombo = new ComboBox
+        {
+            ItemsSource = apiDropdownItems,
+            SelectedItem = defaultApiSelection,
+            FontSize = 11,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+
+        apiCombo.SelectionChanged += (s, ev) =>
+        {
+            var selected = apiCombo.SelectedItem as string;
+            List<string>? apiEnumNames = selected switch
+            {
+                "DirectX8" => new() { "DirectX8" },
+                "DirectX9" => new() { "DirectX9" },
+                "DirectX10" => new() { "DirectX10" },
+                "DX11/DX12" => new() { "DirectX11", "DirectX12" },
+                "Vulkan" => new() { "Vulkan" },
+                "OpenGL" => new() { "OpenGL" },
+                _ => null,
+            };
+            ViewModel.SetApiOverride(capturedName, apiEnumNames);
+            var targetCard = ViewModel.AllCards.FirstOrDefault(c =>
+                c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
+            if (targetCard != null)
+            {
+                if (apiEnumNames != null)
+                {
+                    var newApis = new HashSet<GraphicsApiType>();
+                    foreach (var name in apiEnumNames)
+                        if (Enum.TryParse<GraphicsApiType>(name, out var apiType)) newApis.Add(apiType);
+                    targetCard.DetectedApis = newApis;
+                }
+                else
+                {
+                    targetCard.DetectedApis = ViewModel._DetectAllApisForCard(targetCard.InstallPath, capturedName);
+                }
+                targetCard.IsDualApiGame = GraphicsApiDetector.IsDualApi(targetCard.DetectedApis);
+                targetCard.GraphicsApi = ViewModel.DetectGraphicsApi(targetCard.InstallPath, EngineType.Unknown, capturedName);
+                targetCard.NotifyAll();
+            }
+        };
+
+        var bitnessApiRow = new Grid { ColumnSpacing = 8 };
+        bitnessApiRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        bitnessApiRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var bitnessPanel = new StackPanel { Spacing = 4 };
+        bitnessPanel.Children.Add(new TextBlock { Text = "Bitness", FontSize = 11, Foreground = UIFactory.Brush(ResourceKeys.TextPrimaryBrush) });
+        bitnessPanel.Children.Add(bitnessCombo);
+        Grid.SetColumn(bitnessPanel, 0);
+
+        var apiPanel = new StackPanel { Spacing = 4 };
+        apiPanel.Children.Add(new TextBlock { Text = "Graphics API", FontSize = 11, Foreground = UIFactory.Brush(ResourceKeys.TextPrimaryBrush) });
+        apiPanel.Children.Add(apiCombo);
+        Grid.SetColumn(apiPanel, 1);
+
+        bitnessApiRow.Children.Add(bitnessPanel);
+        bitnessApiRow.Children.Add(apiPanel);
+        panel.Children.Add(bitnessApiRow);
+        panel.Children.Add(UIFactory.MakeSeparator());
 
         // ── Global update inclusion + Wiki exclusion (inline row) ──
         var rsToggle = new ToggleSwitch
@@ -397,6 +779,16 @@ public class OverridesFlyoutBuilder
             FontSize = 11,
             MinWidth = 0,
         };
+        var dcToggle = new ToggleSwitch
+        {
+            Header = "DC",
+            IsOn = !card.ExcludeFromUpdateAllDc,
+            OnContent = "",
+            OffContent = "",
+            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
+            FontSize = 11,
+            MinWidth = 0,
+        };
 
         var rsBorder = new Border
         {
@@ -422,15 +814,32 @@ public class OverridesFlyoutBuilder
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(8, 6, 8, 6),
         };
-
-        var toggleRow = new StackPanel
+        var dcBorder = new Border
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 12,
+            Child = dcToggle,
+            BorderBrush = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 6, 8, 6),
         };
+
+        var toggleRow = new Grid
+        {
+            ColumnSpacing = 8,
+            RowSpacing = 8,
+        };
+        toggleRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        toggleRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        toggleRow.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        toggleRow.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        Grid.SetRow(rsBorder, 0);  Grid.SetColumn(rsBorder, 0);
+        Grid.SetRow(rdxBorder, 0); Grid.SetColumn(rdxBorder, 1);
+        Grid.SetRow(ulBorder, 1);  Grid.SetColumn(ulBorder, 0);
+        Grid.SetRow(dcBorder, 1);  Grid.SetColumn(dcBorder, 1);
         toggleRow.Children.Add(rsBorder);
         toggleRow.Children.Add(rdxBorder);
         toggleRow.Children.Add(ulBorder);
+        toggleRow.Children.Add(dcBorder);
 
         // ── Auto-save: Update inclusion toggles ──
         rsToggle.Toggled += (s, ev) =>
@@ -447,6 +856,11 @@ public class OverridesFlyoutBuilder
         {
             if (!ulToggle.IsOn != ViewModel.IsUpdateAllExcludedUl(capturedName))
                 ViewModel.ToggleUpdateAllExclusionUl(capturedName);
+        };
+        dcToggle.Toggled += (s, ev) =>
+        {
+            if (!dcToggle.IsOn != ViewModel.IsUpdateAllExcludedDc(capturedName))
+                ViewModel.ToggleUpdateAllExclusionDc(capturedName);
         };
 
         var wikiExcludeToggle = new ToggleSwitch
@@ -531,9 +945,11 @@ public class OverridesFlyoutBuilder
             shaderToggle.IsOn = true;
             customShadersToggle.IsOn = false;
             dllOverrideToggle.IsOn = false;
+            dcDllToggle.IsOn = false;
             rsToggle.IsOn = true;
             rdxToggle.IsOn = true;
             ulToggle.IsOn = true;
+            dcToggle.IsOn = true;
             wikiExcludeToggle.IsOn = false;
 
             // Persist all reset values immediately
@@ -573,10 +989,18 @@ public class OverridesFlyoutBuilder
                 ViewModel.ToggleUpdateAllExclusionRenoDx(capturedName);
             if (ViewModel.IsUpdateAllExcludedUl(capturedName))
                 ViewModel.ToggleUpdateAllExclusionUl(capturedName);
+            if (ViewModel.IsUpdateAllExcludedDc(capturedName))
+                ViewModel.ToggleUpdateAllExclusionDc(capturedName);
 
             // Disable wiki exclusion
             if (ViewModel.IsWikiExcluded(capturedName))
                 ViewModel.ToggleWikiExclusion(capturedName);
+
+            // Reset bitness and API overrides
+            bitnessCombo.SelectedItem = "Auto";
+            ViewModel.SetBitnessOverride(capturedName, null);
+            apiCombo.SelectedItem = "Auto";
+            ViewModel.SetApiOverride(capturedName, null);
 
             _crashReporter.Log($"[OverridesFlyoutBuilder.OpenOverridesFlyout] Overrides reset for: {capturedName}");
 

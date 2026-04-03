@@ -68,6 +68,9 @@
     <Color x:Key="ChipDefault">#FF1A2030</Color>          <!-- inactive chip -->
     <Color x:Key="ChipActive">#FF243050</Color>           <!-- active chip -->
     <Color x:Key="ChipText">#FF8898B0</Color>             <!-- chip label -->
+    <Color x:Key="CustomChipDefault">#FF122830</Color>    <!-- inactive custom chip (teal tint) -->
+    <Color x:Key="CustomChipActive">#FF1E4858</Color>     <!-- active custom chip (teal tint) -->
+    <Color x:Key="CustomChipText">#FF4DC9E6</Color>       <!-- custom chip label (teal text) -->
 
     <!-- ═══════════════════════════════════════════════════════════════════════
          SolidColorBrush resources (for direct XAML binding)
@@ -130,6 +133,9 @@
     <SolidColorBrush x:Key="ChipDefaultBrush" Color="{StaticResource ChipDefault}"/>
     <SolidColorBrush x:Key="ChipActiveBrush"  Color="{StaticResource ChipActive}"/>
     <SolidColorBrush x:Key="ChipTextBrush"    Color="{StaticResource ChipText}"/>
+    <SolidColorBrush x:Key="CustomChipDefaultBrush" Color="{StaticResource CustomChipDefault}"/>
+    <SolidColorBrush x:Key="CustomChipActiveBrush"  Color="{StaticResource CustomChipActive}"/>
+    <SolidColorBrush x:Key="CustomChipTextBrush"    Color="{StaticResource CustomChipText}"/>
 
     <!-- ═══════════════════════════════════════════════════════════════════════
          Sidebar item colors

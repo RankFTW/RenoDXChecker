@@ -43,11 +43,8 @@ public class SettingsHandler
     {
         ViewModel.NavigateToGameViewCommand.Execute(null);
         _window.SettingsPanel.Visibility = Visibility.Collapsed;
-        // Restore whichever panel was showing before Settings was opened
-        if (ViewModel.IsLoading)
-            _window.LoadingPanel.Visibility = Visibility.Visible;
-        else
-            _window.GameViewPanel.Visibility = Visibility.Visible;
+        // Always show GameViewPanel — skeleton loading handles the loading state visually
+        _window.GameViewPanel.Visibility = Visibility.Visible;
     }
 
     public void SkipUpdateToggle_Toggled(object sender, RoutedEventArgs e)

@@ -90,7 +90,8 @@
   "dllNameOverrides": {
 	"The Elder Scrolls III: Morrowind": { "reshade": "opengl32.dll", "dc": "" },
 	"Terraria": { "reshade": "dbghelp.dll", "dc": "" },
-	"Borderlands: The Pre-Sequel": { "reshade": "d3d9.dll", "dc": "" }
+	"Borderlands: The Pre-Sequel": { "reshade": "d3d9.dll", "dc": "" },
+	"Ori and the Blind Forest: Definitive Edition": { "reshade": "dxgi.dll", "dc": "" }
   },
   "wikiNameOverrides": {	
 	"Assassin's Creed": "Assassin's Creed™: Director's Cut Edition",
@@ -116,7 +117,8 @@
 	"Devil May Cry 5": "Devil May Cry V",
 	"Borderlands: The Pre-Sequel": "Borderlands 2 & The Pre-Sequel",
 	"Borderlands 2": "Borderlands 2 & The Pre-Sequel",
-	"Dying Light": "Dying Light"
+	"Dying Light": "Dying Light",
+	"Total War: WARHAMMER III": "Total War: Warhammer 3"
   },
   "wikiStatusOverrides": {
     "Code Vein II": "✅",	
@@ -137,7 +139,9 @@
     "Spark the Electric Jester 3",
     "XF Extreme Formula",
 	"Stardew Valley",
-	"Call of Duty®: Modern Warfare®"
+	"Call of Duty®: Modern Warfare®",
+	"MIO: Memories in Orbit",
+	"Dead by Daylight"
   ],
   "installPathOverrides": {
     "Batman: Arkham Asylum GOTY Edition": "Binaries",
@@ -155,11 +159,13 @@
 	"Crimson Desert": "bin64",
 	"SILENT HILL 2": "SHProto\\Binaries\\Win64",
 	"HITMAN 3": "Retail",
+	"HITMAN World of Assassination": "Retail",
 	"FarCry 6": "bin",
 	"ARMORED CORE™ VI FIRES OF RUBICON™": "Game",
 	"Kingdom Come: Deliverance II": "Bin\\Win64MasterMasterSteamPGO",
 	"Indiana Jones and the Great Circle": "",
-	"Borderlands: The Pre-Sequel": "Binaries\\Win32"
+	"Borderlands: The Pre-Sequel": "Binaries\\Win32",
+	"Hades": "x64"
   },
   "snapshotOverrides": {
 	"Assassin's Creed": "https://clshortfuse.github.io/renodx/renodx-asscreed1.addon32",
@@ -277,11 +283,6 @@
     },
     "tModLoader": {
       "notes": "⚠️ You must run the game once in order to create the correct directories for ReShade/RenoDX to work.\nAfter running the game once click Refresh and make sure directory is detected as /tModLoader/dotnet before installing anything",
-      "notesUrl": null,
-      "notesUrlLabel": null
-    },
-    "X4: Timelines": {
-      "notes": "⚠️ DC must be loaded as winmm.dll using DC Mode 2. Game will not launch with ReShade installed normally and it must be proxied through DC",
       "notesUrl": null,
       "notesUrlLabel": null
     }

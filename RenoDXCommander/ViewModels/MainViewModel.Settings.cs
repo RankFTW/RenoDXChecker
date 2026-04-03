@@ -207,6 +207,7 @@ public partial class MainViewModel
             && ((c.Status   == GameStatus.UpdateAvailable && !c.ExcludeFromUpdateAllRenoDx) ||
                 (c.RsStatus == GameStatus.UpdateAvailable && !c.ExcludeFromUpdateAllReShade && !c.RequiresVulkanInstall && !c.IsLumaMode) ||
                 (c.UlStatus == GameStatus.UpdateAvailable && !c.ExcludeFromUpdateAllUl) ||
+                (c.DcStatus == GameStatus.UpdateAvailable && !c.ExcludeFromUpdateAllDc) ||
                 (c.RefStatus == GameStatus.UpdateAvailable && !c.ExcludeFromUpdateAllRef)));
 
     // Button colours — purple when updates available, dim when idle
@@ -217,6 +218,7 @@ public partial class MainViewModel
     public bool IsUpdateAllExcludedReShade(string gameName) => _updateAllExcludedReShade.Contains(gameName);
     public bool IsUpdateAllExcludedRenoDx(string gameName) => _updateAllExcludedRenoDx.Contains(gameName);
     public bool IsUpdateAllExcludedUl(string gameName) => _updateAllExcludedUl.Contains(gameName);
+    public bool IsUpdateAllExcludedDc(string gameName) => _updateAllExcludedDc.Contains(gameName);
 
     public void ToggleUpdateAllExclusionReShade(string gameName)
     {
@@ -245,6 +247,16 @@ public partial class MainViewModel
         SaveNameMappings();
         var card = _allCards.FirstOrDefault(c => c.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase));
         if (card != null) card.ExcludeFromUpdateAllUl = set.Contains(gameName);
+        NotifyUpdateButtonChanged();
+    }
+
+    public void ToggleUpdateAllExclusionDc(string gameName)
+    {
+        var set = _gameNameService.UpdateAllExcludedDc;
+        if (!set.Remove(gameName)) set.Add(gameName);
+        SaveNameMappings();
+        var card = _allCards.FirstOrDefault(c => c.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase));
+        if (card != null) card.ExcludeFromUpdateAllDc = set.Contains(gameName);
         NotifyUpdateButtonChanged();
     }
 

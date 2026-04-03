@@ -151,6 +151,17 @@ public partial class AuxInstallService
         File.Copy(UlIniPath, Path.Combine(deployPath, "relimiter.ini"), overwrite: true);
     }
 
+    /// <summary>
+    /// Copies DisplayCommander.ini from the inis folder to the game directory (addon deploy path).
+    /// </summary>
+    public static void CopyDcIni(string gameInstallPath)
+    {
+        if (!File.Exists(DcIniPath))
+            throw new FileNotFoundException("DisplayCommander.ini not found in inis folder.", DcIniPath);
+        var deployPath = ModInstallService.GetAddonDeployPath(gameInstallPath);
+        File.Copy(DcIniPath, Path.Combine(deployPath, "DisplayCommander.ini"), overwrite: true);
+    }
+
     // ── Screenshot path application ───────────────────────────────────────────────
 
     /// <summary>

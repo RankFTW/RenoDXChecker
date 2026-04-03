@@ -107,7 +107,7 @@ public partial class DetailPanelBuilder
                 : Windows.UI.Text.TextDecorations.None;
             _window.DetailUlInstallBtn.Tag = card;
             _window.DetailUlInstallBtn.Content = card.UlActionLabel;
-            _window.DetailUlInstallBtn.IsEnabled = card.IsUlNotInstalling;
+            _window.DetailUlInstallBtn.IsEnabled = card.UlInstallEnabled;
             _window.DetailUlInstallBtn.Background = UIFactory.GetBrush(card.UlBtnBackground);
             _window.DetailUlInstallBtn.Foreground = UIFactory.GetBrush(card.UlBtnForeground);
             _window.DetailUlInstallBtn.BorderBrush = UIFactory.GetBrush(card.UlBtnBorderBrush);
@@ -119,6 +119,31 @@ public partial class DetailPanelBuilder
             var ulShow = card.UlDeleteVisibility == Visibility.Visible;
             _window.DetailUlDeleteBtn.Opacity = ulShow ? 1 : 0;
             _window.DetailUlDeleteBtn.IsHitTestVisible = ulShow;
+        }
+
+        // Display Commander row — hidden in Luma mode
+        _window.DetailDcRow.Visibility = card.DcRowVisibility;
+        if (card.DcRowVisibility == Visibility.Visible)
+        {
+            _window.DetailDcStatus.Text = card.DcStatusText;
+            _window.DetailDcStatus.Foreground = UIFactory.GetBrush(card.DcStatusColor);
+            _window.DetailDcStatus.TextDecorations = card.IsDcInstalled
+                ? Windows.UI.Text.TextDecorations.Underline
+                : Windows.UI.Text.TextDecorations.None;
+            _window.DetailDcInstallBtn.Tag = card;
+            _window.DetailDcInstallBtn.Content = card.DcActionLabel;
+            _window.DetailDcInstallBtn.IsEnabled = card.DcInstallEnabled;
+            _window.DetailDcInstallBtn.Background = UIFactory.GetBrush(card.DcBtnBackground);
+            _window.DetailDcInstallBtn.Foreground = UIFactory.GetBrush(card.DcBtnForeground);
+            _window.DetailDcInstallBtn.BorderBrush = UIFactory.GetBrush(card.DcBtnBorderBrush);
+            _window.DetailDcInstallBtn.BorderThickness = new Thickness(1);
+            _window.DetailDcIniBtn.Tag = card;
+            _window.DetailDcIniBtn.IsEnabled = card.DcIniExists;
+            _window.DetailDcIniBtn.Opacity = card.DcIniExists ? 1 : 0.3;
+            _window.DetailDcDeleteBtn.Tag = card;
+            var dcShow = card.DcDeleteVisibility == Visibility.Visible;
+            _window.DetailDcDeleteBtn.Opacity = dcShow ? 1 : 0;
+            _window.DetailDcDeleteBtn.IsHitTestVisible = dcShow;
         }
 
         // RenoDX row (also used for external-only / Discord link)
@@ -232,6 +257,11 @@ public partial class DetailPanelBuilder
         _window.DetailUlMessage.Visibility = card.UlRowVisibility == Visibility.Visible ? card.UlMessageVisibility : Visibility.Collapsed;
         _window.DetailUlMessage.Text = card.UlActionMessage;
         _window.DetailUlMessage.Foreground = UIFactory.GetBrush(GetMessageColor(card.UlActionMessage));
+        _window.DetailDcProgress.Visibility = card.DcRowVisibility == Visibility.Visible ? card.DcProgressVisibility : Visibility.Collapsed;
+        _window.DetailDcProgress.Value = card.DcProgress;
+        _window.DetailDcMessage.Visibility = card.DcRowVisibility == Visibility.Visible ? card.DcMessageVisibility : Visibility.Collapsed;
+        _window.DetailDcMessage.Text = card.DcActionMessage;
+        _window.DetailDcMessage.Foreground = UIFactory.GetBrush(GetMessageColor(card.DcActionMessage));
         _window.DetailRdxProgress.Visibility = card.ProgressVisibility;
         _window.DetailRdxProgress.Value = card.InstallProgress;
         _window.DetailRdxMessage.Visibility = card.MessageVisibility;

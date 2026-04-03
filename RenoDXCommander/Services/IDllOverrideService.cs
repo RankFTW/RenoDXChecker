@@ -13,6 +13,13 @@ public interface IDllOverrideService
     Action? OverridesChanged { get; set; }
 
     /// <summary>
+    /// Async callback set by the UI layer. Called when a DC DLL override name
+    /// conflicts with an existing non-DC file in the game folder.
+    /// Returns true if the user confirms overwrite, false to cancel.
+    /// </summary>
+    Func<GameCardViewModel, string, Task<bool>>? ConfirmForeignDcOverwrite { get; set; }
+
+    /// <summary>
     /// Games where a manifest-driven DLL override was injected by ApplyManifestDllRenames.
     /// These are NOT persisted — they are re-evaluated on every refresh.
     /// </summary>
@@ -77,6 +84,13 @@ public interface IDllOverrideService
 
     /// <summary>Migrates a DLL override entry when a game is renamed.</summary>
     void MigrateOverride(string oldName, string newName);
+
+    /// <summary>
+    /// Checks if the target DC DLL override filename conflicts with an existing
+    /// non-DC file in the game folder. Returns true if no conflict or user confirms overwrite.
+    /// Returns false if user cancels — caller should revert the dropdown.
+    /// </summary>
+    Task<bool> CheckDcForeignDllConflictAsync(GameCardViewModel card, string newDcFileName);
 
     /// <summary>
     /// Returns a filtered dictionary excluding manifest-injected overrides (for persistence).

@@ -50,6 +50,9 @@ public partial class GameCardViewModel
         : UlStatus == GameStatus.Installed ? "#4CAF50" : "#5A6880";
     public bool CardUlInstallEnabled => !UlIsInstalling;
 
+    /// <summary>UL install button disabled when installing or when DC is installed (mutual exclusion).</summary>
+    public bool UlInstallEnabled => !UlIsInstalling && !IsDcInstalled;
+
     /// <summary>
     /// ReLimiter row is always visible (available in both standard and Luma modes).
     /// </summary>
@@ -68,8 +71,10 @@ public partial class GameCardViewModel
         OnPropertyChanged(nameof(UlStatusColor));
         OnPropertyChanged(nameof(UlShortAction));
         OnPropertyChanged(nameof(IsUlInstalled));
+        OnPropertyChanged(nameof(UlInstallEnabled));
         OnPropertyChanged(nameof(CardUlStatusDot));
         OnPropertyChanged(nameof(CardUlInstallEnabled));
+        OnPropertyChanged(nameof(DcInstallEnabled));
         OnPropertyChanged(nameof(UpdateBadgeVisibility));
     }
 
@@ -79,6 +84,7 @@ public partial class GameCardViewModel
         OnPropertyChanged(nameof(UlActionLabel));
         OnPropertyChanged(nameof(UlProgressVisibility));
         OnPropertyChanged(nameof(IsUlNotInstalling));
+        OnPropertyChanged(nameof(UlInstallEnabled));
         OnPropertyChanged(nameof(UlStatusText));
         OnPropertyChanged(nameof(UlStatusColor));
         OnPropertyChanged(nameof(UlShortAction));

@@ -102,31 +102,6 @@ public partial class CardBuilder
         }
         panel.Children.Add(rsRow);
 
-        // ReLimiter row
-        var ulRow = BuildComponentRow(card, "ReLimiter", "UL",
-            card.UlStatusText, card.UlStatusColor, card.UlShortAction,
-            card.IsUlNotInstalling, card.IsUlInstalled,
-            showCopyConfig: true, copyConfigVisible: card.UlIniExists,
-            copyConfigTooltip: "Copy relimiter.ini to game folder",
-            btnBackground: card.UlBtnBackground, btnForeground: card.UlBtnForeground, btnBorderBrush: card.UlBtnBorderBrush);
-        // Make UL status text a clickable link to the ReLimiter guide (or release page when update available)
-        var ulStatusBlock = ulRow.Children.OfType<TextBlock>().FirstOrDefault(t => t.Tag as string == "StatusText");
-        if (ulStatusBlock != null)
-        {
-            if (card.IsUlInstalled)
-                ulStatusBlock.TextDecorations = Windows.UI.Text.TextDecorations.Underline;
-            ulStatusBlock.PointerPressed += async (s, e) =>
-            {
-                if (card.UlStatus == Models.GameStatus.UpdateAvailable && _window.ViewModel.LatestUlReleasePageUrl != null)
-                    await Windows.System.Launcher.LaunchUriAsync(new Uri(_window.ViewModel.LatestUlReleasePageUrl));
-                else if (card.IsUlInstalled)
-                    await Windows.System.Launcher.LaunchUriAsync(
-                        new Uri("https://github.com/RankFTW/Ultra-Limiter?tab=readme-ov-file#ultra-limiter--comprehensive-feature-guide"));
-            };
-        }
-        ulRow.Visibility = card.UlRowVisibility;
-        panel.Children.Add(ulRow);
-
         // RenoDX row
         var rdxRow = BuildComponentRow(card, "RenoDX", "RDX",
             card.RdxStatusText, card.RdxStatusColor, card.RdxShortAction,
@@ -153,6 +128,51 @@ public partial class CardBuilder
             };
         }
         panel.Children.Add(rdxRow);
+
+        // ── Limiter separator + rows ──────────────────────────────────────────
+        var limiterSep = new TextBlock
+        {
+            Text = "———  Choose one from below  ———",
+            FontSize = 9,
+            Foreground = UIFactory.GetBrush("#5A6880"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 4, 0, 2),
+        };
+        panel.Children.Add(limiterSep);
+
+        // ReLimiter row
+        var ulRow = BuildComponentRow(card, "ReLimiter", "UL",
+            card.UlStatusText, card.UlStatusColor, card.UlShortAction,
+            card.UlInstallEnabled, card.IsUlInstalled,
+            showCopyConfig: true, copyConfigVisible: card.UlIniExists,
+            copyConfigTooltip: "Copy relimiter.ini to game folder",
+            btnBackground: card.UlBtnBackground, btnForeground: card.UlBtnForeground, btnBorderBrush: card.UlBtnBorderBrush);
+        var ulStatusBlock = ulRow.Children.OfType<TextBlock>().FirstOrDefault(t => t.Tag as string == "StatusText");
+        if (ulStatusBlock != null)
+        {
+            if (card.IsUlInstalled)
+                ulStatusBlock.TextDecorations = Windows.UI.Text.TextDecorations.Underline;
+            ulStatusBlock.PointerPressed += async (s, e) =>
+            {
+                if (card.UlStatus == Models.GameStatus.UpdateAvailable && _window.ViewModel.LatestUlReleasePageUrl != null)
+                    await Windows.System.Launcher.LaunchUriAsync(new Uri(_window.ViewModel.LatestUlReleasePageUrl));
+                else if (card.IsUlInstalled)
+                    await Windows.System.Launcher.LaunchUriAsync(
+                        new Uri("https://github.com/RankFTW/Ultra-Limiter?tab=readme-ov-file#ultra-limiter--comprehensive-feature-guide"));
+            };
+        }
+        ulRow.Visibility = card.UlRowVisibility;
+        panel.Children.Add(ulRow);
+
+        // Display Commander row
+        var dcRow = BuildComponentRow(card, "DC", "DC",
+            card.DcStatusText, card.DcStatusColor, card.DcShortAction,
+            card.DcInstallEnabled, card.IsDcInstalled,
+            showCopyConfig: true, copyConfigVisible: card.DcIniExists,
+            copyConfigTooltip: "Copy DisplayCommander.ini to game folder",
+            btnBackground: card.DcBtnBackground, btnForeground: card.DcBtnForeground, btnBorderBrush: card.DcBtnBorderBrush);
+        dcRow.Visibility = card.DcRowVisibility;
+        panel.Children.Add(dcRow);
 
         // External/Discord row — shown when game is external-only (no wiki mod)
         Grid? externalRow = null;
@@ -381,6 +401,8 @@ public partial class CardBuilder
             copyBtn.Click += _window.CardCopyRsIni_Click;
         if (componentTag == "UL")
             copyBtn.Click += _window.CardCopyUlIni_Click;
+        if (componentTag == "DC")
+            copyBtn.Click += _window.CardCopyDcIni_Click;
         if (copyConfigTooltip != null)
             ToolTipService.SetToolTip(copyBtn, copyConfigTooltip);
         Grid.SetColumn(copyBtn, 3);

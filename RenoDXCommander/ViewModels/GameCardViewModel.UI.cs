@@ -64,7 +64,7 @@ public partial class GameCardViewModel
     public bool HasInfoIndicator => HasNotes || HasNameUrl;
 
     /// <summary>False when any component is currently installing — disables card install button.</summary>
-    public bool CanCardInstall => !IsInstalling && !RsIsInstalling && !IsLumaInstalling && !UlIsInstalling;
+    public bool CanCardInstall => !IsInstalling && !RsIsInstalling && !IsLumaInstalling && !UlIsInstalling && !DcIsInstalling;
 
     // ── Per-component install enabled (card install flyout) ───────────────────────
     public bool CardRdxInstallEnabled  => !IsInstalling && Mod?.SnapshotUrl != null && !IsExternalOnly;
@@ -221,6 +221,7 @@ public partial class GameCardViewModel
     public Visibility UpdateBadgeVisibility      => ((Status == GameStatus.UpdateAvailable && !ExcludeFromUpdateAllRenoDx)
                                                       || (RsStatus == GameStatus.UpdateAvailable && !ExcludeFromUpdateAllReShade && !EffectiveLumaMode)
                                                       || (UlStatus == GameStatus.UpdateAvailable && !ExcludeFromUpdateAllUl)
+                                                      || (DcStatus == GameStatus.UpdateAvailable && !ExcludeFromUpdateAllDc)
                                                       || (RefStatus == GameStatus.UpdateAvailable && !ExcludeFromUpdateAllRef))
                                                       ? Visibility.Visible : Visibility.Collapsed;
     public Visibility IsHiddenVisibility         => IsHidden ? Visibility.Visible : Visibility.Collapsed;

@@ -6,19 +6,26 @@ using RenoDXCommander.ViewModels;
 namespace RenoDXCommander.Tests;
 
 /// <summary>
-/// Property-based test verifying that MainViewModel has no Display Commander members.
-/// Feature: dc-removal, Property 3: MainViewModel has no DC members
+/// Property-based test verifying that MainViewModel has no legacy Display Commander members.
+/// Feature: dc-removal, Property 3: MainViewModel has no legacy DC members
 /// **Validates: Requirements 6.1, 6.2, 6.3, 6.4**
+///
+/// NOTE: Updated for display-commander-reintegration spec. DC is now reintegrated
+/// as a LITE addon (not the legacy mode-based system). The following members are
+/// intentionally back: InstallDcAsync, UninstallDc, UpdateAllDcAsync, etc.
+/// This test now only checks that the LEGACY DC mode members remain absent.
 /// </summary>
 public class MainViewModelNoDcMembersPropertyTests
 {
     /// <summary>
-    /// All DC member names that must not exist on MainViewModel.
-    /// Includes properties, commands, and methods that were removed as part of DC removal.
+    /// Legacy DC member names that must NOT exist on MainViewModel.
+    /// These are from the old DC mode-based system that was removed in dc-removal.
+    /// The new DC LITE reintegration uses different members (InstallDcAsync, etc.)
+    /// which are intentionally present and NOT listed here.
     /// </summary>
-    private static readonly string[] DcMemberNames =
+    private static readonly string[] LegacyDcMemberNames =
     [
-        // ── Properties removed (Requirement 6.1) ──────────────────────────────
+        // ── Legacy DC mode properties (Requirement 6.1) ──────────────────────
         "DcModeEnabled",
         "DcDllFileName",
         "DcLegacyMode",
@@ -26,33 +33,30 @@ public class MainViewModelNoDcMembersPropertyTests
         "DcLegacyHiddenVisibility",
         "DcDllPickerVisibility",
 
-        // ── Commands removed (Requirement 6.2) ────────────────────────────────
+        // ── Legacy DC commands (Requirement 6.2) ─────────────────────────────
         "InstallDcCommand",
         "UninstallDcCommand",
 
-        // ── Methods removed (Requirement 6.3) ─────────────────────────────────
-        "InstallDcAsync",
-        "UninstallDc",
+        // ── Legacy DC mode methods (Requirement 6.3) ─────────────────────────
         "ApplyDcModeSwitch",
         "ApplyDcModeSwitchForCard",
         "ResolveEffectiveDcMode",
-        "UpdateAllDcAsync",
         "OnDcModeEnabledChanged",
         "OnDcLegacyModeChanged",
         "OnDcDllFileNameChanged",
 
-        // ── Per-game DC accessors removed (Requirement 6.4) ───────────────────
+        // ── Legacy per-game DC accessors (Requirement 6.4) ───────────────────
         "GetPerGameDcModeOverride",
         "SetPerGameDcModeOverride",
         "GetDcCustomDllFileName",
         "SetDcCustomDllFileName",
     ];
 
-    private static readonly Gen<string> GenDcMemberName =
-        Gen.Elements(DcMemberNames);
+    private static readonly Gen<string> GenLegacyDcMemberName =
+        Gen.Elements(LegacyDcMemberNames);
 
-    // ── Property 3: MainViewModel has no DC members ───────────────────────────────
-    // Feature: dc-removal, Property 3: MainViewModel has no DC members
+    // ── Property 3: MainViewModel has no legacy DC members ────────────────────────
+    // Feature: dc-removal, Property 3: MainViewModel has no legacy DC members
     // **Validates: Requirements 6.1, 6.2, 6.3, 6.4**
     [Property(MaxTest = 100)]
     public Property MainViewModel_Has_No_DC_Members()
@@ -64,12 +68,12 @@ public class MainViewModelNoDcMembersPropertyTests
             BindingFlags.DeclaredOnly;
 
         return Prop.ForAll(
-            Arb.From(GenDcMemberName),
+            Arb.From(GenLegacyDcMemberName),
             (string memberName) =>
             {
                 var members = type.GetMember(memberName, allMembers);
                 return (members.Length == 0)
-                    .Label($"DC member '{memberName}' still exists on MainViewModel");
+                    .Label($"Legacy DC member '{memberName}' still exists on MainViewModel");
             });
     }
 }

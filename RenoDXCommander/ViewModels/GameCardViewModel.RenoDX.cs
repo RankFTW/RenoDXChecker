@@ -128,11 +128,12 @@ public partial class GameCardViewModel
     public string R7bLumaSwitchBorderThickness    => UeExtendedToggleVisibility == Visibility.Visible ? "0,1,0,1" : "0,1,1,1";
     public string R7bLumaSwitchMargin             => UeExtendedToggleVisibility == Visibility.Visible ? "0,0,1,0" : "0";
 
-    /// <summary>True when any component (RenoDX, ReShade, Luma) is installed or has an update.</summary>
+    /// <summary>True when any component (RenoDX, ReShade, Luma, DC) is installed or has an update.</summary>
     public bool IsManaged =>
         Status is GameStatus.Installed or GameStatus.UpdateAvailable ||
         RsStatus is GameStatus.Installed or GameStatus.UpdateAvailable ||
-        LumaStatus is GameStatus.Installed or GameStatus.UpdateAvailable;
+        LumaStatus is GameStatus.Installed or GameStatus.UpdateAvailable ||
+        DcStatus is GameStatus.Installed or GameStatus.UpdateAvailable;
 
     // ── Per-component installed state (card install flyout uninstall visibility) ──
     public bool IsRdxInstalled  => Status is GameStatus.Installed or GameStatus.UpdateAvailable;

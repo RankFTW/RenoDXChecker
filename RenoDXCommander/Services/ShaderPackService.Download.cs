@@ -18,12 +18,14 @@ public partial class ShaderPackService
     public async Task EnsureLatestAsync(
         IProgress<string>? progress = null)
     {
-        foreach (var pack in Packs)
+        // Run all pack checks in parallel (each is an independent hash comparison or download)
+        var tasks = Packs.Select(pack => Task.Run(async () =>
         {
             try { await EnsurePackAsync(pack, progress); }
             catch (Exception ex)
             { CrashReporter.Log($"[ShaderPackService.EnsureLatestAsync] Unexpected error for '{pack.Id}' — {ex.Message}"); }
-        }
+        }));
+        await Task.WhenAll(tasks);
     }
 
     // ── Per-pack download + extract ───────────────────────────────────────────────

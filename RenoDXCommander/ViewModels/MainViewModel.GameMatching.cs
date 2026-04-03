@@ -1,5 +1,7 @@
 ﻿// MainViewModel.GameMatching.cs -- Manifest application, engine/API detection, game matching, and card overrides.
 
+using System.Collections.Concurrent;
+using System.Text.Json;
 using RenoDXCommander.Models;
 using RenoDXCommander.Services;
 
@@ -7,6 +9,52 @@ namespace RenoDXCommander.ViewModels;
 
 public partial class MainViewModel
 {
+    // ── Game-level graphics API cache ──────────────────────────────────────────
+    private static readonly ConcurrentDictionary<string, (GraphicsApiType Primary, HashSet<GraphicsApiType> All)> _gameApiCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private static string GameApiCachePath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RHI", "game_api_cache.json");
+
+    internal static void LoadGameApiCache()
+    {
+        try
+        {
+            if (!File.Exists(GameApiCachePath)) return;
+            var json = File.ReadAllText(GameApiCachePath);
+            var entries = JsonSerializer.Deserialize<Dictionary<string, GameApiCacheEntry>>(json);
+            if (entries == null) return;
+            foreach (var (key, entry) in entries)
+            {
+                if (!Enum.TryParse<GraphicsApiType>(entry.Primary, out var primary)) continue;
+                var all = new HashSet<GraphicsApiType>();
+                foreach (var name in entry.All)
+                    if (Enum.TryParse<GraphicsApiType>(name, out var api)) all.Add(api);
+                _gameApiCache[key] = (primary, all);
+            }
+        }
+        catch { }
+    }
+
+    internal static void SaveGameApiCache()
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(GameApiCachePath)!;
+            Directory.CreateDirectory(dir);
+            var dict = new Dictionary<string, GameApiCacheEntry>(_gameApiCache.Count, StringComparer.OrdinalIgnoreCase);
+            foreach (var (key, val) in _gameApiCache)
+                dict[key] = new GameApiCacheEntry { Primary = val.Primary.ToString(), All = val.All.Select(a => a.ToString()).ToList() };
+            File.WriteAllText(GameApiCachePath, JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = false }));
+        }
+        catch (Exception ex) { CrashReporter.Log($"[MainViewModel.SaveGameApiCache] Failed — {ex.Message}"); }
+    }
+
+    private record GameApiCacheEntry
+    {
+        public string Primary { get; init; } = "";
+        public List<string> All { get; init; } = new();
+    }
+
     /// <summary>
     /// Renames installed ReShade and Display Commander files to match any manifest DLL name
     /// overrides. Called after every BuildCards so that adding a manifest override takes
@@ -125,6 +173,11 @@ public partial class MainViewModel
     /// </summary>
     internal GraphicsApiType DetectGraphicsApi(string installPath, EngineType engine = EngineType.Unknown, string? gameName = null)
     {
+        // Skip WindowsApps — always access-denied, wastes time on retries
+        if (installPath.Contains(@"\WindowsApps\", StringComparison.OrdinalIgnoreCase)
+            || installPath.Contains(@"/WindowsApps/", StringComparison.OrdinalIgnoreCase))
+            return GraphicsApiType.Unknown;
+
         // User API override takes top priority — derive primary API from the override set
         if (gameName != null && _apiOverrides.TryGetValue(gameName, out var apiOverrideList))
         {
@@ -160,6 +213,10 @@ public partial class MainViewModel
                 return primary != GraphicsApiType.Unknown ? primary : overrideApis.First();
             }
         }
+
+        // ── Game-level cache: skip all filesystem scanning if cached ──────────
+        if (_gameApiCache.TryGetValue(installPath, out var cached))
+            return cached.Primary;
 
         // Unity: boot.config is the most reliable source (PE imports are misleading)
         var unityResult = GraphicsApiDetector.DetectUnityFromBootConfig(installPath);
@@ -261,6 +318,11 @@ public partial class MainViewModel
     /// </summary>
     internal HashSet<GraphicsApiType> _DetectAllApisForCard(string installPath, string? gameName = null)
     {
+        // Skip WindowsApps — always access-denied, wastes time on retries
+        if (installPath.Contains(@"\WindowsApps\", StringComparison.OrdinalIgnoreCase)
+            || installPath.Contains(@"/WindowsApps/", StringComparison.OrdinalIgnoreCase))
+            return new HashSet<GraphicsApiType>();
+
         // User API override takes priority — return the override set instead of scanning
         if (gameName != null && _apiOverrides.TryGetValue(gameName, out var apiOverrideList))
         {
@@ -275,6 +337,10 @@ public partial class MainViewModel
         }
 
         var result = new HashSet<GraphicsApiType>();
+
+        // ── Game-level cache: skip filesystem scanning if cached ──────────
+        if (_gameApiCache.TryGetValue(installPath, out var cached))
+            return cached.All;
 
         // Manifest override — merge multi-API tags (e.g. "DX12, VLK")
         if (gameName != null && _manifest?.GraphicsApiOverrides != null
@@ -299,12 +365,26 @@ public partial class MainViewModel
     }
 
     /// <summary>
+    /// Stores the detected graphics API results in the game-level cache.
+    /// Called after card building to persist results for subsequent launches.
+    /// </summary>
+    internal static void CacheGameApi(string installPath, GraphicsApiType primary, HashSet<GraphicsApiType> all)
+    {
+        _gameApiCache[installPath] = (primary, all);
+    }
+
+    /// <summary>
     /// Scans all .exe files in a directory and adds their detected APIs to the result set.
     /// </summary>
     private static void ScanAllExesInDir(string dirPath, HashSet<GraphicsApiType> result)
     {
         try
         {
+            // Skip WindowsApps — always access-denied, wastes time on retries
+            if (dirPath.Contains(@"\WindowsApps\", StringComparison.OrdinalIgnoreCase)
+                || dirPath.Contains(@"/WindowsApps/", StringComparison.OrdinalIgnoreCase))
+                return;
+
             foreach (var exeFile in Directory.GetFiles(dirPath, "*.exe"))
             {
                 var apis = GraphicsApiDetector.DetectAllApis(exeFile);

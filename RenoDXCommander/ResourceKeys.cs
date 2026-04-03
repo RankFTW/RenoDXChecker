@@ -281,6 +281,12 @@ public static class ResourceKeys
     public const string ChipActiveBrush = "ChipActiveBrush";
     /// <summary>Brush resource key for the filter chip text.</summary>
     public const string ChipTextBrush = "ChipTextBrush";
+    /// <summary>Brush resource key for the default custom filter chip.</summary>
+    public const string CustomChipDefaultBrush = "CustomChipDefaultBrush";
+    /// <summary>Brush resource key for the active custom filter chip.</summary>
+    public const string CustomChipActiveBrush = "CustomChipActiveBrush";
+    /// <summary>Brush resource key for the custom filter chip text.</summary>
+    public const string CustomChipTextBrush = "CustomChipTextBrush";
 
     // ── Brush keys: Sidebar ─────────────────────────────────────────────
 

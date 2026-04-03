@@ -124,6 +124,8 @@ public partial class App : Application
         }
 
         CrashReporter.Log("[App.OnLaunched] Creating MainWindow");
+        GraphicsApiDetector.LoadCache();
+        MainViewModel.LoadGameApiCache();
         _window = Services.GetRequiredService<MainWindow>();
         _window.Activate();
         CrashReporter.Log("[App.OnLaunched] MainWindow activated");

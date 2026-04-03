@@ -128,6 +128,12 @@ public partial class DetailPanelBuilder
                 {
                     badge.PointerPressed += async (s, e) =>
                         await Windows.System.Launcher.LaunchUriAsync(new Uri(donationUrl));
+                    var handCursor = Microsoft.UI.Input.InputSystemCursor.Create(Microsoft.UI.Input.InputSystemCursorShape.Hand);
+                    var arrowCursor = Microsoft.UI.Input.InputSystemCursor.Create(Microsoft.UI.Input.InputSystemCursorShape.Arrow);
+                    var cursorProp = typeof(UIElement).GetProperty("ProtectedCursor",
+                        System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                    badge.PointerEntered += (s, e) => cursorProp?.SetValue(badge, handCursor);
+                    badge.PointerExited += (s, e) => cursorProp?.SetValue(badge, arrowCursor);
                 }
                 _window.DetailAuthorBadgePanel.Children.Add(badge);
             }

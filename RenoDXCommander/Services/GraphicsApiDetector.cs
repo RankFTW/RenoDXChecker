@@ -1,5 +1,7 @@
+using System.Collections.Concurrent;
 using System.Security;
 using System.Text;
+using System.Text.Json;
 using RenoDXCommander.Models;
 
 namespace RenoDXCommander.Services;
@@ -11,6 +13,80 @@ public static class GraphicsApiDetector
 {
     private const int HeaderBufferSize = 4096; // enough for DOS + PE + section headers
     private const int ImportReadSize = 8192;   // enough for import directory + DLL name strings
+
+    // ── API detection cache ───────────────────────────────────────────────────────
+    private static readonly ConcurrentDictionary<string, HashSet<GraphicsApiType>> _apiCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private static string CacheFilePath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RHI", "api_cache.json");
+
+    /// <summary>
+    /// Builds a cache key that includes the file's last write time so stale entries
+    /// are automatically invalidated when games update.
+    /// </summary>
+    private static string MakeCacheKey(string filePath, DateTime lastWriteUtc)
+        => $"{filePath}|{lastWriteUtc.Ticks}";
+
+    /// <summary>
+    /// Loads the API detection cache from disk into memory.
+    /// Call once during app startup.
+    /// </summary>
+    public static void LoadCache()
+    {
+        try
+        {
+            var path = CacheFilePath;
+            if (!File.Exists(path)) return;
+
+            var json = File.ReadAllText(path);
+            var dict = JsonSerializer.Deserialize<Dictionary<string, List<string>>>(json);
+            if (dict == null) return;
+
+            foreach (var (key, apiNames) in dict)
+            {
+                var apis = new HashSet<GraphicsApiType>();
+                foreach (var name in apiNames)
+                {
+                    if (Enum.TryParse<GraphicsApiType>(name, out var api))
+                        apis.Add(api);
+                }
+                _apiCache[key] = apis;
+            }
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"[GraphicsApiDetector.LoadCache] Failed to load cache — {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Persists the in-memory API detection cache to disk.
+    /// Call after card building completes.
+    /// </summary>
+    public static void SaveCache()
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(CacheFilePath)!;
+            Directory.CreateDirectory(dir);
+
+            var dict = new Dictionary<string, List<string>>(_apiCache.Count, StringComparer.OrdinalIgnoreCase);
+            foreach (var (key, apis) in _apiCache)
+                dict[key] = apis.Select(a => a.ToString()).ToList();
+
+            var json = JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = false });
+            File.WriteAllText(CacheFilePath, json);
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"[GraphicsApiDetector.SaveCache] Failed to save cache — {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Clears the in-memory API detection cache. Called on full refresh.
+    /// </summary>
+    public static void ClearCache() => _apiCache.Clear();
 
     private static readonly Dictionary<string, GraphicsApiType> DllMap = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -200,6 +276,16 @@ public static class GraphicsApiDetector
         if (string.IsNullOrEmpty(exePath))
             return result;
 
+        // Check cache first (keyed by path + last write time)
+        try
+        {
+            var lastWrite = File.GetLastWriteTimeUtc(exePath);
+            var cacheKey = MakeCacheKey(exePath, lastWrite);
+            if (_apiCache.TryGetValue(cacheKey, out var cached))
+                return new HashSet<GraphicsApiType>(cached);
+        }
+        catch { /* file may not exist yet — proceed with detection */ }
+
         try
         {
             using var stream = new FileStream(exePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
@@ -304,6 +390,14 @@ public static class GraphicsApiDetector
             // lower-priority APIs), add DX12 — same inference as Detect().
             if (importsDxgi && !hasExplicitDx)
                 result.Add(GraphicsApiType.DirectX12);
+
+            // Store result in cache
+            try
+            {
+                var lwt = File.GetLastWriteTimeUtc(exePath);
+                _apiCache[MakeCacheKey(exePath, lwt)] = result;
+            }
+            catch { /* best-effort caching */ }
 
             return result;
         }
