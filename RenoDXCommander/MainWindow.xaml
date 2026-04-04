@@ -540,6 +540,35 @@
                                     </Button>
                                 </Grid>
 
+                                <!-- Luma row (shown in Luma mode) -->
+                                <Grid x:Name="DetailLumaRow" x:FieldModifier="internal" ColumnSpacing="8" Visibility="Collapsed">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120"/>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="36"/>
+                                        <ColumnDefinition Width="36"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Luma" FontSize="12"
+                                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="DetailLumaStatus" x:FieldModifier="internal" Grid.Column="1" FontSize="12"
+                                               VerticalAlignment="Center" HorizontalTextAlignment="Center"/>
+                                    <Button x:Name="DetailLumaInstallBtn" x:FieldModifier="internal" Grid.Column="2"
+                                            Click="InstallLumaButton_Click"
+                                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                            CornerRadius="8" FontSize="12" Height="32"
+                                            BorderThickness="1"/>
+                                    <Border Grid.Column="3"/>
+                                    <Button x:Name="DetailLumaDeleteBtn" x:FieldModifier="internal" Grid.Column="4"
+                                            Click="UninstallLumaButton_Click"
+                                            Background="{StaticResource AccentRedBgBrush}" Foreground="{StaticResource AccentRedBrush}"
+                                            BorderBrush="{StaticResource AccentPurpleBorderBrush}" BorderThickness="1"
+                                            CornerRadius="8" Width="36" Height="32" Padding="0"
+                                            ToolTipService.ToolTip="Remove Luma mod" Opacity="0" IsHitTestVisible="False">
+                                        <TextBlock Text="✕" FontSize="12" HorizontalAlignment="Center"/>
+                                    </Button>
+                                </Grid>
+
                                 <!-- Labeled separator: choose one limiter -->
                                 <Grid Margin="0,4,0,4" ColumnSpacing="8">
                                     <Grid.ColumnDefinitions>
@@ -624,35 +653,6 @@
                                             BorderBrush="{StaticResource AccentPurpleBorderBrush}" BorderThickness="1"
                                             CornerRadius="8" Width="36" Height="32" Padding="0"
                                             ToolTipService.ToolTip="Remove Display Commander" Opacity="0" IsHitTestVisible="False">
-                                        <TextBlock Text="✕" FontSize="12" HorizontalAlignment="Center"/>
-                                    </Button>
-                                </Grid>
-
-                                <!-- Luma row (shown in Luma mode) -->
-                                <Grid x:Name="DetailLumaRow" x:FieldModifier="internal" ColumnSpacing="8" Visibility="Collapsed">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="120"/>
-                                        <ColumnDefinition Width="80"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="36"/>
-                                        <ColumnDefinition Width="36"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Luma" FontSize="12"
-                                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" FontWeight="SemiBold"/>
-                                    <TextBlock x:Name="DetailLumaStatus" x:FieldModifier="internal" Grid.Column="1" FontSize="12"
-                                               VerticalAlignment="Center" HorizontalTextAlignment="Center"/>
-                                    <Button x:Name="DetailLumaInstallBtn" x:FieldModifier="internal" Grid.Column="2"
-                                            Click="InstallLumaButton_Click"
-                                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                                            CornerRadius="8" FontSize="12" Height="32"
-                                            BorderThickness="1"/>
-                                    <Border Grid.Column="3"/>
-                                    <Button x:Name="DetailLumaDeleteBtn" x:FieldModifier="internal" Grid.Column="4"
-                                            Click="UninstallLumaButton_Click"
-                                            Background="{StaticResource AccentRedBgBrush}" Foreground="{StaticResource AccentRedBrush}"
-                                            BorderBrush="{StaticResource AccentPurpleBorderBrush}" BorderThickness="1"
-                                            CornerRadius="8" Width="36" Height="32" Padding="0"
-                                            ToolTipService.ToolTip="Remove Luma mod" Opacity="0" IsHitTestVisible="False">
                                         <TextBlock Text="✕" FontSize="12" HorizontalAlignment="Center"/>
                                     </Button>
                                 </Grid>

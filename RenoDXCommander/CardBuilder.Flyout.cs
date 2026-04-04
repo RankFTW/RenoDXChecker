@@ -129,6 +129,20 @@ public partial class CardBuilder
         }
         panel.Children.Add(rdxRow);
 
+        // Luma row (conditional — shown above limiter separator in Luma mode)
+        Grid? lumaRow = null;
+        if (card.CardLumaVisible)
+        {
+            lumaRow = BuildComponentRow(card, "Luma", "Luma",
+                card.LumaStatusText, card.LumaStatusColor, card.LumaShortAction,
+                card.CardLumaInstallEnabled, card.IsLumaInstalled,
+                showCopyConfig: false, copyConfigVisible: false,
+                copyConfigTooltip: null,
+                btnBackground: card.LumaBtnBackground, btnForeground: card.LumaBtnForeground,
+                btnBorderBrush: card.LumaBtnBorderBrush);
+            panel.Children.Add(lumaRow);
+        }
+
         // ── Limiter separator + rows ──────────────────────────────────────────
         var limiterSep = new TextBlock
         {
@@ -240,20 +254,6 @@ public partial class CardBuilder
             externalRow.Children.Add(extDeleteBtn);
 
             panel.Children.Add(externalRow);
-        }
-
-        // Luma row (conditional)
-        Grid? lumaRow = null;
-        if (card.CardLumaVisible)
-        {
-            lumaRow = BuildComponentRow(card, "Luma", "Luma",
-                card.LumaStatusText, card.LumaStatusColor, card.LumaShortAction,
-                card.CardLumaInstallEnabled, card.IsLumaInstalled,
-                showCopyConfig: false, copyConfigVisible: false,
-                copyConfigTooltip: null,
-                btnBackground: card.LumaBtnBackground, btnForeground: card.LumaBtnForeground,
-                btnBorderBrush: card.LumaBtnBorderBrush);
-            panel.Children.Add(lumaRow);
         }
 
         // ── Subscribe to PropertyChanged for live updates while flyout is open ──

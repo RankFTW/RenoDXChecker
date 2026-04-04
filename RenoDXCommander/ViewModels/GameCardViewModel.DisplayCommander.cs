@@ -55,9 +55,9 @@ public partial class GameCardViewModel
     public bool CardDcInstallEnabled => !DcIsInstalling;
 
     /// <summary>
-    /// DC row hidden in Luma mode (same pattern as RenoDX row).
+    /// DC row is always visible (available in both standard and Luma modes).
     /// </summary>
-    public Visibility DcRowVisibility => EffectiveLumaMode ? Visibility.Collapsed : Visibility.Visible;
+    public Visibility DcRowVisibility => Visibility.Visible;
 
     // ── Targeted notification: DcStatus changed ───────────────────────────────────
     private void NotifyDcStatusDependents()

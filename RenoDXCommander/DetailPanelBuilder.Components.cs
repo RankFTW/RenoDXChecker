@@ -121,7 +121,7 @@ public partial class DetailPanelBuilder
             _window.DetailUlDeleteBtn.IsHitTestVisible = ulShow;
         }
 
-        // Display Commander row — hidden in Luma mode
+        // Display Commander row — always visible (available in Luma mode)
         _window.DetailDcRow.Visibility = card.DcRowVisibility;
         if (card.DcRowVisibility == Visibility.Visible)
         {

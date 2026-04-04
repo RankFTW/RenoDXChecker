@@ -52,7 +52,7 @@ A card-based layout showing all games as a grid. Toggle between views with the v
 - Update-available highlight border
 - A Manage popout for quick access to install/uninstall/override controls
 
-The grid view card flyout matches the detail panel: same component order (ReShade → RenoDX → separator → ReLimiter → DC), mutual exclusion greying, and "Choose one from below" separator. The overrides flyout includes DC DLL override, DC update exclusion, bitness override, API override, and full Reset Overrides support.
+The grid view card flyout matches the detail panel: same component order (ReShade → RenoDX → Luma (when applicable) → separator → ReLimiter → DC), mutual exclusion greying, and "Choose one from below" separator. The overrides flyout includes DC DLL override, DC update exclusion, bitness override, API override, and full Reset Overrides support.
 
 Games in Luma mode do not show a wiki status icon on the grid card.
 
@@ -215,10 +215,10 @@ The detail panel shows a Components section with up to five rows, separated into
 |-----|-----------|----------|
 | ReShade | ReShade | Install / Reinstall / Update — Copy INI — Uninstall |
 | RenoDX | RenoDX Mod | Install / Reinstall / Update — UE-Extended options — Uninstall |
+| Luma | Luma Framework | Install / Uninstall (shown only in Luma mode) |
 | — | *separator* | "Choose one from below" |
 | ReLimiter | ReLimiter | Install / Reinstall / Update — Copy INI — Uninstall |
 | Display Commander | Display Commander | Install / Reinstall / Update — Copy INI — Uninstall |
-| Luma | Luma Framework | Install / Uninstall (shown only in Luma mode) |
 
 ReLimiter and Display Commander are mutually exclusive — only one frame rate limiter can be installed per game at a time. When one is installed, the other's install button is greyed out. Removing one re-enables the other.
 

@@ -121,7 +121,7 @@ public class DcStatusDisplayPropertyTests
     }
 
     [Property(MaxTest = 10)]
-    public Property LumaMode_DcRowCollapsed()
+    public Property LumaMode_DcRowVisible()
     {
         var gen = from status in GameStatusGen
                   from isInstalling in Arb.Default.Bool().Generator
@@ -139,10 +139,10 @@ public class DcStatusDisplayPropertyTests
                 LumaFeatureEnabled = true
             };
 
-            bool collapsed = card.DcRowVisibility == Visibility.Collapsed;
+            bool visible = card.DcRowVisibility == Visibility.Visible;
 
-            return collapsed.Label(
-                $"DcRowVisibility should be Collapsed in Luma mode but got {card.DcRowVisibility}");
+            return visible.Label(
+                $"DcRowVisibility should be Visible in Luma mode but got {card.DcRowVisibility}");
         });
     }
 }
