@@ -16,6 +16,7 @@ This document covers everything RHI does in depth. For a quick overview, see the
 - [UE-Extended and Native HDR](#ue-extended-and-native-hdr)
 - [Frame Rate Limiters](#frame-rate-limiters)
 - [Shader Packs](#shader-packs)
+- [ReShade Addon Management](#reshade-addon-management)
 - [Luma Framework](#luma-framework)
 - [Per-Game Overrides](#per-game-overrides)
 - [INI Presets](#ini-presets)
@@ -104,7 +105,7 @@ Click **Settings** in the toolbar. Click **Back to Games** to return.
 |---------|----------|
 | Add Game | Manually add a game that wasn't auto-detected. Enter the game name and pick the install folder. |
 | Full Refresh | Clears all caches (including API detection caches) and re-scans everything from disk. Use when games or mods appear out of sync. |
-| Preferences | Skip Update Check on Launch, Beta Opt-In, Verbose Logging, Custom Shaders toggle, Screenshot Path (with Browse and Open buttons, optional per-game subfolder) |
+| Preferences | Skip Update Check on Launch, Beta Opt-In, Verbose Logging, Custom Shaders toggle, Screenshot Path (with Browse and Open buttons, optional per-game subfolder, Apply to All writes to all reshade*.ini variants) |
 | Crash and Error Logs | Open Logs Folder, Open Downloads Cache, ReShade staging path |
 
 All settings apply immediately. Informational content (app description, credits & acknowledgements, disclaimers, and links) is on the About page, accessible from the Help flyout.
@@ -401,6 +402,10 @@ RHI downloads and maintains a collection of 37+ ReShade shader packs, merged int
 
 Per-game shader overrides allow different games to use different subsets of shader packs. Select mode opens a picker to choose specific packs for that game. Clicking Deploy immediately deploys the chosen shaders to the game folder.
 
+### Shader Pack Dependencies
+
+Shader packs can declare dependencies on other packs. When a pack with dependencies is selected in the picker, its required packs are automatically checked. For example, selecting Azen automatically selects smolbbsoop shaders. The dependency is one-way — deselecting the required pack independently is still allowed.
+
 ### Deploy Destinations
 
 | Scenario | Destination |
@@ -417,6 +422,60 @@ Place custom shaders in `%LOCALAPPDATA%\RHI\reshade\Custom\Shaders\` and texture
 ### Startup Deployment
 
 On launch, RHI ensures shader packs are fully downloaded before syncing shaders to all installed game folders. Games with ReShade installed will have the correct global or per-game shaders deployed automatically.
+
+---
+
+## ReShade Addon Management
+
+RHI includes a curated ReShade addon manager that lets you browse, download, and manage addons from the official ReShade Addons.ini list.
+
+### Addon Manager
+
+Click the "ReShade Addons" button in the main toolbar header to open the Addon Manager. A one-time warning dialog explains that addons are advanced features before the manager opens for the first time.
+
+The manager shows all available addons with their name and description. Each addon has a toggle switch:
+
+- **Toggle on** — downloads the addon (if not already cached) and enables it globally. The addon is deployed to all games with ReShade installed.
+- **Toggle off** — disables the addon globally. Files remain cached in the staging area for later use.
+
+Repository-only addons (no download URLs) are filtered out of the manager.
+
+### Global Deployment
+
+Enabled addons are automatically deployed to every game with ReShade installed. When ReShade is installed on a new game, enabled addons are deployed there too. The correct bitness variant (`.addon32` or `.addon64`) is selected based on the game's detected bitness. Addons without the required variant are skipped.
+
+### Auto-Update
+
+On startup, RHI checks all downloaded addons for updates using GitHub release tags or HTTP ETags. Newer versions are downloaded automatically. Existing versions are retained on failure.
+
+### Per-Game Addon Overrides
+
+Each game's override panel includes an Addons section with a Global toggle:
+
+- **Global on** — the game uses the globally enabled addon set
+- **Global off** — opens a per-game addon picker with the same toggle-based UI. Toggle on downloads if needed and enables for that game only.
+
+Per-game addon selections are persisted across restarts.
+
+### RenoDX DevKit Addon
+
+The RenoDX DevKit addon is always available in the addon manager alongside the official Addons.ini entries, with download URLs for both 32-bit and 64-bit variants from the RenoDX GitHub releases.
+
+### Addon Storage
+
+| Path | Contents |
+|------|----------|
+| `%LOCALAPPDATA%\RHI\addons\` | Downloaded addon files (`.addon32`, `.addon64`) |
+| `%LOCALAPPDATA%\RHI\addons\versions.json` | Version tracking per addon |
+| `%LOCALAPPDATA%\RHI\addons_cache.ini` | Cached Addons.ini for offline fallback |
+
+### Override Panel Layout
+
+The override panel is organised as:
+
+- **Top row** — Game name, wiki mapping, wiki exclusion
+- **Middle row** — Bitness/API overrides (left), Global update inclusion (right)
+- **Bottom row** — Shaders (left), Addons (right)
 
 ---
 
@@ -455,6 +514,7 @@ The Overrides section appears below Components in the detail panel. All controls
 | DLL naming overrides | Independent toggle and dropdown for ReShade and Display Commander filenames. Existing installs are renamed in place — no reinstall needed. Each dropdown filters out the other component's current filename to prevent conflicts. The DC dropdown is editable (supports manual DLL names via Enter key). Dropdowns clear to placeholder text ("Select ReShade DLL name" / "Select DC DLL name") when the toggle is turned off. Turning off the ReShade override renames the file back to `dxgi.dll` instead of deleting it. |
 | Global update inclusion | Four toggle switches (ReShade, RenoDX, ReLimiter, Display Commander) in a 2×2 grid layout, controlling whether the game is included in bulk updates. All default to On. |
 | Shader Mode | Global / Off / Minimum / All / User / Select. Select mode opens a picker for specific shader packs. |
+| Addon Mode | Global / Select. Global uses the globally enabled addon set. Select opens a per-game addon picker. |
 | Rendering Path | For dual-API games: DirectX or Vulkan. Switching triggers automatic cleanup. |
 | Bitness override | Dropdown: Auto, 32-bit, or 64-bit. Overrides PE header auto-detection. |
 | Graphics API override | Dropdown: Auto, DirectX8, DirectX9, DirectX10, DX11/DX12, Vulkan, OpenGL. "Auto" uses the auto-detected value from PE header scanning. |
@@ -632,6 +692,8 @@ Everything under `%LOCALAPPDATA%\RHI\`:
 | `api_cache.json` | PE-level graphics API detection cache (keyed by file path + last write time) |
 | `game_api_cache.json` | Game-level API detection cache (keyed by install path) |
 | `downloads\` | Cached downloads (separate files for 32-bit and 64-bit ReLimiter and DC) |
+| `addons\` | Downloaded ReShade addon files and version tracking (`versions.json`) |
+| `addons_cache.ini` | Cached Addons.ini for offline fallback |
 | `inis\` | Preset config files (`reshade.ini`, `reshade.vulkan.ini`, `relimiter.ini`, `DisplayCommander.ini`, etc.) |
 | `reshade\` | Staged shader packs and custom shaders |
 | `logs\` | Session logs (timestamped) and crash reports |
