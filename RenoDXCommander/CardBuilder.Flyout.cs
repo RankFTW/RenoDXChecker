@@ -172,7 +172,7 @@ public partial class CardBuilder
                     await Windows.System.Launcher.LaunchUriAsync(new Uri(_window.ViewModel.LatestUlReleasePageUrl));
                 else if (card.IsUlInstalled)
                     await Windows.System.Launcher.LaunchUriAsync(
-                        new Uri("https://github.com/RankFTW/Ultra-Limiter?tab=readme-ov-file#ultra-limiter--comprehensive-feature-guide"));
+                        new Uri("https://github.com/RankFTW/ReLimiter?tab=readme-ov-file#relimiter--comprehensive-feature-guide"));
             };
         }
         ulRow.Visibility = card.UlRowVisibility;

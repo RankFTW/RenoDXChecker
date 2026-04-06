@@ -1,3 +1,15 @@
+## v1.7.3
+
+### Changes
+
+**ReLimiter v3.0.0 — new repository**
+- ReLimiter is now sourced from [github.com/RankFTW/ReLimiter](https://github.com/RankFTW/ReLimiter/releases). Downloads, updates, and feature guide links all point to the new repo.
+
+**ReLimiter 64-bit only (for now)**
+- ReLimiter v3.0.0 is 64-bit only. 32-bit games show the ReLimiter row with strikethrough styling and a disabled install button, matching the mutual exclusion pattern used for Display Commander. The 32-bit code paths remain in place and will activate automatically when a 32-bit release is published.
+
+---
+
 ## v1.7.2
 
 ### Bug Fixes
@@ -451,7 +463,7 @@
 - The UL row is hidden when a game is in Luma mode.
 - ReLimiter is downloaded from GitHub on demand rather than bundled with the app, keeping the install size smaller.
 - Update detection compares file size and SHA-256 hash against the remote release. When an update is available, the status dot turns orange and the button shows "Update".
-- For a full list of ReLimiter features and settings, see the [ReLimiter Feature Guide](https://github.com/RankFTW/Ultra-Limiter?tab=readme-ov-file#ultra-limiter--comprehensive-feature-guide).
+- For a full list of ReLimiter features and settings, see the [ReLimiter Feature Guide](https://github.com/RankFTW/ReLimiter?tab=readme-ov-file#relimiter--comprehensive-feature-guide).
 - A bundled `relimiter.ini` is seeded to the UPST inis folder on first launch. A 📋 button on the ReLimiter row copies it to the game folder, matching the existing ReShade INI workflow.
 
 **ReLimiter "Installed" link**

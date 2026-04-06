@@ -225,7 +225,8 @@ public partial class MainViewModel
 
         // ── Determine which bitness variants are in use ───────────────────
         bool needs64 = cards.Any(c => c.UlStatus == GameStatus.Installed && !c.Is32Bit);
-        bool needs32 = cards.Any(c => c.UlStatus == GameStatus.Installed && c.Is32Bit);
+        // 32-bit ReLimiter not yet available — skip 32-bit update checks for now
+        bool needs32 = false;
 
         // If nothing is specifically installed yet (legacy/meta-only), default to 64-bit
         if (!needs64 && !needs32)
@@ -537,7 +538,7 @@ public partial class MainViewModel
 
     /// <summary>URL to the GitHub release page for the latest UL version, or null if unknown.</summary>
     public string? LatestUlReleasePageUrl => _latestUlVersion != null
-        ? $"https://github.com/RankFTW/Ultra-Limiter/releases/tag/{_latestUlVersion}"
+        ? $"https://github.com/RankFTW/ReLimiter/releases/tag/{_latestUlVersion}"
         : null;
 
     /// <summary>Downloads the remote UL file(s) into the cache using the URLs from the latest release.</summary>

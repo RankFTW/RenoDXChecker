@@ -102,8 +102,8 @@ public partial class DetailPanelBuilder
         _window.DetailUlRow.Visibility = card.UlRowVisibility;
         if (card.UlRowVisibility == Visibility.Visible)
         {
-            // Strikethrough the label and status when the other limiter (DC) is installed
-            var ulStrike = card.IsDcInstalled
+            // Strikethrough the label and status when the other limiter (DC) is installed or game is 32-bit (no 32-bit ReLimiter yet)
+            var ulStrike = (card.IsDcInstalled || card.Is32Bit)
                 ? Windows.UI.Text.TextDecorations.Strikethrough
                 : Windows.UI.Text.TextDecorations.None;
             _window.DetailUlLabel.TextDecorations = ulStrike;
@@ -112,10 +112,10 @@ public partial class DetailPanelBuilder
             _window.DetailUlStatus.Foreground = UIFactory.GetBrush(card.UlStatusColor);
             _window.DetailUlStatus.TextDecorations = card.IsUlInstalled
                 ? Windows.UI.Text.TextDecorations.Underline
-                : card.IsDcInstalled ? Windows.UI.Text.TextDecorations.Strikethrough
+                : (card.IsDcInstalled || card.Is32Bit) ? Windows.UI.Text.TextDecorations.Strikethrough
                 : Windows.UI.Text.TextDecorations.None;
             _window.DetailUlInstallBtn.Tag = card;
-            _window.DetailUlInstallBtn.Content = card.IsDcInstalled
+            _window.DetailUlInstallBtn.Content = (card.IsDcInstalled || card.Is32Bit)
                 ? (object)new TextBlock { Text = card.UlActionLabel, TextDecorations = Windows.UI.Text.TextDecorations.Strikethrough }
                 : card.UlActionLabel;
             _window.DetailUlInstallBtn.IsEnabled = card.UlInstallEnabled;

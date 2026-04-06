@@ -679,7 +679,7 @@ public partial class MainViewModel
     private const string LegacyUltraLimiterFileName = "ultra_limiter.addon64";
     private const string LegacyUltraLimiterFileName32 = "ultra_limiter.addon32";
     private const string UltraLimiterReleasesApiUrl =
-        "https://api.github.com/repos/RankFTW/Ultra-Limiter/releases/latest";
+        "https://api.github.com/repos/RankFTW/ReLimiter/releases/latest";
 
     internal static string GetUlFileName(bool is32Bit) =>
         is32Bit ? UltraLimiterFileName32 : UltraLimiterFileName64;

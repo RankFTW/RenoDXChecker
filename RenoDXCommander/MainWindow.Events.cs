@@ -928,7 +928,7 @@ public sealed partial class MainWindow
             await Windows.System.Launcher.LaunchUriAsync(new Uri(ViewModel.LatestUlReleasePageUrl));
         else if (card.UlStatus == Models.GameStatus.Installed || card.UlStatus == Models.GameStatus.UpdateAvailable)
             await Windows.System.Launcher.LaunchUriAsync(
-                new Uri("https://github.com/RankFTW/Ultra-Limiter?tab=readme-ov-file#ultra-limiter--comprehensive-feature-guide"));
+                new Uri("https://github.com/RankFTW/ReLimiter?tab=readme-ov-file#relimiter--comprehensive-feature-guide"));
     }
 
     private async void DetailDcStatus_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)

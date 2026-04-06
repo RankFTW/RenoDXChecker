@@ -235,7 +235,7 @@ Named mods from the RenoDX wiki display the mod author as a bordered badge on th
 
 - ReShade "Installed" → links to [reshade.me](https://reshade.me)
 - RenoDX "Installed" → links to the game's wiki page (or the mods list)
-- ReLimiter "Installed" → links to the [ReLimiter feature guide](https://github.com/RankFTW/Ultra-Limiter?tab=readme-ov-file#ultra-limiter--comprehensive-feature-guide)
+- ReLimiter "Installed" → links to the [ReLimiter feature guide](https://github.com/RankFTW/ReLimiter?tab=readme-ov-file#relimiter--comprehensive-feature-guide)
 - Display Commander status text is underlined when installed (clickable link)
 
 Version numbers and author donation badges show a hand cursor on hover when they are clickable.
@@ -310,7 +310,7 @@ Games on the `nativeHdrGames` list are flagged for native HDR support. Games on 
 
 ## Frame Rate Limiters
 
-RHI supports two frame rate limiters: [ReLimiter](https://github.com/RankFTW/Ultra-Limiter?tab=readme-ov-file#ultra-limiter--comprehensive-feature-guide) and Display Commander. They are mutually exclusive per game — only one can be installed at a time. When one is installed, the other's install button is greyed out. Removing one re-enables the other.
+RHI supports two frame rate limiters: [ReLimiter](https://github.com/RankFTW/ReLimiter?tab=readme-ov-file#relimiter--comprehensive-feature-guide) and Display Commander. They are mutually exclusive per game — only one can be installed at a time. When one is installed, the other's install button is greyed out. Removing one re-enables the other.
 
 ### ReLimiter
 
@@ -735,7 +735,7 @@ Old session logs are pruned to keep a maximum of 10 on disk. The oldest logs are
 |-----------|--------|---------|
 | [ReShade](https://reshade.me) | Crosire | [BSD 3-Clause](https://github.com/crosire/reshade/blob/main/LICENSE.md) |
 | [RenoDX](https://github.com/clshortfuse/renodx) | clshortfuse & contributors | [MIT](https://github.com/clshortfuse/renodx/blob/main/LICENSE) |
-| [ReLimiter](https://github.com/RankFTW/Ultra-Limiter) | RankFTW | Source-available |
+| [ReLimiter](https://github.com/RankFTW/ReLimiter) | RankFTW | Source-available |
 | [Display Commander](https://github.com/lobotomyx/display-commander) | lobotomyx | Source-available |
 | [RE Framework](https://github.com/praydog/REFramework-nightly) | praydog | [MIT](https://github.com/praydog/REFramework/blob/master/LICENSE) |
 | [Luma Framework](https://github.com/Filoppi/Luma-Framework) | Pumbo (Filoppi) | Source-available |
