@@ -3,7 +3,13 @@
 ### New Features
 
 **Copy Report button**
-- New "Copy Report" button in the overrides panel. Copies a diagnostic code to your clipboard that you can paste in Discord or a GitHub issue. Includes game info, installed components, overrides, and an optional note describing the problem.
+- New "Copy Report" button in the overrides panel. Copies a diagnostic code to your clipboard that you can paste in Discord or a GitHub issue. Includes game info, installed components, overrides, and an optional note. A confirmation prompt reminds you to correct overrides before submitting.
+
+**ReShade preset selector**
+- New "Select ReShade Preset" button in the overrides panel. Place `.ini` preset files in the `reshade-presets` folder and deploy them to any game with one click.
+
+**Addon lifecycle tied to ReShade**
+- Installing ReShade now automatically deploys your selected addons (global or per-game). Uninstalling ReShade removes managed addons from the game folder. Refresh syncs addons to all games with ReShade installed.
 
 ### Bug Fixes
 
@@ -13,22 +19,13 @@
 **Update All tooltip missing Display Commander**
 - The Update All button tooltip now includes Display Commander in the list of components.
 
-**Addons left behind when ReShade is uninstalled**
-- Uninstalling ReShade now also removes any managed addons (screenshot tools, DevKit, etc.) from the game folder. Previously they were left behind with no ReShade to load them.
-
-**Addons not deployed when ReShade is installed**
-- Installing ReShade now automatically deploys your selected addons (global or per-game) to the game folder. Previously you had to refresh or toggle addons manually after installing ReShade.
-
-**Addons not synced on Refresh**
-- Clicking Refresh now syncs managed addons to all games with ReShade installed, matching how shader packs already worked.
+**Game report showing same values for detected and corrected**
+- The Copy Report diagnostic now captures the raw auto-detected bitness and API before user overrides, so the detected vs corrected diff shows actual before/after values.
 
 ### Changes
 
-**Manage section merged into overrides panel**
-- The "Change install folder" and "Reset folder / Remove game" buttons have moved from a separate section into the overrides panel, keeping everything in one place.
-
-**Reset Overrides button now red**
-- The Reset Overrides button now uses red styling to match the other destructive actions.
+**Overrides panel layout consolidated**
+- The separate Manage section has been merged into the overrides panel. Change install folder, Reset folder, Reset Overrides, and Copy Report are now stacked in the left column with a vertical divider. The right column holds the new preset selector. Overall spacing has been tightened to reduce vertical height.
 
 ---
 

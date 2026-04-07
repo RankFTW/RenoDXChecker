@@ -394,7 +394,7 @@ public partial class DetailPanelBuilder
         topRowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         // Left column: Game Name above (Wiki Name + Reset Button)
-        var topLeftColumn = new StackPanel { Spacing = 8 };
+        var topLeftColumn = new StackPanel { Spacing = 6 };
         topLeftColumn.Children.Add(detectedBox);
 
         var wikiResetRow = new Grid { ColumnSpacing = 8 };
@@ -443,7 +443,7 @@ public partial class DetailPanelBuilder
         ComboBox? renderPathCombo = null;
 
         // Column 2: DLL naming override
-        var topRightColumn = new StackPanel { Spacing = 8 };
+        var topRightColumn = new StackPanel { Spacing = 6 };
         // DLL naming override moved here from the old Bottom Row
         topRightColumn.Children.Add(dllOverrideToggle);
         topRightColumn.Children.Add(rsNameBox);
@@ -600,7 +600,7 @@ public partial class DetailPanelBuilder
         shaderTogglesRow.Children.Add(shaderToggle);
         shaderTogglesRow.Children.Add(customShadersToggle);
 
-        var shaderColumn = new StackPanel { Spacing = 8 };
+        var shaderColumn = new StackPanel { Spacing = 6 };
         shaderColumn.Children.Add(shadersLabel);
         shaderColumn.Children.Add(shaderTogglesRow);
         shaderColumn.Children.Add(selectShadersBtn);
@@ -1082,7 +1082,7 @@ public partial class DetailPanelBuilder
             Margin = new Thickness(0, 0, 0, 8),
         };
 
-        var addonColumn = new StackPanel { Spacing = 8 };
+        var addonColumn = new StackPanel { Spacing = 6 };
         addonColumn.Children.Add(addonsLabel);
         addonColumn.Children.Add(addonToggle);
         addonColumn.Children.Add(selectAddonsBtn);
@@ -1099,7 +1099,7 @@ public partial class DetailPanelBuilder
         manageRowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         manageRowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var manageLeftColumn = new StackPanel { Spacing = 8 };
+        var manageLeftColumn = new StackPanel { Spacing = 6 };
 
         var changeFolderBtn = new Button
         {
@@ -1133,31 +1133,13 @@ public partial class DetailPanelBuilder
         removeGameBtn.Click += (s, ev) => _window.RemoveManualGame_Click(s, ev);
         manageLeftColumn.Children.Add(removeGameBtn);
 
-        Grid.SetColumn(manageLeftColumn, 0);
-        manageRowGrid.Children.Add(manageLeftColumn);
-
-        var manageDivider = new Border
-        {
-            Width = 1,
-            Background = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
-            VerticalAlignment = VerticalAlignment.Stretch,
-            Margin = new Thickness(12, 0, 12, 0),
-        };
-        Grid.SetColumn(manageDivider, 1);
-        manageRowGrid.Children.Add(manageDivider);
-
-        // Right column intentionally empty — reserved for future use
-        Grid.SetColumn(new StackPanel(), 2);
-
-        _window.OverridesPanel.Children.Add(manageRowGrid);
-        _window.OverridesPanel.Children.Add(UIFactory.MakeSeparator());
-
-        // ── Button row (Reset only — auto-save replaces Save button) ──────────
+        // Reset Overrides button
         var resetOverridesBtn = new Button
         {
             Content = "Reset Overrides",
             FontSize = 12,
-            Padding = new Thickness(16, 8, 16, 8),
+            Height = 32,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             Background = UIFactory.Brush(ResourceKeys.AccentRedBgBrush),
             Foreground = UIFactory.Brush(ResourceKeys.AccentRedBrush),
             BorderBrush = UIFactory.Brush(ResourceKeys.AccentPurpleBorderBrush),
@@ -1268,20 +1250,15 @@ public partial class DetailPanelBuilder
             if (nameChanged)
                 _window.RequestReselect(capturedName);
         };
+        manageLeftColumn.Children.Add(resetOverridesBtn);
 
-        var btnRow = new Grid { ColumnSpacing = 8 };
-        btnRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        btnRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        btnRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        Grid.SetColumn(resetOverridesBtn, 0);
-        btnRow.Children.Add(resetOverridesBtn);
-
+        // Copy Report button
         var reportBtn = new Button
         {
             Content = "Copy Report",
             FontSize = 12,
-            Padding = new Thickness(16, 8, 16, 8),
+            Height = 32,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             Background = UIFactory.Brush(ResourceKeys.SurfaceOverlayBrush),
             Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
             BorderBrush = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
@@ -1295,9 +1272,57 @@ public partial class DetailPanelBuilder
             if (targetCard != null)
                 await GameReportEncoder.ShowAndCopyAsync(_window.Content.XamlRoot, targetCard, _window.ViewModel);
         };
-        Grid.SetColumn(reportBtn, 2);
-        btnRow.Children.Add(reportBtn);
+        manageLeftColumn.Children.Add(reportBtn);
 
-        _window.OverridesPanel.Children.Add(btnRow);
+        Grid.SetColumn(manageLeftColumn, 0);
+        manageRowGrid.Children.Add(manageLeftColumn);
+
+        var manageDivider = new Border
+        {
+            Width = 1,
+            Background = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Margin = new Thickness(12, 0, 12, 0),
+        };
+        Grid.SetColumn(manageDivider, 1);
+        manageRowGrid.Children.Add(manageDivider);
+
+        // Right column — ReShade preset selector
+        var manageRightColumn = new StackPanel { Spacing = 6 };
+
+        var presetBtn = new Button
+        {
+            Content = "Select ReShade Preset",
+            FontSize = 12,
+            Height = 32,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Background = UIFactory.Brush(ResourceKeys.SurfaceOverlayBrush),
+            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
+            BorderBrush = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+        };
+        ToolTipService.SetToolTip(presetBtn,
+            "Pick .ini preset files to copy to this game's folder. Place presets in the reshade-presets folder.");
+        presetBtn.Click += async (s, ev) =>
+        {
+            var selected = await PresetPopupHelper.ShowAsync(_window.Content.XamlRoot);
+            if (selected != null && selected.Count > 0)
+            {
+                var targetCard = _window.ViewModel.AllCards.FirstOrDefault(c =>
+                    c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
+                if (targetCard != null && !string.IsNullOrEmpty(targetCard.InstallPath))
+                {
+                    int count = PresetPopupHelper.DeployPresets(selected, targetCard.InstallPath);
+                    CrashReporter.Log($"[DetailPanelBuilder] Deployed {count} preset(s) to '{capturedName}'");
+                }
+            }
+        };
+        manageRightColumn.Children.Add(presetBtn);
+
+        Grid.SetColumn(manageRightColumn, 2);
+        manageRowGrid.Children.Add(manageRightColumn);
+
+        _window.OverridesPanel.Children.Add(manageRowGrid);
     }
 }

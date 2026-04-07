@@ -74,7 +74,8 @@
 	"The Elder Scrolls III: Morrowind": "Creation Engine",
 	"Crimson Desert": "BlackSpace Engine",
 	"Control": "Northlight Engine",
-	"Control Ultimate Edition": "Northlight Engine"
+	"Control Ultimate Edition": "Northlight Engine",
+	"Monster Hunter Stories 3: Twisted Reflection": "RE Engine"
   },
   "graphicsApiOverrides": {
 	"Baldur's Gate 3": "DX12, VLK",
@@ -85,7 +86,7 @@
 	"The Witcher 3: Wild Hunt": "DX12",
 	"The Witcher 3: Wild Hunt - Game of the Year Edition": "DX12",	
 	"Dying Light": "DX11",
-	"Doom: The Dark Ages": "VLK"
+    "Doom: The Dark Ages": "VLK"	
   },
   "dllNameOverrides": {
 	"The Elder Scrolls III: Morrowind": { "reshade": "opengl32.dll", "dc": "" },
@@ -118,7 +119,8 @@
 	"Borderlands: The Pre-Sequel": "Borderlands 2 & The Pre-Sequel",
 	"Borderlands 2": "Borderlands 2 & The Pre-Sequel",
 	"Dying Light": "Dying Light",
-	"Total War: WARHAMMER III": "Total War: Warhammer 3"
+	"Total War: WARHAMMER III": "Total War: Warhammer 3",
+	"God of War": "God of War (2018)"
   },
   "wikiStatusOverrides": {
     "Code Vein II": "✅",	
@@ -165,7 +167,8 @@
 	"Kingdom Come: Deliverance II": "Bin\\Win64MasterMasterSteamPGO",
 	"Indiana Jones and the Great Circle": "",
 	"Borderlands: The Pre-Sequel": "Binaries\\Win32",
-	"Hades": "x64"
+	"Hades": "x64",
+	"Deus Ex - Mankind Divided": "retail"
   },
   "snapshotOverrides": {
 	"Assassin's Creed": "https://clshortfuse.github.io/renodx/renodx-asscreed1.addon32",
@@ -176,8 +179,7 @@
     "Jedi Fallen Order": "https://clshortfuse.github.io/renodx/renodx-unrealengine.addon64",
     "Terraria": "https://clshortfuse.github.io/renodx/renodx-terraria.addon32"
   },
-  "dcModeOverrides": {	
-	"Terraria": 0
+  "dcModeOverrides": {		
   },
   "forceExternalOnly": {
     "Cyberpunk 2077": {
