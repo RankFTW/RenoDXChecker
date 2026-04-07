@@ -442,7 +442,7 @@ Repository-only addons (no download URLs) are filtered out of the manager.
 
 ### Global Deployment
 
-Enabled addons are automatically deployed to every game with ReShade installed. When ReShade is installed on a new game, enabled addons are deployed there too. The correct bitness variant (`.addon32` or `.addon64`) is selected based on the game's detected bitness. Addons without the required variant are skipped.
+Enabled addons are automatically deployed to every game with ReShade installed. When ReShade is installed on a new game, enabled addons are deployed there too. When ReShade is uninstalled, managed addons are removed from the game folder. Clicking Refresh syncs addons to all games with ReShade installed. The correct bitness variant (`.addon32` or `.addon64`) is selected based on the game's detected bitness. Addons without the required variant are skipped.
 
 ### Auto-Update
 
@@ -519,6 +519,10 @@ The Overrides section appears below Components in the detail panel. All controls
 | Bitness override | Dropdown: Auto, 32-bit, or 64-bit. Overrides PE header auto-detection. |
 | Graphics API override | Dropdown: Auto, DirectX8, DirectX9, DirectX10, DX11/DX12, Vulkan, OpenGL. "Auto" uses the auto-detected value from PE header scanning. |
 | Reset Overrides | Reset all override settings back to defaults |
+| Copy Report | Generate a diagnostic code containing game info, overrides, and component status for Discord or GitHub issues |
+| Change install folder | Pick a different install folder for the game |
+| Reset folder / Remove game | Reset the install folder or remove a manually added game |
+| Select ReShade Preset | Deploy `.ini` preset files from the reshade-presets folder to the game |
 
 ---
 
@@ -538,6 +542,12 @@ Config files in `%LOCALAPPDATA%\RHI\inis\`:
 | `ReShadePreset.ini` | Automatically alongside `reshade.ini` if the file exists in the inis folder. |
 
 To use a custom ReShade preset, place your `ReShadePreset.ini` in the inis folder. It will be copied to every new game install automatically.
+
+---
+
+## ReShade Presets
+
+Place `.ini` preset files in `%LOCALAPPDATA%\RHI\inis\reshade-presets\`. The "Select ReShade Preset" button in the overrides panel lists all files in this folder with checkboxes. Click "Deploy" to copy the selected presets to the game's install folder. If the folder is empty, the dialog offers to open it in Explorer.
 
 ---
 
