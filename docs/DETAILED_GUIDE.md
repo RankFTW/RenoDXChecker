@@ -362,7 +362,7 @@ DC is installed with one click from the detail panel. The install respects mutua
 
 #### DLL Naming Override
 
-A dedicated DC filename override toggle lets you rename the DC addon file for specific games (e.g. to `winmm.dll` or `d3d9.dll`). This works independently from the ReShade DLL naming override. The DC dropdown is editable — you can type a custom DLL name and press Enter. Each dropdown (ReShade and DC) filters out the other component's current filename to prevent conflicts.
+A single "DLL naming overrides" toggle controls both the ReShade and DC filenames together. Turning it ON enables both dropdowns with safe defaults (ReShade64.dll and the default DC addon name); turning it OFF reverts both to their default filenames in one action. Each dropdown is editable — you can type a custom DLL name and press Enter. The dropdowns filter out the other component's current filename to prevent conflicts.
 
 The DC DLL naming resolution priority chain:
 
@@ -390,7 +390,7 @@ A per-game DC update exclusion toggle in the overrides panel lets you pin a spec
 
 ## Shader Packs
 
-RHI downloads and maintains a collection of 37+ ReShade shader packs, merged into a shared staging folder and deployed per-game.
+RHI downloads and maintains a collection of 40+ ReShade shader packs, merged into a shared staging folder and deployed per-game.
 
 ### Categories
 
@@ -413,7 +413,7 @@ Shader packs can declare dependencies on other packs. When a pack with dependenc
 | DLL ReShade | `<game folder>\reshade-shaders\Shaders\` and `\Textures\` |
 | Vulkan ReShade | `<game folder>\reshade-shaders\Shaders\` and `\Textures\` (requires `RDXC_VULKAN_FOOTPRINT`) |
 
-User-owned shader folders are preserved by renaming to `reshade-shaders-original` before deployment and restored when the shader mode is set to Off or when Vulkan ReShade is uninstalled.
+User-owned shader folders are preserved by renaming to `reshade-shaders-original` before deployment and restored when ReShade is uninstalled or when Vulkan ReShade is uninstalled.
 
 ### Custom Shaders
 
@@ -511,11 +511,11 @@ The Overrides section appears below Components in the detail panel. All controls
 | Wiki mod name | Match to a different wiki entry (also applies to Luma matching) |
 | Reset | Restore original name and clear wiki mapping |
 | Wiki exclusion | Exclude the game from wiki lookups |
-| DLL naming overrides | Independent toggle and dropdown for ReShade and Display Commander filenames. Existing installs are renamed in place — no reinstall needed. Each dropdown filters out the other component's current filename to prevent conflicts. The DC dropdown is editable (supports manual DLL names via Enter key). Dropdowns clear to placeholder text ("Select ReShade DLL name" / "Select DC DLL name") when the toggle is turned off. Turning off the ReShade override renames the file back to `dxgi.dll` instead of deleting it. |
+| DLL naming overrides | A single toggle controls both ReShade and Display Commander filenames together. Turning ON enables both dropdowns with safe defaults; turning OFF reverts both to their default names. Each dropdown filters out the other component's current filename to prevent conflicts. Both dropdowns are editable (supports manual DLL names via Enter key). |
 | Global update inclusion | Four toggle switches (ReShade, RenoDX, ReLimiter, Display Commander) in a 2×2 grid layout, controlling whether the game is included in bulk updates. All default to On. |
-| Shader Mode | Global / Off / Minimum / All / User / Select. Select mode opens a picker for specific shader packs. |
+| Shader Mode | Global / Select / Custom. Global uses the global shader selection. Select opens a picker for specific shader packs. Custom uses shaders from custom shader directories. |
 | Addon Mode | Global / Select. Global uses the globally enabled addon set. Select opens a per-game addon picker. |
-| Rendering Path | For dual-API games: DirectX or Vulkan. Switching triggers automatic cleanup. |
+| Rendering Path | For dual-API games: automatically determined based on detected APIs. Vulkan-only and dual-API games route to the Vulkan global layer install. |
 | Bitness override | Dropdown: Auto, 32-bit, or 64-bit. Overrides PE header auto-detection. |
 | Graphics API override | Dropdown: Auto, DirectX8, DirectX9, DirectX10, DX11/DX12, Vulkan, OpenGL. "Auto" uses the auto-detected value from PE header scanning. |
 | Reset Overrides | Reset all override settings back to defaults |

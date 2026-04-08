@@ -2,6 +2,12 @@
 
 ### Changes
 
+**Unified DLL naming override toggle**
+- The two separate toggles for ReShade and Display Commander DLL naming overrides have been merged into a single toggle. Turning it ON enables both RS and DC dropdowns with safe defaults; turning it OFF reverts both to their default filenames in one action. No more partial-on states.
+
+**DC reverts before RS on toggle OFF**
+- When disabling the override, Display Commander is now renamed back to its default name before ReShade. This prevents the scenario where DC was renamed to `dxgi.dll` and RS couldn't reclaim it because the filename was occupied.
+
 **Downloads folder reorganised into subdirectories**
 - The `%LocalAppData%\RHI\downloads\` folder is now organised into categorised subdirectories: `shaders/`, `renodx/`, `framelimiter/`, `luma/`, and `misc/`. Existing cached files are automatically migrated on first launch — no re-downloads needed. The migration is safe to interrupt and handles locked or duplicate files gracefully.
 
@@ -18,6 +24,12 @@
 
 **Display Commander update detection fixed**
 - DC uses a fixed `latest_build` GitHub tag that never changes, so version comparison was always returning "no update". RHI now extracts the real version number (e.g. `0.13.153.3324`) from the release body text, enabling proper update detection.
+
+**DC renamed to dxgi.dll no longer misdetected as ReShade**
+- When Display Commander was renamed to `dxgi.dll` via the DLL naming override, the game scan incorrectly identified it as ReShade. The detection logic now checks DC's install record and skips filenames already claimed by DC. This also fixes ReShade not deploying when DC occupies the target filename slot.
+
+**DLL override rename failure on existing files**
+- Enabling a DLL naming override could fail with "Cannot create a file when that file already exists" if the target filename was already occupied. The rename now uses a fallback copy-delete-move pattern when the direct delete fails.
 
 ---
 

@@ -115,6 +115,127 @@ public partial class MainViewModel
     /// Games that default to UE-Extended and show "Extended UE Native HDR" instead of "Generic UE".
     /// These games are auto-set to UE-Extended on first build — no toggle needed.
     /// </summary>
+    ///
+    /// <summary>
+    /// After <see cref="ApplyManifestDllRenames"/>, reconciles cards where both overrides are OFF
+    /// and no manifest override exists. Ensures RS is deployed as <see cref="AuxInstallService.RsNormalName"/>
+    /// and DC is deployed as the default addon name. Uses collision-safe logic: before renaming,
+    /// checks if the default name is occupied and falls back if necessary.
+    /// </summary>
+    private void ReconcileDefaultNaming()
+    {
+        foreach (var card in _allCards)
+        {
+            if (card.DllOverrideEnabled) continue;
+            if (string.IsNullOrEmpty(card.InstallPath)) continue;
+            if (_manifestDllOverrideGames.Contains(card.GameName)) continue;
+            if (GetManifestDllNames(card.GameName) != null
+                && !_manifestDllOverrideOptOuts.Contains(card.GameName)) continue;
+
+            // ── RS reconciliation ──────────────────────────────────────────────
+            if (card.RsRecord != null
+                && !string.IsNullOrEmpty(card.RsRecord.InstalledAs)
+                && !card.RsRecord.InstalledAs.Equals(AuxInstallService.RsNormalName, StringComparison.OrdinalIgnoreCase))
+            {
+                var rsOldPath = Path.Combine(card.InstallPath, card.RsRecord.InstalledAs);
+                var rsDefaultPath = Path.Combine(card.InstallPath, AuxInstallService.RsNormalName);
+
+                if (File.Exists(rsOldPath))
+                {
+                    if (File.Exists(rsDefaultPath))
+                    {
+                        // Default name occupied — fall back to ReShade64/32.dll
+                        var fallbackName = card.Is32Bit ? AuxInstallService.RsStaged32 : AuxInstallService.RsStaged64;
+                        var fallbackPath = Path.Combine(card.InstallPath, fallbackName);
+                        try
+                        {
+                            if (!rsOldPath.Equals(fallbackPath, StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (File.Exists(fallbackPath)) File.Delete(fallbackPath);
+                                File.Move(rsOldPath, fallbackPath);
+                                _crashReporter.Log($"[MainViewModel.ReconcileDefaultNaming] RS {card.GameName}: {card.RsRecord.InstalledAs} → {fallbackName} (default occupied)");
+                                card.RsRecord.InstalledAs = fallbackName;
+                                _auxInstaller.SaveAuxRecord(card.RsRecord);
+                                card.RsInstalledFile = fallbackName;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _crashReporter.Log($"[MainViewModel.ReconcileDefaultNaming] RS fallback rename failed for '{card.GameName}' — {ex.Message}");
+                        }
+                    }
+                    else
+                    {
+                        // Default name free — rename to default
+                        try
+                        {
+                            File.Move(rsOldPath, rsDefaultPath);
+                            card.RsRecord.InstalledAs = AuxInstallService.RsNormalName;
+                            _auxInstaller.SaveAuxRecord(card.RsRecord);
+                            card.RsInstalledFile = AuxInstallService.RsNormalName;
+                            _crashReporter.Log($"[MainViewModel.ReconcileDefaultNaming] RS {card.GameName}: {Path.GetFileName(rsOldPath)} → {AuxInstallService.RsNormalName}");
+                        }
+                        catch (Exception ex)
+                        {
+                            _crashReporter.Log($"[MainViewModel.ReconcileDefaultNaming] RS rename failed for '{card.GameName}' — {ex.Message}");
+                        }
+                    }
+                }
+            }
+
+            // ── DC reconciliation ──────────────────────────────────────────────
+            if (!string.IsNullOrEmpty(card.DcInstalledFile))
+            {
+                var defaultDcName = card.Is32Bit
+                    ? "zzz_display_commander_lite.addon32"
+                    : "zzz_display_commander_lite.addon64";
+
+                if (!card.DcInstalledFile.Equals(defaultDcName, StringComparison.OrdinalIgnoreCase))
+                {
+                    var deployPath = ModInstallService.GetAddonDeployPath(card.InstallPath);
+
+                    // Find the DC file — check addon deploy path first, then game install path
+                    string? dcOldPath = null;
+                    if (File.Exists(Path.Combine(deployPath, card.DcInstalledFile)))
+                        dcOldPath = Path.Combine(deployPath, card.DcInstalledFile);
+                    else if (File.Exists(Path.Combine(card.InstallPath, card.DcInstalledFile)))
+                        dcOldPath = Path.Combine(card.InstallPath, card.DcInstalledFile);
+
+                    if (dcOldPath != null)
+                    {
+                        var dcDefaultPath = Path.Combine(deployPath, defaultDcName);
+
+                        if (File.Exists(dcDefaultPath))
+                        {
+                            // Default DC name occupied — keep DC under its current name
+                            _crashReporter.Log($"[MainViewModel.ReconcileDefaultNaming] DC {card.GameName}: default '{defaultDcName}' occupied, keeping '{card.DcInstalledFile}'");
+                        }
+                        else
+                        {
+                            try
+                            {
+                                File.Move(dcOldPath, dcDefaultPath);
+
+                                // Update the AuxInstalledRecord for DC
+                                var dcRecord = _auxInstaller.FindRecord(card.GameName, card.InstallPath, "DisplayCommander");
+                                if (dcRecord != null)
+                                {
+                                    dcRecord.InstalledAs = defaultDcName;
+                                    _auxInstaller.SaveAuxRecord(dcRecord);
+                                }
+                                card.DcInstalledFile = defaultDcName;
+                                _crashReporter.Log($"[MainViewModel.ReconcileDefaultNaming] DC {card.GameName}: {Path.GetFileName(dcOldPath)} → {defaultDcName}");
+                            }
+                            catch (Exception ex)
+                            {
+                                _crashReporter.Log($"[MainViewModel.ReconcileDefaultNaming] DC rename failed for '{card.GameName}' — {ex.Message}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     private static readonly HashSet<string> NativeHdrGames = new(StringComparer.OrdinalIgnoreCase)
     {
         "Avowed",

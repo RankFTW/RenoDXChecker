@@ -281,6 +281,9 @@ public partial class MainViewModel
             // Apply manifest DLL name overrides to any existing installs whose filenames don't match
             ApplyManifestDllRenames();
 
+            // Reconcile default naming for games without overrides (Defect 1.7)
+            ReconcileDefaultNaming();
+
             // Carry forward UpdateAvailable status from previous cards
             foreach (var c in _allCards)
             {
@@ -786,11 +789,23 @@ public partial class MainViewModel
             // ── Disk detection for ReShade ────────────────────────────────────────
             // If no DB record exists, scan disk for the known filenames so that
             // manually installed or previously installed instances are shown correctly.
+            //
+            // IMPORTANT: Skip filenames that are already claimed by DC via its
+            // AuxInstalledRecord or DLL override config, to avoid misidentifying
+            // a renamed DC file as ReShade.
+            var dcRecForExclusion = auxRecords.FirstOrDefault(r =>
+                r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase) &&
+                r.AddonType == "DisplayCommander");
+            var dcClaimedFileName = dcRecForExclusion?.InstalledAs;
+
             if (rsRec == null)
             {
                 // dxgi.dll — only attribute to ReShade if positively identified as ReShade
+                // AND not already claimed by DC
                 var dxgiPath = Path.Combine(installPath, AuxInstallService.RsNormalName);
-                if (File.Exists(dxgiPath) && AuxInstallService.IsReShadeFile(dxgiPath))
+                bool dxgiClaimedByDc = dcClaimedFileName != null &&
+                    dcClaimedFileName.Equals(AuxInstallService.RsNormalName, StringComparison.OrdinalIgnoreCase);
+                if (!dxgiClaimedByDc && File.Exists(dxgiPath) && AuxInstallService.IsReShadeFile(dxgiPath))
                 {
                     rsRec = new AuxInstalledRecord
                     {
@@ -812,6 +827,11 @@ public partial class MainViewModel
                         {
                             // Skip filenames already checked above
                             if (proxyName.Equals(AuxInstallService.RsNormalName, StringComparison.OrdinalIgnoreCase))
+                                continue;
+
+                            // Skip filenames claimed by DC via override
+                            if (dcClaimedFileName != null &&
+                                proxyName.Equals(dcClaimedFileName, StringComparison.OrdinalIgnoreCase))
                                 continue;
 
                             var candidatePath = Path.Combine(installPath, proxyName);

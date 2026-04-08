@@ -254,7 +254,7 @@ public class OverridesFlyoutBuilder
             IsOn = isDllOverride,
             IsEnabled = !isLumaMode,
             OnContent = "Custom filenames enabled",
-            OffContent = "Override ReShade filename",
+            OffContent = "Override DLL filenames",
             Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
             FontSize = 11,
         };
@@ -287,18 +287,7 @@ public class OverridesFlyoutBuilder
         var existingDcName = existingCfg?.DcFileName ?? "";
         bool isDcDllOverrideOn = isDllOverride && !string.IsNullOrEmpty(existingDcName);
 
-        var dcDllToggle = new ToggleSwitch
-        {
-            Header = (object?)null,
-            IsOn = isDcDllOverrideOn,
-            IsEnabled = !isLumaMode,
-            OnContent = "Custom DC filename",
-            OffContent = "Override DC filename",
-            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
-            FontSize = 11,
-        };
-        ToolTipService.SetToolTip(dcDllToggle,
-            "Override the filename Display Commander is installed as. When enabled, existing DC files are renamed to the custom filename.");
+
 
         var dcNameBox = new ComboBox
         {
@@ -352,7 +341,7 @@ public class OverridesFlyoutBuilder
             _updatingDropdowns = true;
             try
             {
-                var dcCurrentName = dcDllToggle.IsOn
+                var dcCurrentName = dllOverrideToggle.IsOn
                     ? (dcNameBox.SelectedItem as string ?? "").Trim()
                     : "";
                 var filtered = string.IsNullOrEmpty(dcCurrentName)
@@ -373,6 +362,7 @@ public class OverridesFlyoutBuilder
         dllOverrideToggle.Toggled += (s, ev) =>
         {
             rsNameBox.IsEnabled = dllOverrideToggle.IsOn;
+            dcNameBox.IsEnabled = dllOverrideToggle.IsOn;
 
             var targetCard = ViewModel.AllCards.FirstOrDefault(c =>
                 c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
@@ -380,130 +370,126 @@ public class OverridesFlyoutBuilder
 
             if (dllOverrideToggle.IsOn)
             {
-                // Turning RS override ON — only proceed if a real DLL name is selected
-                var rsText = rsNameBox.SelectedItem as string ?? rsNameBox.Text;
-                if (string.IsNullOrWhiteSpace(rsText))
-                {
-                    // No name selected — don't rename anything, just enable the dropdown
-                    return;
-                }
-                var rsName = rsText.Trim();
-                var dcName = dcDllToggle.IsOn ? (dcNameBox.SelectedItem as string ?? "") : "";
-                ViewModel.EnableDllOverride(targetCard, rsName, dcName);
-            }
-            else
-            {
-                // Turning RS override OFF — revert RS file to default, preserve DC
+                // Turning unified override ON
                 var existingCfgNow = ViewModel.GetDllOverride(capturedName);
-                var dcName = dcDllToggle.IsOn ? (dcNameBox.SelectedItem as string ?? "") : "";
 
-                // Rename RS back to default if it was custom-named
-                if (existingCfgNow != null && !string.IsNullOrWhiteSpace(existingCfgNow.ReShadeFileName)
-                    && targetCard.RsRecord != null && !string.IsNullOrEmpty(targetCard.InstallPath))
+                string rsName;
+                string dcName;
+
+                if (existingCfgNow != null
+                    && (!string.IsNullOrEmpty(existingCfgNow.ReShadeFileName) || !string.IsNullOrEmpty(existingCfgNow.DcFileName)))
                 {
-                    var defaultRsName = Services.AuxInstallService.RsNormalName;
-                    var oldPath = System.IO.Path.Combine(targetCard.InstallPath, existingCfgNow.ReShadeFileName);
-                    var newPath = System.IO.Path.Combine(targetCard.InstallPath, defaultRsName);
-                    try
+                    // Prior config exists — restore saved filenames
+                    rsName = existingCfgNow.ReShadeFileName ?? "";
+                    dcName = existingCfgNow.DcFileName ?? "";
+
+                    // Restore RS dropdown
+                    if (!string.IsNullOrEmpty(rsName))
                     {
-                        if (System.IO.File.Exists(oldPath) && !oldPath.Equals(newPath, StringComparison.OrdinalIgnoreCase))
+                        if (DllOverrideConstants.CommonDllNames.Contains(rsName, StringComparer.OrdinalIgnoreCase))
                         {
-                            if (System.IO.File.Exists(newPath)) System.IO.File.Delete(newPath);
-                            System.IO.File.Move(oldPath, newPath);
-                            targetCard.RsRecord.InstalledAs = defaultRsName;
-                            targetCard.RsInstalledFile = defaultRsName;
+                            rsNameBox.SelectedItem = DllOverrideConstants.CommonDllNames
+                                .First(n => n.Equals(rsName, StringComparison.OrdinalIgnoreCase));
+                        }
+                        else
+                        {
+                            var extended = DllOverrideConstants.CommonDllNames.Append(rsName).ToArray();
+                            rsNameBox.ItemsSource = extended;
+                            rsNameBox.SelectedItem = rsName;
                         }
                     }
-                    catch { }
-                }
 
-                if (!string.IsNullOrEmpty(dcName))
-                {
-                    // DC override still active — update config with empty RS, keep DC
-                    ViewModel.UpdateDllOverrideNames(targetCard, "", dcName);
-                    targetCard.DllOverrideEnabled = true;
+                    // Restore DC dropdown
+                    if (!string.IsNullOrEmpty(dcName))
+                    {
+                        if (DetailPanelBuilder.DcDllOverrideNames.Contains(dcName, StringComparer.OrdinalIgnoreCase))
+                        {
+                            dcNameBox.SelectedItem = DetailPanelBuilder.DcDllOverrideNames
+                                .First(n => n.Equals(dcName, StringComparison.OrdinalIgnoreCase));
+                        }
+                        else
+                        {
+                            var extendedDc = DetailPanelBuilder.DcDllOverrideNames.Append(dcName).ToArray();
+                            dcNameBox.ItemsSource = extendedDc;
+                            dcNameBox.SelectedItem = dcName;
+                        }
+                    }
                 }
                 else
                 {
-                    // Neither override active — remove the config entirely
-                    ViewModel.DisableDllOverride(targetCard);
-                }
-                targetCard.NotifyAll();
-                // Clear the dropdown so it shows placeholder text
-                rsNameBox.SelectedIndex = -1;
-                if (rsNameBox.IsEditable) rsNameBox.Text = "";
-            }
-        };
+                    // No prior config — auto-select safe defaults
+                    rsName = targetCard.Is32Bit
+                        ? Services.AuxInstallService.RsStaged32
+                        : Services.AuxInstallService.RsStaged64;
 
-        // ── Auto-save: DC DLL toggle ──
-        dcDllToggle.Toggled += (s, ev) =>
-        {
-            dcNameBox.IsEnabled = dcDllToggle.IsOn;
-            var targetCard = ViewModel.AllCards.FirstOrDefault(c =>
-                c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
-            if (targetCard == null) return;
+                    if (DllOverrideConstants.CommonDllNames.Contains(rsName, StringComparer.OrdinalIgnoreCase))
+                    {
+                        rsNameBox.SelectedItem = DllOverrideConstants.CommonDllNames
+                            .First(n => n.Equals(rsName, StringComparison.OrdinalIgnoreCase));
+                    }
+                    else
+                    {
+                        var extended = DllOverrideConstants.CommonDllNames.Append(rsName).ToArray();
+                        rsNameBox.ItemsSource = extended;
+                        rsNameBox.SelectedItem = rsName;
+                    }
 
-            if (dcDllToggle.IsOn)
-            {
-                // Turning DC override ON — set DC name, preserve RS
-                var rsText = rsNameBox.SelectedItem as string ?? rsNameBox.Text;
-                var rsName = dllOverrideToggle.IsOn ? (!string.IsNullOrWhiteSpace(rsText) ? rsText.Trim() : "") : "";
-                var dcName = dcNameBox.SelectedItem as string ?? "";
-                ViewModel.EnableDllOverride(targetCard, rsName, dcName);
-            }
-            else
-            {
-                // Turning DC override OFF — revert DC file to default, preserve RS
-                var existingCfgNow = ViewModel.GetDllOverride(capturedName);
-                if (existingCfgNow != null && !string.IsNullOrWhiteSpace(existingCfgNow.DcFileName)
-                    && !string.IsNullOrEmpty(targetCard.DcInstalledFile) && !string.IsNullOrEmpty(targetCard.InstallPath))
-                {
-                    var defaultDcName = targetCard.Is32Bit
+                    dcName = targetCard.Is32Bit
                         ? "zzz_display_commander_lite.addon32"
                         : "zzz_display_commander_lite.addon64";
-                    var deployPath = Services.ModInstallService.GetAddonDeployPath(targetCard.InstallPath);
-                    var oldPath = System.IO.Path.Combine(deployPath, targetCard.DcInstalledFile);
-                    var newPath = System.IO.Path.Combine(deployPath, defaultDcName);
-                    try
+
+                    if (DetailPanelBuilder.DcDllOverrideNames.Contains(dcName, StringComparer.OrdinalIgnoreCase))
                     {
-                        if (System.IO.File.Exists(oldPath) && !oldPath.Equals(newPath, StringComparison.OrdinalIgnoreCase))
-                        {
-                            if (System.IO.File.Exists(newPath)) System.IO.File.Delete(newPath);
-                            System.IO.File.Move(oldPath, newPath);
-                            targetCard.DcInstalledFile = defaultDcName;
-                        }
+                        dcNameBox.SelectedItem = DetailPanelBuilder.DcDllOverrideNames
+                            .First(n => n.Equals(dcName, StringComparison.OrdinalIgnoreCase));
                     }
-                    catch { }
+                    else
+                    {
+                        var extendedDc = DetailPanelBuilder.DcDllOverrideNames.Append(dcName).ToArray();
+                        dcNameBox.ItemsSource = extendedDc;
+                        dcNameBox.SelectedItem = dcName;
+                    }
                 }
 
-                var rsName = dllOverrideToggle.IsOn
-                    ? (!string.IsNullOrWhiteSpace(rsNameBox.SelectedItem as string ?? rsNameBox.Text)
-                        ? (rsNameBox.SelectedItem as string ?? rsNameBox.Text).Trim()
-                        : "")
-                    : "";
+                ViewModel.EnableDllOverride(targetCard, rsName, dcName);
+            }
+            else
+            {
+                // Turning unified override OFF — delegate to service for both RS and DC revert
+                var result = ViewModel.DisableDllOverride(targetCard);
 
-                if (!string.IsNullOrEmpty(rsName))
+                // Disable and clear both dropdowns
+                rsNameBox.SelectedIndex = -1;
+                if (rsNameBox.IsEditable) rsNameBox.Text = "";
+                dcNameBox.SelectedIndex = -1;
+                if (dcNameBox.IsEditable) dcNameBox.Text = "";
+
+                // Set tooltips for partial revert failures
+                if (!result.RsReverted)
                 {
-                    // RS override still active — update config with empty DC, keep RS
-                    ViewModel.UpdateDllOverrideNames(targetCard, rsName, "");
-                    targetCard.DllOverrideEnabled = true;
+                    ToolTipService.SetToolTip(dllOverrideToggle,
+                        "Could not revert ReShade to dxgi.dll — the filename is occupied by another file. ReShade was renamed to a fallback name instead.");
+                }
+                else if (!result.DcReverted)
+                {
+                    ToolTipService.SetToolTip(dllOverrideToggle,
+                        "Could not revert Display Commander to its default name — the filename is occupied by another file. DC was kept under its current name.");
                 }
                 else
                 {
-                    // Neither override active — remove the config entirely
-                    ViewModel.DisableDllOverride(targetCard);
+                    // Both reverted successfully — reset tooltip to default
+                    ToolTipService.SetToolTip(dllOverrideToggle,
+                        "Override the filenames ReShade is installed as. When enabled, existing RS files are renamed to the custom filenames.");
                 }
-                targetCard.NotifyAll();
-                // Clear the dropdown so it shows placeholder text
-                dcNameBox.SelectedIndex = -1;
-                if (dcNameBox.IsEditable) dcNameBox.Text = "";
             }
         };
+
+
 
         // ── Auto-save: DC name box on dropdown selection (with foreign DLL check) ──
         dcNameBox.SelectionChanged += async (s, e) =>
         {
-            if (!dcDllToggle.IsOn) return;
+            if (!dllOverrideToggle.IsOn) return;
             var targetCard = ViewModel.AllCards.FirstOrDefault(c =>
                 c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
             if (targetCard == null) return;
@@ -535,7 +521,7 @@ public class OverridesFlyoutBuilder
         dcNameBox.KeyDown += (s, e) =>
         {
             if (e.Key != Windows.System.VirtualKey.Enter) return;
-            if (!dcDllToggle.IsOn) return;
+            if (!dllOverrideToggle.IsOn) return;
             var targetCard = ViewModel.AllCards.FirstOrDefault(c =>
                 c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
             if (targetCard == null) return;
@@ -574,7 +560,6 @@ public class OverridesFlyoutBuilder
         var dllColumn = new StackPanel { Spacing = 4 };
         dllColumn.Children.Add(dllOverrideToggle);
         dllColumn.Children.Add(rsNameBox);
-        dllColumn.Children.Add(dcDllToggle);
         dllColumn.Children.Add(dcNameBox);
         Grid.SetColumn(dllColumn, 2);
 
@@ -595,7 +580,7 @@ public class OverridesFlyoutBuilder
             var rsText = rsNameBox.SelectedItem as string ?? rsNameBox.Text;
             var rsName = !string.IsNullOrWhiteSpace(rsText) ? rsText.Trim() : "";
             if (string.IsNullOrEmpty(rsName)) return;
-            var dcName = dcDllToggle.IsOn ? (dcNameBox.SelectedItem as string ?? dcNameBox.Text ?? "") : "";
+            var dcName = dllOverrideToggle.IsOn ? (dcNameBox.SelectedItem as string ?? dcNameBox.Text ?? "").Trim() : "";
 
             if (ViewModel.HasDllOverride(capturedName))
                 ViewModel.UpdateDllOverrideNames(targetCard, rsName, dcName);
@@ -611,7 +596,7 @@ public class OverridesFlyoutBuilder
             if (targetCard == null) return;
             var rsName = rsNameBox.SelectedItem as string;
             if (string.IsNullOrWhiteSpace(rsName)) return;
-            var dcName = dcDllToggle.IsOn ? (dcNameBox.SelectedItem as string ?? dcNameBox.Text ?? "") : "";
+            var dcName = dllOverrideToggle.IsOn ? (dcNameBox.SelectedItem as string ?? dcNameBox.Text ?? "") : "";
 
             if (ViewModel.HasDllOverride(capturedName))
                 ViewModel.UpdateDllOverrideNames(targetCard, rsName, dcName);
@@ -945,7 +930,6 @@ public class OverridesFlyoutBuilder
             shaderToggle.IsOn = true;
             customShadersToggle.IsOn = false;
             dllOverrideToggle.IsOn = false;
-            dcDllToggle.IsOn = false;
             rsToggle.IsOn = true;
             rdxToggle.IsOn = true;
             ulToggle.IsOn = true;

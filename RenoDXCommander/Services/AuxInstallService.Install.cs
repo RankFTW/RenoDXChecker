@@ -23,6 +23,16 @@ public partial class AuxInstallService
         var destName = !string.IsNullOrWhiteSpace(filenameOverride)
             ? filenameOverride
             : RsNormalName;
+
+        // ── DC occupancy check: avoid overwriting a DC file at the target name ──
+        var dcRecord = FindRecord(gameName, installPath, "DisplayCommander");
+        if (dcRecord != null &&
+            string.Equals(dcRecord.InstalledAs, destName, StringComparison.OrdinalIgnoreCase))
+        {
+            destName = use32Bit ? RsStaged32 : RsStaged64;
+            CrashReporter.Log($"[AuxInstallService.InstallReShadeAsync] Target '{dcRecord.InstalledAs}' occupied by DC — falling back to '{destName}'");
+        }
+
         var destPath = Path.Combine(installPath, destName);
 
         // ── Record-aware cleanup: remove old non-standard DLL if InstalledAs differs ─

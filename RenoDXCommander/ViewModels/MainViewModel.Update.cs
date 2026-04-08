@@ -414,7 +414,7 @@ public partial class MainViewModel
             {
                 var body = bodyEl.GetString() ?? "";
                 var versionMatch = System.Text.RegularExpressions.Regex.Match(
-                    body, @"Version in binaries:\s*([\d.]+)");
+                    body, @"\*{0,2}Version in binaries\*{0,2}:\s*([\d.]+)");
                 if (versionMatch.Success)
                     remoteVersion = versionMatch.Groups[1].Value;
             }

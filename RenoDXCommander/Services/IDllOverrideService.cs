@@ -4,6 +4,12 @@ using RenoDXCommander.ViewModels;
 namespace RenoDXCommander.Services;
 
 /// <summary>
+/// Result of a <see cref="IDllOverrideService.DisableDllOverride"/> call,
+/// indicating whether each component's file was successfully reverted to its default name.
+/// </summary>
+public record DllDisableResult(bool RsReverted, bool DcReverted);
+
+/// <summary>
 /// Defines the contract for DLL override CRUD operations and the backing data store.
 /// Manages per-game DLL naming overrides, manifest-driven overrides, and user opt-outs.
 /// </summary>
@@ -78,9 +84,36 @@ public interface IDllOverrideService
 
     /// <summary>
     /// Called when DLL override is toggled OFF — removes the custom-named DLL files
-    /// from the game folder.
+    /// from the game folder. Returns a result indicating whether RS and DC reverts succeeded.
     /// </summary>
-    void DisableDllOverride(GameCardViewModel card);
+    DllDisableResult DisableDllOverride(GameCardViewModel card);
+
+    // ── Name collision helpers ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns the effective RS filename for a game — from override config if
+    /// active, otherwise <see cref="AuxInstallService.RsNormalName"/>.
+    /// </summary>
+    string GetEffectiveRsName(string gameName);
+
+    /// <summary>
+    /// Returns the effective DC filename for a game — from override config if
+    /// active, otherwise the default addon name based on bitness.
+    /// </summary>
+    string GetEffectiveDcName(string gameName, bool is32Bit);
+
+    /// <summary>
+    /// Checks whether <paramref name="targetName"/> is already in use by the
+    /// other component (RS or DC) in the same game folder.
+    /// <paramref name="component"/> is <c>"RS"</c> or <c>"DC"</c> — the component
+    /// that wants to use the name. Comparison is case-insensitive.
+    /// </summary>
+    bool IsNameOccupiedByOtherComponent(
+        string gameName,
+        string targetName,
+        string component,
+        bool is32Bit,
+        string? installPath);
 
     /// <summary>Migrates a DLL override entry when a game is renamed.</summary>
     void MigrateOverride(string oldName, string newName);

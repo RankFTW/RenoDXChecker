@@ -173,7 +173,7 @@ public partial class MainViewModel
     /// <summary>
     /// Called when DLL override is toggled OFF — removes the custom-named DLL files from the game folder.
     /// </summary>
-    public void DisableDllOverride(GameCardViewModel card)
+    public DllDisableResult DisableDllOverride(GameCardViewModel card)
         => _dllOverrideService.DisableDllOverride(card);
 
     /// <summary>Returns the per-game shader mode override, or "Global" if no override set.</summary>
