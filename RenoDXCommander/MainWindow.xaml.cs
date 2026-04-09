@@ -166,6 +166,7 @@ public sealed partial class MainWindow : Window
         _windowStateManager.CleanupOleDragDrop();
         SingleInstanceService.Stop();
         ViewModel.SaveSettingsPublic(); // persist GridLayout and other settings
+        ViewModel.SaveLibraryPublic();  // persist LastSelectedGame and other library state
         _windowStateManager.SaveWindowBounds();
     }
 

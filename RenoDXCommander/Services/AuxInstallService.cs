@@ -27,6 +27,13 @@ public partial class AuxInstallService : IAuxInstallService, IAuxFileService
     public static string RsStagedPath64 => Path.Combine(RsStagingDir, RsStaged64);
     public static string RsStagedPath32 => Path.Combine(RsStagingDir, RsStaged32);
 
+    // Normal (non-addon) ReShade staging folder: %LocalAppData%\RHI\reshade-normal\
+    public static readonly string RsNormalStagingDir = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "RHI", "reshade-normal");
+    public static string RsNormalStagedPath64 => Path.Combine(RsNormalStagingDir, RsStaged64);
+    public static string RsNormalStagedPath32 => Path.Combine(RsNormalStagingDir, RsStaged32);
+
     /// <summary>
     /// Ensures the staged ReShade DLLs exist. The DLLs are downloaded from reshade.me
     /// by ReShadeUpdateService — this method only verifies they are present.
@@ -40,6 +47,7 @@ public partial class AuxInstallService : IAuxInstallService, IAuxFileService
 
     // Keys used in AuxInstalledRecord.AddonType
     public const string TypeReShade = "ReShade";
+    public const string TypeReShadeNormal = "ReShadeNormal";
 
     // ── Infrastructure ────────────────────────────────────────────────────────────
     private static readonly string DbPath = Path.Combine(

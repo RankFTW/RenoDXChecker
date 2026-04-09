@@ -376,6 +376,7 @@ public partial class MainViewModel : ObservableObject
         IShaderPackService shaderPackService,
         ILumaService lumaService,
         IReShadeUpdateService rsUpdateService,
+        INormalReShadeUpdateService normalRsUpdateService,
         SettingsViewModel settingsViewModel,
         FilterViewModel filterViewModel,
         IUpdateOrchestrationService updateOrchestrationService,
@@ -398,6 +399,7 @@ public partial class MainViewModel : ObservableObject
         _shaderPackService = shaderPackService;
         _lumaService = lumaService;
         _rsUpdateService = rsUpdateService;
+        _normalRsUpdateService = normalRsUpdateService;
         _settingsViewModel = settingsViewModel;
         _filterViewModel = filterViewModel;
         _updateOrchestrationService = updateOrchestrationService;
@@ -448,6 +450,7 @@ public partial class MainViewModel : ObservableObject
 
     private readonly ILumaService _lumaService;
     private readonly IReShadeUpdateService _rsUpdateService;
+    private readonly INormalReShadeUpdateService _normalRsUpdateService;
     private List<LumaMod> _lumaMods = new();
     private HashSet<string> _lumaEnabledGames => _gameNameService.LumaEnabledGames;
     /// <summary>
@@ -455,6 +458,8 @@ public partial class MainViewModel : ObservableObject
     /// from re-enabling Luma on every refresh.
     /// </summary>
     private HashSet<string> _lumaDisabledGames => _gameNameService.LumaDisabledGames;
+    /// <summary>Games configured to use normal (non-addon) ReShade.</summary>
+    private HashSet<string> _normalReShadeGames => _gameNameService.NormalReShadeGames;
     /// <summary>
     /// Games in this set are excluded from all wiki matching.
     /// Their cards show a Discord link instead of an install button.
@@ -479,7 +484,10 @@ public partial class MainViewModel : ObservableObject
         if (newValue != null)
         {
             newValue.IsSelected = true;
-            LastSelectedGameName = newValue.GameName;
+            // Only persist the selection after initial load is complete,
+            // so the saved LastSelectedGameName isn't overwritten by auto-select.
+            if (HasInitialized)
+                LastSelectedGameName = newValue.GameName;
         }
     }
 

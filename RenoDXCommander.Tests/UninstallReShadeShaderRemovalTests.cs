@@ -64,6 +64,7 @@ public class UninstallReShadeShaderRemovalTests : IDisposable
             tracker,
             lumaService,
             rsUpdate,
+            new StubNormalReShadeUpdateService(),
             settingsVm,
             filterVm,
             updateOrch,
@@ -211,7 +212,7 @@ public class UninstallReShadeShaderRemovalTests : IDisposable
 
     private class StubAuxInstallService : IAuxInstallService, IAuxFileService
     {
-        public Task<AuxInstalledRecord> InstallReShadeAsync(string gameName, string installPath, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null, string? screenshotSavePath = null) => Task.FromResult(new AuxInstalledRecord());
+        public Task<AuxInstalledRecord> InstallReShadeAsync(string gameName, string installPath, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null, string? screenshotSavePath = null, bool useNormalReShade = false) => Task.FromResult(new AuxInstalledRecord());
         public Task<bool> CheckForUpdateAsync(AuxInstalledRecord record) => Task.FromResult(false);
         public void Uninstall(AuxInstalledRecord record) { }
         public void UninstallDllOnly(AuxInstalledRecord record) { }
@@ -298,6 +299,12 @@ public class UninstallReShadeShaderRemovalTests : IDisposable
     {
         public Task<(string version, string url)?> CheckLatestVersionAsync() => Task.FromResult<(string, string)?>(null);
         public Task<bool> EnsureLatestAsync(IProgress<(string, double)>? progress = null) => Task.FromResult(false);
+    }
+
+    private class StubNormalReShadeUpdateService : INormalReShadeUpdateService
+    {
+        public Task<(string version, string url)?> CheckLatestVersionAsync() => Task.FromResult<(string, string)?>(null);
+        public Task<bool> EnsureLatestAsync(IProgress<(string msg, double pct)>? progress = null) => Task.FromResult(false);
     }
 
     private class StubREFrameworkService : IREFrameworkService

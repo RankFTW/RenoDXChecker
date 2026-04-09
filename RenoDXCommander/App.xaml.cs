@@ -65,6 +65,7 @@ public partial class App : Application
         services.AddSingleton<IManifestService, ManifestService>();
         services.AddSingleton<IGameLibraryService, GameLibraryService>();
         services.AddSingleton<IReShadeUpdateService, ReShadeUpdateService>();
+        services.AddSingleton<INormalReShadeUpdateService, NormalReShadeUpdateService>();
         services.AddSingleton<IUpdateService, UpdateService>();
         services.AddSingleton<ILumaService, LumaService>();
         services.AddSingleton<IShaderPackService, ShaderPackService>();

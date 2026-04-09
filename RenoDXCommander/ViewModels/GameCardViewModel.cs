@@ -37,6 +37,7 @@ public partial class GameCardViewModel : ObservableObject
     [ObservableProperty] private string     _rsActionMessage = "";
     [ObservableProperty] private string?    _rsInstalledFile;
     [ObservableProperty] private string?    _rsInstalledVersion;
+    [ObservableProperty] private bool       _useNormalReShade;
     public AuxInstalledRecord? RsRecord { get; set; }
 
     // ── Vulkan / dual-API state ──────────────────────────────────────────────────
@@ -304,6 +305,10 @@ public partial class GameCardViewModel : ObservableObject
         // ── Display Commander: DcIsInstalling dependents ─────────────
         NotifyOnce(nameof(DcProgressVisibility));
         NotifyOnce(nameof(IsDcNotInstalling));
+
+        // ── Normal ReShade: UseNormalReShade dependents ───────────────
+        NotifyOnce(nameof(AddonsDisabled));
+        NotifyOnce(nameof(AddonStrikethrough));
 
         // ── RE Framework: RefStatus dependents ───────────────────────
         NotifyOnce(nameof(RefActionLabel));

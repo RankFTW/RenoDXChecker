@@ -59,6 +59,9 @@ public interface IGameNameService
     /// <summary>Games with Luma explicitly disabled.</summary>
     HashSet<string> LumaDisabledGames { get; }
 
+    /// <summary>Games configured to use normal (non-addon) ReShade.</summary>
+    HashSet<string> NormalReShadeGames { get; }
+
     /// <summary>Per-game install folder overrides.</summary>
     Dictionary<string, string> FolderOverrides { get; }
 

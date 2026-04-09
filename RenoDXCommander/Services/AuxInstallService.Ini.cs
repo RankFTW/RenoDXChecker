@@ -141,6 +141,64 @@ public partial class AuxInstallService
     }
 
     /// <summary>
+    /// Copies relimiter.ini from the inis folder to the game directory (addon deploy path)
+    /// only when the file does not already exist at the destination. Never throws.
+    /// </summary>
+    public static void DeployUlIniIfAbsent(string gameInstallPath)
+    {
+        try
+        {
+            var deployPath = ModInstallService.GetAddonDeployPath(gameInstallPath);
+            var destFile = Path.Combine(deployPath, "relimiter.ini");
+
+            if (File.Exists(destFile))
+                return;
+
+            if (!File.Exists(UlIniPath))
+            {
+                CrashReporter.Log($"[AuxInstallService.DeployUlIniIfAbsent] Source relimiter.ini not found at '{UlIniPath}' — skipping");
+                return;
+            }
+
+            File.Copy(UlIniPath, destFile);
+            CrashReporter.Log($"[AuxInstallService.DeployUlIniIfAbsent] Deployed relimiter.ini to '{deployPath}'");
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"[AuxInstallService.DeployUlIniIfAbsent] Failed for '{gameInstallPath}' — {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Copies DisplayCommander.ini from the inis folder to the game directory (addon deploy path)
+    /// only when the file does not already exist at the destination. Never throws.
+    /// </summary>
+    public static void DeployDcIniIfAbsent(string gameInstallPath)
+    {
+        try
+        {
+            var deployPath = ModInstallService.GetAddonDeployPath(gameInstallPath);
+            var destFile = Path.Combine(deployPath, "DisplayCommander.ini");
+
+            if (File.Exists(destFile))
+                return;
+
+            if (!File.Exists(DcIniPath))
+            {
+                CrashReporter.Log($"[AuxInstallService.DeployDcIniIfAbsent] Source DisplayCommander.ini not found at '{DcIniPath}' — skipping");
+                return;
+            }
+
+            File.Copy(DcIniPath, destFile);
+            CrashReporter.Log($"[AuxInstallService.DeployDcIniIfAbsent] Deployed DisplayCommander.ini to '{deployPath}'");
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"[AuxInstallService.DeployDcIniIfAbsent] Failed for '{gameInstallPath}' — {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// Copies relimiter.ini from the inis folder to the game directory (addon deploy path).
     /// </summary>
     public static void CopyUlIni(string gameInstallPath)

@@ -1,5 +1,6 @@
 ﻿// MainViewModel.Settings.cs -- Settings persistence, name mappings, overrides, and per-game configuration.
 
+using System.Text.Json;
 using RenoDXCommander.Models;
 using RenoDXCommander.Services;
 
@@ -240,6 +241,14 @@ public partial class MainViewModel
 
                 bool is32Bit = card.Is32Bit;
 
+                // Skip addon deployment for normal ReShade games (Req 3.1, 3.2)
+                if (card.UseNormalReShade)
+                {
+                    _addonPackService.DeployAddonsForGame(gameName, card.InstallPath, is32Bit,
+                        useGlobalSet: true, perGameSelection: new List<string>());
+                    return;
+                }
+
                 string addonMode = GetPerGameAddonMode(gameName);
                 bool useGlobalSet = addonMode != "Select";
 
@@ -285,6 +294,14 @@ public partial class MainViewModel
 
                     bool is32Bit = card.Is32Bit;
 
+                    // Skip addon deployment for normal ReShade games (Req 3.1, 3.2)
+                    if (card.UseNormalReShade)
+                    {
+                        _addonPackService.DeployAddonsForGame(card.GameName, card.InstallPath, is32Bit,
+                            useGlobalSet: true, perGameSelection: new List<string>());
+                        continue;
+                    }
+
                     string addonMode = GetPerGameAddonMode(card.GameName);
                     bool useGlobalSet = addonMode != "Select";
 
@@ -329,6 +346,9 @@ public partial class MainViewModel
     public bool IsUpdateAllExcludedRenoDx(string gameName) => _updateAllExcludedRenoDx.Contains(gameName);
     public bool IsUpdateAllExcludedUl(string gameName) => _updateAllExcludedUl.Contains(gameName);
     public bool IsUpdateAllExcludedDc(string gameName) => _updateAllExcludedDc.Contains(gameName);
+
+    /// <summary>Returns true if the game is configured to use normal (non-addon) ReShade.</summary>
+    public bool IsNormalReShadeGame(string gameName) => _normalReShadeGames.Contains(gameName);
 
     public void ToggleUpdateAllExclusionReShade(string gameName)
     {
@@ -462,6 +482,146 @@ public partial class MainViewModel
 
     public bool IsWikiExcluded(string gameName) =>
         _wikiExclusions.Contains(gameName);
+
+    // ── Preset Shader Resolution ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Builds a dictionary mapping each available shader pack ID to its recorded
+    /// file list, read from the ShaderPackService settings JSON file.
+    /// This is the input format <see cref="ShaderResolver.Resolve"/> expects.
+    /// </summary>
+    internal Dictionary<string, IReadOnlyList<string>> BuildPackFileLists()
+    {
+        var result = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+
+        var settingsPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "RHI", "settings.json");
+
+        if (!File.Exists(settingsPath))
+            return result;
+
+        Dictionary<string, string>? settings;
+        try
+        {
+            settings = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(settingsPath));
+        }
+        catch (Exception ex)
+        {
+            _crashReporter.Log($"[MainViewModel.BuildPackFileLists] Failed to read settings — {ex.Message}");
+            return result;
+        }
+
+        if (settings is null)
+            return result;
+
+        foreach (var (packId, _, _) in _shaderPackService.AvailablePacks)
+        {
+            var key = $"ShaderPack_{packId}_Files";
+            if (settings.TryGetValue(key, out var json) && !string.IsNullOrEmpty(json))
+            {
+                try
+                {
+                    var files = JsonSerializer.Deserialize<List<string>>(json);
+                    if (files is not null)
+                        result[packId] = files;
+                }
+                catch (Exception ex)
+                {
+                    _crashReporter.Log($"[MainViewModel.BuildPackFileLists] Failed to parse file list for '{packId}' — {ex.Message}");
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Reads techniques from the given preset file paths, resolves required shader packs,
+    /// switches the game to Per_Game_Shader_Mode "Select", merges resolved packs with
+    /// existing selection (union), persists, and calls SyncGameFolder.
+    /// </summary>
+    public void ApplyPresetShaders(string gameName, IEnumerable<string> presetFilePaths)
+    {
+        try
+        {
+            // 1. Collect all required .fx files from all presets
+            var allFxFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var presetPath in presetFilePaths)
+            {
+                try
+                {
+                    var content = File.ReadAllText(presetPath);
+                    foreach (var line in content.Split('\n'))
+                    {
+                        var trimmed = line.Trim();
+                        if (trimmed.StartsWith("Techniques=", StringComparison.OrdinalIgnoreCase) ||
+                            trimmed.StartsWith("Techniques =", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var eqIndex = trimmed.IndexOf('=');
+                            if (eqIndex >= 0)
+                            {
+                                var value = trimmed[(eqIndex + 1)..];
+                                var fxFiles = TechniquesParser.ExtractFxFiles(value);
+                                allFxFiles.UnionWith(fxFiles);
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _crashReporter.Log($"[MainViewModel.ApplyPresetShaders] Failed to read preset '{presetPath}' — {ex.Message}");
+                }
+            }
+
+            if (allFxFiles.Count == 0)
+            {
+                _crashReporter.Log("[MainViewModel.ApplyPresetShaders] No .fx files found in presets");
+                return;
+            }
+
+            // 2. Build pack file lists and resolve
+            var packFileLists = BuildPackFileLists();
+            var (matchedPackIds, unresolvedFiles) = ShaderResolver.Resolve(allFxFiles, packFileLists);
+
+            // 3. Log unresolved files
+            foreach (var unresolved in unresolvedFiles)
+                _crashReporter.Log($"[MainViewModel.ApplyPresetShaders] Unresolved shader: {unresolved}");
+
+            if (matchedPackIds.Count == 0)
+            {
+                _crashReporter.Log("[MainViewModel.ApplyPresetShaders] No matching shader packs found");
+                return;
+            }
+
+            // 4. Set per-game mode to "Select"
+            SetPerGameShaderMode(gameName, "Select");
+
+            // 5. Merge resolved pack IDs with existing selection (union)
+            if (_gameNameService.PerGameShaderSelection.TryGetValue(gameName, out var existing))
+            {
+                var merged = new HashSet<string>(existing, StringComparer.OrdinalIgnoreCase);
+                merged.UnionWith(matchedPackIds);
+                _gameNameService.PerGameShaderSelection[gameName] = merged.ToList();
+            }
+            else
+            {
+                _gameNameService.PerGameShaderSelection[gameName] = matchedPackIds.ToList();
+            }
+
+            // 6. Persist
+            SaveNameMappings();
+
+            // 7. Deploy
+            DeployShadersForCard(gameName);
+
+            _crashReporter.Log($"[MainViewModel.ApplyPresetShaders] Applied {matchedPackIds.Count} shader pack(s) for '{gameName}'");
+        }
+        catch (Exception ex)
+        {
+            _crashReporter.Log($"[MainViewModel.ApplyPresetShaders] Failed for '{gameName}' — {ex.Message}");
+        }
+    }
 
     /// <summary>Public entry point to persist all settings to disk.</summary>
     public void SaveSettingsPublic() => SaveNameMappings();

@@ -1134,6 +1134,18 @@ public partial class DetailPanelBuilder
         addonColumn.Children.Add(addonsLabel);
         addonColumn.Children.Add(addonToggle);
         addonColumn.Children.Add(selectAddonsBtn);
+
+        // If normal ReShade is active, disable addon controls on initial build
+        if (card.UseNormalReShade)
+        {
+            addonToggle.IsOn = false;
+            addonToggle.IsEnabled = false;
+            selectAddonsBtn.IsEnabled = false;
+            selectAddonsBtn.Background = UIFactory.Brush(ResourceKeys.SurfaceOverlayBrush);
+            selectAddonsBtn.Foreground = UIFactory.Brush(ResourceKeys.TextDisabledBrush);
+            selectAddonsBtn.BorderBrush = UIFactory.Brush(ResourceKeys.BorderSubtleBrush);
+        }
+
         Grid.SetColumn(addonColumn, 2);
 
         bottomRowGrid.Children.Add(addonColumn);
@@ -1182,6 +1194,9 @@ public partial class DetailPanelBuilder
         manageLeftColumn.Children.Add(removeGameBtn);
 
         // Reset Overrides button
+        // Forward-declare normalReShadeToggle so the reset handler can reference it
+        ToggleSwitch normalReShadeToggle = null!;
+
         var resetOverridesBtn = new Button
         {
             Content = "Reset Overrides",
@@ -1260,6 +1275,15 @@ public partial class DetailPanelBuilder
             // Disable wiki exclusion
             if (_window.ViewModel.IsWikiExcluded(capturedName))
                 _window.ViewModel.ToggleWikiExclusion(capturedName);
+
+            // Reset Normal ReShade toggle
+            normalReShadeToggle.IsOn = false;
+            {
+                var targetCard = _window.ViewModel.AllCards.FirstOrDefault(c =>
+                    c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
+                if (targetCard != null && targetCard.UseNormalReShade)
+                    _ = _window.ViewModel.SetUseNormalReShade(targetCard, false);
+            }
 
             // Reset bitness override to Auto
             bitnessCombo.SelectedItem = "Auto";
@@ -1362,10 +1386,72 @@ public partial class DetailPanelBuilder
                 {
                     int count = PresetPopupHelper.DeployPresets(selected, targetCard.InstallPath);
                     CrashReporter.Log($"[DetailPanelBuilder] Deployed {count} preset(s) to '{capturedName}'");
+
+                    if (count > 0)
+                    {
+                        var shaderDialog = new ContentDialog
+                        {
+                            Title = "🔧 Install Shaders?",
+                            Content = "Also install the required shaders and textures?",
+                            PrimaryButtonText = "Yes",
+                            CloseButtonText = "No",
+                            XamlRoot = _window.Content.XamlRoot,
+                            RequestedTheme = ElementTheme.Dark,
+                        };
+
+                        var shaderResult = await shaderDialog.ShowAsync();
+                        if (shaderResult == ContentDialogResult.Primary)
+                        {
+                            var presetPaths = selected.Select(f => Path.Combine(PresetPopupHelper.PresetsDir, f)).ToList();
+                            _window.ViewModel.ApplyPresetShaders(capturedName, presetPaths);
+                        }
+                    }
                 }
             }
         };
         manageRightColumn.Children.Add(presetBtn);
+
+        // ── Normal ReShade toggle ────────────────────────────────────────────
+        normalReShadeToggle = new ToggleSwitch
+        {
+            Header = "ReShade Without Addon Support",
+            IsOn = card.UseNormalReShade,
+            OnContent = "On",
+            OffContent = "Off",
+            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
+            FontSize = 12,
+            IsEnabled = !isLumaMode,
+        };
+        ToolTipService.SetToolTip(normalReShadeToggle,
+            "When enabled, this game uses normal ReShade (without addon support). All managed addons will be removed and addon install buttons will be disabled.");
+        normalReShadeToggle.Toggled += async (s, ev) =>
+        {
+            var targetCard = _window.ViewModel.AllCards.FirstOrDefault(c =>
+                c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
+            if (targetCard == null) return;
+            if (normalReShadeToggle.IsOn != targetCard.UseNormalReShade)
+            {
+                await _window.ViewModel.SetUseNormalReShade(targetCard, normalReShadeToggle.IsOn);
+
+                // When normal ReShade is enabled, force addon toggle off and disable it
+                if (normalReShadeToggle.IsOn)
+                {
+                    addonToggle.IsOn = false;
+                    addonToggle.IsEnabled = false;
+                    selectAddonsBtn.IsEnabled = false;
+                    selectAddonsBtn.Background = UIFactory.Brush(ResourceKeys.SurfaceOverlayBrush);
+                    selectAddonsBtn.Foreground = UIFactory.Brush(ResourceKeys.TextDisabledBrush);
+                    selectAddonsBtn.BorderBrush = UIFactory.Brush(ResourceKeys.BorderSubtleBrush);
+                }
+                else
+                {
+                    // Re-enable addon toggle when switching back to addon ReShade
+                    addonToggle.IsEnabled = true;
+                    addonToggle.IsOn = true;
+                }
+            }
+        };
+        manageRightColumn.Children.Add(normalReShadeToggle);
 
         Grid.SetColumn(manageRightColumn, 2);
         manageRowGrid.Children.Add(manageRightColumn);

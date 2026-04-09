@@ -34,6 +34,7 @@ public class GameNameService : IGameNameService
     private Dictionary<string, List<string>> _perGameAddonSelection = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _lumaEnabledGames = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _lumaDisabledGames = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> _normalReShadeGames = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, string> _folderOverrides = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, string> _vulkanRenderingPaths = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, string> _bitnessOverrides = new(StringComparer.OrdinalIgnoreCase);
@@ -59,6 +60,7 @@ public class GameNameService : IGameNameService
     public Dictionary<string, List<string>> PerGameAddonSelection => _perGameAddonSelection;
     public HashSet<string> LumaEnabledGames => _lumaEnabledGames;
     public HashSet<string> LumaDisabledGames => _lumaDisabledGames;
+    public HashSet<string> NormalReShadeGames => _normalReShadeGames;
     public Dictionary<string, string> FolderOverrides => _folderOverrides;
     /// <summary>Per-game Vulkan rendering path preferences. Key = game name, Value = "DirectX" or "Vulkan".</summary>
     public Dictionary<string, string> VulkanRenderingPaths => _vulkanRenderingPaths;
@@ -111,6 +113,7 @@ public class GameNameService : IGameNameService
         _apiOverrides           = new(StringComparer.OrdinalIgnoreCase);
         _lumaEnabledGames       = new(StringComparer.OrdinalIgnoreCase);
         _lumaDisabledGames      = new(StringComparer.OrdinalIgnoreCase);
+        _normalReShadeGames     = new(StringComparer.OrdinalIgnoreCase);
         _hiddenGames            ??= new(StringComparer.OrdinalIgnoreCase);
         _favouriteGames         ??= new(StringComparer.OrdinalIgnoreCase);
 
@@ -212,6 +215,9 @@ public class GameNameService : IGameNameService
         _lumaDisabledGames = new HashSet<string>(
             Load<List<string>>("LumaDisabledGames", new()), StringComparer.OrdinalIgnoreCase);
 
+        _normalReShadeGames = new HashSet<string>(
+            Load<List<string>>("NormalReShadeGames", new()), StringComparer.OrdinalIgnoreCase);
+
         _gameRenames = new(Load<Dictionary<string, string>>("GameRenames",
             new(StringComparer.OrdinalIgnoreCase)), StringComparer.OrdinalIgnoreCase);
 
@@ -299,6 +305,7 @@ public class GameNameService : IGameNameService
                 settingsViewModel.SaveSettingsToDict(s);
                 s["LumaEnabledGames"]   = JsonSerializer.Serialize(_lumaEnabledGames.ToList());
                 s["LumaDisabledGames"]  = JsonSerializer.Serialize(_lumaDisabledGames.ToList());
+                s["NormalReShadeGames"] = JsonSerializer.Serialize(_normalReShadeGames.ToList());
                 s["GameRenames"]         = JsonSerializer.Serialize(_gameRenames);
                 s["DllOverrides"]        = JsonSerializer.Serialize(dllOverrideService.GetUserOverridesForSave());
                 s["ManifestDllOptOuts"]  = JsonSerializer.Serialize(dllOverrideService.ManifestDllOverrideOptOuts.ToList());
@@ -427,6 +434,7 @@ public class GameNameService : IGameNameService
         MigrateHashSet(_updateAllExcludedDc, oldName, newName);
         MigrateHashSet(_lumaEnabledGames, oldName, newName);
         MigrateHashSet(_lumaDisabledGames, oldName, newName);
+        MigrateHashSet(_normalReShadeGames, oldName, newName);
 
         // Migrate game-name-keyed Dictionaries
         MigrateDict(_perGameShaderMode, oldName, newName);

@@ -100,10 +100,12 @@ public partial class DetailPanelBuilder
 
         // ReLimiter row — hidden when in Luma mode
         _window.DetailUlRow.Visibility = card.UlRowVisibility;
+        _window.DetailUlRow.Opacity = (card.UseNormalReShade || card.IsDcInstalled || card.Is32Bit) ? 0.35 : 1.0;
+        _window.DetailUlRow.IsHitTestVisible = !card.UseNormalReShade;
         if (card.UlRowVisibility == Visibility.Visible)
         {
-            // Strikethrough the label and status when the other limiter (DC) is installed or game is 32-bit (no 32-bit ReLimiter yet)
-            var ulStrike = (card.IsDcInstalled || card.Is32Bit)
+            // Strikethrough the label and status when the other limiter (DC) is installed, game is 32-bit, or normal ReShade is active
+            var ulStrike = (card.IsDcInstalled || card.Is32Bit || card.UseNormalReShade)
                 ? Windows.UI.Text.TextDecorations.Strikethrough
                 : Windows.UI.Text.TextDecorations.None;
             _window.DetailUlLabel.TextDecorations = ulStrike;
@@ -112,10 +114,10 @@ public partial class DetailPanelBuilder
             _window.DetailUlStatus.Foreground = UIFactory.GetBrush(card.UlStatusColor);
             _window.DetailUlStatus.TextDecorations = card.IsUlInstalled
                 ? Windows.UI.Text.TextDecorations.Underline
-                : (card.IsDcInstalled || card.Is32Bit) ? Windows.UI.Text.TextDecorations.Strikethrough
+                : (card.IsDcInstalled || card.Is32Bit || card.UseNormalReShade) ? Windows.UI.Text.TextDecorations.Strikethrough
                 : Windows.UI.Text.TextDecorations.None;
             _window.DetailUlInstallBtn.Tag = card;
-            _window.DetailUlInstallBtn.Content = (card.IsDcInstalled || card.Is32Bit)
+            _window.DetailUlInstallBtn.Content = (card.IsDcInstalled || card.Is32Bit || card.UseNormalReShade)
                 ? (object)new TextBlock { Text = card.UlActionLabel, TextDecorations = Windows.UI.Text.TextDecorations.Strikethrough }
                 : card.UlActionLabel;
             _window.DetailUlInstallBtn.IsEnabled = card.UlInstallEnabled;
@@ -134,10 +136,12 @@ public partial class DetailPanelBuilder
 
         // Display Commander row — always visible (available in Luma mode)
         _window.DetailDcRow.Visibility = card.DcRowVisibility;
+        _window.DetailDcRow.Opacity = (card.UseNormalReShade || card.IsUlInstalled) ? 0.35 : 1.0;
+        _window.DetailDcRow.IsHitTestVisible = !card.UseNormalReShade;
         if (card.DcRowVisibility == Visibility.Visible)
         {
-            // Strikethrough the label and status when the other limiter (UL) is installed
-            var dcStrike = card.IsUlInstalled
+            // Strikethrough the label and status when the other limiter (UL) is installed or normal ReShade is active
+            var dcStrike = (card.IsUlInstalled || card.UseNormalReShade)
                 ? Windows.UI.Text.TextDecorations.Strikethrough
                 : Windows.UI.Text.TextDecorations.None;
             _window.DetailDcLabel.TextDecorations = dcStrike;
@@ -146,10 +150,10 @@ public partial class DetailPanelBuilder
             _window.DetailDcStatus.Foreground = UIFactory.GetBrush(card.DcStatusColor);
             _window.DetailDcStatus.TextDecorations = card.IsDcInstalled
                 ? Windows.UI.Text.TextDecorations.Underline
-                : card.IsUlInstalled ? Windows.UI.Text.TextDecorations.Strikethrough
+                : (card.IsUlInstalled || card.UseNormalReShade) ? Windows.UI.Text.TextDecorations.Strikethrough
                 : Windows.UI.Text.TextDecorations.None;
             _window.DetailDcInstallBtn.Tag = card;
-            _window.DetailDcInstallBtn.Content = card.IsUlInstalled
+            _window.DetailDcInstallBtn.Content = (card.IsUlInstalled || card.UseNormalReShade)
                 ? (object)new TextBlock { Text = card.DcActionLabel, TextDecorations = Windows.UI.Text.TextDecorations.Strikethrough }
                 : card.DcActionLabel;
             _window.DetailDcInstallBtn.IsEnabled = card.DcInstallEnabled;
@@ -169,18 +173,30 @@ public partial class DetailPanelBuilder
         // RenoDX row (also used for external-only / Discord link)
         bool showRdx = !isLumaMode;
         _window.DetailRdxRow.Visibility = showRdx ? Visibility.Visible : Visibility.Collapsed;
+        _window.DetailRdxRow.Opacity = card.UseNormalReShade ? 0.35 : 1.0;
+        _window.DetailRdxRow.IsHitTestVisible = !card.UseNormalReShade;
         if (showRdx)
         {
             _window.DetailRdxInstallBtn.Tag = card;
             if (card.IsExternalOnly)
             {
+                // Strikethrough for external-only when normal ReShade is active
+                var extStrike = card.UseNormalReShade
+                    ? Windows.UI.Text.TextDecorations.Strikethrough
+                    : Windows.UI.Text.TextDecorations.None;
+                _window.DetailRdxLabel.TextDecorations = extStrike;
+
                 _window.DetailRdxStatus.Text = card.IsRdxInstalled ? (card.RdxInstalledVersion ?? "Installed") : "";
                 _window.DetailRdxStatus.Foreground = UIFactory.GetBrush("#5ECB7D");
-                _window.DetailRdxStatus.TextDecorations = card.IsRdxInstalled
-                    ? Windows.UI.Text.TextDecorations.Underline
-                    : Windows.UI.Text.TextDecorations.None;
-                _window.DetailRdxInstallBtn.Content = card.ExternalDisplayLabel;
-                _window.DetailRdxInstallBtn.IsEnabled = true;
+                _window.DetailRdxStatus.TextDecorations = card.UseNormalReShade
+                    ? Windows.UI.Text.TextDecorations.Strikethrough
+                    : card.IsRdxInstalled
+                        ? Windows.UI.Text.TextDecorations.Underline
+                        : Windows.UI.Text.TextDecorations.None;
+                _window.DetailRdxInstallBtn.Content = card.UseNormalReShade
+                    ? (object)new TextBlock { Text = card.ExternalDisplayLabel, TextDecorations = Windows.UI.Text.TextDecorations.Strikethrough }
+                    : card.ExternalDisplayLabel;
+                _window.DetailRdxInstallBtn.IsEnabled = card.UseNormalReShade ? false : true;
                 _window.DetailRdxInstallBtn.Background = UIFactory.Brush(ResourceKeys.AccentBlueBgBrush);
                 _window.DetailRdxInstallBtn.Foreground = UIFactory.Brush(ResourceKeys.AccentBlueBrush);
                 _window.DetailRdxInstallBtn.BorderBrush = UIFactory.Brush(ResourceKeys.AccentBlueBorderBrush);
@@ -192,13 +208,23 @@ public partial class DetailPanelBuilder
             }
             else
             {
+                // Strikethrough RenoDX label and status when normal ReShade is active
+                var rdxStrike = card.UseNormalReShade
+                    ? Windows.UI.Text.TextDecorations.Strikethrough
+                    : Windows.UI.Text.TextDecorations.None;
+                _window.DetailRdxLabel.TextDecorations = rdxStrike;
+
                 _window.DetailRdxStatus.Text = card.RdxStatusText;
                 _window.DetailRdxStatus.Foreground = UIFactory.GetBrush(card.RdxStatusColor);
-                _window.DetailRdxStatus.TextDecorations = card.IsRdxInstalled
-                    ? Windows.UI.Text.TextDecorations.Underline
-                    : Windows.UI.Text.TextDecorations.None;
-                _window.DetailRdxInstallBtn.Content = card.InstallActionLabel;
-                _window.DetailRdxInstallBtn.IsEnabled = card.CanInstall;
+                _window.DetailRdxStatus.TextDecorations = card.UseNormalReShade
+                    ? Windows.UI.Text.TextDecorations.Strikethrough
+                    : card.IsRdxInstalled
+                        ? Windows.UI.Text.TextDecorations.Underline
+                        : Windows.UI.Text.TextDecorations.None;
+                _window.DetailRdxInstallBtn.Content = card.UseNormalReShade
+                    ? (object)new TextBlock { Text = card.InstallActionLabel, TextDecorations = Windows.UI.Text.TextDecorations.Strikethrough }
+                    : card.InstallActionLabel;
+                _window.DetailRdxInstallBtn.IsEnabled = card.UseNormalReShade ? false : card.CanInstall;
                 _window.DetailRdxInstallBtn.Background = UIFactory.GetBrush(card.InstallBtnBackground);
                 _window.DetailRdxInstallBtn.Foreground = UIFactory.GetBrush(card.InstallBtnForeground);
                 _window.DetailRdxInstallBtn.BorderBrush = UIFactory.GetBrush(card.InstallBtnBorderBrush);

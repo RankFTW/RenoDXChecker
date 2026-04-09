@@ -50,8 +50,8 @@ public partial class GameCardViewModel
         : UlStatus == GameStatus.Installed ? "#4CAF50" : "#5A6880";
     public bool CardUlInstallEnabled => !UlIsInstalling;
 
-    /// <summary>UL install button disabled when installing, when DC is installed (mutual exclusion), or when game is 32-bit (no 32-bit ReLimiter yet).</summary>
-    public bool UlInstallEnabled => !UlIsInstalling && !IsDcInstalled && !Is32Bit;
+    /// <summary>UL install button disabled when installing, when DC is installed (mutual exclusion), when game is 32-bit (no 32-bit ReLimiter yet), or when normal ReShade is active.</summary>
+    public bool UlInstallEnabled => !UlIsInstalling && !IsDcInstalled && !Is32Bit && !UseNormalReShade;
 
     /// <summary>
     /// ReLimiter row is always visible (available in both standard and Luma modes).

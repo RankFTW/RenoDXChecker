@@ -45,8 +45,8 @@ public partial class GameCardViewModel
     /// <summary>True when DisplayCommander.ini is present in the inis folder — enables the 📋 button.</summary>
     public bool DcIniExists => File.Exists(Services.AuxInstallService.DcIniPath);
 
-    /// <summary>DC install button disabled when installing or when ReLimiter is installed (mutual exclusion).</summary>
-    public bool DcInstallEnabled => !DcIsInstalling && !IsUlInstalled;
+    /// <summary>DC install button disabled when installing, when ReLimiter is installed (mutual exclusion), or when normal ReShade is active.</summary>
+    public bool DcInstallEnabled => !DcIsInstalling && !IsUlInstalled && !UseNormalReShade;
 
     // ── Card grid properties ──────────────────────────────────────────────────────
     public string CardDcStatusDot => DcIsInstalling ? "#2196F3"

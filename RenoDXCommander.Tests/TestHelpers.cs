@@ -27,6 +27,7 @@ internal static class TestHelpers
         var shaderPackService = new StubShaderPackService();
         var lumaService = new StubLumaService();
         var rsUpdateService = new StubReShadeUpdateService();
+        var normalRsUpdateService = new StubNormalReShadeUpdateService();
         var settingsVm = new SettingsViewModel();
         var filterVm = new FilterViewModel();
         var updateOrch = new UpdateOrchestrationService(installer, auxInstaller, new CrashReporterService(), auxInstaller, new StubREFrameworkService());
@@ -50,6 +51,7 @@ internal static class TestHelpers
             shaderPackService,
             lumaService,
             rsUpdateService,
+            normalRsUpdateService,
             settingsVm,
             filterVm,
             updateOrch,
@@ -75,7 +77,7 @@ internal static class TestHelpers
 
     private class StubAuxInstallService : IAuxInstallService, IAuxFileService
     {
-        public Task<AuxInstalledRecord> InstallReShadeAsync(string gameName, string installPath, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null, string? screenshotSavePath = null) => Task.FromResult(new AuxInstalledRecord());
+        public Task<AuxInstalledRecord> InstallReShadeAsync(string gameName, string installPath, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null, string? screenshotSavePath = null, bool useNormalReShade = false) => Task.FromResult(new AuxInstalledRecord());
         public Task<bool> CheckForUpdateAsync(AuxInstalledRecord record) => Task.FromResult(false);
         public void Uninstall(AuxInstalledRecord record) { }
         public void UninstallDllOnly(AuxInstalledRecord record) { }
@@ -186,6 +188,12 @@ internal static class TestHelpers
     {
         public Task<(string version, string url)?> CheckLatestVersionAsync() => Task.FromResult<(string, string)?>(null);
         public Task<bool> EnsureLatestAsync(IProgress<(string, double)>? progress = null) => Task.FromResult(false);
+    }
+
+    internal class StubNormalReShadeUpdateService : INormalReShadeUpdateService
+    {
+        public Task<(string version, string url)?> CheckLatestVersionAsync() => Task.FromResult<(string, string)?>(null);
+        public Task<bool> EnsureLatestAsync(IProgress<(string msg, double pct)>? progress = null) => Task.FromResult(false);
     }
 
     internal class StubREFrameworkService : IREFrameworkService

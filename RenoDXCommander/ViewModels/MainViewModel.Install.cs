@@ -740,6 +740,9 @@ public partial class MainViewModel
             if (!string.IsNullOrEmpty(_latestUlVersion))
                 SaveUlMeta(_latestUlVersion, card.Is32Bit);
 
+            // Deploy relimiter.ini from AppData if not already present in game folder
+            AuxInstallService.DeployUlIniIfAbsent(card.InstallPath);
+
             DispatcherQueue?.TryEnqueue(() =>
             {
                 card.UlInstalledFile = GetUlFileName(card.Is32Bit);
@@ -1106,6 +1109,9 @@ public partial class MainViewModel
             // Save version metadata after successful install
             if (!string.IsNullOrEmpty(_latestDcVersion))
                 SaveDcMeta(_latestDcVersion, card.Is32Bit);
+
+            // Deploy DisplayCommander.ini from AppData if not already present in game folder
+            AuxInstallService.DeployDcIniIfAbsent(card.InstallPath);
 
             // Create and persist AuxInstalledRecord for DC tracking
             var dcRecord = new AuxInstalledRecord
@@ -1763,6 +1769,206 @@ public partial class MainViewModel
         {
             card.LumaActionMessage = $"❌ Uninstall failed: {ex.Message}";
             _crashReporter.WriteCrashReport("UninstallLuma", ex, note: $"Game: {card.GameName}");
+        }
+    }
+
+    // ── Normal ReShade toggle orchestration ──────────────────────────────────────
+
+    /// <summary>
+    /// Switches a game between addon-enabled ReShade and normal (non-addon) ReShade.
+    /// When <paramref name="enable"/> is true: uninstalls addon RS, removes managed addons,
+    /// installs normal RS, persists the toggle.
+    /// When false: uninstalls normal RS, installs addon RS, re-deploys addons, persists.
+    /// </summary>
+    public async Task SetUseNormalReShade(GameCardViewModel card, bool enable)
+    {
+        if (enable)
+        {
+            // ── Enable: switch to normal (non-addon) ReShade ──────────────────
+
+            // 1. Check that Normal_Staging DLLs exist
+            bool staged64Exists = File.Exists(AuxInstallService.RsNormalStagedPath64);
+            bool staged32Exists = File.Exists(AuxInstallService.RsNormalStagedPath32);
+            if (!staged64Exists && !staged32Exists)
+            {
+                card.RsActionMessage = "❌ Normal ReShade DLLs not found. Download them first via Settings.";
+                return;
+            }
+
+            card.RsIsInstalling = true;
+            card.RsActionMessage = "Switching to normal ReShade...";
+            try
+            {
+                // 2. Uninstall existing addon ReShade (if installed)
+                if (card.RsRecord != null)
+                {
+                    try
+                    {
+                        _auxInstaller.Uninstall(card.RsRecord);
+                        card.RsRecord = null;
+                        card.RsInstalledFile = null;
+                        card.RsInstalledVersion = null;
+                    }
+                    catch (Exception ex)
+                    {
+                        _crashReporter.Log($"[SetUseNormalReShade] Addon RS uninstall failed — {ex.Message}");
+                    }
+                }
+
+                // 3. Remove all managed addon files from game folder
+                if (!string.IsNullOrEmpty(card.InstallPath))
+                {
+                    _addonPackService.DeployAddonsForGame(card.GameName, card.InstallPath, card.Is32Bit,
+                        useGlobalSet: true, perGameSelection: new List<string>());
+                }
+
+                // 3b. Uninstall RenoDX mod (if installed)
+                if (card.InstalledRecord != null)
+                {
+                    try { UninstallMod(card); }
+                    catch (Exception ex) { _crashReporter.Log($"[SetUseNormalReShade] RenoDX uninstall failed — {ex.Message}"); }
+                }
+
+                // 3c. Uninstall ReLimiter (if installed)
+                if (card.UlStatus == GameStatus.Installed || card.UlStatus == GameStatus.UpdateAvailable)
+                {
+                    try { UninstallUl(card); }
+                    catch (Exception ex) { _crashReporter.Log($"[SetUseNormalReShade] ReLimiter uninstall failed — {ex.Message}"); }
+                }
+
+                // 3d. Uninstall Display Commander (if installed)
+                if (card.DcStatus == GameStatus.Installed || card.DcStatus == GameStatus.UpdateAvailable)
+                {
+                    try { UninstallDc(card); }
+                    catch (Exception ex) { _crashReporter.Log($"[SetUseNormalReShade] Display Commander uninstall failed — {ex.Message}"); }
+                }
+
+                // 4. Install normal ReShade
+                var progress = new Progress<(string msg, double pct)>(p =>
+                {
+                    card.RsActionMessage = p.msg;
+                    card.RsProgress = p.pct;
+                });
+
+                var filenameOverride = card.DllOverrideEnabled
+                    ? GetDllOverride(card.GameName)?.ReShadeFileName
+                    : (GetManifestDllNames(card.GameName)?.ReShade is { Length: > 0 } mRs
+                        ? mRs
+                        : ResolveAutoReShadeFilename(card.DetectedApis));
+
+                var record = await _auxInstaller.InstallReShadeAsync(
+                    card.GameName,
+                    card.InstallPath,
+                    shaderModeOverride: card.ShaderModeOverride,
+                    use32Bit: card.Is32Bit,
+                    filenameOverride: filenameOverride,
+                    selectedPackIds: ResolveShaderSelection(card.GameName, card.ShaderModeOverride),
+                    progress: progress,
+                    screenshotSavePath: BuildScreenshotSavePath(card.GameName),
+                    useNormalReShade: true);
+
+                // 5. Add to persisted set, update card
+                _normalReShadeGames.Add(card.GameName);
+                SaveNameMappings();
+
+                DispatcherQueue?.TryEnqueue(() =>
+                {
+                    card.RsRecord = record;
+                    card.RsInstalledFile = record.InstalledAs;
+                    card.RsInstalledVersion = AuxInstallService.ReadInstalledVersion(record.InstallPath, record.InstalledAs);
+                    card.RsStatus = GameStatus.Installed;
+                    card.UseNormalReShade = true;
+                    card.RsActionMessage = "✅ Normal ReShade installed!";
+                    card.NotifyAll();
+                    card.FadeMessage(m => card.RsActionMessage = m, card.RsActionMessage);
+                });
+            }
+            catch (Exception ex)
+            {
+                card.RsActionMessage = $"❌ Normal ReShade switch failed: {ex.Message}";
+                _crashReporter.WriteCrashReport("SetUseNormalReShade_Enable", ex, note: $"Game: {card.GameName}");
+            }
+            finally
+            {
+                card.RsIsInstalling = false;
+            }
+        }
+        else
+        {
+            // ── Disable: switch back to addon-enabled ReShade ─────────────────
+
+            card.RsIsInstalling = true;
+            card.RsActionMessage = "Switching to addon ReShade...";
+            try
+            {
+                // 1. Uninstall existing normal ReShade (if installed)
+                if (card.RsRecord != null)
+                {
+                    try
+                    {
+                        _auxInstaller.Uninstall(card.RsRecord);
+                        card.RsRecord = null;
+                        card.RsInstalledFile = null;
+                        card.RsInstalledVersion = null;
+                    }
+                    catch (Exception ex)
+                    {
+                        _crashReporter.Log($"[SetUseNormalReShade] Normal RS uninstall failed — {ex.Message}");
+                    }
+                }
+
+                // 2. Install addon ReShade
+                var progress = new Progress<(string msg, double pct)>(p =>
+                {
+                    card.RsActionMessage = p.msg;
+                    card.RsProgress = p.pct;
+                });
+
+                var filenameOverride = card.DllOverrideEnabled
+                    ? GetDllOverride(card.GameName)?.ReShadeFileName
+                    : (GetManifestDllNames(card.GameName)?.ReShade is { Length: > 0 } mRs
+                        ? mRs
+                        : ResolveAutoReShadeFilename(card.DetectedApis));
+
+                var record = await _auxInstaller.InstallReShadeAsync(
+                    card.GameName,
+                    card.InstallPath,
+                    shaderModeOverride: card.ShaderModeOverride,
+                    use32Bit: card.Is32Bit,
+                    filenameOverride: filenameOverride,
+                    selectedPackIds: ResolveShaderSelection(card.GameName, card.ShaderModeOverride),
+                    progress: progress,
+                    screenshotSavePath: BuildScreenshotSavePath(card.GameName),
+                    useNormalReShade: false);
+
+                // 3. Re-deploy addons per game's addon selection
+                _normalReShadeGames.Remove(card.GameName);
+                SaveNameMappings();
+
+                DispatcherQueue?.TryEnqueue(() =>
+                {
+                    card.RsRecord = record;
+                    card.RsInstalledFile = record.InstalledAs;
+                    card.RsInstalledVersion = AuxInstallService.ReadInstalledVersion(record.InstallPath, record.InstalledAs);
+                    card.RsStatus = GameStatus.Installed;
+                    card.UseNormalReShade = false;
+                    card.RsActionMessage = "✅ Addon ReShade restored!";
+                    card.NotifyAll();
+                    card.FadeMessage(m => card.RsActionMessage = m, card.RsActionMessage);
+
+                    // Re-deploy addons now that addon ReShade is back
+                    DeployAddonsForCard(card.GameName);
+                });
+            }
+            catch (Exception ex)
+            {
+                card.RsActionMessage = $"❌ Addon ReShade switch failed: {ex.Message}";
+                _crashReporter.WriteCrashReport("SetUseNormalReShade_Disable", ex, note: $"Game: {card.GameName}");
+            }
+            finally
+            {
+                card.RsIsInstalling = false;
+            }
         }
     }
 }

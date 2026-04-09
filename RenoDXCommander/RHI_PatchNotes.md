@@ -1,12 +1,31 @@
-## v1.7.5
+## v1.7.6
+
+### New Features
+
+**ReShade Without Addon Support (per-game toggle)**
+- New toggle in the game overrides panel lets you switch individual games from addon-enabled ReShade to standard ReShade (without addon support). When enabled, all addons (RenoDX, ReLimiter, Display Commander, managed addon packs) are removed from the game folder, addon rows are dimmed and disabled, and the addon override toggle is locked off. Toggling back restores addon ReShade and re-deploys addons. The setting persists per-game across app restarts.
+
+**Automatic INI deploy on first install**
+- Installing ReLimiter or Display Commander to a game for the first time now automatically copies your pre-configured `relimiter.ini` or `DisplayCommander.ini` from the AppData INI folder to the game directory. If the INI already exists in the game folder it's left untouched, so per-game customisations are never overwritten. If the source INI doesn't exist or the copy fails, the install continues normally — no error, no interruption.
+
+**Mutual-exclusion dimming for ReLimiter / Display Commander**
+- When ReLimiter is installed, the Display Commander row is now visually dimmed (and vice versa), making the mutual exclusivity between the two much clearer at a glance.
 
 ### Changes
 
-**Unified DLL naming override toggle**
-- The two separate toggles for ReShade and Display Commander DLL naming overrides have been merged into a single toggle. Turning it ON enables both RS and DC dropdowns with safe defaults; turning it OFF reverts both to their default filenames in one action. No more partial-on states.
+**Preset folder path is now a clickable link**
+- The presets folder path in the "Select ReShade Presets" dialog is now a hyperlink that opens the folder in Explorer when clicked.
 
-**DC reverts before RS on toggle OFF**
-- When disabling the override, Display Commander is now renamed back to its default name before ReShade. This prevents the scenario where DC was renamed to `dxgi.dll` and RS couldn't reclaim it because the filename was occupied.
+### Bug Fixes
+
+**Last selected game not restored on launch**
+- The "remember last selected game" feature was broken — the saved selection was being overwritten by auto-select during init, and the library wasn't being saved on app close. Both issues are now fixed.
+
+---
+
+## v1.7.5
+
+### Changes
 
 **Downloads folder reorganised into subdirectories**
 - The `%LocalAppData%\RHI\downloads\` folder is now organised into categorised subdirectories: `shaders/`, `renodx/`, `framelimiter/`, `luma/`, and `misc/`. Existing cached files are automatically migrated on first launch — no re-downloads needed. The migration is safe to interrupt and handles locked or duplicate files gracefully.

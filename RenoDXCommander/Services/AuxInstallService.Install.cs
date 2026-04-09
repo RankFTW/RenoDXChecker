@@ -16,7 +16,8 @@ public partial class AuxInstallService
         string? filenameOverride = null,
         IEnumerable<string>? selectedPackIds = null,
         IProgress<(string message, double percent)>? progress = null,
-        string? screenshotSavePath = null)
+        string? screenshotSavePath = null,
+        bool useNormalReShade = false)
     {
         Directory.CreateDirectory(DownloadPaths.Misc);
 
@@ -36,7 +37,9 @@ public partial class AuxInstallService
         var destPath = Path.Combine(installPath, destName);
 
         // ── Record-aware cleanup: remove old non-standard DLL if InstalledAs differs ─
-        var existingRecord = FindRecord(gameName, installPath, TypeReShade);
+        var addonType = useNormalReShade ? TypeReShadeNormal : TypeReShade;
+        var existingRecord = FindRecord(gameName, installPath, TypeReShade)
+                          ?? FindRecord(gameName, installPath, TypeReShadeNormal);
         if (existingRecord != null &&
             !string.Equals(existingRecord.InstalledAs, destName, StringComparison.OrdinalIgnoreCase))
         {
@@ -50,7 +53,9 @@ public partial class AuxInstallService
         progress?.Report(("Preparing ReShade files...", 10));
         EnsureReShadeStaging();
 
-        var rsStagedPath = use32Bit ? RsStagedPath32 : RsStagedPath64;
+        var rsStagedPath = useNormalReShade
+            ? (use32Bit ? RsNormalStagedPath32 : RsNormalStagedPath64)
+            : (use32Bit ? RsStagedPath32 : RsStagedPath64);
         if (!File.Exists(rsStagedPath))
             throw new FileNotFoundException(
                 $"ReShade DLLs not found in staging directory.\n" +
@@ -82,7 +87,7 @@ public partial class AuxInstallService
         {
             GameName       = gameName,
             InstallPath    = installPath,
-            AddonType      = TypeReShade,
+            AddonType      = addonType,
             InstalledAs    = destName,
             SourceUrl      = null,       // bundled — no remote URL
             RemoteFileSize = null,       // no remote size to track
@@ -100,18 +105,29 @@ public partial class AuxInstallService
     /// </summary>
     public static bool CheckReShadeUpdateLocal(AuxInstalledRecord record)
     {
-        if (record.AddonType != TypeReShade) return false;
+        if (record.AddonType != TypeReShade && record.AddonType != TypeReShadeNormal)
+            return false;
+
         var localFile = Path.Combine(record.InstallPath, record.InstalledAs);
         if (!File.Exists(localFile)) return false;
 
         var localSize = new FileInfo(localFile).Length;
 
+        // Pick the correct staging paths based on the installed variant.
+        var staged64 = record.AddonType == TypeReShadeNormal ? RsNormalStagedPath64 : RsStagedPath64;
+        var staged32 = record.AddonType == TypeReShadeNormal ? RsNormalStagedPath32 : RsStagedPath32;
+
+        // Defensive: skip update check if staged DLLs are suspiciously small (test artifacts)
+        if (File.Exists(staged64) && new FileInfo(staged64).Length < 100_000
+            && File.Exists(staged32) && new FileInfo(staged32).Length < 100_000)
+            return false;
+
         // Check against the 64-bit staged DLL first, then 32-bit.
         // The installed file matches the staged DLL it was copied from.
         // If either staged file has a different size, an update is available.
-        if (File.Exists(RsStagedPath64) && localSize == new FileInfo(RsStagedPath64).Length)
+        if (File.Exists(staged64) && localSize == new FileInfo(staged64).Length)
             return false; // matches current 64-bit — no update
-        if (File.Exists(RsStagedPath32) && localSize == new FileInfo(RsStagedPath32).Length)
+        if (File.Exists(staged32) && localSize == new FileInfo(staged32).Length)
             return false; // matches current 32-bit — no update
 
         // Size doesn't match either staged DLL — update available

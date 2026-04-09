@@ -31,7 +31,7 @@ public partial class DragDropHandler
     /// </summary>
     public static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".exe", ".addon64", ".addon32",
+        ".exe", ".addon64", ".addon32", ".ini",
         ".zip", ".7z", ".rar", ".tar", ".gz", ".bz2", ".xz", ".tgz",
     };
 
@@ -69,7 +69,7 @@ public partial class DragDropHandler
         if (e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems))
         {
             e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
-            e.DragUIOverride.Caption = "Drop to add game, install addon, or extract archive";
+            e.DragUIOverride.Caption = "Drop to add game, install addon, install preset, or extract archive";
             e.DragUIOverride.IsCaptionVisible = true;
             e.DragUIOverride.IsGlyphVisible = true;
         }
@@ -156,6 +156,20 @@ public partial class DragDropHandler
                 if (!IsAllowedExtension(file.Path))
                 {
                     _crashReporter.Log($"[DragDropHandler.Grid_Drop] Skipping file with disallowed extension '{ext}' — '{file.Name}'");
+                    continue;
+                }
+
+                // Handle .ini files — install ReShade preset
+                if (ext == ".ini")
+                {
+                    try
+                    {
+                        await ProcessDroppedPreset(file.Path);
+                    }
+                    catch (Exception ex)
+                    {
+                        _crashReporter.Log($"[DragDropHandler.Grid_Drop] DragDrop preset error processing '{file.Path}' — {ex.Message}");
+                    }
                     continue;
                 }
 

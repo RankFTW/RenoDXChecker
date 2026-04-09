@@ -129,6 +129,7 @@ public partial class MainViewModel
             Dictionary<string, bool> addonCache;
             bool wikiFetchFailed = false;
             Task rsTask = Task.CompletedTask; // hoisted so we can defer the await until after cards display
+            Task normalRsTask = Task.CompletedTask; // hoisted so we can defer the await until after cards display
 
             // Merge hidden/favourite from library file with any already loaded from settings.json
             if (savedLib?.HiddenGames != null)
@@ -163,6 +164,10 @@ public partial class MainViewModel
                 rsTask           = Task.Run(async () => {
                     try { await _rsUpdateService.EnsureLatestAsync(); }
                     catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] ReShade update task failed — {ex.Message}"); }
+                });
+                normalRsTask     = Task.Run(async () => {
+                    try { await _normalRsUpdateService.EnsureLatestAsync(); }
+                    catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] Normal ReShade update task failed — {ex.Message}"); }
                 });
 
                 // Await detection first — this never needs network
@@ -213,6 +218,10 @@ public partial class MainViewModel
                 rsTask           = Task.Run(async () => {
                     try { await _rsUpdateService.EnsureLatestAsync(); }
                     catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] ReShade update task failed — {ex.Message}"); }
+                });
+                normalRsTask     = Task.Run(async () => {
+                    try { await _normalRsUpdateService.EnsureLatestAsync(); }
+                    catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] Normal ReShade update task failed — {ex.Message}"); }
                 });
 
                 // Await detection first — this never needs network
@@ -329,8 +338,8 @@ public partial class MainViewModel
             {
                 try
                 {
-                    // Wait for ReShade staging to finish
-                    await rsTask;
+                    // Wait for ReShade staging to finish (addon + normal variants in parallel)
+                    await Task.WhenAll(rsTask, normalRsTask);
                 }
                 catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] Deferred ReShade sync failed — {ex.Message}"); }
 
@@ -368,6 +377,14 @@ public partial class MainViewModel
                             : card.RsStatus == GameStatus.Installed || card.RsStatus == GameStatus.UpdateAvailable)
                         .Select(card =>
                         {
+                            // Skip addon deployment for normal ReShade games (Req 3.1, 3.2)
+                            if (card.UseNormalReShade)
+                            {
+                                return Task.Run(() => _addonPackService.DeployAddonsForGame(
+                                    card.GameName, card.InstallPath, card.Is32Bit,
+                                    useGlobalSet: true, perGameSelection: new List<string>()));
+                            }
+
                             string addonMode = GetPerGameAddonMode(card.GameName);
                             bool useGlobalSet = addonMode != "Select";
                             List<string>? selection = useGlobalSet
@@ -776,7 +793,7 @@ public partial class MainViewModel
             // Look up aux records for this game
             var rsRec = auxRecords.FirstOrDefault(r =>
                 r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase) &&
-                r.AddonType == AuxInstallService.TypeReShade);
+                (r.AddonType == AuxInstallService.TypeReShade || r.AddonType == AuxInstallService.TypeReShadeNormal));
 
             // Verify DB records against disk — if the file no longer exists the record is stale.
             // This handles the case where the user manually deleted files without using RDXC.
@@ -906,6 +923,7 @@ public partial class MainViewModel
                 ExcludeFromUpdateAllRenoDx  = _gameNameService.UpdateAllExcludedRenoDx.Contains(game.Name),
                 ExcludeFromUpdateAllUl      = _gameNameService.UpdateAllExcludedUl.Contains(game.Name),
                 ExcludeFromUpdateAllDc      = _gameNameService.UpdateAllExcludedDc.Contains(game.Name),
+                UseNormalReShade           = _gameNameService.NormalReShadeGames.Contains(game.Name),
                 ShaderModeOverride     = _perGameShaderMode.TryGetValue(game.Name, out var smBc) ? smBc : null,
                 Is32Bit                = ResolveIs32Bit(game.Name, detectedMachine),
                 GraphicsApi            = DetectGraphicsApi(installPath, engine, game.Name),

@@ -76,16 +76,24 @@ public static class PresetPopupHelper
         var panel = new StackPanel { Spacing = 4 };
         var checkBoxes = new List<(string FileName, CheckBox Box)>();
 
-        panel.Children.Add(new TextBlock
+        var pathLink = new TextBlock
         {
-            Text = $"Presets from: {PresetsDir}",
             FontSize = 11,
             Opacity = 0.6,
             Foreground = Brush(ResourceKeys.TextPrimaryBrush),
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 6),
-            IsTextSelectionEnabled = true,
-        });
+        };
+        pathLink.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = "Presets from: " });
+        var linkRun = new Microsoft.UI.Xaml.Documents.Hyperlink();
+        linkRun.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = PresetsDir });
+        linkRun.Click += (s, e) =>
+        {
+            try { System.Diagnostics.Process.Start("explorer.exe", PresetsDir); }
+            catch { }
+        };
+        pathLink.Inlines.Add(linkRun);
+        panel.Children.Add(pathLink);
 
         foreach (var file in iniFiles)
         {
