@@ -80,14 +80,15 @@ Games in Luma mode do not show a wiki status icon on the grid card.
 
 When a game is selected:
 
-- **Game name** with badges for platform, engine type, wiki status, mod author(s), UE-Extended / Native HDR, and 32-bit/64-bit indicator
-- **Graphics API badge** — detected rendering APIs
-- **Install path** in monospace text
+- **Game name** displayed above the info card, with mod author badge(s) on the right
+- **Info card** — bordered section containing action buttons (Nexus Mods, PCGW links on the left; Hide, Favourite on the right) and info badges for platform, engine type, wiki status, graphics API, UE-Extended / Native HDR, and 32-bit/64-bit indicator
+- **Install path** in monospace text below the game name
 - **Installed addon filename** badge when a mod is installed
+- **Browse, Info, and Discussion buttons** — on the badges row, right-aligned
 - **Components table** — ReShade → RenoDX → separator ("Choose one from below") → ReLimiter → Display Commander, and Luma (when applicable), each with status, install/reinstall/update button, options menu, and uninstall button
 - **Rendering path toggle** — for dual-API games (DirectX + Vulkan)
 - **Overrides section** — all per-game settings inline
-- **Utility buttons** — favourite, discussion link, game info/notes, hide/unhide, folder menu (open in Explorer, change install folder, reset/remove game)
+- **Management section** — Change install folder, Reset folder, Reset Overrides, Copy Report in a dedicated bordered section below overrides
 
 ### Status Bar
 
@@ -466,6 +467,10 @@ Per-game addon selections are persisted across restarts.
 
 The RenoDX DevKit addon is always available in the addon manager alongside the official Addons.ini entries, with download URLs for both 32-bit and 64-bit variants from the RenoDX GitHub releases.
 
+### DLSS Fix Addon
+
+The DLSS Fix addon makes ReShade draw on native game frames instead of frame gen frames, and hides DLSS upscaling from ReShade. It is always available in the addon manager with a "How to use" link to the RenoDX wiki. 64-bit only.
+
 ### Addon Storage
 
 | Path | Contents |
@@ -480,7 +485,9 @@ The override panel is organised as:
 
 - **Top row** — Game name, wiki mapping, wiki exclusion
 - **Middle row** — Bitness/API overrides (left), Global update inclusion (right)
-- **Bottom row** — Shaders (left), Addons (right)
+- **Bottom row** — Shaders and preset selector (left), Addons and Normal ReShade toggle (right)
+
+Folder management buttons (Change install folder, Reset folder, Reset Overrides, Copy Report) are in a separate bordered section below the overrides panel.
 
 ---
 
@@ -643,6 +650,41 @@ RHI supports drag-and-drop for adding games and installing mods. Drag-and-drop w
 ### Extension Validation
 
 File extensions are validated before any network or file activity. Only the following extensions are accepted: `.exe`, `.addon64`, `.addon32`, `.ini`, `.zip`, `.7z`, `.rar`, `.tar`, `.gz`, `.bz2`, `.xz`, `.tgz`. Files with unrecognised extensions are silently skipped.
+
+---
+
+## Nexus Mods & PCGamingWiki Links
+
+Each detected game can show clickable Nexus Mods and PCGamingWiki (PCGW) buttons in the detail panel info card.
+
+### Nexus Mods Resolution
+
+RHI fetches the public Nexus Mods game catalogue (`games.json`) on startup, caches it locally for 24 hours, and builds a normalized-name lookup dictionary. When a game is detected, its name is matched against the dictionary to find the Nexus Mods page URL.
+
+### PCGW Resolution
+
+PCGW links are resolved via Steam AppID through a priority chain:
+
+1. Manifest `steamAppIdOverrides` (highest priority)
+2. Cached AppID from previous resolution
+3. Steam AppID parsed from ACF filename during detection
+4. `steam_appid.txt` in the game install directory
+5. Steam Store search API (rate-limited to 1 request/second)
+
+When an AppID is resolved, the PCGW URL is constructed as `https://www.pcgamingwiki.com/api/appid.php?appid={id}`. For games without a Steam AppID, an OpenSearch fallback queries the PCGW wiki directly.
+
+### Manifest Overrides
+
+Games where automatic resolution fails can be overridden in the remote manifest:
+
+- `nexusUrlOverrides` — maps game name to Nexus Mods URL
+- `steamAppIdOverrides` — maps game name to Steam AppID (integer)
+- `pcgwUrlOverrides` — maps game name to PCGW URL
+
+### Caching
+
+- Nexus games list: `%LOCALAPPDATA%\RHI\nexus_games.json` (24-hour TTL)
+- Steam AppID cache: `%LOCALAPPDATA%\RHI\steam_appid_cache.json` (permanent, grows as games are resolved)
 
 ---
 

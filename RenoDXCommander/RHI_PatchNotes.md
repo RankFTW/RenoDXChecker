@@ -16,6 +16,15 @@
 - Hide and Favourite buttons sit on the top row alongside the Nexus/PCGW links. Favourite now shows as a text button that highlights yellow when active, matching the style of the other action buttons.
 - Folder management buttons (Change install folder, Reset folder, Reset Overrides, Copy Report) have been moved out of the overrides section into their own dedicated section underneath.
 - The ReShade preset selector and Normal ReShade toggle are now side by side with a divider, instead of stacked vertically.
+- The Select ReShade Preset button now uses blue accent styling to match Select Shaders.
+
+### Bug Fixes
+
+**Shader toggle not updating after preset install**
+- Installing a preset with shaders via drag-and-drop or the preset dialog now immediately updates the Global Shaders toggle in the overrides panel, instead of requiring a manual refresh.
+
+**Preset folder link not clickable when empty**
+- The folder path in the "No preset files found" dialog is now a clickable link matching the style used when presets are present.
 
 ## v1.7.6
 

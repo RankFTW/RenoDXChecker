@@ -17,6 +17,7 @@ RHI is a WinUI 3 desktop application for managing HDR mod installations on PC ga
 - **Update detection** — detect and apply component updates across all games with Update All (covers ReShade, RenoDX, ReLimiter, Display Commander, and RE Framework)
 - **Shader pack management** — deploy and sync 41 shader packs (Essential, Recommended, Extra) across installed games, with automatic dependency resolution
 - **ReShade addon management** — browse, download, and toggle curated ReShade addons from the official list. Enabled addons are auto-deployed when ReShade is installed, removed when ReShade is uninstalled, and synced on every Refresh
+- **Nexus Mods & PCGamingWiki links** — each game shows clickable Nexus Mods and PCGW buttons, resolved automatically from the public game catalogue and Steam AppID lookup. Manual overrides available in the manifest
 - **ReShade preset deployment** — place `.ini` preset files in the reshade-presets folder and deploy them to any game from the overrides panel, or drag-and-drop a preset `.ini` onto RHI to deploy it with automatic shader pack installation
 - **ReShade Without Addon Support** — per-game toggle to switch from addon-enabled ReShade to standard ReShade. All addons are removed and rows dimmed; toggle back to restore
 - **ReLimiter OSD hotkey** — configure the ReLimiter overlay hotkey from the Settings page and apply it to all managed `relimiter.ini` files
