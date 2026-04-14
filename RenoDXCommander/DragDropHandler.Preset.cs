@@ -193,6 +193,13 @@ public partial class DragDropHandler
         {
             _crashReporter.Log($"[DragDropHandler.ProcessDroppedPreset] User chose to install shaders for '{gameName}'");
             ViewModel.ApplyPresetShaders(gameName, new[] { iniPath });
+
+            // Rebuild overrides panel so the shader toggle reflects the new "Select" mode
+            if (ViewModel.SelectedGame is { } selectedCard
+                && selectedCard.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase))
+            {
+                _window.BuildOverridesPanel(selectedCard);
+            }
         }
         else
         {

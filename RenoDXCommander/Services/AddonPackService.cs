@@ -38,6 +38,17 @@ public class AddonPackService : IAddonPackService
         RepositoryUrl: "https://github.com/clshortfuse/renodx",
         EffectInstallPath: null);
 
+    // DLSS Fix addon — fixes DLSS frame generation locking to 2× in Unreal Engine games
+    private static readonly AddonEntry DlssFixEntry = new(
+        SectionId: "renodx-dlssfix",
+        PackageName: "DLSS Fix",
+        PackageDescription: "Makes ReShade draw on native game frames instead of frame gen frames. Also hides DLSS upscaling from ReShade.",
+        DownloadUrl: "https://github.com/clshortfuse/renodx/releases/download/snapshot/renodx-dlssfix.addon64",
+        DownloadUrl32: null,
+        DownloadUrl64: "https://github.com/clshortfuse/renodx/releases/download/snapshot/renodx-dlssfix.addon64",
+        RepositoryUrl: "https://github.com/clshortfuse/renodx/wiki/Mods#unreal-engine-",
+        EffectInstallPath: null);
+
     public AddonPackService(HttpClient http) => _http = http;
 
     // ── Public properties ─────────────────────────────────────────────────────────
@@ -156,6 +167,10 @@ public class AddonPackService : IAddonPackService
         // Append RenoDX DevKit entry (always present)
         if (!parsed.Any(e => e.PackageName.Equals(RenoDxDevKitEntry.PackageName, StringComparison.OrdinalIgnoreCase)))
             parsed.Add(RenoDxDevKitEntry);
+
+        // Append DLSS Fix entry (always present)
+        if (!parsed.Any(e => e.PackageName.Equals(DlssFixEntry.PackageName, StringComparison.OrdinalIgnoreCase)))
+            parsed.Add(DlssFixEntry);
 
         _packs = parsed;
         CrashReporter.Log($"[AddonPackService.EnsureLatestAsync] Loaded {_packs.Count} addon entries.");

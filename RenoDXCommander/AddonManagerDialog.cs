@@ -139,6 +139,19 @@ public static class AddonManagerDialog
             });
         }
 
+        // "How to use" link when the entry has both a download URL and a repository/wiki URL
+        if (!string.IsNullOrEmpty(entry.RepositoryUrl) && actionType == "download")
+        {
+            textPanel.Children.Add(new HyperlinkButton
+            {
+                Content = "How to use",
+                NavigateUri = new Uri(entry.RepositoryUrl),
+                FontSize = 11,
+                Foreground = Brush(ResourceKeys.AccentBlueBrush),
+                Padding = new Thickness(0),
+            });
+        }
+
         // Right side: toggle or repository link
         FrameworkElement rightElement;
 

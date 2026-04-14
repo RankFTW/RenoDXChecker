@@ -291,40 +291,41 @@
                     <StackPanel x:Name="DetailPanel" Spacing="16" Visibility="Collapsed"
                                 Padding="24,18,24,24" HorizontalAlignment="Center">
 
-                        <!-- ── Game info section (header + badges) ── -->
+                        <!-- ── Game name + author row (above card) ── -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Bottom">
+                                <TextBlock x:Name="DetailGameName" x:FieldModifier="internal" FontSize="20" FontWeight="Bold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           TextTrimming="CharacterEllipsis" MaxLines="1"/>
+                                <TextBlock x:Name="DetailInstallPath" x:FieldModifier="internal" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}"
+                                           FontFamily="Consolas" VerticalAlignment="Center"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <!-- Author badges (right-aligned, above card) -->
+                            <StackPanel Grid.Column="1" x:Name="DetailAuthorBadgePanel" x:FieldModifier="internal" Orientation="Horizontal" Spacing="4"
+                                        VerticalAlignment="Center" Visibility="Collapsed"/>
+                        </Grid>
+
+                        <!-- ── Game info card (action buttons + badges) ── -->
                         <Border Background="{StaticResource SurfaceComponentTableBrush}" CornerRadius="12"
                                 BorderBrush="{StaticResource BorderDefaultBrush}" BorderThickness="1" Padding="16,14">
                             <StackPanel Spacing="10">
-                                <!-- Header: Name + action icons -->
-                                <Grid>
+                                <!-- Action buttons row -->
+                                <Grid x:Name="DetailActionRow" x:FieldModifier="internal">
                                     <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0" Spacing="6" VerticalAlignment="Center">
-                                        <TextBlock x:Name="DetailGameName" x:FieldModifier="internal" FontSize="20" FontWeight="Bold"
-                                                   Foreground="{StaticResource TextPrimaryBrush}"
-                                                   TextTrimming="CharacterEllipsis" MaxLines="1"/>
-                                        <TextBlock x:Name="DetailInstallPath" x:FieldModifier="internal" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}"
-                                                   FontFamily="Consolas" VerticalAlignment="Center"
-                                                   TextWrapping="Wrap"/>
-                                    </StackPanel>
-                                    <StackPanel x:Name="DetailActionRow" x:FieldModifier="internal" Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                        <Button x:Name="DetailDiscussionBtn" x:FieldModifier="internal" Background="Transparent" BorderThickness="0"
-                                                Padding="6,4" MinWidth="0" MinHeight="0" Visibility="Collapsed"
-                                                Click="NameLink_Click"
-                                                ToolTipService.ToolTip="Open discussion / instructions">
-                                            <TextBlock Text="💬" FontSize="14" HorizontalAlignment="Center"/>
-                                        </Button>
-                                        <Button x:Name="DetailNotesBtn" x:FieldModifier="internal" Background="Transparent" BorderThickness="0"
-                                                Padding="6,4" MinWidth="0" MinHeight="0" Visibility="Collapsed"
-                                                Click="NotesButton_Click"
-                                                ToolTipService.ToolTip="Game info / notes">
-                                            <TextBlock Text="ℹ" FontSize="15" Foreground="{StaticResource TextTertiaryBrush}" HorizontalAlignment="Center"/>
-                                        </Button>
+                                    <!-- Left: external links -->
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
                                         <Button x:Name="DetailNexusModsBtn" x:FieldModifier="internal"
                                                 Background="{StaticResource SurfaceOverlayBrush}"
-                                                Foreground="{StaticResource TextTertiaryBrush}"
+                                                Foreground="{StaticResource ChipTextBrush}"
                                                 BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1"
                                                 CornerRadius="6" Padding="8,4" MinWidth="0" MinHeight="0"
                                                 FontSize="11" Content="Nexus"
@@ -333,40 +334,39 @@
                                                 ToolTipService.ToolTip="Open Nexus Mods page"/>
                                         <Button x:Name="DetailPcgwBtn" x:FieldModifier="internal"
                                                 Background="{StaticResource SurfaceOverlayBrush}"
-                                                Foreground="{StaticResource TextTertiaryBrush}"
+                                                Foreground="{StaticResource ChipTextBrush}"
                                                 BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1"
                                                 CornerRadius="6" Padding="8,4" MinWidth="0" MinHeight="0"
                                                 FontSize="11" Content="PCGW"
                                                 Click="PcgwLink_Click"
                                                 Visibility="Collapsed"
                                                 ToolTipService.ToolTip="Open PCGamingWiki page"/>
+                                    </StackPanel>
+                                    <!-- Right: game actions -->
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
                                         <Button x:Name="DetailHideBtn" x:FieldModifier="internal"
                                                 Background="{StaticResource SurfaceOverlayBrush}"
-                                                Foreground="{StaticResource TextTertiaryBrush}"
+                                                Foreground="{StaticResource ChipTextBrush}"
                                                 BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1"
                                                 CornerRadius="6" Padding="8,4" MinWidth="0" MinHeight="0"
                                                 FontSize="11"
                                                 Click="HideButton_Click">
                                             <TextBlock x:Name="DetailHideIcon" x:FieldModifier="internal" FontSize="11"/>
                                         </Button>
-                                        <Button x:Name="DetailFolderBtn" x:FieldModifier="internal"
+                                        <Button x:Name="DetailFavBtn" x:FieldModifier="internal"
                                                 Background="{StaticResource SurfaceOverlayBrush}"
-                                                Foreground="{StaticResource TextTertiaryBrush}"
+                                                Foreground="{StaticResource ChipTextBrush}"
                                                 BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1"
                                                 CornerRadius="6" Padding="8,4" MinWidth="0" MinHeight="0"
-                                                FontSize="11" Content="Browse"
-                                                Click="OpenFolder_Click"
-                                                ToolTipService.ToolTip="Open game folder in Explorer"/>
-                                        <Button x:Name="DetailFavBtn" x:FieldModifier="internal" Background="Transparent" BorderThickness="0"
-                                                Width="32" Height="32" Padding="0"
+                                                FontSize="11"
                                                 Click="FavouriteButton_Click"
                                                 ToolTipService.ToolTip="Toggle favourite">
-                                            <TextBlock x:Name="DetailFavIcon" x:FieldModifier="internal" FontSize="14" HorizontalAlignment="Center"/>
+                                            <TextBlock x:Name="DetailFavIcon" x:FieldModifier="internal" FontSize="11" Text="Favourite"/>
                                         </Button>
                                     </StackPanel>
                                 </Grid>
 
-                                <!-- Addon file + info badges -->
+                                <!-- Addon file + info badges with Browse button -->
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -432,10 +432,36 @@
                                         <TextBlock x:Name="DetailWikiText" x:FieldModifier="internal" FontSize="11"/>
                                     </Border>
                                 </controls:WrapPanel>
-
-                                    <!-- Group 4: Author badges (right-aligned) -->
-                                    <StackPanel Grid.Column="1" x:Name="DetailAuthorBadgePanel" x:FieldModifier="internal" Orientation="Horizontal" Spacing="4"
-                                                VerticalAlignment="Center" Visibility="Collapsed"/>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Top" Margin="16,0,0,0">
+                                        <Button x:Name="DetailDiscussionBtn" x:FieldModifier="internal"
+                                                Background="{StaticResource SurfaceOverlayBrush}"
+                                                Foreground="{StaticResource ChipTextBrush}"
+                                                BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1"
+                                                CornerRadius="6" Padding="8,4" MinWidth="0" MinHeight="0"
+                                                FontSize="11" Visibility="Collapsed"
+                                                Click="NameLink_Click"
+                                                ToolTipService.ToolTip="Open discussion / instructions">
+                                            <TextBlock Text="💬" FontSize="11" HorizontalAlignment="Center"/>
+                                        </Button>
+                                        <Button x:Name="DetailNotesBtn" x:FieldModifier="internal"
+                                                Background="{StaticResource SurfaceOverlayBrush}"
+                                                Foreground="{StaticResource ChipTextBrush}"
+                                                BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1"
+                                                CornerRadius="6" Padding="8,4" MinWidth="0" MinHeight="0"
+                                                FontSize="11" Visibility="Collapsed"
+                                                Click="NotesButton_Click"
+                                                ToolTipService.ToolTip="Game info / notes">
+                                            <TextBlock Text="ℹ" FontSize="11" Foreground="{StaticResource ChipTextBrush}" HorizontalAlignment="Center"/>
+                                        </Button>
+                                        <Button x:Name="DetailFolderBtn" x:FieldModifier="internal"
+                                                Background="{StaticResource SurfaceOverlayBrush}"
+                                                Foreground="{StaticResource ChipTextBrush}"
+                                                BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1"
+                                                CornerRadius="6" Padding="8,4" MinWidth="0" MinHeight="0"
+                                                FontSize="11" Content="Browse"
+                                                Click="OpenFolder_Click"
+                                                ToolTipService.ToolTip="Open game folder in Explorer"/>
+                                    </StackPanel>
                                 </Grid>
                             </StackPanel>
                         </Border>

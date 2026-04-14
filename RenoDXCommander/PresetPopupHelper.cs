@@ -32,6 +32,22 @@ public static class PresetPopupHelper
 
         if (iniFiles.Count == 0)
         {
+            var emptyPathLink = new TextBlock
+            {
+                FontSize = 11,
+                Opacity = 0.6,
+                Foreground = Brush(ResourceKeys.TextPrimaryBrush),
+                TextWrapping = TextWrapping.Wrap,
+            };
+            var emptyLinkRun = new Microsoft.UI.Xaml.Documents.Hyperlink();
+            emptyLinkRun.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = PresetsDir });
+            emptyLinkRun.Click += (s, ev) =>
+            {
+                try { System.Diagnostics.Process.Start("explorer.exe", PresetsDir); }
+                catch { }
+            };
+            emptyPathLink.Inlines.Add(emptyLinkRun);
+
             var emptyDlg = new ContentDialog
             {
                 Title = "Select ReShade Presets",
@@ -48,13 +64,12 @@ public static class PresetPopupHelper
                         },
                         new TextBlock
                         {
-                            Text = $"Place .ini files in:\n{PresetsDir}",
+                            Text = "Place .ini files in:",
                             FontSize = 11,
                             Opacity = 0.6,
                             Foreground = Brush(ResourceKeys.TextPrimaryBrush),
-                            IsTextSelectionEnabled = true,
-                            TextWrapping = TextWrapping.Wrap,
                         },
+                        emptyPathLink,
                     },
                 },
                 PrimaryButtonText = "Open Folder",

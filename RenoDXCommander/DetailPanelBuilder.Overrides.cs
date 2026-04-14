@@ -1300,9 +1300,9 @@ public partial class DetailPanelBuilder
             FontSize = 12,
             Height = 32,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Background = UIFactory.Brush(ResourceKeys.SurfaceOverlayBrush),
-            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
-            BorderBrush = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
+            Background = UIFactory.Brush(ResourceKeys.AccentBlueBgBrush),
+            Foreground = UIFactory.Brush(ResourceKeys.AccentBlueBrush),
+            BorderBrush = UIFactory.Brush(ResourceKeys.AccentBlueBorderBrush),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
         };
@@ -1337,6 +1337,12 @@ public partial class DetailPanelBuilder
                         {
                             var presetPaths = selected.Select(f => Path.Combine(PresetPopupHelper.PresetsDir, f)).ToList();
                             _window.ViewModel.ApplyPresetShaders(capturedName, presetPaths);
+
+                            // Rebuild overrides panel so the shader toggle reflects the new "Select" mode
+                            var refreshCard = _window.ViewModel.AllCards.FirstOrDefault(c =>
+                                c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
+                            if (refreshCard != null)
+                                BuildOverridesPanel(refreshCard);
                         }
                     }
                 }

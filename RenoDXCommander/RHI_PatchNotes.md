@@ -3,13 +3,17 @@
 ### New Features
 
 **Nexus Mods and PCGamingWiki links**
-- Each detected game now shows Nexus Mods and PCGamingWiki buttons in the detail panel header. Links are resolved automatically — Nexus Mods via the public game catalogue, PCGW via Steam AppID lookup or wiki search. Games that can't be matched automatically can be overridden in the manifest.
+- Each detected game now shows Nexus Mods and PCGamingWiki buttons in the detail panel. Links are resolved automatically — Nexus Mods via the public game catalogue, PCGW via Steam AppID lookup or wiki search. Games that can't be matched automatically can be overridden in the manifest.
+
+**DLSS Fix addon**
+- New managed addon that makes ReShade draw on native game frames instead of frame gen frames, and hides DLSS upscaling from ReShade. Available in the ReShade Addons dialog with automatic update checking.
 
 ### Changes
 
 **Detail panel layout refresh**
-- The game header (name, install path, action buttons, and info badges) is now wrapped in a bordered card matching the rest of the detail panel sections.
-- Action buttons (Browse, Hide, Nexus, PCGW, Info, Discussion, Favourite) are now on the same line as the game title, aligned to the right.
+- Game name and mod author are now displayed above the info card rather than inside it, giving the header more breathing room.
+- Info badges (addon file, engine, source, API, status) are grouped in a bordered card with the Nexus and PCGW links on the left, and Browse, Info, and Discussion buttons on the right.
+- Hide and Favourite buttons sit on the top row alongside the Nexus/PCGW links. Favourite now shows as a text button that highlights yellow when active, matching the style of the other action buttons.
 - Folder management buttons (Change install folder, Reset folder, Reset Overrides, Copy Report) have been moved out of the overrides section into their own dedicated section underneath.
 - The ReShade preset selector and Normal ReShade toggle are now side by side with a divider, instead of stacked vertically.
 

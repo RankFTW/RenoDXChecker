@@ -322,10 +322,14 @@ public sealed partial class MainWindow
         // Also refresh the detail panel icon if this is the selected game
         if (card == ViewModel.SelectedGame)
         {
-            DetailFavIcon.Text = card.IsFavourite ? "⭐" : "☆";
-            DetailFavIcon.Foreground = new SolidColorBrush(card.IsFavourite
+            DetailFavIcon.Text = "Favourite";
+            var favColor = card.IsFavourite
                 ? ((SolidColorBrush)Application.Current.Resources[ResourceKeys.AccentAmberBrush]).Color
-                : ((SolidColorBrush)Application.Current.Resources[ResourceKeys.TextDisabledBrush]).Color);
+                : ((SolidColorBrush)Application.Current.Resources[ResourceKeys.ChipTextBrush]).Color;
+            DetailFavIcon.Foreground = new SolidColorBrush(favColor);
+            DetailFavBtn.BorderBrush = card.IsFavourite
+                ? new SolidColorBrush(((SolidColorBrush)Application.Current.Resources[ResourceKeys.AccentAmberBrush]).Color)
+                : (Brush)Application.Current.Resources[ResourceKeys.BorderSubtleBrush];
         }
     }
 
@@ -794,10 +798,14 @@ public sealed partial class MainWindow
         ViewModel.ToggleFavouriteCommand.Execute(card);
 
         // Refresh the detail panel icon to reflect the new state
-        DetailFavIcon.Text = card.IsFavourite ? "⭐" : "☆";
-        DetailFavIcon.Foreground = new SolidColorBrush(card.IsFavourite
+        DetailFavIcon.Text = "Favourite";
+        var favColor = card.IsFavourite
             ? ((SolidColorBrush)Application.Current.Resources[ResourceKeys.AccentAmberBrush]).Color
-            : ((SolidColorBrush)Application.Current.Resources[ResourceKeys.TextDisabledBrush]).Color);
+            : ((SolidColorBrush)Application.Current.Resources[ResourceKeys.ChipTextBrush]).Color;
+        DetailFavIcon.Foreground = new SolidColorBrush(favColor);
+        DetailFavBtn.BorderBrush = card.IsFavourite
+            ? new SolidColorBrush(((SolidColorBrush)Application.Current.Resources[ResourceKeys.AccentAmberBrush]).Color)
+            : (Brush)Application.Current.Resources[ResourceKeys.BorderSubtleBrush];
     }
 
     // ── Card handlers ─────────────────────────────────────────────────────────────

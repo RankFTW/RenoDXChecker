@@ -198,7 +198,7 @@ public sealed partial class MainWindow
 
     private void DetailCard_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e) => _detailPanelBuilder.DetailCard_PropertyChanged(sender, e);
 
-    private void BuildOverridesPanel(GameCardViewModel card) => _detailPanelBuilder.BuildOverridesPanel(card);
+    internal void BuildOverridesPanel(GameCardViewModel card) => _detailPanelBuilder.BuildOverridesPanel(card);
 
     private void OpenOverridesFlyout(GameCardViewModel card, FrameworkElement anchor)
         => _overridesFlyoutBuilder.OpenOverridesFlyout(card, anchor);

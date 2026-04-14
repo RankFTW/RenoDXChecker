@@ -332,5 +332,20 @@
     "Lilium": "https://ko-fi.com/endlesslyflowering",
     "Bit Viper": "https://ko-fi.com/bitviper",
 	"Ritsu": "https://ko-fi.com/ritsucecil"
+  },
+  "nexusUrlOverrides": {
+    "Deadly Premonition 2": "https://www.nexusmods.com/games/deadlypremonition2ablessingindisguise",
+    "Dying Light: The Beast Restored Land": "https://www.nexusmods.com/games/dyinglightthebeast",
+    "Echoes of the End: Enhanced Edition": "https://www.nexusmods.com/games/echoesoftheend",
+    "Horizon Forbidden West™ Complete Edition": "https://www.nexusmods.com/games/horizonforbiddenwest",
+    "The Elder Scrolls III: Morrowind": "https://www.nexusmods.com/games/morrowind",
+    "The Sinking City Remastered": "https://www.nexusmods.com/games/thesinkingcity",
+    "Tunguska: The Visitation": "https://www.nexusmods.com/games/tunguskathevisitation",
+    "X4: Timelines": "https://www.nexusmods.com/games/x4foundations"
+  },
+  "steamAppIdOverrides": {
+  },
+  "pcgwUrlOverrides": {
+    "The Sinking City Remastered": "https://www.pcgamingwiki.com/wiki/The_Sinking_City_Remastered"
   }
 }

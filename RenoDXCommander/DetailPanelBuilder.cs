@@ -160,10 +160,14 @@ public partial class DetailPanelBuilder
 
         // Utility buttons — set Tag for event handlers
         _window.DetailFavBtn.Tag = card;
-        _window.DetailFavIcon.Text = card.IsFavourite ? "⭐" : "☆";
-        _window.DetailFavIcon.Foreground = new SolidColorBrush(card.IsFavourite
+        _window.DetailFavIcon.Text = "Favourite";
+        var favColor = card.IsFavourite
             ? ((SolidColorBrush)Application.Current.Resources[ResourceKeys.AccentAmberBrush]).Color
-            : ((SolidColorBrush)Application.Current.Resources[ResourceKeys.TextDisabledBrush]).Color);
+            : ((SolidColorBrush)Application.Current.Resources[ResourceKeys.ChipTextBrush]).Color;
+        _window.DetailFavIcon.Foreground = new SolidColorBrush(favColor);
+        _window.DetailFavBtn.BorderBrush = card.IsFavourite
+            ? new SolidColorBrush(((SolidColorBrush)Application.Current.Resources[ResourceKeys.AccentAmberBrush]).Color)
+            : UIFactory.Brush(ResourceKeys.BorderSubtleBrush);
 
         _window.DetailDiscussionBtn.Tag = card;
         _window.DetailDiscussionBtn.Visibility = card.NameLinkVisibility;
