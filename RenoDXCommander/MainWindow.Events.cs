@@ -118,6 +118,7 @@ public sealed partial class MainWindow
                 DetailPanel.Visibility = Visibility.Visible;
                 BuildOverridesPanel(card);
                 OverridesContainer.Visibility = Visibility.Visible;
+                ManagementContainer.Visibility = Visibility.Visible;
             }
         }
     }
@@ -470,6 +471,20 @@ public sealed partial class MainWindow
         var card = GetCardFromSender(sender);
         if (card?.NameUrl != null)
             await Windows.System.Launcher.LaunchUriAsync(new Uri(card.NameUrl));
+    }
+
+    private async void PcgwLink_Click(object sender, RoutedEventArgs e)
+    {
+        var card = GetCardFromSender(sender);
+        if (card?.PcgwUrl != null)
+            await Windows.System.Launcher.LaunchUriAsync(new Uri(card.PcgwUrl));
+    }
+
+    private async void NexusModsLink_Click(object sender, RoutedEventArgs e)
+    {
+        var card = GetCardFromSender(sender);
+        if (card?.NexusModsUrl != null)
+            await Windows.System.Launcher.LaunchUriAsync(new Uri(card.NexusModsUrl));
     }
 
     // ── Settings handlers ─────────────────────────────────────────────────────────

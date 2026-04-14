@@ -236,6 +236,7 @@ public sealed partial class MainWindow : Window
                 DetailPanel.Visibility = Visibility.Visible;
                 BuildOverridesPanel(card);
                 OverridesContainer.Visibility = Visibility.Visible;
+                ManagementContainer.Visibility = Visibility.Visible;
             }
         }
         else
@@ -256,6 +257,8 @@ public sealed partial class MainWindow : Window
                 DetailPanel.Visibility = Visibility.Collapsed;
                 OverridesPanel.Children.Clear();
                 OverridesContainer.Visibility = Visibility.Collapsed;
+                ManagementPanel.Children.Clear();
+                ManagementContainer.Visibility = Visibility.Collapsed;
             }
         }
     }

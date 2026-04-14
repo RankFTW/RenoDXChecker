@@ -633,6 +633,24 @@ public partial class MainViewModel
     }
 
     /// <summary>
+    /// Returns the GAC symlink directory for a game if it requires GAC symlink installation
+    /// (e.g. XNA Framework games like Terraria). Returns null for normal games.
+    /// </summary>
+    internal string? GetGacSymlinkPath(string gameName)
+    {
+        if (_manifest?.GacSymlinkGames == null || _manifest.GacSymlinkGames.Count == 0) return null;
+        if (_manifest.GacSymlinkGames.TryGetValue(gameName, out var path)) return path;
+        var stripped = gameName.Replace("™", "").Replace("®", "").Replace("©", "").Trim();
+        if (stripped != gameName && _manifest.GacSymlinkGames.TryGetValue(stripped, out path)) return path;
+        var norm = NormalizeForLookup(gameName);
+        foreach (var (key, value) in _manifest.GacSymlinkGames)
+        {
+            if (NormalizeForLookup(key) == norm) return value;
+        }
+        return null;
+    }
+
+    /// <summary>
     /// Checks if <paramref name="gameName"/> matches any entry in <paramref name="gameSet"/>.
     /// Tries exact match first, then stripped (™®© removed), then fully normalised.
     /// </summary>

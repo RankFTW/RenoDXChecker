@@ -30,12 +30,32 @@ public partial class GameDetectionService
                     if (name == null || installDir == null) continue;
                     var rootPath = Path.Combine(steamapps, "common", installDir);
                     if (!Directory.Exists(rootPath)) continue;
-                    games.Add(new DetectedGame { Name = name, InstallPath = rootPath, Source = "Steam" });
+                    var game = new DetectedGame { Name = name, InstallPath = rootPath, Source = "Steam" };
+                    var extractedAppId = ExtractAppIdFromAcfFilename(Path.GetFileName(acf));
+                    if (extractedAppId.HasValue)
+                        game.SteamAppId = extractedAppId.Value;
+                    games.Add(game);
                 }
                 catch (Exception ex) { CrashReporter.Log($"[GameDetectionService.FindSteamGames] Failed to parse ACF '{acf}' — {ex.Message}"); }
             }
         }
         return games;
+    }
+
+    /// <summary>
+    /// Extracts the numeric Steam AppID from an ACF filename like "appmanifest_601150.acf".
+    /// Returns null if the filename does not match the expected pattern.
+    /// </summary>
+    internal static int? ExtractAppIdFromAcfFilename(string filename)
+    {
+        var name = Path.GetFileNameWithoutExtension(filename);
+        if (name != null
+            && name.StartsWith("appmanifest_")
+            && int.TryParse(name["appmanifest_".Length..], out var appId))
+        {
+            return appId;
+        }
+        return null;
     }
 
     private List<string> FindSteamLibraries(string steamPath)

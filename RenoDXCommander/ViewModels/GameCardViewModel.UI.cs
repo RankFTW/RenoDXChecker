@@ -189,6 +189,8 @@ public partial class GameCardViewModel
     public bool IsUnityGeneric        => IsGenericMod && EngineHint.Contains("Unity");
     public bool HasDualBitMod         => Mod?.HasBothBitVersions == true;
     public bool HasExtraLinks         => NexusUrl != null || (DiscordUrl != null && EffectiveLumaMode) || IsExternalOnly;
+    public bool HasNexusModsUrl       => !string.IsNullOrEmpty(NexusModsUrl);
+    public bool HasPcgwUrl            => !string.IsNullOrEmpty(PcgwUrl);
     public bool HasNameUrl            => !string.IsNullOrEmpty(NameUrl);
     public string HideButtonLabel     => IsHidden ? "👁 Show" : "🚫 Hide";
     public string StarForeground       => IsFavourite ? "#FFD700" : "#282840";

@@ -131,6 +131,16 @@ public partial class MainViewModel
             Task rsTask = Task.CompletedTask; // hoisted so we can defer the await until after cards display
             Task normalRsTask = Task.CompletedTask; // hoisted so we can defer the await until after cards display
 
+            // Start Nexus Mods + PCGW initialization early (network I/O, runs in parallel with other fetches)
+            var nexusInitTask = Task.Run(async () => {
+                try { await _nexusModsService.InitAsync(); }
+                catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] NexusModsService init failed — {ex.Message}"); }
+            });
+            var pcgwCacheTask = Task.Run(async () => {
+                try { await _pcgwService.LoadCacheAsync(); }
+                catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] PcgwService cache load failed — {ex.Message}"); }
+            });
+
             // Merge hidden/favourite from library file with any already loaded from settings.json
             if (savedLib?.HiddenGames != null)
                 foreach (var g in savedLib.HiddenGames) _hiddenGames.Add(g);
@@ -281,6 +291,11 @@ public partial class MainViewModel
                 prevUpdateStatus[c.GameName] = (c.Status, c.RsStatus, c.DcStatus, c.UlStatus, c.RefStatus);
 
             SubStatusText = "Matching mods and checking install status...";
+
+            // Ensure Nexus Mods dictionary and PCGW AppID cache are ready before building cards
+            await nexusInitTask;
+            await pcgwCacheTask;
+
             _crashReporter.Log($"[MainViewModel.InitializeAsync] Building cards for {allGames.Count} games...");
             _allCards = await Task.Run(() => BuildCards(allGames, records, auxRecords, addonCache, _genericNotes));
             _crashReporter.Log($"[MainViewModel.InitializeAsync] BuildCards complete: {_allCards.Count} cards");
@@ -1062,6 +1077,20 @@ public partial class MainViewModel
                     newCard.LumaStatus = GameStatus.Installed;
                 }
             }
+
+            // ── Nexus Mods & PCGW link resolution ──────────────────────────────
+            try
+            {
+                newCard.NexusModsUrl = _nexusModsService.ResolveUrl(game.Name, _manifest);
+            }
+            catch (Exception ex) { _crashReporter.Log($"[BuildCards] NexusModsUrl resolve failed for '{game.Name}' — {ex.Message}"); }
+
+            try
+            {
+                newCard.PcgwUrl = _pcgwService.ResolveUrlAsync(game.Name, game.SteamAppId, installPath, _manifest)
+                    .GetAwaiter().GetResult();
+            }
+            catch (Exception ex) { _crashReporter.Log($"[BuildCards] PcgwUrl resolve failed for '{game.Name}' — {ex.Message}"); }
 
             cardBag.Add(newCard);
             });

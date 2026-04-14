@@ -58,7 +58,9 @@ internal static class TestHelpers
             dllOverride,
             gameName,
             gameInit,
-            new StubREFrameworkService());
+            new StubREFrameworkService(),
+            new StubNexusModsService(),
+            new StubPcgwService());
     }
 
     // ── Stub implementations ──────────────────────────────────────────────────
@@ -203,5 +205,23 @@ internal static class TestHelpers
         public Task<bool> CheckForUpdateAsync(string installedVersion) => Task.FromResult(false);
         public Task<string?> GetLatestVersionAsync() => Task.FromResult<string?>(null);
         public List<REFrameworkInstalledRecord> GetRecords() => new();
+    }
+
+    internal class StubNexusModsService : INexusModsService
+    {
+        public Task InitAsync() => Task.CompletedTask;
+        public string? ResolveUrl(string gameName, RemoteManifest? manifest) => null;
+    }
+
+    internal class StubSteamAppIdResolver : ISteamAppIdResolver
+    {
+        public Task<int?> ResolveAsync(string gameName, int? detectedAppId, string installPath, RemoteManifest? manifest, Dictionary<string, int>? appIdCache = null) => Task.FromResult<int?>(null);
+        public int? FindMatchingAppId(string gameName, List<SteamStoreSearchItem> results) => null;
+    }
+
+    internal class StubPcgwService : IPcgwService
+    {
+        public Task LoadCacheAsync() => Task.CompletedTask;
+        public Task<string?> ResolveUrlAsync(string gameName, int? steamAppId, string installPath, RemoteManifest? manifest) => Task.FromResult<string?>(null);
     }
 }

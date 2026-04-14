@@ -6,4 +6,5 @@ public class DetectedGame
     public string InstallPath { get; set; } = "";
     public string Source { get; set; } = "";
     public bool IsManuallyAdded { get; set; }
+    public int? SteamAppId { get; set; }
 }

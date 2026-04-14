@@ -1,3 +1,18 @@
+## v1.7.7
+
+### New Features
+
+**Nexus Mods and PCGamingWiki links**
+- Each detected game now shows Nexus Mods and PCGamingWiki buttons in the detail panel header. Links are resolved automatically — Nexus Mods via the public game catalogue, PCGW via Steam AppID lookup or wiki search. Games that can't be matched automatically can be overridden in the manifest.
+
+### Changes
+
+**Detail panel layout refresh**
+- The game header (name, install path, action buttons, and info badges) is now wrapped in a bordered card matching the rest of the detail panel sections.
+- Action buttons (Browse, Hide, Nexus, PCGW, Info, Discussion, Favourite) are now on the same line as the game title, aligned to the right.
+- Folder management buttons (Change install folder, Reset folder, Reset Overrides, Copy Report) have been moved out of the overrides section into their own dedicated section underneath.
+- The ReShade preset selector and Normal ReShade toggle are now side by side with a divider, instead of stacked vertically.
+
 ## v1.7.6
 
 ### Highlights

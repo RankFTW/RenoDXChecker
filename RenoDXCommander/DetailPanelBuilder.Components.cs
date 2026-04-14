@@ -373,6 +373,18 @@ public partial class DetailPanelBuilder
                 _window.DetailLumaToggle.IsChecked = _currentDetailCard.IsLumaMode;
                 _window.UpdateLumaToggleStyle(_currentDetailCard.IsLumaMode);
             }
+
+            // Refresh PCGW / Nexus Mods link visibility when URLs change
+            if (e.PropertyName is "PcgwUrl" or "HasPcgwUrl")
+            {
+                _window.DetailPcgwBtn.Visibility = _currentDetailCard.HasPcgwUrl
+                    ? Visibility.Visible : Visibility.Collapsed;
+            }
+            if (e.PropertyName is "NexusModsUrl" or "HasNexusModsUrl")
+            {
+                _window.DetailNexusModsBtn.Visibility = _currentDetailCard.HasNexusModsUrl
+                    ? Visibility.Visible : Visibility.Collapsed;
+            }
         });
     }
 

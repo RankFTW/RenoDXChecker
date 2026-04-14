@@ -175,5 +175,7 @@ public class ManifestService : IManifestService
             m.DonationUrls = new Dictionary<string, string>(m.DonationUrls, StringComparer.OrdinalIgnoreCase);
         if (m.AuthorDisplayNames != null)
             m.AuthorDisplayNames = new Dictionary<string, string>(m.AuthorDisplayNames, StringComparer.OrdinalIgnoreCase);
+        if (m.GacSymlinkGames != null)
+            m.GacSymlinkGames = new Dictionary<string, string>(m.GacSymlinkGames, StringComparer.OrdinalIgnoreCase);
     }
 }

@@ -76,6 +76,9 @@ public partial class App : Application
         services.AddSingleton<IAuxFileService>(sp => sp.GetRequiredService<IAuxInstallService>() as AuxInstallService
             ?? throw new InvalidOperationException("IAuxInstallService must be AuxInstallService"));
         services.AddSingleton<IREFrameworkService, REFrameworkService>();
+        services.AddSingleton<INexusModsService, NexusModsService>();
+        services.AddSingleton<ISteamAppIdResolver, SteamAppIdResolver>();
+        services.AddSingleton<IPcgwService, PcgwService>();
 
         // ViewModels
         services.AddSingleton<SettingsViewModel>();

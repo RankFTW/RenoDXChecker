@@ -30,6 +30,8 @@ public partial class MainViewModel : ObservableObject
     private readonly IGameNameService _gameNameService;
     private readonly IGameInitializationService _gameInitializationService;
     private readonly IAddonPackService _addonPackService;
+    private readonly INexusModsService _nexusModsService;
+    private readonly IPcgwService _pcgwService;
     /// <summary>
     /// Task that tracks the background shader pack download/extraction.
     /// Awaited before the post-init shader sync so packs are available.
@@ -383,7 +385,9 @@ public partial class MainViewModel : ObservableObject
         IDllOverrideService dllOverrideService,
         IGameNameService gameNameService,
         IGameInitializationService gameInitializationService,
-        IREFrameworkService refService)
+        IREFrameworkService refService,
+        INexusModsService nexusModsService,
+        IPcgwService pcgwService)
     {
         _http = http;
         _installer = installer;
@@ -407,6 +411,8 @@ public partial class MainViewModel : ObservableObject
         _gameNameService = gameNameService;
         _gameInitializationService = gameInitializationService;
         _addonPackService = new AddonPackService(http);
+        _nexusModsService = nexusModsService;
+        _pcgwService = pcgwService;
         // Wire up SettingsChanged so property changes trigger a full save
         _settingsViewModel.SettingsChanged = () => SaveNameMappings();
         // Wire up DllOverrideService changes to trigger save

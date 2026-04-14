@@ -71,7 +71,9 @@ public class UninstallReShadeShaderRemovalTests : IDisposable
             dllOverride,
             gameName,
             gameInit,
-            new StubREFrameworkService());
+            new StubREFrameworkService(),
+            new StubNexusModsService(),
+            new StubPcgwService());
 
         // Inject cards via reflection
         var field = typeof(MainViewModel).GetField("_allCards", BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -314,5 +316,17 @@ public class UninstallReShadeShaderRemovalTests : IDisposable
         public Task<bool> CheckForUpdateAsync(string installedVersion) => Task.FromResult(false);
         public Task<string?> GetLatestVersionAsync() => Task.FromResult<string?>(null);
         public List<REFrameworkInstalledRecord> GetRecords() => new();
+    }
+
+    private class StubNexusModsService : INexusModsService
+    {
+        public Task InitAsync() => Task.CompletedTask;
+        public string? ResolveUrl(string gameName, RemoteManifest? manifest) => null;
+    }
+
+    private class StubPcgwService : IPcgwService
+    {
+        public Task LoadCacheAsync() => Task.CompletedTask;
+        public Task<string?> ResolveUrlAsync(string gameName, int? steamAppId, string installPath, RemoteManifest? manifest) => Task.FromResult<string?>(null);
     }
 }

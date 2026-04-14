@@ -25,6 +25,8 @@ public partial class GameCardViewModel : ObservableObject
     [ObservableProperty] private string _externalUrl   = "";
     [ObservableProperty] private string _externalLabel = "";
     [ObservableProperty] private string? _nexusUrl;
+    [ObservableProperty] private string? _nexusModsUrl;
+    [ObservableProperty] private string? _pcgwUrl;
     [ObservableProperty] private string? _discordUrl;
     [ObservableProperty] private string? _notes;
     [ObservableProperty] private GameMod? _mod;
@@ -364,5 +366,9 @@ public partial class GameCardViewModel : ObservableObject
         NotifyOnce(nameof(RsIniExists));
         NotifyOnce(nameof(IsLumaAvailable));
         NotifyOnce(nameof(HasInfoIndicator));
+
+        // ── Nexus Mods / PCGW link computed properties ───────────────────────
+        NotifyOnce(nameof(HasNexusModsUrl));
+        NotifyOnce(nameof(HasPcgwUrl));
     }
 }

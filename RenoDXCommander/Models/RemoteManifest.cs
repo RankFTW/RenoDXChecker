@@ -114,10 +114,46 @@ public class RemoteManifest
     public Dictionary<string, string>? DonationUrls { get; set; }
 
     /// <summary>
+    /// Games that require ReShade to be symlinked into a GAC (Global Assembly Cache)
+    /// directory instead of the game folder. Used for XNA Framework games like Terraria
+    /// where the graphics DLL is loaded from a system directory.
+    /// Key = game name, Value = the GAC directory path where symlinks should be created.
+    /// The reshade.ini will have [INSTALL] BasePath set to the game's install directory.
+    /// Requires admin privileges for symlink creation.
+    /// </summary>
+    [JsonPropertyName("gacSymlinkGames")]
+    public Dictionary<string, string>? GacSymlinkGames { get; set; }
+
+    /// <summary>
     /// Author display-name overrides keyed by wiki maintainer handle.
     /// Merged into the hardcoded dictionary at startup.
     /// Example: { "oopydoopy": "Jon" }
     /// </summary>
     [JsonPropertyName("authorDisplayNames")]
     public Dictionary<string, string>? AuthorDisplayNames { get; set; }
+
+    /// <summary>
+    /// Per-game Nexus Mods URL overrides. When automatic name matching fails,
+    /// this provides a direct mapping from game name to Nexus Mods page URL.
+    /// Key = game name, Value = Nexus Mods URL string.
+    /// </summary>
+    [JsonPropertyName("nexusUrlOverrides")]
+    public Dictionary<string, string>? NexusUrlOverrides { get; set; }
+
+    /// <summary>
+    /// Per-game Steam AppID overrides. When automatic AppID resolution fails,
+    /// this provides a direct mapping from game name to Steam AppID.
+    /// Key = game name, Value = integer Steam AppID.
+    /// </summary>
+    [JsonPropertyName("steamAppIdOverrides")]
+    public Dictionary<string, int>? SteamAppIdOverrides { get; set; }
+
+    /// <summary>
+    /// Per-game PCGW URL overrides. When automatic PCGW resolution fails or
+    /// resolves incorrectly, this provides a direct mapping from game name to
+    /// the correct PCGamingWiki page URL.
+    /// Key = game name, Value = PCGW URL string.
+    /// </summary>
+    [JsonPropertyName("pcgwUrlOverrides")]
+    public Dictionary<string, string>? PcgwUrlOverrides { get; set; }
 }

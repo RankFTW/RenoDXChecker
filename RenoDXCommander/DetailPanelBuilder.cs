@@ -180,6 +180,14 @@ public partial class DetailPanelBuilder
         // Folder management buttons
         _window.DetailFolderBtn.Tag = card;
 
+        // PCGW link button
+        _window.DetailPcgwBtn.Tag = card;
+        _window.DetailPcgwBtn.Visibility = card.HasPcgwUrl ? Visibility.Visible : Visibility.Collapsed;
+
+        // Nexus Mods link button
+        _window.DetailNexusModsBtn.Tag = card;
+        _window.DetailNexusModsBtn.Visibility = card.HasNexusModsUrl ? Visibility.Visible : Visibility.Collapsed;
+
         // Luma badge toggle
         if (card.LumaBadgeVisibility == Visibility.Visible)
         {

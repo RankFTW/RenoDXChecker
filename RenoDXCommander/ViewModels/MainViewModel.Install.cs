@@ -1230,6 +1230,14 @@ public partial class MainViewModel
             return;
         }
 
+        // ── GAC symlink install flow (XNA Framework games like Terraria) ──────────
+        var gacPath = GetGacSymlinkPath(card.GameName);
+        if (gacPath != null)
+        {
+            await InstallReShadeGacAsync(card, gacPath);
+            return;
+        }
+
         // Check for foreign dxgi.dll before overwriting
         {
             var dxgiPath = Path.Combine(card.InstallPath, "dxgi.dll");
@@ -1417,6 +1425,77 @@ public partial class MainViewModel
         finally { card.RsIsInstalling = false; }
     }
 
+    /// <summary>
+    /// GAC symlink install flow for XNA Framework games (e.g. Terraria).
+    /// Creates symbolic links in the GAC directory pointing to staged files in the game folder.
+    /// Requires admin privileges.
+    /// </summary>
+    internal async Task InstallReShadeGacAsync(GameCardViewModel card, string gacDirectory)
+    {
+        // 1. Check admin privileges (same pattern as Vulkan)
+        if (!IsRunningAsAdminFunc())
+        {
+            if (ShowVulkanAdminRequiredDialog != null)
+                await ShowVulkanAdminRequiredDialog();
+            else
+                card.RsActionMessage = "⚠ Administrator privileges are required for GAC symlink installation. Restart RHI as admin.";
+            return;
+        }
+
+        // Resolve DLL filename from manifest or auto-detection
+        var dllFileName = card.DllOverrideEnabled
+            ? (GetDllOverride(card.GameName)?.ReShadeFileName)
+            : (GetManifestDllNames(card.GameName)?.ReShade is { Length: > 0 } mRs
+                ? mRs
+                : ResolveAutoReShadeFilename(card.DetectedApis));
+        dllFileName ??= "d3d9.dll"; // default for XNA/DX9 games
+
+        card.RsIsInstalling = true;
+        card.RsActionMessage = "Installing ReShade (GAC symlink)...";
+        try
+        {
+            AuxInstallService.EnsureReShadeStaging();
+
+            await Task.Run(() =>
+            {
+                AuxInstallService.InstallGacSymlink(
+                    card.InstallPath,
+                    gacDirectory,
+                    dllFileName,
+                    use32Bit: card.Is32Bit,
+                    screenshotSavePath: BuildScreenshotSavePath(card.GameName),
+                    overlayHotkey: _settingsViewModel.OverlayHotkey);
+            });
+
+            // Deploy preset and shaders to the game folder
+            AuxInstallService.CopyRsPresetIniIfPresent(card.InstallPath);
+            _shaderPackService.SyncGameFolder(card.InstallPath,
+                ResolveShaderSelection(card.GameName, card.ShaderModeOverride));
+
+            // Read version from the staged DLL in the game folder
+            var version = AuxInstallService.ReadInstalledVersion(card.InstallPath, dllFileName);
+
+            Action updateCard = () =>
+            {
+                card.RsInstalledFile = dllFileName;
+                card.RsInstalledVersion = version;
+                card.RsStatus = GameStatus.Installed;
+                card.RsActionMessage = "✅ ReShade installed (GAC symlink)!";
+                card.NotifyAll();
+                card.FadeMessage(m => card.RsActionMessage = m, card.RsActionMessage);
+                DeployAddonsForCard(card.GameName);
+            };
+            if (DispatchUiAction != null) DispatchUiAction(updateCard);
+            else DispatcherQueue?.TryEnqueue(() => updateCard());
+        }
+        catch (Exception ex)
+        {
+            card.RsActionMessage = $"❌ GAC ReShade Failed: {ex.Message}";
+            _crashReporter.WriteCrashReport("InstallReShadeGacAsync", ex, note: $"Game: {card.GameName}");
+        }
+        finally { card.RsIsInstalling = false; }
+    }
+
     [RelayCommand]
     public void UninstallReShade(GameCardViewModel? card)
     {
@@ -1432,6 +1511,13 @@ public partial class MainViewModel
             if (!string.IsNullOrEmpty(card.InstallPath))
                 _addonPackService.DeployAddonsForGame(card.GameName, card.InstallPath, card.Is32Bit,
                     useGlobalSet: true, perGameSelection: new List<string>());
+
+            // Clean up GAC symlinks if this was a GAC symlink install (e.g. Terraria)
+            var gacPath = GetGacSymlinkPath(card.GameName);
+            if (gacPath != null && !string.IsNullOrEmpty(card.RsInstalledFile))
+            {
+                AuxInstallService.UninstallGacSymlink(card.InstallPath, gacPath, card.RsInstalledFile);
+            }
 
             _auxInstaller.Uninstall(card.RsRecord);
             card.RsRecord           = null;
