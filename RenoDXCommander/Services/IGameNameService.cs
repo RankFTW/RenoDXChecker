@@ -41,6 +41,9 @@ public interface IGameNameService
     /// <summary>Games excluded from batch Display Commander updates.</summary>
     HashSet<string> UpdateAllExcludedDc { get; }
 
+    /// <summary>Games excluded from batch OptiScaler updates.</summary>
+    HashSet<string> UpdateAllExcludedOs { get; }
+
     /// <summary>Per-game shader mode settings.</summary>
     Dictionary<string, string> PerGameShaderMode { get; }
 

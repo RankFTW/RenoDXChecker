@@ -26,6 +26,10 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string _screenshotPath = "";
     [ObservableProperty] private string _overlayHotkey = "36,0,0,0";
     [ObservableProperty] private string _ulOsdHotkey = "F12";
+    [ObservableProperty] private string _osHotkey = "Insert";
+    [ObservableProperty] private string _osGpuType = "NVIDIA";
+    [ObservableProperty] private bool _osDlssInputs = true;
+    [ObservableProperty] private bool _osFirstTimeWarningDismissed;
     [ObservableProperty] private bool _perGameScreenshotFolders;
     [ObservableProperty] private bool _addonWarningDismissed;
     [ObservableProperty] private List<string> _enabledGlobalAddons = new();
@@ -135,6 +139,18 @@ public partial class SettingsViewModel : ObservableObject
         if (s.TryGetValue("UlOsdHotkey", out var ulhVal))
             UlOsdHotkey = ulhVal ?? "F12";
 
+        if (s.TryGetValue("OsHotkey", out var oshVal))
+            OsHotkey = oshVal ?? "Insert";
+
+        if (s.TryGetValue("OsGpuType", out var ogtVal))
+            OsGpuType = ogtVal ?? "NVIDIA";
+
+        if (s.TryGetValue("OsDlssInputs", out var odiVal))
+            OsDlssInputs = odiVal == "true";
+
+        if (s.TryGetValue("OsFirstTimeWarningDismissed", out var osftwVal))
+            OsFirstTimeWarningDismissed = osftwVal == "true";
+
         if (s.TryGetValue("PerGameScreenshotFolders", out var pgsfVal))
             PerGameScreenshotFolders = pgsfVal == "true";
 
@@ -166,6 +182,10 @@ public partial class SettingsViewModel : ObservableObject
         s["ScreenshotPath"] = ScreenshotPath;
         s["OverlayHotkey"] = OverlayHotkey;
         s["UlOsdHotkey"] = UlOsdHotkey;
+        s["OsHotkey"] = OsHotkey;
+        s["OsGpuType"] = OsGpuType;
+        s["OsDlssInputs"] = OsDlssInputs ? "true" : "false";
+        s["OsFirstTimeWarningDismissed"] = OsFirstTimeWarningDismissed ? "true" : "false";
         s["PerGameScreenshotFolders"] = PerGameScreenshotFolders ? "true" : "false";
         s["AddonWarningDismissed"] = AddonWarningDismissed ? "true" : "false";
         s["EnabledGlobalAddons"] = JsonSerializer.Serialize(EnabledGlobalAddons);

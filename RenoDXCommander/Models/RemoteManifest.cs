@@ -94,6 +94,15 @@ public class RemoteManifest
     public Dictionary<string, ManifestDllNames>? DllNameOverrides { get; set; }
 
     /// <summary>
+    /// Per-game OptiScaler DLL filename overrides. When a game requires a specific
+    /// proxy DLL name for OptiScaler (e.g. games where dxgi.dll conflicts with
+    /// another tool), this provides a direct mapping.
+    /// Key = game name, Value = DLL filename string (e.g. "winmm.dll").
+    /// </summary>
+    [JsonPropertyName("optiScalerDllOverrides")]
+    public Dictionary<string, string>? OptiScalerDllOverrides { get; set; }
+
+    /// <summary>
     /// Per-game graphics API overrides. Allows the manifest to force a specific
     /// graphics API badge for games where auto-detection fails (e.g. games that
     /// load DirectX entirely at runtime with no static PE imports).

@@ -78,7 +78,7 @@ public sealed partial class MainWindow
         HeaderHeight: 22,
         BadgeCount: 6,
         TableCornerRadius: 12,
-        TableRowCount: 3,
+        TableRowCount: 4,
         TableColumnCount: 5,
         PaddingLeft: 24, PaddingTop: 18, PaddingRight: 24, PaddingBottom: 24,
         Spacing: 16);
@@ -490,6 +490,81 @@ public sealed partial class MainWindow
             rowGrid.Children.Add(deleteBtn);
 
             tableContent.Children.Add(rowGrid);
+        }
+
+        // "── Optional ──" separator (matches real detail panel separator above OptiScaler)
+        tableContent.Children.Add(new TextBlock
+        {
+            Text = "── Optional ──",
+            FontSize = 10,
+            Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x5A, 0x68, 0x80)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 4, 0, 2),
+        });
+
+        // OptiScaler placeholder row (4th component row, same 5-column layout)
+        {
+            var osRowGrid = new Grid { ColumnSpacing = 8 };
+            osRowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
+            osRowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+            osRowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            osRowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
+            osRowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
+
+            var osNamePlaceholder = new Border
+            {
+                Width = 85,
+                Height = 14,
+                CornerRadius = new CornerRadius(3),
+                Background = fillBrush,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            Grid.SetColumn(osNamePlaceholder, 0);
+            osRowGrid.Children.Add(osNamePlaceholder);
+
+            var osVersionPlaceholder = new Border
+            {
+                Width = 50,
+                Height = 14,
+                CornerRadius = new CornerRadius(3),
+                Background = fillBrush,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            Grid.SetColumn(osVersionPlaceholder, 1);
+            osRowGrid.Children.Add(osVersionPlaceholder);
+
+            var osActionBtn = new Border
+            {
+                Height = 32,
+                CornerRadius = new CornerRadius(8),
+                Background = fillBrush,
+            };
+            Grid.SetColumn(osActionBtn, 2);
+            osRowGrid.Children.Add(osActionBtn);
+
+            var osIconBtn = new Border
+            {
+                Width = 36,
+                Height = 32,
+                CornerRadius = new CornerRadius(8),
+                Background = fillBrush,
+            };
+            Grid.SetColumn(osIconBtn, 3);
+            osRowGrid.Children.Add(osIconBtn);
+
+            var osDeleteBtn = new Border
+            {
+                Width = 36,
+                Height = 32,
+                CornerRadius = new CornerRadius(8),
+                Background = fillBrush,
+            };
+            Grid.SetColumn(osDeleteBtn, 4);
+            osRowGrid.Children.Add(osDeleteBtn);
+
+            tableContent.Children.Add(osRowGrid);
         }
 
         var tableBorder = new Border

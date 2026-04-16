@@ -308,6 +308,28 @@ public partial class GameCardViewModel : ObservableObject
         NotifyOnce(nameof(DcProgressVisibility));
         NotifyOnce(nameof(IsDcNotInstalling));
 
+        // ── OptiScaler: OsStatus dependents ──────────────────────────
+        NotifyOnce(nameof(OsStatusDot));
+        NotifyOnce(nameof(OsActionLabel));
+        NotifyOnce(nameof(OsBtnBackground));
+        NotifyOnce(nameof(OsBtnForeground));
+        NotifyOnce(nameof(OsBtnBorderBrush));
+        NotifyOnce(nameof(OsDeleteVisibility));
+        NotifyOnce(nameof(OsStatusText));
+        NotifyOnce(nameof(OsStatusColor));
+        NotifyOnce(nameof(OsShortAction));
+        NotifyOnce(nameof(IsOsInstalled));
+        NotifyOnce(nameof(OsInstallEnabled));
+        NotifyOnce(nameof(OsRowVisibility));
+        NotifyOnce(nameof(CardOsStatusDot));
+        NotifyOnce(nameof(CardOsInstallEnabled));
+
+        // ── OptiScaler: OsIsInstalling dependents ────────────────────
+        NotifyOnce(nameof(OsProgressVisibility));
+        NotifyOnce(nameof(OsMessageVisibility));
+        NotifyOnce(nameof(IsOsNotInstalling));
+        NotifyOnce(nameof(OsIniExists));
+
         // ── Normal ReShade: UseNormalReShade dependents ───────────────
         NotifyOnce(nameof(AddonsDisabled));
         NotifyOnce(nameof(AddonStrikethrough));

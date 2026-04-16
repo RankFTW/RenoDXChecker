@@ -105,6 +105,7 @@ public class SettingsHandler
     /// </summary>
     internal string _currentHotkeyString = "36,0,0,0";
     internal string _currentUlHotkeyString = "F12";
+    internal string _currentOsHotkeyString = "Insert";
 
     public SettingsHandler(MainWindow window)
     {
@@ -135,6 +136,40 @@ public class SettingsHandler
         // Initialize ReLimiter OSD hotkey display
         _currentUlHotkeyString = ViewModel.Settings.UlOsdHotkey;
         _window.UlHotkeyBox.Text = ViewModel.Settings.UlOsdHotkey;
+        // Initialize OptiScaler hotkey display
+        _currentOsHotkeyString = ViewModel.Settings.OsHotkey;
+        var osCombo = _window.OsHotkeyCombo;
+        for (int i = 0; i < osCombo.Items.Count; i++)
+        {
+            if (osCombo.Items[i] is string item &&
+                item.Equals(_currentOsHotkeyString, StringComparison.OrdinalIgnoreCase))
+            {
+                osCombo.SelectedIndex = i;
+                break;
+            }
+        }
+        if (osCombo.SelectedIndex < 0)
+            osCombo.SelectedIndex = 0; // Default to Insert
+
+        // Initialize OptiScaler GPU combo
+        var gpuCombo = _window.OsGpuCombo;
+        var gpuType = ViewModel.Settings.OsGpuType;
+        for (int i = 0; i < gpuCombo.Items.Count; i++)
+        {
+            if (gpuCombo.Items[i] is string gpuItem &&
+                gpuItem.Equals(gpuType, StringComparison.OrdinalIgnoreCase))
+            {
+                gpuCombo.SelectedIndex = i;
+                break;
+            }
+        }
+        if (gpuCombo.SelectedIndex < 0)
+            gpuCombo.SelectedIndex = 0; // Default to NVIDIA
+
+        // Initialize DLSS toggle and visibility
+        _window.OsDlssInputsToggle.IsOn = ViewModel.Settings.OsDlssInputs;
+        bool showDlss = !string.Equals(gpuType, "NVIDIA", StringComparison.OrdinalIgnoreCase);
+        _window.OsDlssInputsToggle.Visibility = showDlss ? Visibility.Visible : Visibility.Collapsed;
     }
 
     public void SettingsBack_Click(object sender, RoutedEventArgs e)
@@ -477,6 +512,101 @@ public class SettingsHandler
         {
             Title = "ReLimiter OSD Hotkey",
             Content = $"Updated {updatedCount} relimiter.ini file{(updatedCount == 1 ? "" : "s")}.",
+            CloseButtonText = "OK",
+            XamlRoot = _window.Content.XamlRoot,
+            RequestedTheme = ElementTheme.Dark,
+        };
+        await dialog.ShowAsync();
+    }
+
+    // ── OptiScaler Hotkey ─────────────────────────────────────────────────────
+
+    public void OsGpuCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is ComboBox combo && combo.SelectedItem is string selected)
+        {
+            ViewModel.Settings.OsGpuType = selected;
+            ViewModel.SaveSettingsPublic();
+
+            // Show DLSS toggle only for AMD or Intel
+            bool showDlss = !string.Equals(selected, "NVIDIA", StringComparison.OrdinalIgnoreCase);
+            _window.OsDlssInputsToggle.Visibility = showDlss ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    public void OsDlssInputsToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleSwitch toggle)
+        {
+            ViewModel.Settings.OsDlssInputs = toggle.IsOn;
+            ViewModel.SaveSettingsPublic();
+        }
+    }
+
+    public void OsHotkeyCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is ComboBox combo && combo.SelectedItem is string selected)
+        {
+            _currentOsHotkeyString = selected;
+
+            // Persist immediately and write to INIs_Folder
+            ViewModel.Settings.OsHotkey = _currentOsHotkeyString;
+            ViewModel.SaveSettingsPublic();
+
+            // Write ShortcutKey to the OptiScaler.ini template in INIs_Folder
+            try
+            {
+                Directory.CreateDirectory(AuxInstallService.InisDir);
+                OptiScalerService.WriteShortcutKey(OptiScalerService.OsIniPath, _currentOsHotkeyString);
+            }
+            catch (Exception ex)
+            {
+                CrashReporter.Log($"[SettingsHandler.OsHotkeyCombo_SelectionChanged] Failed to write ShortcutKey — {ex.Message}");
+            }
+        }
+    }
+
+    public async void ApplyOsHotkey_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.Settings.OsHotkey = _currentOsHotkeyString;
+        ViewModel.SaveSettingsPublic();
+
+        // Write to INIs_Folder template
+        try
+        {
+            Directory.CreateDirectory(AuxInstallService.InisDir);
+            OptiScalerService.WriteShortcutKey(OptiScalerService.OsIniPath, _currentOsHotkeyString);
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"[SettingsHandler.ApplyOsHotkey_Click] Failed to write template — {ex.Message}");
+        }
+
+        // Apply to all games where OptiScaler is installed
+        int updatedCount = 0;
+        foreach (var card in ViewModel.AllCards)
+        {
+            if (string.IsNullOrEmpty(card.InstallPath)) continue;
+            if (!card.IsOsInstalled) continue;
+
+            var gameIniPath = Path.Combine(card.InstallPath, OptiScalerService.IniFileName);
+            if (!File.Exists(gameIniPath)) continue;
+
+            try
+            {
+                OptiScalerService.WriteShortcutKey(gameIniPath, _currentOsHotkeyString);
+                updatedCount++;
+            }
+            catch (Exception ex)
+            {
+                CrashReporter.Log($"[SettingsHandler.ApplyOsHotkey_Click] Failed for '{card.GameName}' — {ex.Message}");
+            }
+        }
+
+        var dialog = new ContentDialog
+        {
+            Title = "OptiScaler Hotkey",
+            Content = $"Updated {updatedCount} OptiScaler.ini file{(updatedCount == 1 ? "" : "s")}.",
             CloseButtonText = "OK",
             XamlRoot = _window.Content.XamlRoot,
             RequestedTheme = ElementTheme.Dark,

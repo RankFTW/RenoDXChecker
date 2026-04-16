@@ -88,7 +88,8 @@ public class DcMutualExclusionPropertyTests
                 DcStatus = tuple.dcStatus,
                 UlStatus = tuple.ulStatus,
                 DcIsInstalling = false,
-                UlIsInstalling = false
+                UlIsInstalling = false,
+                RsStatus = GameStatus.Installed  // ReShade must be installed for DC/UL to be enabled
             };
 
             if (!card.DcInstallEnabled)

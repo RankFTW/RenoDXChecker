@@ -6,7 +6,7 @@ public partial class AuxInstallService
     /// <summary>
     /// Classifies what a dxgi.dll file is based on its content.
     /// </summary>
-    public enum DxgiFileType { Unknown, ReShade }
+    public enum DxgiFileType { Unknown, ReShade, OptiScaler }
 
     /// <summary>
     /// Identifies what type of dxgi.dll is at the given path.
@@ -19,6 +19,9 @@ public partial class AuxInstallService
         if (!File.Exists(filePath)) return DxgiFileType.Unknown;
 
         if (IsReShadeFileStrict(filePath)) return DxgiFileType.ReShade;
+
+        // Check for OptiScaler binary signatures
+        if (OptiScalerService.IsOptiScalerFileStatic(filePath)) return DxgiFileType.OptiScaler;
 
         return DxgiFileType.Unknown;
     }

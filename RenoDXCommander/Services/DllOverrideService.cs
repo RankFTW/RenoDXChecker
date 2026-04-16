@@ -26,6 +26,13 @@ public class DllOverrideService : IDllOverrideService
     /// </summary>
     private HashSet<string> _manifestDllOverrideOptOuts = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Per-game OptiScaler DLL filename overrides from the remote manifest.
+    /// Key = game name, Value = DLL filename string (e.g. "winmm.dll").
+    /// Re-evaluated on every manifest load.
+    /// </summary>
+    private Dictionary<string, string> _manifestOsDllOverrides = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>Raised when the overrides dictionary changes and settings should be persisted.</summary>
     public Action? OverridesChanged { get; set; }
 
@@ -81,10 +88,12 @@ public class DllOverrideService : IDllOverrideService
 
     public void SetDllOverride(string gameName, string reshadeFileName, string dcFileName)
     {
+        var existing = GetDllOverride(gameName);
         _dllOverrides[gameName] = new DllOverrideConfig
         {
             ReShadeFileName = reshadeFileName.Trim(),
             DcFileName = dcFileName.Trim(),
+            OsFileName = existing?.OsFileName ?? "",
         };
         OverridesChanged?.Invoke();
     }
@@ -540,6 +549,71 @@ public class DllOverrideService : IDllOverrideService
         }
 
         return false;
+    }
+
+    // ── OptiScaler DLL naming ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns the effective OptiScaler DLL filename for a game.
+    /// Priority: user override > manifest override > default (dxgi.dll).
+    /// </summary>
+    public string GetEffectiveOsName(string gameName)
+    {
+        var cfg = GetDllOverride(gameName);
+        if (cfg != null && !string.IsNullOrWhiteSpace(cfg.OsFileName))
+            return cfg.OsFileName;
+
+        if (_manifestOsDllOverrides.TryGetValue(gameName, out var manifestName)
+            && !string.IsNullOrWhiteSpace(manifestName))
+            return manifestName;
+
+        return OptiScalerService.DefaultDllName;
+    }
+
+    /// <summary>
+    /// Returns the supported OptiScaler DLL names filtered to exclude
+    /// names currently used by ReShade or Display Commander for the same game.
+    /// </summary>
+    public string[] GetAvailableOsDllNames(string gameName, bool is32Bit)
+    {
+        var rsName = GetEffectiveRsName(gameName);
+        var dcName = GetEffectiveDcName(gameName, is32Bit);
+        return OptiScalerService.SupportedDllNames
+            .Where(n => !n.Equals(rsName, StringComparison.OrdinalIgnoreCase)
+                      && !n.Equals(dcName, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Sets or updates the OptiScaler DLL filename override for the specified game.
+    /// </summary>
+    public void SetOsDllOverride(string gameName, string osFileName)
+    {
+        var existing = GetDllOverride(gameName);
+        if (existing != null)
+        {
+            existing.OsFileName = osFileName.Trim();
+        }
+        else
+        {
+            _dllOverrides[gameName] = new DllOverrideConfig
+            {
+                OsFileName = osFileName.Trim(),
+            };
+        }
+        OverridesChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Loads OptiScaler DLL overrides from the remote manifest.
+    /// Called during manifest application.
+    /// </summary>
+    public void LoadManifestOsDllOverrides(Dictionary<string, string>? overrides)
+    {
+        _manifestOsDllOverrides.Clear();
+        if (overrides == null) return;
+        foreach (var (key, value) in overrides)
+            _manifestOsDllOverrides[key] = value;
     }
 
     /// <summary>Migrates a DLL override entry when a game is renamed.</summary>

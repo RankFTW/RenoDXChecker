@@ -134,6 +134,7 @@ public class CardInstallActionsPropertyTests
                 card.LumaMod = lumaMod;
 
                 // ── RDX status text and color ──
+                bool rsInstalled = rsStatus is GameStatus.Installed or GameStatus.UpdateAvailable;
                 string expectedRdxText = isInstalling ? "Installing…"
                     : rdxStatus == GameStatus.UpdateAvailable ? "Update"
                     : rdxStatus == GameStatus.Installed       ? "Installed"
@@ -171,7 +172,7 @@ public class CardInstallActionsPropertyTests
                 bool canCardInstallOk = card.CanCardInstall == expectedCanCardInstall;
 
                 // ── Per-component install enabled ──
-                bool expectedRdxEnabled = !isInstalling && mod?.SnapshotUrl != null && !card.IsExternalOnly;
+                bool expectedRdxEnabled = !isInstalling && mod?.SnapshotUrl != null && !card.IsExternalOnly && card.IsRsInstalled;
                 bool rdxEnabledOk = card.CardRdxInstallEnabled == expectedRdxEnabled;
 
                 bool expectedRsEnabled = !rsIsInstalling;

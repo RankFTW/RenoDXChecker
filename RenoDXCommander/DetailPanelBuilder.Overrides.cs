@@ -109,10 +109,15 @@ public partial class DetailPanelBuilder
             PlaceholderText = "Select ReShade DLL name",
             Header = (object?)null,
             FontSize = 12,
-            IsEnabled = isDllOverride,
+            IsEnabled = isDllOverride && !card.IsOsInstalled,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             ItemsSource = DllOverrideConstants.CommonDllNames,
         };
+        if (card.IsOsInstalled)
+        {
+            ToolTipService.SetToolTip(rsNameBox,
+                "ReShade DLL name is controlled by OptiScaler. Uninstall OptiScaler to change the ReShade DLL name.");
+        }
         if (!string.IsNullOrEmpty(existingRsName))
         {
             if (DllOverrideConstants.CommonDllNames.Contains(existingRsName, StringComparer.OrdinalIgnoreCase))
@@ -163,6 +168,82 @@ public partial class DetailPanelBuilder
 
         // Track previous DC selection for revert on foreign DLL conflict cancel
         string? _previousDcSelection = dcNameBox.SelectedItem as string;
+
+        // ── OptiScaler DLL naming override ─────────────────────────────────────
+        var existingOsName = existingCfg?.OsFileName ?? "";
+        var availableOsNames = _window.ViewModel.DllOverrideServiceInstance
+            .GetAvailableOsDllNames(gameName, is32Bit);
+
+        var osNameBox = new ComboBox
+        {
+            PlaceholderText = "Select OptiScaler DLL name",
+            FontSize = 12,
+            IsEnabled = isDllOverride,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            ItemsSource = availableOsNames,
+        };
+        if (!string.IsNullOrEmpty(existingOsName))
+        {
+            if (availableOsNames.Contains(existingOsName, StringComparer.OrdinalIgnoreCase))
+            {
+                osNameBox.SelectedItem = availableOsNames.First(n => n.Equals(existingOsName, StringComparison.OrdinalIgnoreCase));
+            }
+            else
+            {
+                // Add the custom name as a temporary item so SelectedItem works reliably.
+                var extendedOsNames = availableOsNames.Append(existingOsName).ToArray();
+                osNameBox.ItemsSource = extendedOsNames;
+                osNameBox.SelectedItem = existingOsName;
+            }
+        }
+
+        // Track previous OS selection for revert
+        string? _previousOsSelection = osNameBox.SelectedItem as string;
+
+        // ── Auto-save: OS name box on dropdown selection ──────────────────────
+        osNameBox.SelectionChanged += (s, e) =>
+        {
+            if (!dllOverrideToggle.IsOn) return;
+            var targetCard = _window.ViewModel.AllCards.FirstOrDefault(c =>
+                c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
+            if (targetCard == null) return;
+            var osName = osNameBox.SelectedItem as string;
+            if (string.IsNullOrWhiteSpace(osName)) return;
+
+            _previousOsSelection = osName;
+            _window.ViewModel.DllOverrideServiceInstance.SetOsDllOverride(capturedName, osName);
+
+            // If OptiScaler is installed, rename the DLL in the game folder
+            if (targetCard.IsOsInstalled && !string.IsNullOrEmpty(targetCard.OsInstalledFile)
+                && !string.IsNullOrEmpty(targetCard.InstallPath))
+            {
+                var oldPath = System.IO.Path.Combine(targetCard.InstallPath, targetCard.OsInstalledFile);
+                var newPath = System.IO.Path.Combine(targetCard.InstallPath, osName);
+                try
+                {
+                    if (System.IO.File.Exists(oldPath)
+                        && !oldPath.Equals(newPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (System.IO.File.Exists(newPath)) System.IO.File.Delete(newPath);
+                        System.IO.File.Move(oldPath, newPath);
+                        targetCard.OsInstalledFile = osName;
+
+                        // Update the tracking record
+                        var osRecord = _window.ViewModel.AuxInstallServiceInstance
+                            .FindRecord(capturedName, targetCard.InstallPath, "OptiScaler");
+                        if (osRecord != null)
+                        {
+                            osRecord.InstalledAs = osName;
+                            _window.ViewModel.AuxInstallServiceInstance.SaveAuxRecord(osRecord);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    CrashReporter.Log($"[DetailPanelBuilder.BuildOverridesPanel] Failed to rename OS DLL for '{capturedName}' — {ex.Message}");
+                }
+            }
+        };
 
         // ── Cross-exclusion: filter out the other component's current name ───────
         bool _updatingDropdowns = false;
@@ -219,8 +300,9 @@ public partial class DetailPanelBuilder
 
         dllOverrideToggle.Toggled += (s, ev) =>
         {
-            rsNameBox.IsEnabled = dllOverrideToggle.IsOn;
+            rsNameBox.IsEnabled = dllOverrideToggle.IsOn && !card.IsOsInstalled;
             dcNameBox.IsEnabled = dllOverrideToggle.IsOn;
+            osNameBox.IsEnabled = dllOverrideToggle.IsOn;
 
             var targetCard = _window.ViewModel.AllCards.FirstOrDefault(c =>
                 c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
@@ -489,6 +571,7 @@ public partial class DetailPanelBuilder
         topRightColumn.Children.Add(dllOverrideToggle);
         topRightColumn.Children.Add(rsNameBox);
         topRightColumn.Children.Add(dcNameBox);
+        topRightColumn.Children.Add(osNameBox);
         Grid.SetColumn(topRightColumn, 2);
         topRowGrid.Children.Add(topRightColumn);
 
@@ -900,6 +983,16 @@ public partial class DetailPanelBuilder
             FontSize = 11,
             MinWidth = 0,
         };
+        var osToggle = new ToggleSwitch
+        {
+            Header = "OS",
+            IsOn = !card.ExcludeFromUpdateAllOs,
+            OnContent = "Yes",
+            OffContent = "No",
+            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
+            FontSize = 11,
+            MinWidth = 0,
+        };
 
         var rsBorder = new Border
         {
@@ -933,6 +1026,14 @@ public partial class DetailPanelBuilder
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(8, 6, 8, 6),
         };
+        var osBorder = new Border
+        {
+            Child = osToggle,
+            BorderBrush = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 6, 8, 6),
+        };
 
         var toggleRow = new Grid
         {
@@ -943,14 +1044,17 @@ public partial class DetailPanelBuilder
         toggleRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         toggleRow.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         toggleRow.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        toggleRow.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         Grid.SetRow(rsBorder, 0);  Grid.SetColumn(rsBorder, 0);
         Grid.SetRow(rdxBorder, 0); Grid.SetColumn(rdxBorder, 1);
         Grid.SetRow(ulBorder, 1);  Grid.SetColumn(ulBorder, 0);
         Grid.SetRow(dcBorder, 1);  Grid.SetColumn(dcBorder, 1);
+        Grid.SetRow(osBorder, 2);  Grid.SetColumn(osBorder, 0);
         toggleRow.Children.Add(rsBorder);
         toggleRow.Children.Add(rdxBorder);
         toggleRow.Children.Add(ulBorder);
         toggleRow.Children.Add(dcBorder);
+        toggleRow.Children.Add(osBorder);
 
         // ── Auto-save: Update inclusion toggles ──────────────────────────────────
         rsToggle.Toggled += (s, ev) =>
@@ -972,6 +1076,11 @@ public partial class DetailPanelBuilder
         {
             if (!dcToggle.IsOn != _window.ViewModel.IsUpdateAllExcludedDc(capturedName))
                 _window.ViewModel.ToggleUpdateAllExclusionDc(capturedName);
+        };
+        osToggle.Toggled += (s, ev) =>
+        {
+            if (!osToggle.IsOn != _window.ViewModel.IsUpdateAllExcludedOs(capturedName))
+                _window.ViewModel.ToggleUpdateAllExclusionOs(capturedName);
         };
 
         // ── Global update inclusion section (Middle Row right column) ────────────
@@ -1195,6 +1304,7 @@ public partial class DetailPanelBuilder
             rdxToggle.IsOn = true;
             ulToggle.IsOn = true;
             dcToggle.IsOn = true;
+            osToggle.IsOn = true;
             wikiExcludeToggle.IsOn = false;
 
             // Persist all reset values immediately
@@ -1243,6 +1353,8 @@ public partial class DetailPanelBuilder
                 _window.ViewModel.ToggleUpdateAllExclusionUl(capturedName);
             if (_window.ViewModel.IsUpdateAllExcludedDc(capturedName))
                 _window.ViewModel.ToggleUpdateAllExclusionDc(capturedName);
+            if (_window.ViewModel.IsUpdateAllExcludedOs(capturedName))
+                _window.ViewModel.ToggleUpdateAllExclusionOs(capturedName);
 
             // Disable wiki exclusion
             if (_window.ViewModel.IsWikiExcluded(capturedName))

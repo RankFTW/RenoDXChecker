@@ -712,6 +712,57 @@
                                     </Button>
                                 </Grid>
 
+                                <!-- Labeled separator: optional components -->
+                                <Grid x:Name="DetailOptionalSeparator" x:FieldModifier="internal" Margin="0,4,0,4" ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120"/>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="36"/>
+                                        <ColumnDefinition Width="36"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="2" Text="──  Optional  ──" FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+
+                                <!-- OptiScaler row -->
+                                <Grid x:Name="DetailOsRow" x:FieldModifier="internal" ColumnSpacing="8" Visibility="Collapsed">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120"/>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="36"/>
+                                        <ColumnDefinition Width="36"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="DetailOsLabel" x:FieldModifier="internal" Grid.Column="0" Text="OptiScaler" FontSize="12"
+                                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="DetailOsStatus" x:FieldModifier="internal" Grid.Column="1" FontSize="12"
+                                               VerticalAlignment="Center" HorizontalTextAlignment="Center"
+                                               PointerPressed="DetailOsStatus_PointerPressed"
+                                               PointerEntered="LinkText_PointerEntered" PointerExited="LinkText_PointerExited"/>
+                                    <Button x:Name="DetailOsInstallBtn" x:FieldModifier="internal" Grid.Column="2"
+                                            Click="InstallOsButton_Click"
+                                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                            CornerRadius="8" FontSize="12" Height="32"/>
+                                    <Button x:Name="DetailOsIniBtn" x:FieldModifier="internal" Grid.Column="3"
+                                            Click="CopyOsIniButton_Click"
+                                            Background="{StaticResource SurfaceOverlayBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                            BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
+                                            CornerRadius="8" Width="36" Height="32" Padding="0"
+                                            ToolTipService.ToolTip="Copy OptiScaler.ini to game folder">
+                                        <TextBlock Text="📋" FontSize="12" HorizontalAlignment="Center"/>
+                                    </Button>
+                                    <Button x:Name="DetailOsDeleteBtn" x:FieldModifier="internal" Grid.Column="4"
+                                            Click="UninstallOsButton_Click"
+                                            Background="{StaticResource AccentRedBgBrush}" Foreground="{StaticResource AccentRedBrush}"
+                                            BorderBrush="{StaticResource AccentPurpleBorderBrush}" BorderThickness="1"
+                                            CornerRadius="8" Width="36" Height="32" Padding="0"
+                                            ToolTipService.ToolTip="Remove OptiScaler" Opacity="0" IsHitTestVisible="False">
+                                        <TextBlock Text="✕" FontSize="12" HorizontalAlignment="Center" Foreground="{StaticResource AccentRedBrush}"/>
+                                    </Button>
+                                </Grid>
+
                                 <!-- No mod message -->
                                 <Border x:Name="DetailNoModMsg" x:FieldModifier="internal" Visibility="Collapsed"
                                         Background="{StaticResource AccentPurpleBgBrush}" CornerRadius="8" Padding="12,8"
@@ -743,6 +794,11 @@
                                                  Maximum="100" Height="3" CornerRadius="2"
                                                  Foreground="{StaticResource AccentBlueBrush}" Background="{StaticResource SurfaceToolbarBrush}"/>
                                     <TextBlock x:Name="DetailDcMessage" x:FieldModifier="internal" FontSize="10" Foreground="{StaticResource AccentBlueBrush}"
+                                               Visibility="Collapsed" TextWrapping="Wrap"/>
+                                    <ProgressBar x:Name="DetailOsProgress" x:FieldModifier="internal" Visibility="Collapsed"
+                                                 Maximum="100" Height="3" CornerRadius="2"
+                                                 Foreground="{StaticResource AccentBlueBrush}" Background="{StaticResource SurfaceToolbarBrush}"/>
+                                    <TextBlock x:Name="DetailOsMessage" x:FieldModifier="internal" FontSize="10" Foreground="{StaticResource AccentBlueBrush}"
                                                Visibility="Collapsed" TextWrapping="Wrap"/>
                                     <ProgressBar x:Name="DetailRdxProgress" x:FieldModifier="internal" Visibility="Collapsed"
                                                  Maximum="100" Height="3" CornerRadius="2"
@@ -824,10 +880,10 @@
                         <!-- ── Add Game & Full Refresh ─────────────────────────── -->
                         <Border Background="{StaticResource SurfaceRaisedBrush}" CornerRadius="10" Padding="20,16"
                                 BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1">
-                            <Grid ColumnSpacing="0">
+                            <Grid ColumnSpacing="0" RowSpacing="8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="25"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
 
@@ -886,7 +942,7 @@
                             <Grid ColumnSpacing="0" RowSpacing="8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="25"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
@@ -1009,16 +1065,119 @@
                                         BorderBrush="{StaticResource AccentBlueBorderBrush}" BorderThickness="1"
                                         CornerRadius="8" Padding="12,7" FontSize="12"
                                         HorizontalAlignment="Stretch"/>
+
+                            </Grid>
+                        </Border>
+
+                        <!-- ── OptiScaler Settings ─────────────────────────────────── -->
+                        <Border Background="{StaticResource SurfaceRaisedBrush}" CornerRadius="10" Padding="20,16"
+                                BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1">
+                            <Grid ColumnSpacing="0" RowSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="25"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>  <!-- Row 0: Titles + descriptions -->
+                                    <RowDefinition Height="Auto"/>  <!-- Row 1: GPU combo | OS hotkey combo -->
+                                    <RowDefinition Height="Auto"/>  <!-- Row 2: DLSS toggle | OS Apply -->
+                                </Grid.RowDefinitions>
+
+                                <!-- ── Row 0: Titles + descriptions ── -->
+                                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="4">
+                                    <TextBlock Text="OptiScaler Settings" FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock TextWrapping="Wrap" FontSize="11"
+                                               Foreground="{StaticResource InlineDescriptionBrush}" LineHeight="18"
+                                               Text="Configure GPU type and DLSS input settings for OptiScaler installations."/>
+                                </StackPanel>
+
+                                <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="1" Width="1"
+                                        Background="{StaticResource BorderDefaultBrush}"
+                                        VerticalAlignment="Stretch"
+                                        Margin="12,0,12,0"/>
+
+                                <StackPanel Grid.Row="0" Grid.Column="2" Spacing="4">
+                                    <TextBlock Text="Hotkey" FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock TextWrapping="Wrap" FontSize="11"
+                                               Foreground="{StaticResource InlineDescriptionBrush}" LineHeight="18"
+                                               Text="OptiScaler overlay toggle key"/>
+                                </StackPanel>
+
+                                <!-- ── Row 1: GPU combo | OS hotkey combo ── -->
+                                <StackPanel Grid.Row="1" Grid.Column="0" Spacing="4">
+                                    <TextBlock Text="GPU Type" FontSize="12"
+                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    <ComboBox x:Name="OsGpuCombo" x:FieldModifier="internal"
+                                              FontSize="12"
+                                              HorizontalAlignment="Stretch"
+                                              Background="{StaticResource SurfaceInputBrush}"
+                                              Foreground="{StaticResource TextSecondaryBrush}"
+                                              BorderBrush="{StaticResource BorderSubtleBrush}"
+                                              SelectionChanged="OsGpuCombo_SelectionChanged">
+                                        <x:String>NVIDIA</x:String>
+                                        <x:String>AMD</x:String>
+                                        <x:String>Intel</x:String>
+                                    </ComboBox>
+                                </StackPanel>
+
+                                <ComboBox Grid.Row="1" Grid.Column="2" x:Name="OsHotkeyCombo" x:FieldModifier="internal"
+                                          FontSize="12"
+                                          HorizontalAlignment="Stretch"
+                                          Background="{StaticResource SurfaceInputBrush}"
+                                          Foreground="{StaticResource TextSecondaryBrush}"
+                                          BorderBrush="{StaticResource BorderSubtleBrush}"
+                                          SelectionChanged="OsHotkeyCombo_SelectionChanged">
+                                    <x:String>Insert</x:String>
+                                    <x:String>Home</x:String>
+                                    <x:String>End</x:String>
+                                    <x:String>Delete</x:String>
+                                    <x:String>Page Up</x:String>
+                                    <x:String>Page Down</x:String>
+                                    <x:String>F1</x:String>
+                                    <x:String>F2</x:String>
+                                    <x:String>F3</x:String>
+                                    <x:String>F4</x:String>
+                                    <x:String>F5</x:String>
+                                    <x:String>F6</x:String>
+                                    <x:String>F7</x:String>
+                                    <x:String>F8</x:String>
+                                    <x:String>F9</x:String>
+                                    <x:String>F10</x:String>
+                                    <x:String>F11</x:String>
+                                    <x:String>F12</x:String>
+                                </ComboBox>
+
+                                <!-- ── Row 2: DLSS toggle | OS Apply ── -->
+                                <ToggleSwitch Grid.Row="2" Grid.Column="0" x:Name="OsDlssInputsToggle" x:FieldModifier="internal"
+                                              Header="Use DLSS inputs"
+                                              OnContent="Enabled — spoofing active"
+                                              OffContent="Disabled — no spoofing"
+                                              Foreground="{StaticResource TextTertiaryBrush}" FontSize="12"
+                                              VerticalAlignment="Center"
+                                              Visibility="Collapsed"
+                                              Toggled="OsDlssInputsToggle_Toggled"/>
+
+                                <Button Grid.Row="2" Grid.Column="2" x:Name="ApplyOsHotkeyBtn" x:FieldModifier="internal"
+                                        Content="Apply to All Games"
+                                        Click="ApplyOsHotkey_Click"
+                                        Background="{StaticResource AccentBlueBgBrush}"
+                                        Foreground="{StaticResource AccentBlueBrush}"
+                                        BorderBrush="{StaticResource AccentBlueBorderBrush}" BorderThickness="1"
+                                        CornerRadius="8" Padding="12,7" FontSize="12"
+                                        HorizontalAlignment="Stretch"/>
                             </Grid>
                         </Border>
 
                         <!-- ── Custom Shaders & Addon Watch Folder ─────────────────── -->
                         <Border Background="{StaticResource SurfaceRaisedBrush}" CornerRadius="10" Padding="20,16"
                                 BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1">
-                            <Grid ColumnSpacing="0">
+                            <Grid ColumnSpacing="0" RowSpacing="8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="25"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
 
@@ -1228,7 +1387,7 @@
                                         <TextBlock Text="Single-player only" FontSize="12" FontWeight="SemiBold"
                                                    Foreground="{StaticResource AccentRedBrush}"/>
                                         <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource InlineDescriptionBrush}" LineHeight="18"
-                                                   Text="RHI installs ReShade with full addon support, which may be flagged by anti-cheat in online or multiplayer games. Uninstall ReShade before playing online."/>
+                                                   Text="RHI installs ReShade with full addon support and OptiScaler, which may be flagged by anti-cheat in online or multiplayer games. Uninstall ReShade and OptiScaler before playing online."/>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
@@ -1455,7 +1614,7 @@
                 <TextBlock Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center"
                            FontSize="10" Foreground="{StaticResource AccentAmberDimBrush}"
                            TextTrimming="CharacterEllipsis" MaxLines="1"
-                           Text="⚠ Single-player only — ReShade with addon support may trigger anti-cheat in online/multiplayer games"/>
+                           Text="⚠ Single-player only — ReShade with addon support and OptiScaler may trigger anti-cheat in online/multiplayer games"/>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right"
                             VerticalAlignment="Center" Spacing="8">
                     <TextBlock x:Name="StatusBarVersionText" x:FieldModifier="internal"

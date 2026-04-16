@@ -143,6 +143,38 @@ public partial class CardBuilder
             panel.Children.Add(lumaRow);
         }
 
+        // ── Optional separator + OptiScaler row ──────────────────────────────
+        var optionalSep = new TextBlock
+        {
+            Text = "———  Optional  ———",
+            FontSize = 9,
+            Foreground = UIFactory.GetBrush("#5A6880"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 4, 0, 2),
+        };
+        panel.Children.Add(optionalSep);
+
+        // OptiScaler row
+        var osRow = BuildComponentRow(card, "OptiScaler", "OS",
+            card.OsStatusText, card.OsStatusColor, card.OsShortAction,
+            card.CardOsInstallEnabled, card.IsOsInstalled,
+            showCopyConfig: true, copyConfigVisible: card.OsIniExists,
+            copyConfigTooltip: "Copy OptiScaler.ini to game folder",
+            btnBackground: card.OsBtnBackground, btnForeground: card.OsBtnForeground, btnBorderBrush: card.OsBtnBorderBrush);
+        // Grey out and disable for 32-bit games
+        if (card.Is32Bit)
+        {
+            osRow.Opacity = 0.35;
+            osRow.IsHitTestVisible = false;
+            // Apply strikethrough to name and status text
+            foreach (var child in osRow.Children)
+            {
+                if (child is TextBlock tb)
+                    tb.TextDecorations = Windows.UI.Text.TextDecorations.Strikethrough;
+            }
+        }
+        panel.Children.Add(osRow);
+
         // ── Limiter separator + rows ──────────────────────────────────────────
         var limiterSep = new TextBlock
         {
@@ -306,6 +338,27 @@ public partial class CardBuilder
                             c.CardLumaInstallEnabled, c.IsLumaInstalled, false,
                             c.LumaBtnBackground, c.LumaBtnForeground, c.LumaBtnBorderBrush);
                     }
+
+                    // Update OptiScaler row
+                    UpdateComponentRow(osRow, c.OsStatusText, c.OsStatusColor, c.OsShortAction,
+                        c.CardOsInstallEnabled, c.IsOsInstalled, c.OsIniExists,
+                        c.OsBtnBackground, c.OsBtnForeground, c.OsBtnBorderBrush);
+                    // Keep 32-bit greyed-out state in sync
+                    if (c.Is32Bit)
+                    {
+                        osRow.Opacity = 0.35;
+                        osRow.IsHitTestVisible = false;
+                        foreach (var child in osRow.Children)
+                        {
+                            if (child is TextBlock tb)
+                                tb.TextDecorations = Windows.UI.Text.TextDecorations.Strikethrough;
+                        }
+                    }
+                    else
+                    {
+                        osRow.Opacity = 1.0;
+                        osRow.IsHitTestVisible = true;
+                    }
                 }
                 catch (Exception ex) { CrashReporter.Log($"[CardBuilder.BuildInstallFlyoutContent] Flyout update error — {ex.Message}"); }
             });
@@ -403,6 +456,8 @@ public partial class CardBuilder
             copyBtn.Click += _window.CardCopyUlIni_Click;
         if (componentTag == "DC")
             copyBtn.Click += _window.CardCopyDcIni_Click;
+        if (componentTag == "OS")
+            copyBtn.Click += _window.CardCopyOsIni_Click;
         if (copyConfigTooltip != null)
             ToolTipService.SetToolTip(copyBtn, copyConfigTooltip);
         Grid.SetColumn(copyBtn, 3);

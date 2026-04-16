@@ -1,3 +1,35 @@
+## v1.7.9 Beta 1
+
+### New Features
+
+**OptiScaler integration**
+- OptiScaler is now a fully managed component in RHI. One-click install, update, and uninstall for upscaler redirection (DLSS/FSR/XeSS) on 64-bit games.
+- New OptiScaler Settings section on the Settings page — configure GPU type (NVIDIA/AMD/Intel), DLSS input replacement toggle, and overlay hotkey all in one place. Settings are persisted and applied automatically on every install.
+- First-time install warning prompts users to configure OptiScaler settings before proceeding.
+- All OptiScaler files are deployed from the staging folder, including companion DLLs, INI files, and the `D3D12_Optiscaler` subfolder. Installer scripts, READMEs, and license files are excluded.
+- Game-owned files are backed up to `.original` before overwriting and restored on uninstall.
+- ReShade coexistence handled automatically — ReShade is renamed to `ReShade64.dll` before OptiScaler files are deployed, preventing DLL conflicts. Restored to the correct filename on uninstall.
+- `LoadReshade=true` is always enforced in the deployed `OptiScaler.ini`.
+- DLL naming override dropdown in the per-game overrides panel (filters out filenames used by ReShade or Display Commander).
+- Manifest support for per-game OptiScaler DLL name defaults (`optiScalerDllOverrides`).
+- Per-game OptiScaler update exclusion toggle in the overrides panel.
+- OptiScaler status included in Update All, Refresh, game report, skeleton loading screen, and card flyout.
+- Binary signature detection for existing OptiScaler installations.
+- Foreign DLL protection recognises OptiScaler DLLs.
+- 32-bit games show the OptiScaler row greyed out with strikethrough.
+
+**ReShade dependency enforcement**
+- RenoDX, ReLimiter, and Display Commander install buttons now require ReShade to be installed first. When ReShade is not installed, buttons show "⚠ ReShade required" and the rows are dimmed. Installing ReShade immediately re-enables them.
+
+### Changes
+
+- Pre-generated OptiScaler INI templates bundled for each GPU configuration (NVIDIA, AMD/Intel with DLSS, AMD/Intel without DLSS). The correct template is deployed based on Settings page configuration.
+- OptiScaler overlay hotkey from Settings is applied to the deployed INI on every install.
+- Single-player warning text updated: "ReShade with addon support and OptiScaler may trigger anti-cheat."
+- Documentation updated across README, NexusMods page, and Detailed Guide.
+
+---
+
 ## v1.7.8
 
 ### Changes

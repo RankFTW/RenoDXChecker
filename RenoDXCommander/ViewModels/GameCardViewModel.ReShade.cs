@@ -139,6 +139,23 @@ public partial class GameCardViewModel
         // Managed state
         OnPropertyChanged(nameof(IsManaged));
         OnPropertyChanged(nameof(SidebarItemForeground));
+        // RenoDX / ReLimiter / DC depend on IsRsInstalled
+        OnPropertyChanged(nameof(CanInstall));
+        OnPropertyChanged(nameof(CardRdxInstallEnabled));
+        OnPropertyChanged(nameof(RdxStatusText));
+        OnPropertyChanged(nameof(RdxStatusColor));
+        OnPropertyChanged(nameof(UlInstallEnabled));
+        OnPropertyChanged(nameof(CardUlInstallEnabled));
+        OnPropertyChanged(nameof(UlStatusText));
+        OnPropertyChanged(nameof(UlStatusColor));
+        OnPropertyChanged(nameof(DcInstallEnabled));
+        OnPropertyChanged(nameof(CardDcInstallEnabled));
+        OnPropertyChanged(nameof(DcStatusText));
+        OnPropertyChanged(nameof(DcStatusColor));
+        // Action labels depend on IsRsInstalled
+        OnPropertyChanged(nameof(InstallActionLabel));
+        OnPropertyChanged(nameof(UlActionLabel));
+        OnPropertyChanged(nameof(DcActionLabel));
     }
 
     // ── Targeted notification: RsIsInstalling changed ─────────────────────────────

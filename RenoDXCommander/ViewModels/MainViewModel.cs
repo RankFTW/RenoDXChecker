@@ -32,6 +32,7 @@ public partial class MainViewModel : ObservableObject
     private readonly IAddonPackService _addonPackService;
     private readonly INexusModsService _nexusModsService;
     private readonly IPcgwService _pcgwService;
+    private readonly IOptiScalerService _optiScalerService;
     /// <summary>
     /// Task that tracks the background shader pack download/extraction.
     /// Awaited before the post-init shader sync so packs are available.
@@ -48,6 +49,8 @@ public partial class MainViewModel : ObservableObject
     public IUpdateOrchestrationService UpdateOrchestrationServiceInstance => _updateOrchestrationService;
     public IGameInitializationService GameInitializationServiceInstance => _gameInitializationService;
     public IPeHeaderService PeHeaderServiceInstance => _peHeaderService;
+    public IAuxInstallService AuxInstallServiceInstance => _auxInstaller;
+    public IOptiScalerService OptiScalerServiceInstance => _optiScalerService;
 
     public bool SkipUpdateCheck
     {
@@ -387,7 +390,8 @@ public partial class MainViewModel : ObservableObject
         IGameInitializationService gameInitializationService,
         IREFrameworkService refService,
         INexusModsService nexusModsService,
-        IPcgwService pcgwService)
+        IPcgwService pcgwService,
+        IOptiScalerService optiScalerService)
     {
         _http = http;
         _installer = installer;
@@ -413,6 +417,7 @@ public partial class MainViewModel : ObservableObject
         _addonPackService = new AddonPackService(http);
         _nexusModsService = nexusModsService;
         _pcgwService = pcgwService;
+        _optiScalerService = optiScalerService;
         // Wire up SettingsChanged so property changes trigger a full save
         _settingsViewModel.SettingsChanged = () => SaveNameMappings();
         // Wire up DllOverrideService changes to trigger save
@@ -503,6 +508,7 @@ public partial class MainViewModel : ObservableObject
     private HashSet<string> _updateAllExcludedRenoDx => _gameNameService.UpdateAllExcludedRenoDx;
     private HashSet<string> _updateAllExcludedUl => _gameNameService.UpdateAllExcludedUl;
     private HashSet<string> _updateAllExcludedDc => _gameNameService.UpdateAllExcludedDc;
+    private HashSet<string> _updateAllExcludedOs => _gameNameService.UpdateAllExcludedOs;
     private Dictionary<string, string> _perGameShaderMode => _gameNameService.PerGameShaderMode;
     /// <summary>Per-game Vulkan rendering path preferences. Key = game name, Value = "DirectX" or "Vulkan".</summary>
     private Dictionary<string, string> _vulkanRenderingPaths => _gameNameService.VulkanRenderingPaths;

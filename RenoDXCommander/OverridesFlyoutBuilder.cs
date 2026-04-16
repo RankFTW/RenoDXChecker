@@ -897,6 +897,16 @@ public class OverridesFlyoutBuilder
             FontSize = 11,
             MinWidth = 0,
         };
+        var osToggle = new ToggleSwitch
+        {
+            Header = "OS",
+            IsOn = !card.ExcludeFromUpdateAllOs,
+            OnContent = "",
+            OffContent = "",
+            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
+            FontSize = 11,
+            MinWidth = 0,
+        };
 
         var rsBorder = new Border
         {
@@ -930,6 +940,14 @@ public class OverridesFlyoutBuilder
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(8, 6, 8, 6),
         };
+        var osBorder = new Border
+        {
+            Child = osToggle,
+            BorderBrush = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 6, 8, 6),
+        };
 
         var toggleRow = new Grid
         {
@@ -940,14 +958,17 @@ public class OverridesFlyoutBuilder
         toggleRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         toggleRow.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         toggleRow.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        toggleRow.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         Grid.SetRow(rsBorder, 0);  Grid.SetColumn(rsBorder, 0);
         Grid.SetRow(rdxBorder, 0); Grid.SetColumn(rdxBorder, 1);
         Grid.SetRow(ulBorder, 1);  Grid.SetColumn(ulBorder, 0);
         Grid.SetRow(dcBorder, 1);  Grid.SetColumn(dcBorder, 1);
+        Grid.SetRow(osBorder, 2);  Grid.SetColumn(osBorder, 0);
         toggleRow.Children.Add(rsBorder);
         toggleRow.Children.Add(rdxBorder);
         toggleRow.Children.Add(ulBorder);
         toggleRow.Children.Add(dcBorder);
+        toggleRow.Children.Add(osBorder);
 
         // ── Auto-save: Update inclusion toggles ──
         rsToggle.Toggled += (s, ev) =>
@@ -969,6 +990,11 @@ public class OverridesFlyoutBuilder
         {
             if (!dcToggle.IsOn != ViewModel.IsUpdateAllExcludedDc(capturedName))
                 ViewModel.ToggleUpdateAllExclusionDc(capturedName);
+        };
+        osToggle.Toggled += (s, ev) =>
+        {
+            if (!osToggle.IsOn != ViewModel.IsUpdateAllExcludedOs(capturedName))
+                ViewModel.ToggleUpdateAllExclusionOs(capturedName);
         };
 
         // Build inline row Grid: [Global update inclusion]
@@ -1063,6 +1089,7 @@ public class OverridesFlyoutBuilder
             rdxToggle.IsOn = true;
             ulToggle.IsOn = true;
             dcToggle.IsOn = true;
+            osToggle.IsOn = true;
             wikiExcludeToggle.IsOn = false;
 
             // Persist all reset values immediately
@@ -1111,6 +1138,8 @@ public class OverridesFlyoutBuilder
                 ViewModel.ToggleUpdateAllExclusionUl(capturedName);
             if (ViewModel.IsUpdateAllExcludedDc(capturedName))
                 ViewModel.ToggleUpdateAllExclusionDc(capturedName);
+            if (ViewModel.IsUpdateAllExcludedOs(capturedName))
+                ViewModel.ToggleUpdateAllExclusionOs(capturedName);
 
             // Disable wiki exclusion
             if (ViewModel.IsWikiExcluded(capturedName))
