@@ -13,6 +13,7 @@
 - Vulkan games now automatically use `winmm.dll` as the OptiScaler DLL filename instead of `dxgi.dll`, matching OptiScaler's Vulkan requirements. User and manifest overrides still take priority.
 - OptiScaler FPS overlay hotkey (`FpsShortcutKey`), FPS overlay cycle hotkey (`FpsCycleShortcutKey`), and Frame Generation hotkey (`FGShortcutKey`) are now unbound by default (`-1`) in the bundled INI templates, preventing keybind conflicts with games.
 - Added "OptiScaler Compatibility List" link in the OptiScaler Settings section on the Settings page, linking to the community-maintained compatibility wiki.
+- Manifest `wikiUnlinks` now fully disconnects games from the wiki — no mod match, no generic UE/Unity fallback, no Discord badge. Unlinked games show "No RenoDX mod available" as if the wiki doesn't exist for them.
 
 ### Bug Fixes
 

@@ -592,11 +592,13 @@ public partial class MainViewModel
             newBitnessCache[resolvedKey] = machineType;
 
             var mod      = _gameDetectionService.MatchGame(game, _allMods, _nameMappings);
-            // Wiki unlink: discard false fuzzy match so the game uses its generic engine addon
-            if (mod != null && _manifestWikiUnlinks.Contains(game.Name)) mod = null;
+            // Wiki unlink: completely disconnect the game from wiki — no mod, no generic fallback
+            bool isWikiUnlinked = _manifestWikiUnlinks.Contains(game.Name);
+            if (isWikiUnlinked) mod = null;
             // UnrealLegacy (UE3 and below) cannot use the RenoDX addon system — no fallback mod offered.
-            var fallback = mod == null ? (engine == EngineType.Unreal      ? genericUnreal
-                                        : engine == EngineType.Unity       ? genericUnity : null) : null;
+            var fallback = (mod == null && !isWikiUnlinked)
+                           ? (engine == EngineType.Unreal      ? genericUnreal
+                            : engine == EngineType.Unity       ? genericUnity : null) : null;
 
             // If the wiki mod matched but has no download URL (common for games listed
             // in the generic engine tables), inject the generic engine addon URL so the

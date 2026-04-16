@@ -72,9 +72,10 @@ public partial class MainViewModel
             var engineOverrideLabel = ResolveEngineOverride(game.Name, out var engineOverride);
             if (engineOverrideLabel != null) engine = engineOverride;
             var mod         = _gameDetectionService.MatchGame(game, _allMods, _nameMappings);
-            // Wiki unlink: discard false fuzzy match so the game uses its generic engine addon
-            if (mod != null && _manifestWikiUnlinks.Contains(game.Name)) mod = null;
-            var fallback    = mod == null ? (engine == EngineType.Unreal ? MakeGenericUnreal()
+            // Wiki unlink: completely disconnect the game from wiki — no mod, no generic fallback
+            bool isWikiUnlinked1 = _manifestWikiUnlinks.Contains(game.Name);
+            if (isWikiUnlinked1) mod = null;
+            var fallback    = (mod == null && !isWikiUnlinked1) ? (engine == EngineType.Unreal ? MakeGenericUnreal()
                                             : engine == EngineType.Unity  ? MakeGenericUnity()
                                             : null) : null;
 
@@ -294,11 +295,12 @@ public partial class MainViewModel
         }
 
         var mod = _gameDetectionService.MatchGame(game, _allMods, _nameMappings);
-        // Wiki unlink: discard false fuzzy match so the game uses its generic engine addon
-        if (mod != null && _manifestWikiUnlinks.Contains(game.Name)) mod = null;
+        // Wiki unlink: completely disconnect the game from wiki — no mod, no generic fallback
+        bool isWikiUnlinked2 = _manifestWikiUnlinks.Contains(game.Name);
+        if (isWikiUnlinked2) mod = null;
         var genericUnreal = MakeGenericUnreal();
         var genericUnity  = MakeGenericUnity();
-        var fallback = mod == null ? (engine == EngineType.Unreal      ? genericUnreal
+        var fallback = (mod == null && !isWikiUnlinked2) ? (engine == EngineType.Unreal      ? genericUnreal
                                    : engine == EngineType.Unity       ? genericUnity : null) : null;
 
         // Wiki mod matched but has no download URL — inject generic engine addon URL
