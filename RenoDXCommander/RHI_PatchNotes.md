@@ -1,3 +1,12 @@
+## v1.7.9 Beta 4
+
+### Changes
+
+- Global update inclusion toggles in the overrides panel replaced with a compact "Update Inclusion" button that opens a dialog with checkboxes. A summary line below the button shows the current state at a glance (e.g. "RS: On · RDX: On · UL: On · DC: On · OS: On").
+- Bitness and Graphics API dropdowns in the overrides panel are now side by side instead of stacked vertically, saving space.
+
+---
+
 ## v1.7.9 Beta 3
 
 ### New Features
