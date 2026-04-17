@@ -1292,6 +1292,10 @@ public partial class MainViewModel
     private static string? ScanForInstalledAddon(string installPath, GameMod? mod)
     {
         if (!Directory.Exists(installPath)) return null;
+        // Skip WindowsApps paths — always access-denied for file scanning
+        if (installPath.Contains(@"\WindowsApps\", StringComparison.OrdinalIgnoreCase)
+            || installPath.Contains(@"/WindowsApps/", StringComparison.OrdinalIgnoreCase))
+            return null;
         try
         {
             // Check the AddonPath subfolder from reshade.ini first
@@ -1380,6 +1384,10 @@ public partial class MainViewModel
     private static string? ScanForInstalledAddonQuick(string installPath, GameMod? mod)
     {
         if (!Directory.Exists(installPath)) return null;
+        // Skip WindowsApps paths — always access-denied for file scanning
+        if (installPath.Contains(@"\WindowsApps\", StringComparison.OrdinalIgnoreCase)
+            || installPath.Contains(@"/WindowsApps/", StringComparison.OrdinalIgnoreCase))
+            return null;
         try
         {
             // Check the AddonPath subfolder from reshade.ini first
