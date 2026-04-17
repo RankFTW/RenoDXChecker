@@ -891,6 +891,10 @@ public partial class MainViewModel
                     // Content-based fallback: scan known proxy DLL names for ReShade binary signatures.
                     // ReShade can only inject via specific Windows system DLL proxies, so we only
                     // check those names rather than every DLL in the folder.
+                    // Skip WindowsApps paths — always access-denied
+                    bool isWinAppsRs = installPath.Contains(@"\WindowsApps\", StringComparison.OrdinalIgnoreCase)
+                                    || installPath.Contains(@"/WindowsApps/", StringComparison.OrdinalIgnoreCase);
+                    if (!isWinAppsRs)
                     try
                     {
                         foreach (var proxyName in DllOverrideConstants.CommonDllNames)
@@ -1131,7 +1135,10 @@ public partial class MainViewModel
                 else
                 {
                     // No tracking record — try binary signature detection
-                    var detectedDll = _optiScalerService.DetectInstallation(installPath);
+                    // Skip WindowsApps paths — always access-denied, wastes time on retries
+                    bool isWindowsApps = installPath.Contains(@"\WindowsApps\", StringComparison.OrdinalIgnoreCase)
+                                      || installPath.Contains(@"/WindowsApps/", StringComparison.OrdinalIgnoreCase);
+                    var detectedDll = isWindowsApps ? null : _optiScalerService.DetectInstallation(installPath);
                     if (detectedDll != null)
                     {
                         // Create a tracking record for the detected installation

@@ -2230,19 +2230,21 @@ public class OptiScalerService : IOptiScalerService
         {
             if (!Directory.Exists(installPath)) return null;
 
-            // Scan all DLL files in the game folder for OptiScaler binary signatures
-            foreach (var dllPath in Directory.GetFiles(installPath, "*.dll"))
+            // Fast path: only check the known DLL names that OptiScaler can be installed as.
+            // This avoids scanning every DLL in large game folders (e.g. Alan Wake 2 has hundreds).
+            foreach (var dllName in SupportedDllNames)
             {
-                if (IsOptiScalerFile(dllPath))
-                    return Path.GetFileName(dllPath);
+                var candidatePath = Path.Combine(installPath, dllName);
+                if (File.Exists(candidatePath) && IsOptiScalerFile(candidatePath))
+                    return dllName;
             }
 
             // Secondary marker: check for OptiScaler.ini presence
             var iniPath = Path.Combine(installPath, IniFileName);
             if (File.Exists(iniPath))
             {
-                // INI exists but no DLL matched — check supported DLL names
-                // in case the binary signature scan missed it
+                // INI exists but no supported DLL matched — check supported DLL names
+                // by existence only (in case the binary signature scan missed it)
                 foreach (var dllName in SupportedDllNames)
                 {
                     var candidatePath = Path.Combine(installPath, dllName);

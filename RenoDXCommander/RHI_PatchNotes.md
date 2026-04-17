@@ -9,6 +9,9 @@
 
 - Fixed ~45 "Cache write failed" errors per startup caused by concurrent PCGW cache writes. Cache writes are now debounced — multiple calls within 500ms collapse into a single disk write.
 - Fixed NNShaders shader pack failing to download every startup (404 error). The GitHub URL was pointing to a `main` branch that doesn't exist — corrected to `master`.
+- Blacklisted DOOM: The Dark Ages DLC content packs that were being detected as games and causing 2-4s each of wasted scanning on WindowsApps paths.
+- OptiScaler detection now only scans the 7 known proxy DLL names instead of every DLL in the game folder, dramatically reducing scan time for large game folders (e.g. Alan Wake 2 dropped from ~4s to near-instant).
+- WindowsApps game paths are now skipped for OptiScaler binary detection and ReShade proxy DLL scanning, avoiding access-denied retries that added seconds to startup.
 
 ---
 
