@@ -378,5 +378,8 @@
   },
   "pcgwUrlOverrides": {
     "The Sinking City Remastered": "https://www.pcgamingwiki.com/wiki/The_Sinking_City_Remastered"
+  },
+  "authorOverrides": {
+    "PRAGMATA": "Musa"
   }
 }
