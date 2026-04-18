@@ -11,7 +11,10 @@ RHI is a WinUI 3 desktop application for managing HDR mod installations on PC ga
 - **Auto-detection** — scans Steam, GOG, Epic Games, EA App, Ubisoft Connect, Xbox/Game Pass, Battle.net, and Rockstar libraries on every launch
 - **One-click install** — install, update, or uninstall ReShade, RenoDX, ReLimiter, Display Commander, OptiScaler, RE Framework, and Luma Framework with a single button
 - **Frame rate limiter choice** — ReLimiter and Display Commander are mutually exclusive per game; installing one disables the other
-- **OptiScaler support** — install and manage OptiScaler per-game for upscaler redirection (DLSS/FSR/XeSS). Handles DLL naming, INI configuration, ReShade coexistence (automatic rename to `ReShade64.dll`), and hotkey setup. 64-bit games only
+- **OptiScaler support** — install and manage OptiScaler per-game for upscaler redirection (DLSS/FSR/XeSS). Handles DLL naming (auto-selects `winmm.dll` for Vulkan games), INI configuration, ReShade coexistence (automatic rename to `ReShade64.dll`), GPU type settings (NVIDIA/AMD/Intel), DLSS input toggle (AMD/Intel only), and hotkey setup. Automatically downloads and deploys the latest DLSS Super Resolution, Ray Reconstruction, and Frame Generation DLLs. OptiPatcher auto-deployed for AMD/Intel GPUs. 64-bit games only
+- **ReShade dependency enforcement** — RenoDX, ReLimiter, and Display Commander require ReShade to be installed first. Install buttons show "⚠ ReShade required" when ReShade is not present
+- **Mass INI Deployment** — deploy reshade.ini, relimiter.ini, DisplayCommander.ini, or OptiScaler.ini to all games with the corresponding component installed from the Settings page
+- **Mass ReShade Preset Install** — deploy presets to multiple games at once from the Settings page, with optional shader pack installation
 - **Drag-and-drop** — drop a game `.exe`, addon file, archive, preset `.ini`, or URL to add games and install mods instantly
 - **Archive auto-install** — archives containing "renodx" in the filename (e.g. from Nexus Mods) are detected in your Downloads folder and installed automatically
 - **Per-game overrides** — customise DLL naming, shader selection, and component update preferences per game
@@ -23,7 +26,7 @@ RHI is a WinUI 3 desktop application for managing HDR mod installations on PC ga
 - **ReShade Without Addon Support** — per-game toggle to switch from addon-enabled ReShade to standard ReShade. All addons are removed and rows dimmed; toggle back to restore
 - **ReLimiter OSD hotkey** — configure the ReLimiter overlay hotkey from the Settings page and apply it to all managed `relimiter.ini` files
 - **Game report** — Copy Report button in the overrides panel generates a diagnostic code for Discord or GitHub issues, showing detected vs corrected settings
-- **Performance** — parallel shader downloads, parallel game folder syncs, and cached graphics API detection for fast startup
+- **Performance** — parallel shader downloads, parallel game folder syncs, cached graphics API detection, debounced PCGW cache writes, optimised DLL scanning, and WindowsApps/DLC path skipping for fast startup
 
 ## Quick Start
 

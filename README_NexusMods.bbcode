@@ -17,7 +17,7 @@ ReShade HDR Installer would not be possible without the hard work of the entire 
 [line]
 
 [size=5][b]Download[/b][/size]
-Grab the latest installer from the [url=https://github.com/RankFTW/RenoDXChecker/releases/tag/RDXC]Releases page[/url]. Requires Windows 10/11 x64 and [url=https://dotnet.microsoft.com/download/dotnet/8.0].NET 8 Desktop Runtime[/url].
+Grab the latest installer from the [url=https://github.com/RankFTW/RHI/releases]Releases page[/url]. Requires Windows 10/11 x64 and [url=https://dotnet.microsoft.com/download/dotnet/8.0].NET 8 Desktop Runtime[/url].
 
 [line]
 
@@ -39,7 +39,12 @@ Grab the latest installer from the [url=https://github.com/RankFTW/RenoDXChecker
 [*] [b]One-click install/update/uninstall[/b] for ReShade, ReLimiter, Display Commander, OptiScaler, RenoDX addons, RE Framework, and Luma Framework mods.
 [*] [b]Frame rate limiter choice[/b] — ReLimiter and Display Commander are mutually exclusive per game. Installing one disables the other. Both support 32-bit and 64-bit games.
 [*] [b]Display Commander support[/b] — install and manage the Display Commander (LITE) frame rate limiter per-game, downloaded from GitHub on demand with automatic update detection. Includes INI deploy button.
-[*] [b]OptiScaler support[/b] — install and manage OptiScaler per-game for upscaler redirection (DLSS/FSR/XeSS). Handles DLL naming, INI configuration, ReShade coexistence (automatic rename to ReShade64.dll), and hotkey setup. 64-bit games only.
+[*] [b]OptiScaler support[/b] — install and manage OptiScaler per-game for upscaler redirection (DLSS/FSR/XeSS). Handles DLL naming (auto-selects winmm.dll for Vulkan games), INI configuration, ReShade coexistence (automatic rename to ReShade64.dll), GPU type settings (NVIDIA/AMD/Intel), DLSS input toggle (AMD/Intel only), and hotkey setup. Automatically downloads and deploys the latest DLSS Super Resolution, Ray Reconstruction, and Frame Generation DLLs. OptiPatcher auto-deployed for AMD/Intel GPUs. 64-bit games only.
+[*] [b]ReShade dependency enforcement[/b] — RenoDX, ReLimiter, and Display Commander require ReShade to be installed first. Install buttons show "ReShade required" when ReShade is not present.
+[*] [b]DLSS auto-download[/b] — the latest NVIDIA DLSS Super Resolution, Ray Reconstruction, and Frame Generation DLLs are automatically downloaded and deployed to game folders on OptiScaler install.
+[*] [b]OptiPatcher[/b] — automatically downloaded and deployed for AMD/Intel GPU users during OptiScaler install, enabling DLSS inputs without GPU spoofing.
+[*] [b]Mass INI Deployment[/b] — deploy reshade.ini, relimiter.ini, DisplayCommander.ini, or OptiScaler.ini to all games with the corresponding component installed from the Settings page.
+[*] [b]Mass ReShade Preset Install[/b] — deploy presets to multiple games at once from the Settings page, with optional shader pack installation.
 [*] [b]ReLimiter support[/b] — install and manage the ReLimiter frame pacing addon per-game, downloaded from GitHub on demand with automatic update detection.
 [*] [b]RE Framework support[/b] — one-click install, update, and uninstall of RE Framework for RE Engine games (Monster Hunter Wilds, Resident Evil series, Devil May Cry 5, Street Fighter 6, Dragon's Dogma 2, etc.). Each game downloads its own game-specific build.
 [*] [b]Version display[/b] — installed version numbers shown directly on component rows. DC version reads from PE file info on scan.
@@ -52,7 +57,7 @@ Grab the latest installer from the [url=https://github.com/RankFTW/RenoDXChecker
 [*] [b]Automatic INI deploy on first install[/b] — installing ReLimiter or Display Commander for the first time auto-copies the pre-configured INI from AppData to the game folder (only if not already present).
 [*] [b]Game report[/b] — Copy Report button in the overrides panel generates a diagnostic code for Discord or GitHub issues, showing detected vs corrected settings with an optional user note.
 [*] [b]Auto-save overrides[/b] — all per-game settings save immediately when changed, no Save button needed.
-[*] [b]Per-game overrides[/b] — DLL naming overrides (single toggle for both ReShade and DC), shader mode/selection, wiki name mapping, wiki exclusion, per-component Update All inclusion (ReShade, RenoDX, ReLimiter, DC in a 2×2 grid), bitness override, graphics API override, reset overrides.
+[*] [b]Per-game overrides[/b] — DLL naming overrides (single toggle for both ReShade and DC), shader mode/selection, wiki name mapping, wiki exclusion, Update Inclusion button with colour-coded summary (ReShade, RenoDX, ReLimiter, DC, OptiScaler), bitness and graphics API overrides (side by side), reset overrides.
 [*] [b]Seamless refresh[/b] — after initial boot, refresh updates everything in the background without blanking the UI.
 [*] [b]Startup shader deployment[/b] — on launch, shaders are automatically synced to all installed game folders in parallel for fast startup.
 [*] [b]Drag-and-drop[/b] — drop a game .exe to add it, drop an .addon64/.addon32 to install it, drop an archive to extract and install addons, drop a preset .ini to deploy it with automatic shader install, or drop a Discord/browser URL link to download and install an addon.
@@ -75,7 +80,7 @@ Grab the latest installer from the [url=https://github.com/RankFTW/RenoDXChecker
 [*] [b]Screenshot path settings[/b] — set a global screenshot save path written to all managed reshade.ini files, with optional per-game subfolders.
 [*] [b]Toolbar redesign[/b] — consistent teal accent styling with grouped sections. Update All button lights up purple when updates are available.
 [*] [b]Clickable status links[/b] — version numbers and author donation badges show a hand cursor when clickable. DC status text is underlined when installed.
-[*] [b]Performance optimisations[/b] — parallel shader pack downloads, parallel game folder syncs, PE-level and game-level API caching, WindowsApps path skipping. Full Refresh clears all caches.
+[*] [b]Performance optimisations[/b] — parallel shader pack downloads, parallel game folder syncs, PE-level and game-level API caching, WindowsApps path skipping, debounced PCGW cache writes, optimised DLL scanning, DLC blacklisting. Full Refresh clears all caches.
 [/list]
 
 [line]

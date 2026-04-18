@@ -54,7 +54,7 @@ A card-based layout showing all games as a grid. Toggle between views with the v
 - Update-available highlight border
 - A Manage popout for quick access to install/uninstall/override controls
 
-The grid view card flyout matches the detail panel: same component order (ReShade → RenoDX → Luma (when applicable) → separator → ReLimiter → DC), mutual exclusion greying, and "Choose one from below" separator. The overrides flyout includes addons section, preset selector, ReShade Without Addon Support toggle, DC DLL override, DC update exclusion, bitness override, API override, change folder, remove game, copy report, wiki exclusion toggle, and full Reset Overrides support.
+The grid view card flyout matches the detail panel: same component order (ReShade → RenoDX → Luma (when applicable) → separator → ReLimiter → DC), mutual exclusion greying, and "Frame limiters — Choose one" separator. The overrides flyout includes addons section, preset selector, ReShade Without Addon Support toggle, DC DLL override, DC update exclusion, bitness override, API override, change folder, remove game, copy report, wiki exclusion toggle, and full Reset Overrides support.
 
 Games in Luma mode do not show a wiki status icon on the grid card.
 
@@ -86,7 +86,7 @@ When a game is selected:
 - **Install path** in monospace text below the game name
 - **Installed addon filename** badge when a mod is installed
 - **Browse, Info, and Discussion buttons** — on the badges row, right-aligned
-- **Components table** — ReShade → RenoDX → separator ("Choose one from below") → ReLimiter → Display Commander, and Luma (when applicable), each with status, install/reinstall/update button, options menu, and uninstall button
+- **Components table** — ReShade → RenoDX → separator ("Frame limiters — Choose one") → ReLimiter → Display Commander, and Luma (when applicable), each with status, install/reinstall/update button, options menu, and uninstall button
 - **Rendering path toggle** — for dual-API games (DirectX + Vulkan)
 - **Overrides section** — all per-game settings inline
 - **Management section** — Change install folder, Reset folder, Reset Overrides, Copy Report in a dedicated bordered section below overrides
@@ -110,6 +110,9 @@ Click **Settings** in the toolbar. Click **Back to Games** to return.
 | Preferences | Skip Update Check on Launch, Verbose Logging, Custom Shaders toggle, Screenshot Path (with Browse and Open buttons, optional per-game subfolder, Apply to All writes to all reshade*.ini variants) |
 | Hotkeys | ReShade UI Hotkey (capture key combo, applies to all reshade.ini files), ReLimiter OSD Hotkey (capture key combo in ReLimiter's native format, applies to all relimiter.ini files), OptiScaler Overlay Hotkey (default: Insert, applies to all OptiScaler.ini files) |
 | Crash and Error Logs | Open Logs Folder, Open Downloads Cache, ReShade staging path |
+| OptiScaler Settings | GPU type (NVIDIA/AMD/Intel), DLSS input toggle (AMD/Intel only), overlay hotkey, Apply to All Games, OptiScaler Compatibility List link |
+| Mass INI Deployment | Deploy reshade.ini, relimiter.ini, DisplayCommander.ini, or OptiScaler.ini to all games with the corresponding component installed |
+| Mass ReShade Preset Install | Select presets from the presets folder, choose target games via checkbox picker, optionally install required shader packs |
 
 All settings apply immediately. Informational content (app description, credits & acknowledgements, disclaimers, and links) is on the About page, accessible from the Help flyout.
 
@@ -220,7 +223,7 @@ The detail panel shows a Components section with up to five rows, separated into
 | ReShade | ReShade | Install / Reinstall / Update — Copy INI — Uninstall |
 | RenoDX | RenoDX Mod | Install / Reinstall / Update — UE-Extended options — Uninstall |
 | Luma | Luma Framework | Install / Uninstall (shown only in Luma mode) |
-| — | *separator* | "Choose one from below" |
+| — | *separator* | "Frame limiters — Choose one" |
 | ReLimiter | ReLimiter | Install / Reinstall / Update — Copy INI — Uninstall |
 | Display Commander | Display Commander | Install / Reinstall / Update — Copy INI — Uninstall |
 | — | *separator* | "── Optional ──" |
@@ -405,7 +408,7 @@ OptiScaler is shown in the detail panel under an "── Optional ──" separa
 
 ### Install / Update / Uninstall
 
-One-click install from the detail panel or card flyout. On first install, a one-time warning dialog explains OptiScaler's purpose and single-player recommendation. The install copies `OptiScaler.dll` (renamed to the effective DLL name), `OptiScaler.ini`, and all companion files (`fakenvapi.dll`, `dlssg_to_fsr3.dll`, FFX SDK DLLs) to the game folder.
+One-click install from the detail panel or card flyout. On first install, a one-time warning dialog explains OptiScaler's purpose and single-player recommendation. The install copies `OptiScaler.dll` (renamed to the effective DLL name), `OptiScaler.ini`, and all companion files (`fakenvapi.dll`, `dlssg_to_fsr3.dll`, FFX SDK DLLs) to the game folder. The latest DLSS DLLs (`nvngx_dlss.dll`, `nvngx_dlssd.dll`, `nvngx_dlssg.dll`) are also deployed from the staging cache. For AMD/Intel GPUs, `OptiPatcher.asi` is deployed to the game's `plugins` folder.
 
 Uninstalling removes the renamed OptiScaler DLL, `OptiScaler.ini`, and all companion files. If ReShade was renamed to `ReShade64.dll`, it is restored to its correct filename.
 
@@ -434,7 +437,8 @@ The DLL name is resolved using a priority chain:
 
 1. **User DLL override** (set in Per-Game Overrides) — always wins
 2. **Manifest `optiScalerDllOverrides`** — per-game overrides from the remote manifest
-3. **Default** — `dxgi.dll`
+3. **Vulkan auto-detection** — Vulkan games automatically use `winmm.dll`
+4. **Default** — `dxgi.dll`
 
 The OptiScaler DLL name dropdown in the overrides panel filters out filenames already used by ReShade or Display Commander for the same game to prevent conflicts.
 
@@ -586,7 +590,7 @@ The Overrides section appears below Components in the detail panel. All controls
 | Reset | Restore original name and clear wiki mapping |
 | Wiki exclusion | Exclude the game from wiki lookups |
 | DLL naming overrides | A single toggle controls both ReShade and Display Commander filenames together. Turning ON enables both dropdowns with safe defaults; turning OFF reverts both to their default names. Each dropdown filters out the other component's current filename to prevent conflicts. Both dropdowns are editable (supports manual DLL names via Enter key). |
-| Global update inclusion | Four toggle switches (ReShade, RenoDX, ReLimiter, Display Commander) in a 2×2 grid layout, plus an OptiScaler toggle, controlling whether the game is included in bulk updates. All default to On. |
+| Global update inclusion | "Update Inclusion" button opens a dialog with checkboxes for ReShade, RenoDX, ReLimiter, Display Commander, and OptiScaler. A compact colour-coded summary line shows the current state at a glance. All default to On. |
 | Shader Mode | Global / Select / Custom. Global uses the global shader selection. Select opens a picker for specific shader packs. Custom uses shaders from custom shader directories. |
 | Addon Mode | Global / Select. Global uses the globally enabled addon set. Select opens a per-game addon picker. |
 | Rendering Path | For dual-API games: automatically determined based on detected APIs. Vulkan-only and dual-API games route to the Vulkan global layer install. |
@@ -797,6 +801,10 @@ RHI includes several optimisations to reduce startup and refresh times:
 - **PE-level API cache** — `GraphicsApiDetector` caches `DetectAllApis` results to `%LOCALAPPDATA%\RHI\api_cache.json`, keyed by file path + last write time. Subsequent launches skip PE header scanning entirely.
 - **Game-level API cache** — `MainViewModel` caches full `DetectGraphicsApi` + `_DetectAllApisForCard` results to `%LOCALAPPDATA%\RHI\game_api_cache.json`, keyed by install path.
 - **WindowsApps skip** — `ScanAllExesInDir`, `DetectGraphicsApi`, and `_DetectAllApisForCard` return immediately for `\WindowsApps\` paths (always access-denied, wasted time on retries).
+- **WindowsApps addon/detection skip** — `ScanForInstalledAddon`, OptiScaler binary detection, and ReShade proxy DLL scanning also skip WindowsApps paths.
+- **Debounced PCGW cache writes** — concurrent cache writes during startup are collapsed into a single disk write via a 500ms debounce timer.
+- **Optimised OptiScaler detection** — scans only the 7 known proxy DLL names instead of every DLL in the game folder.
+- **DLC blacklisting** — DLC content packs and launcher components are blacklisted from game detection to avoid wasted scanning.
 - **Cache clearing** — Full Refresh (`forceRescan=true`) clears both API caches and rescans everything fresh.
 
 ---
@@ -817,6 +825,8 @@ Everything under `%LOCALAPPDATA%\RHI\`:
 | `game_api_cache.json` | Game-level API detection cache (keyed by install path) |
 | `downloads\` | Cached downloads (separate files for 32-bit and 64-bit ReLimiter and DC) |
 | `optiscaler\` | Staged OptiScaler release (DLL, companion files, default INI, version tag) |
+| `optipatcher\` | Staged OptiPatcher release (`.asi` file, version tag) |
+| `dlss\` | Staged DLSS DLLs (`nvngx_dlss.dll`, `nvngx_dlssd.dll`, `nvngx_dlssg.dll`) with independent version files |
 | `addons\` | Downloaded ReShade addon files and version tracking (`versions.json`) |
 | `addons_cache.ini` | Cached Addons.ini for offline fallback |
 | `inis\` | Preset config files (`reshade.ini`, `reshade.vulkan.ini`, `relimiter.ini`, `DisplayCommander.ini`, `OptiScaler.ini`, etc.) |
