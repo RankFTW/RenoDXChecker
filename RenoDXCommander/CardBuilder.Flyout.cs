@@ -178,7 +178,7 @@ public partial class CardBuilder
         // ── Limiter separator + rows ──────────────────────────────────────────
         var limiterSep = new TextBlock
         {
-            Text = "———  Choose one from below  ———",
+            Text = "———  Frame limiters — Choose one  ———",
             FontSize = 9,
             Foreground = UIFactory.GetBrush("#5A6880"),
             HorizontalAlignment = HorizontalAlignment.Center,

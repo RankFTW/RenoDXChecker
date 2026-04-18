@@ -420,9 +420,8 @@ public sealed partial class MainWindow
             Margin = new Thickness(0, 0, 0, 4),
         });
 
-        // 3 component rows matching 5-column grid (120, 80, *, 36, 36)
-        // Col 0 = component name (text), Col 1 = version (text), Col 2 = action button, Col 3 = icon btn, Col 4 = delete btn
-        for (int i = 0; i < 3; i++)
+        // 2 component rows for ReShade + RenoDX
+        for (int i = 0; i < 2; i++)
         {
             var rowGrid = new Grid { ColumnSpacing = 8 };
             rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
@@ -431,10 +430,9 @@ public sealed partial class MainWindow
             rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
             rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
 
-            // Col 0: component name — thin text placeholder
             var namePlaceholder = new Border
             {
-                Width = 70 + (i * 10), // vary width: 70, 80, 90
+                Width = 70 + (i * 10),
                 Height = 14,
                 CornerRadius = new CornerRadius(3),
                 Background = fillBrush,
@@ -444,7 +442,6 @@ public sealed partial class MainWindow
             Grid.SetColumn(namePlaceholder, 0);
             rowGrid.Children.Add(namePlaceholder);
 
-            // Col 1: version number — small text placeholder
             var versionPlaceholder = new Border
             {
                 Width = 50,
@@ -457,35 +454,74 @@ public sealed partial class MainWindow
             Grid.SetColumn(versionPlaceholder, 1);
             rowGrid.Children.Add(versionPlaceholder);
 
-            // Col 2: action button — full height
-            var actionBtn = new Border
-            {
-                Height = 32,
-                CornerRadius = new CornerRadius(8),
-                Background = fillBrush,
-            };
+            var actionBtn = new Border { Height = 32, CornerRadius = new CornerRadius(8), Background = fillBrush };
             Grid.SetColumn(actionBtn, 2);
             rowGrid.Children.Add(actionBtn);
 
-            // Col 3: icon button (📋)
-            var iconBtn = new Border
-            {
-                Width = 36,
-                Height = 32,
-                CornerRadius = new CornerRadius(8),
-                Background = fillBrush,
-            };
+            var iconBtn = new Border { Width = 36, Height = 32, CornerRadius = new CornerRadius(8), Background = fillBrush };
             Grid.SetColumn(iconBtn, 3);
             rowGrid.Children.Add(iconBtn);
 
-            // Col 4: delete button (✕)
-            var deleteBtn = new Border
+            var deleteBtn = new Border { Width = 36, Height = 32, CornerRadius = new CornerRadius(8), Background = fillBrush };
+            Grid.SetColumn(deleteBtn, 4);
+            rowGrid.Children.Add(deleteBtn);
+
+            tableContent.Children.Add(rowGrid);
+        }
+
+        // "── Frame limiters — Choose one ──" separator
+        tableContent.Children.Add(new TextBlock
+        {
+            Text = "——  Frame limiters — Choose one  ——",
+            FontSize = 10,
+            Foreground = new SolidColorBrush(ColorHelper.FromArgb(0xFF, 0x5A, 0x68, 0x80)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 4, 0, 2),
+        });
+
+        // 2 component rows for ReLimiter + DC
+        for (int i = 0; i < 2; i++)
+        {
+            var rowGrid = new Grid { ColumnSpacing = 8 };
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
+
+            var namePlaceholder = new Border
             {
-                Width = 36,
-                Height = 32,
-                CornerRadius = new CornerRadius(8),
+                Width = i == 0 ? 75 : 120,
+                Height = 14,
+                CornerRadius = new CornerRadius(3),
                 Background = fillBrush,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Center,
             };
+            Grid.SetColumn(namePlaceholder, 0);
+            rowGrid.Children.Add(namePlaceholder);
+
+            var versionPlaceholder = new Border
+            {
+                Width = 50,
+                Height = 14,
+                CornerRadius = new CornerRadius(3),
+                Background = fillBrush,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            Grid.SetColumn(versionPlaceholder, 1);
+            rowGrid.Children.Add(versionPlaceholder);
+
+            var actionBtn = new Border { Height = 32, CornerRadius = new CornerRadius(8), Background = fillBrush };
+            Grid.SetColumn(actionBtn, 2);
+            rowGrid.Children.Add(actionBtn);
+
+            var iconBtn = new Border { Width = 36, Height = 32, CornerRadius = new CornerRadius(8), Background = fillBrush };
+            Grid.SetColumn(iconBtn, 3);
+            rowGrid.Children.Add(iconBtn);
+
+            var deleteBtn = new Border { Width = 36, Height = 32, CornerRadius = new CornerRadius(8), Background = fillBrush };
             Grid.SetColumn(deleteBtn, 4);
             rowGrid.Children.Add(deleteBtn);
 
@@ -629,11 +665,10 @@ public sealed partial class MainWindow
         Grid.SetColumn(r3Left, 0);
         var r3Right = new StackPanel { Spacing = 6 };
         r3Right.Children.Add(new Border { Width = 140, Height = 12, CornerRadius = new CornerRadius(3), Background = fillBrush, HorizontalAlignment = HorizontalAlignment.Left });
-        // 3 toggle cards in a row
-        var toggleRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        for (int t = 0; t < 3; t++)
-            toggleRow.Children.Add(new Border { Width = 80, Height = 36, CornerRadius = new CornerRadius(6), Background = fillBrush });
-        r3Right.Children.Add(toggleRow);
+        // Update Inclusion button placeholder
+        r3Right.Children.Add(new Border { Height = 32, CornerRadius = new CornerRadius(8), Background = fillBrush });
+        // Summary text placeholder
+        r3Right.Children.Add(new Border { Width = 200, Height = 12, CornerRadius = new CornerRadius(3), Background = fillBrush, HorizontalAlignment = HorizontalAlignment.Left });
         Grid.SetColumn(r3Right, 1);
         row3.Children.Add(r3Left);
         row3.Children.Add(r3Right);
@@ -655,15 +690,30 @@ public sealed partial class MainWindow
         row4.Children.Add(r4Right);
         overridesContent.Children.Add(row4);
 
-        // Row 5: Reset button placeholder
-        overridesContent.Children.Add(new Border
+        // Row 5: Select ReShade Preset button + Normal ReShade toggle
+        var row5 = new Grid { ColumnSpacing = 16 };
+        row5.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row5.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var presetBtn = new Border { Height = 32, CornerRadius = new CornerRadius(8), Background = fillBrush };
+        Grid.SetColumn(presetBtn, 0);
+        var normalRsPlaceholder = new StackPanel { Spacing = 6 };
+        normalRsPlaceholder.Children.Add(new Border { Width = 180, Height = 12, CornerRadius = new CornerRadius(3), Background = fillBrush, HorizontalAlignment = HorizontalAlignment.Left });
+        normalRsPlaceholder.Children.Add(new Border { Width = 50, Height = 20, CornerRadius = new CornerRadius(10), Background = fillBrush, HorizontalAlignment = HorizontalAlignment.Left });
+        Grid.SetColumn(normalRsPlaceholder, 1);
+        row5.Children.Add(presetBtn);
+        row5.Children.Add(normalRsPlaceholder);
+        overridesContent.Children.Add(row5);
+
+        // Row 6: Action buttons (Change folder, Reset, Reset Overrides, Copy Report)
+        for (int b = 0; b < 4; b++)
         {
-            Width = 120,
-            Height = 32,
-            CornerRadius = new CornerRadius(6),
-            Background = fillBrush,
-            HorizontalAlignment = HorizontalAlignment.Left,
-        });
+            overridesContent.Children.Add(new Border
+            {
+                Height = 32,
+                CornerRadius = new CornerRadius(6),
+                Background = fillBrush,
+            });
+        }
 
         var overridesBorder = new Border
         {

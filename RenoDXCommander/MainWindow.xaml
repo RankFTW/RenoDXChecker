@@ -633,7 +633,7 @@
                                         <ColumnDefinition Width="36"/>
                                         <ColumnDefinition Width="36"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="2" Text="———  Choose one from below  ———" FontSize="11"
+                                    <TextBlock Grid.Column="2" Text="———  Frame limiters — Choose one  ———" FontSize="11"
                                                Foreground="{StaticResource TextSecondaryBrush}"
                                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Grid>
@@ -1091,7 +1091,7 @@
                                                Foreground="{StaticResource TextPrimaryBrush}"/>
                                     <TextBlock TextWrapping="Wrap" FontSize="11"
                                                Foreground="{StaticResource InlineDescriptionBrush}" LineHeight="18"
-                                               Text="Configure GPU type and DLSS input settings for OptiScaler installations."/>
+                                               Text="Configure GPU type and DLSS input settings for OptiScaler installations. DLSS input toggle is for AMD/Intel GPUs only — NVIDIA users do not need it."/>
                                 </StackPanel>
 
                                 <Border Grid.Row="0" Grid.RowSpan="4" Grid.Column="1" Width="1"
