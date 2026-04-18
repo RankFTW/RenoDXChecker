@@ -72,9 +72,10 @@ public partial class MainViewModel
             var engineOverrideLabel = ResolveEngineOverride(game.Name, out var engineOverride);
             if (engineOverrideLabel != null) engine = engineOverride;
             var mod         = _gameDetectionService.MatchGame(game, _allMods, _nameMappings);
-            // Wiki unlink: discard false fuzzy match so the game uses its generic engine addon
-            if (mod != null && _manifestWikiUnlinks.Contains(game.Name)) mod = null;
-            var fallback    = mod == null ? (engine == EngineType.Unreal ? MakeGenericUnreal()
+            // Wiki unlink: completely disconnect the game from wiki — no mod, no generic fallback
+            bool isWikiUnlinked1 = _manifestWikiUnlinks.Contains(game.Name);
+            if (isWikiUnlinked1) mod = null;
+            var fallback    = (mod == null && !isWikiUnlinked1) ? (engine == EngineType.Unreal ? MakeGenericUnreal()
                                             : engine == EngineType.Unity  ? MakeGenericUnity()
                                             : null) : null;
 
@@ -294,11 +295,12 @@ public partial class MainViewModel
         }
 
         var mod = _gameDetectionService.MatchGame(game, _allMods, _nameMappings);
-        // Wiki unlink: discard false fuzzy match so the game uses its generic engine addon
-        if (mod != null && _manifestWikiUnlinks.Contains(game.Name)) mod = null;
+        // Wiki unlink: completely disconnect the game from wiki — no mod, no generic fallback
+        bool isWikiUnlinked2 = _manifestWikiUnlinks.Contains(game.Name);
+        if (isWikiUnlinked2) mod = null;
         var genericUnreal = MakeGenericUnreal();
         var genericUnity  = MakeGenericUnity();
-        var fallback = mod == null ? (engine == EngineType.Unreal      ? genericUnreal
+        var fallback = (mod == null && !isWikiUnlinked2) ? (engine == EngineType.Unreal      ? genericUnreal
                                    : engine == EngineType.Unity       ? genericUnity : null) : null;
 
         // Wiki mod matched but has no download URL — inject generic engine addon URL
@@ -1243,22 +1245,29 @@ public partial class MainViewModel
             var dxgiPath = Path.Combine(card.InstallPath, "dxgi.dll");
             if (File.Exists(dxgiPath))
             {
-                var fileType = AuxInstallService.IdentifyDxgiFile(dxgiPath);
-                if (fileType == AuxInstallService.DxgiFileType.Unknown)
+                // Skip the warning entirely if OptiScaler is installed for this game —
+                // the dxgi.dll is OptiScaler's and ReShade will be deployed as ReShade64.dll
+                var osRecord = _auxInstaller.FindRecord(card.GameName, card.InstallPath, OptiScalerService.AddonType);
+                if (osRecord == null)
                 {
-                    if (ConfirmForeignDxgiOverwrite != null)
+                    var fileType = AuxInstallService.IdentifyDxgiFile(dxgiPath);
+                    // Skip the warning for known managed files (ReShade, OptiScaler)
+                    if (fileType == AuxInstallService.DxgiFileType.Unknown)
                     {
-                        var confirmed = await ConfirmForeignDxgiOverwrite(card, dxgiPath);
-                        if (!confirmed)
+                        if (ConfirmForeignDxgiOverwrite != null)
                         {
-                            card.RsActionMessage = "⚠ Skipped — unknown dxgi.dll found. Use Overrides to proceed.";
+                            var confirmed = await ConfirmForeignDxgiOverwrite(card, dxgiPath);
+                            if (!confirmed)
+                            {
+                                card.RsActionMessage = "⚠ Skipped — unknown dxgi.dll found. Use Overrides to proceed.";
+                                return;
+                            }
+                        }
+                        else
+                        {
+                            card.RsActionMessage = "⚠ Skipped — unknown dxgi.dll found.";
                             return;
                         }
-                    }
-                    else
-                    {
-                        card.RsActionMessage = "⚠ Skipped — unknown dxgi.dll found.";
-                        return;
                     }
                 }
             }
@@ -1359,7 +1368,7 @@ public partial class MainViewModel
             if (ShowVulkanAdminRequiredDialog != null)
                 await ShowVulkanAdminRequiredDialog();
             else
-                card.RsActionMessage = "⚠ Administrator privileges are required for Vulkan layer installation. Restart RDXC as admin.";
+                card.RsActionMessage = "⚠ Administrator privileges are required for Vulkan layer installation. Restart RHI as admin.";
             return;
         }
 

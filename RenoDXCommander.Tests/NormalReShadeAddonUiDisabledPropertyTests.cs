@@ -24,6 +24,7 @@ public class NormalReShadeAddonUiDisabledPropertyTests
     private static readonly Gen<GameCardViewModel> GenCard =
         from dcStatus in GenStatus
         from ulStatus in GenStatus
+        from rsStatus in GenStatus
         from dcInstalling in Arb.Default.Bool().Generator
         from ulInstalling in Arb.Default.Bool().Generator
         from is32Bit in Arb.Default.Bool().Generator
@@ -31,6 +32,7 @@ public class NormalReShadeAddonUiDisabledPropertyTests
         {
             DcStatus = dcStatus,
             UlStatus = ulStatus,
+            RsStatus = rsStatus,
             DcIsInstalling = dcInstalling,
             UlIsInstalling = ulInstalling,
             Is32Bit = is32Bit
@@ -91,12 +93,13 @@ public class NormalReShadeAddonUiDisabledPropertyTests
         {
             card.UseNormalReShade = false;
 
-            // DcInstallEnabled => !DcIsInstalling && !IsUlInstalled && !UseNormalReShade
-            bool expected = !card.DcIsInstalling && !card.IsUlInstalled;
+            // DcInstallEnabled => !DcIsInstalling && !IsUlInstalled && !UseNormalReShade && IsRsInstalled
+            bool expected = !card.DcIsInstalling && !card.IsUlInstalled && card.IsRsInstalled;
 
             return (card.DcInstallEnabled == expected)
                 .Label($"DcInstallEnabled={card.DcInstallEnabled}, expected={expected} " +
-                       $"(DcIsInstalling={card.DcIsInstalling}, IsUlInstalled={card.IsUlInstalled})");
+                       $"(DcIsInstalling={card.DcIsInstalling}, IsUlInstalled={card.IsUlInstalled}, " +
+                       $"IsRsInstalled={card.IsRsInstalled})");
         });
     }
 
@@ -107,13 +110,13 @@ public class NormalReShadeAddonUiDisabledPropertyTests
         {
             card.UseNormalReShade = false;
 
-            // UlInstallEnabled => !UlIsInstalling && !IsDcInstalled && !Is32Bit && !UseNormalReShade
-            bool expected = !card.UlIsInstalling && !card.IsDcInstalled && !card.Is32Bit;
+            // UlInstallEnabled => !UlIsInstalling && !IsDcInstalled && !Is32Bit && !UseNormalReShade && IsRsInstalled
+            bool expected = !card.UlIsInstalling && !card.IsDcInstalled && !card.Is32Bit && card.IsRsInstalled;
 
             return (card.UlInstallEnabled == expected)
                 .Label($"UlInstallEnabled={card.UlInstallEnabled}, expected={expected} " +
                        $"(UlIsInstalling={card.UlIsInstalling}, IsDcInstalled={card.IsDcInstalled}, " +
-                       $"Is32Bit={card.Is32Bit})");
+                       $"Is32Bit={card.Is32Bit}, IsRsInstalled={card.IsRsInstalled})");
         });
     }
 

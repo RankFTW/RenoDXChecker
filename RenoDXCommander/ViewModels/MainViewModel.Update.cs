@@ -678,6 +678,34 @@ public partial class MainViewModel
         });
     }
 
+    public async Task UpdateAllOsAsync()
+    {
+        var osCards = _allCards.Where(c => c.OsStatus == GameStatus.UpdateAvailable && !c.IsHidden && !c.ExcludeFromUpdateAllOs).ToList();
+        if (osCards.Count == 0) return;
+
+        // Ensure latest staging is available before updating games
+        if (!_optiScalerService.IsStagingReady)
+        {
+            try { await _optiScalerService.EnsureStagingAsync(); }
+            catch (Exception ex) { _crashReporter.Log($"[UpdateAllOsAsync] Staging failed — {ex.Message}"); return; }
+        }
+
+        foreach (var card in osCards)
+        {
+            try { await _optiScalerService.UpdateAsync(card); }
+            catch (Exception ex) { _crashReporter.Log($"[UpdateAllOsAsync] Failed for '{card.GameName}': {ex.Message}"); }
+        }
+
+        DispatcherQueue?.TryEnqueue(() =>
+        {
+            HasUpdatesAvailable = AnyUpdateAvailable;
+            OnPropertyChanged(nameof(AnyUpdateAvailable));
+            OnPropertyChanged(nameof(UpdateAllBtnBackground));
+            OnPropertyChanged(nameof(UpdateAllBtnForeground));
+            OnPropertyChanged(nameof(UpdateAllBtnBorder));
+        });
+    }
+
     public async Task UpdateAllRefAsync()
     {
         await _updateOrchestrationService.UpdateAllREFrameworkAsync(
@@ -755,6 +783,32 @@ public partial class MainViewModel
         catch (Exception ex)
         {
             _crashReporter.Log($"[MainViewModel.CheckForUpdatesAsync] DC update check failed — {ex.Message}");
+        }
+
+        // Check OptiScaler for updates (single global check, applies to all cards with OS installed)
+        try
+        {
+            await _optiScalerService.CheckForUpdateAsync().ConfigureAwait(false);
+            var osUpdateAvailable = _optiScalerService.HasUpdate;
+            _crashReporter.Log($"[MainViewModel.CheckForUpdatesAsync] OS update result: {osUpdateAvailable}, cards with OS installed: {cards.Count(c => c.OsStatus == GameStatus.Installed)}");
+            if (osUpdateAvailable)
+            {
+                DispatcherQueue?.TryEnqueue(() =>
+                {
+                    foreach (var card in cards.Where(c => c.OsStatus == GameStatus.Installed))
+                        card.OsStatus = GameStatus.UpdateAvailable;
+
+                    HasUpdatesAvailable = AnyUpdateAvailable;
+                    OnPropertyChanged(nameof(AnyUpdateAvailable));
+                    OnPropertyChanged(nameof(UpdateAllBtnBackground));
+                    OnPropertyChanged(nameof(UpdateAllBtnForeground));
+                    OnPropertyChanged(nameof(UpdateAllBtnBorder));
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _crashReporter.Log($"[MainViewModel.CheckForUpdatesAsync] OS update check failed — {ex.Message}");
         }
     }
 }

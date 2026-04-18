@@ -19,8 +19,10 @@
     "Battle.net.16125",
     "Battle.net.15492",
     "Battle.net.15561",
-	"Battle.net.16089",
-	"Battle.net.16111",
+	``"Battle.net.16089",
+	``"Battle.net.16111",
+	``"Battle.net.16014",
+	``"Battle.net.17296",
     "Call of Duty: Modern Warfare 3 - Dedicated Server",
     "Muckingham Files 3",
     "Muckingham Files 4",
@@ -369,7 +371,8 @@
     "Silent Hill 2": "https://www.nexusmods.com/games/silenthill2",
 	"The Elder Scrolls IV: Oblivion Remastered": "https://www.nexusmods.com/games/oblivionremastered",
 	"The Witcher 3: Wild Hunt": "https://www.nexusmods.com/games/witcher3",
-	"DEATH STRANDING DIRECTOR'S CUT": "https://www.nexusmods.com/games/deathstranding"
+	"DEATH STRANDING DIRECTOR'S CUT": "https://www.nexusmods.com/games/deathstranding",
+	"Nioh: Complete Edition": "https://www.nexusmods.com/games/nioh"
   },
   "steamAppIdOverrides": {
   },

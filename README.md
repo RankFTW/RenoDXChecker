@@ -1,6 +1,6 @@
 # RHI — ReShade HDR Installer
 
-RHI is a WinUI 3 desktop application for managing HDR mod installations on PC games. It auto-detects game libraries across eight storefronts, installs and updates ReShade, RenoDX, ReLimiter, Display Commander, RE Framework, and Luma Framework components, and keeps everything in sync — all from a single interface.
+RHI is a WinUI 3 desktop application for managing HDR mod installations on PC games. It auto-detects game libraries across eight storefronts, installs and updates ReShade, RenoDX, ReLimiter, Display Commander, OptiScaler, RE Framework, and Luma Framework components, and keeps everything in sync — all from a single interface.
 
 ![RHI](screenshots/game_view.png)
 
@@ -9,12 +9,13 @@ RHI is a WinUI 3 desktop application for managing HDR mod installations on PC ga
 ## Feature Highlights
 
 - **Auto-detection** — scans Steam, GOG, Epic Games, EA App, Ubisoft Connect, Xbox/Game Pass, Battle.net, and Rockstar libraries on every launch
-- **One-click install** — install, update, or uninstall ReShade, RenoDX, ReLimiter, Display Commander, RE Framework, and Luma Framework with a single button
+- **One-click install** — install, update, or uninstall ReShade, RenoDX, ReLimiter, Display Commander, OptiScaler, RE Framework, and Luma Framework with a single button
 - **Frame rate limiter choice** — ReLimiter and Display Commander are mutually exclusive per game; installing one disables the other
+- **OptiScaler support** — install and manage OptiScaler per-game for upscaler redirection (DLSS/FSR/XeSS). Handles DLL naming, INI configuration, ReShade coexistence (automatic rename to `ReShade64.dll`), and hotkey setup. 64-bit games only
 - **Drag-and-drop** — drop a game `.exe`, addon file, archive, preset `.ini`, or URL to add games and install mods instantly
 - **Archive auto-install** — archives containing "renodx" in the filename (e.g. from Nexus Mods) are detected in your Downloads folder and installed automatically
 - **Per-game overrides** — customise DLL naming, shader selection, and component update preferences per game
-- **Update detection** — detect and apply component updates across all games with Update All (covers ReShade, RenoDX, ReLimiter, Display Commander, and RE Framework)
+- **Update detection** — detect and apply component updates across all games with Update All (covers ReShade, RenoDX, ReLimiter, Display Commander, OptiScaler, and RE Framework)
 - **Shader pack management** — deploy and sync 41 shader packs (Essential, Recommended, Extra) across installed games, with automatic dependency resolution
 - **ReShade addon management** — browse, download, and toggle curated ReShade addons from the official list. Enabled addons are auto-deployed when ReShade is installed, removed when ReShade is uninstalled, and synced on every Refresh
 - **Nexus Mods & PCGamingWiki links** — each game shows clickable Nexus Mods and PCGW buttons, resolved automatically from the public game catalogue and Steam AppID lookup. Manual overrides available in the manifest
@@ -60,6 +61,7 @@ Grab the latest installer from the [GitHub Releases page](https://github.com/Ran
 | [Display Commander](https://github.com/pmnoxx/display-commander?tab=readme-ov-file#display-commander) | pmnoxx | [GPL-3](https://github.com/pmnoxx/display-commander/blob/main/LICENSE) |
 | [RE Framework](https://github.com/praydog/REFramework-nightly) | praydog | [MIT](https://github.com/praydog/REFramework/blob/master/LICENSE) |
 | [Luma Framework](https://github.com/Filoppi/Luma-Framework) | Pumbo (Filoppi) | Source-available |
+| [OptiScaler](https://github.com/optiscaler/OptiScaler) | OptiScaler contributors | Source-available |
 | [7-Zip](https://www.7-zip.org/) | Igor Pavlov | [LGPL-2.1 / BSD-3-Clause](https://www.7-zip.org/license.txt) |
 
 > RHI is an unofficial third-party tool, not affiliated with or endorsed by the RenoDX project, Crosire, or the Luma Framework. All mod files are downloaded from their official sources at runtime and are not redistributed.

@@ -15,6 +15,7 @@ This document covers everything RHI does in depth. For a quick overview, see the
 - [Foreign DLL Protection](#foreign-dll-protection)
 - [UE-Extended and Native HDR](#ue-extended-and-native-hdr)
 - [Frame Rate Limiters](#frame-rate-limiters)
+- [OptiScaler](#optiscaler)
 - [Shader Packs](#shader-packs)
 - [ReShade Addon Management](#reshade-addon-management)
 - [Luma Framework](#luma-framework)
@@ -48,7 +49,7 @@ A card-based layout showing all games as a grid. Toggle between views with the v
 
 - Game name and platform icon
 - Graphics API badge (e.g. DX12, VLK, DX11/12 / VLK)
-- Installation status dots for RenoDX (RDX), ReShade (RS), ReLimiter (UL), and Display Commander (DC)
+- Installation status dots for RenoDX (RDX), ReShade (RS), ReLimiter (UL), Display Commander (DC), and OptiScaler (OS)
 - Wiki status icon
 - Update-available highlight border
 - A Manage popout for quick access to install/uninstall/override controls
@@ -62,7 +63,7 @@ Games in Luma mode do not show a wiki status icon on the grid card.
 | Control | Function |
 |---------|----------|
 | Refresh | Rescan game library and fetch latest mod info. After initial boot, runs invisibly in the background. |
-| Update All | Update ReShade, RenoDX, ReLimiter, and Display Commander for all eligible games in one click. Lights up purple when updates are available. |
+| Update All | Update ReShade, RenoDX, ReLimiter, Display Commander, and OptiScaler for all eligible games in one click. Lights up purple when updates are available. |
 | Help | Flyout with Discord (RHI support channel), Guide (this document), About page, and Ko-fi |
 | View toggle | Switch between Detail View and Grid View |
 | Settings | Navigate to the Settings page |
@@ -107,7 +108,7 @@ Click **Settings** in the toolbar. Click **Back to Games** to return.
 | Add Game | Manually add a game that wasn't auto-detected. Enter the game name and pick the install folder. |
 | Full Refresh | Clears all caches (including API detection caches) and re-scans everything from disk. Use when games or mods appear out of sync. |
 | Preferences | Skip Update Check on Launch, Verbose Logging, Custom Shaders toggle, Screenshot Path (with Browse and Open buttons, optional per-game subfolder, Apply to All writes to all reshade*.ini variants) |
-| Hotkeys | ReShade UI Hotkey (capture key combo, applies to all reshade.ini files), ReLimiter OSD Hotkey (capture key combo in ReLimiter's native format, applies to all relimiter.ini files) |
+| Hotkeys | ReShade UI Hotkey (capture key combo, applies to all reshade.ini files), ReLimiter OSD Hotkey (capture key combo in ReLimiter's native format, applies to all relimiter.ini files), OptiScaler Overlay Hotkey (default: Insert, applies to all OptiScaler.ini files) |
 | Crash and Error Logs | Open Logs Folder, Open Downloads Cache, ReShade staging path |
 
 All settings apply immediately. Informational content (app description, credits & acknowledgements, disclaimers, and links) is on the About page, accessible from the Help flyout.
@@ -222,6 +223,8 @@ The detail panel shows a Components section with up to five rows, separated into
 | — | *separator* | "Choose one from below" |
 | ReLimiter | ReLimiter | Install / Reinstall / Update — Copy INI — Uninstall |
 | Display Commander | Display Commander | Install / Reinstall / Update — Copy INI — Uninstall |
+| — | *separator* | "── Optional ──" |
+| OptiScaler | OptiScaler | Install / Reinstall / Update — Copy INI — Uninstall |
 
 ReLimiter and Display Commander are mutually exclusive — only one frame rate limiter can be installed per game at a time. When one is installed, the other's install button is greyed out and the row is visually dimmed, making the mutual exclusivity clear at a glance. Removing one re-enables the other.
 
@@ -394,6 +397,65 @@ A per-game DC update exclusion toggle in the overrides panel lets you pin a spec
 
 ---
 
+## OptiScaler
+
+[OptiScaler](https://github.com/optiscaler/OptiScaler) is a 64-bit middleware DLL that intercepts upscaler calls (DLSS, FSR, XeSS) from games and redirects them to alternative upscaling backends. RHI manages the full OptiScaler lifecycle: download, staging, install, uninstall, update detection, INI configuration, ReShade coexistence, DLL naming overrides, and hotkey configuration.
+
+OptiScaler is shown in the detail panel under an "── Optional ──" separator, below the frame rate limiter rows. It is available for all detected games regardless of upscaler detection, but only enabled for 64-bit games. 32-bit games show the OptiScaler row greyed out with strikethrough text.
+
+### Install / Update / Uninstall
+
+One-click install from the detail panel or card flyout. On first install, a one-time warning dialog explains OptiScaler's purpose and single-player recommendation. The install copies `OptiScaler.dll` (renamed to the effective DLL name), `OptiScaler.ini`, and all companion files (`fakenvapi.dll`, `dlssg_to_fsr3.dll`, FFX SDK DLLs) to the game folder.
+
+Uninstalling removes the renamed OptiScaler DLL, `OptiScaler.ini`, and all companion files. If ReShade was renamed to `ReShade64.dll`, it is restored to its correct filename.
+
+Updates replace the DLL and companion files while preserving the existing `OptiScaler.ini` in the game folder.
+
+### INI Configuration
+
+RHI seeds a default `OptiScaler.ini` to `%LOCALAPPDATA%\RHI\inis\` on first install. The 📋 button on the OptiScaler row copies this INI to the game folder. Customise the INI in the inis folder and it will be used for all future copies.
+
+`LoadReshade=true` is always enforced in the deployed INI, regardless of whether ReShade is currently installed. This ensures ReShade will be loaded correctly if installed later.
+
+### ReShade Coexistence
+
+When OptiScaler is installed alongside ReShade, RHI automatically renames the ReShade DLL to `ReShade64.dll`. OptiScaler loads ReShade from this exact filename via the `LoadReshade=true` setting.
+
+- Installing OptiScaler when ReShade is present → ReShade DLL renamed to `ReShade64.dll`
+- Installing ReShade when OptiScaler is present → ReShade deployed as `ReShade64.dll`
+- Uninstalling OptiScaler when `ReShade64.dll` exists → ReShade restored to its correct filename (user override > manifest override > API-based default > `dxgi.dll`)
+- While OptiScaler is installed, the ReShade DLL naming override dropdown is disabled with a tooltip explaining that OptiScaler controls the ReShade DLL name
+
+### DLL Naming
+
+OptiScaler.dll must be renamed to a proxy DLL filename when deployed. The default is `dxgi.dll`. Supported names: `dxgi.dll`, `winmm.dll`, `d3d12.dll`, `dbghelp.dll`, `version.dll`, `wininet.dll`, `winhttp.dll`.
+
+The DLL name is resolved using a priority chain:
+
+1. **User DLL override** (set in Per-Game Overrides) — always wins
+2. **Manifest `optiScalerDllOverrides`** — per-game overrides from the remote manifest
+3. **Default** — `dxgi.dll`
+
+The OptiScaler DLL name dropdown in the overrides panel filters out filenames already used by ReShade or Display Commander for the same game to prevent conflicts.
+
+### Hotkey Configuration
+
+The OptiScaler overlay toggle key is configured from the Settings page alongside the ReShade and ReLimiter hotkeys. The default is `Insert`. Changing the hotkey writes `ShortcutKey=` to `OptiScaler.ini` in the inis folder. "Apply to All Games" updates the hotkey in all game folders where OptiScaler is installed.
+
+### 32-bit Game Limitations
+
+OptiScaler is 64-bit only. For 32-bit games, the OptiScaler row is displayed with reduced opacity, strikethrough text, and disabled interaction.
+
+### Per-Game Update Exclusion
+
+A per-game OptiScaler update exclusion toggle in the overrides panel lets you pin a specific OptiScaler version on certain games, excluding them from Update All.
+
+### Detection
+
+RHI detects existing OptiScaler installations by scanning DLLs in game folders for OptiScaler binary signatures and checking for `OptiScaler.ini` presence. Detected installations are tracked and displayed correctly without requiring reinstallation through RHI. The foreign DLL protection system recognises OptiScaler DLLs and does not flag them as foreign.
+
+---
+
 ## Shader Packs
 
 RHI downloads and maintains a collection of 41 ReShade shader packs, merged into a shared staging folder and deployed per-game.
@@ -524,7 +586,7 @@ The Overrides section appears below Components in the detail panel. All controls
 | Reset | Restore original name and clear wiki mapping |
 | Wiki exclusion | Exclude the game from wiki lookups |
 | DLL naming overrides | A single toggle controls both ReShade and Display Commander filenames together. Turning ON enables both dropdowns with safe defaults; turning OFF reverts both to their default names. Each dropdown filters out the other component's current filename to prevent conflicts. Both dropdowns are editable (supports manual DLL names via Enter key). |
-| Global update inclusion | Four toggle switches (ReShade, RenoDX, ReLimiter, Display Commander) in a 2×2 grid layout, controlling whether the game is included in bulk updates. All default to On. |
+| Global update inclusion | Four toggle switches (ReShade, RenoDX, ReLimiter, Display Commander) in a 2×2 grid layout, plus an OptiScaler toggle, controlling whether the game is included in bulk updates. All default to On. |
 | Shader Mode | Global / Select / Custom. Global uses the global shader selection. Select opens a picker for specific shader packs. Custom uses shaders from custom shader directories. |
 | Addon Mode | Global / Select. Global uses the globally enabled addon set. Select opens a per-game addon picker. |
 | Rendering Path | For dual-API games: automatically determined based on detected APIs. Vulkan-only and dual-API games route to the Vulkan global layer install. |
@@ -552,6 +614,7 @@ Config files in `%LOCALAPPDATA%\RHI\inis\`:
 | `reshade.rdr2.ini` | Red Dead Redemption 2 only. Overlay key set to END to avoid keybind conflicts. |
 | `relimiter.ini` | Via copy button on the ReLimiter row. Copied to the game folder (or AddonPath) as-is. |
 | `DisplayCommander.ini` | Via 📋 button on the Display Commander row. Copied to the game folder (or AddonPath) as-is. |
+| `OptiScaler.ini` | Via 📋 button on the OptiScaler row. Copied to the game folder with `LoadReshade=true` enforced. |
 | `ReShadePreset.ini` | Automatically alongside `reshade.ini` if the file exists in the inis folder. |
 
 To use a custom ReShade preset, place your `ReShadePreset.ini` in the inis folder. It will be copied to every new game install automatically.
@@ -599,7 +662,7 @@ RHI fetches a remote manifest from GitHub on every launch, providing game-specif
 
 ## Update All
 
-The **Update All** button in the toolbar updates ReShade, RenoDX, ReLimiter, and Display Commander across all eligible games in one click. The button lights up purple when updates are available.
+The **Update All** button in the toolbar updates ReShade, RenoDX, ReLimiter, Display Commander, and OptiScaler across all eligible games in one click. The button lights up purple when updates are available.
 
 ### Per-Component Toggles
 
@@ -746,16 +809,17 @@ Everything under `%LOCALAPPDATA%\RHI\`:
 |------|----------|
 | `game_library.json` | Detected games, hidden list, manually added games |
 | `installed.json` | RenoDX mod install records (game name, path, addon filename, hash, snapshot URL, remote file size) |
-| `aux_installed.json` | ReShade, ReLimiter, and Display Commander install records (game name, path, addon type, installed filename, source URL) |
+| `aux_installed.json` | ReShade, ReLimiter, Display Commander, and OptiScaler install records (game name, path, addon type, installed filename, source URL) |
 | `settings.json` | All settings, per-game overrides, and persisted filter mode |
 | `ul_meta.json` | ReLimiter version metadata (per-bitness) |
 | `dc_meta.json` | Display Commander version metadata |
 | `api_cache.json` | PE-level graphics API detection cache (keyed by file path + last write time) |
 | `game_api_cache.json` | Game-level API detection cache (keyed by install path) |
 | `downloads\` | Cached downloads (separate files for 32-bit and 64-bit ReLimiter and DC) |
+| `optiscaler\` | Staged OptiScaler release (DLL, companion files, default INI, version tag) |
 | `addons\` | Downloaded ReShade addon files and version tracking (`versions.json`) |
 | `addons_cache.ini` | Cached Addons.ini for offline fallback |
-| `inis\` | Preset config files (`reshade.ini`, `reshade.vulkan.ini`, `relimiter.ini`, `DisplayCommander.ini`, etc.) |
+| `inis\` | Preset config files (`reshade.ini`, `reshade.vulkan.ini`, `relimiter.ini`, `DisplayCommander.ini`, `OptiScaler.ini`, etc.) |
 | `reshade\` | Staged shader packs and custom shaders |
 | `logs\` | Session logs (timestamped) and crash reports |
 
@@ -800,6 +864,7 @@ Old session logs are pruned to keep a maximum of 10 on disk. The oldest logs are
 | [Display Commander](https://github.com/lobotomyx/display-commander) | lobotomyx | Source-available |
 | [RE Framework](https://github.com/praydog/REFramework-nightly) | praydog | [MIT](https://github.com/praydog/REFramework/blob/master/LICENSE) |
 | [Luma Framework](https://github.com/Filoppi/Luma-Framework) | Pumbo (Filoppi) | Source-available |
+| [OptiScaler](https://github.com/optiscaler/OptiScaler) | OptiScaler contributors | Source-available |
 | [HtmlAgilityPack](https://github.com/zzzprojects/html-agility-pack) | ZZZ Projects Inc. | [MIT](https://github.com/zzzprojects/html-agility-pack/blob/master/LICENSE) |
 | [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) | Microsoft / .NET Foundation | [MIT](https://github.com/CommunityToolkit/dotnet/blob/main/License.md) |
 | [SharpCompress](https://github.com/adamhathcock/sharpcompress) | Adam Hathcock | [MIT](https://github.com/adamhathcock/sharpcompress/blob/master/LICENSE.txt) |

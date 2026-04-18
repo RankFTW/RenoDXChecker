@@ -67,7 +67,7 @@ public partial class GameCardViewModel
     public bool CanCardInstall => !IsInstalling && !RsIsInstalling && !IsLumaInstalling && !UlIsInstalling && !DcIsInstalling;
 
     // ── Per-component install enabled (card install flyout) ───────────────────────
-    public bool CardRdxInstallEnabled  => !IsInstalling && Mod?.SnapshotUrl != null && !IsExternalOnly;
+    public bool CardRdxInstallEnabled  => !IsInstalling && Mod?.SnapshotUrl != null && !IsExternalOnly && IsRsInstalled;
     public bool CardRsInstallEnabled   => !RsIsInstalling;
     public bool CardLumaInstallEnabled => !IsLumaInstalling && LumaMod?.DownloadUrl != null;
 

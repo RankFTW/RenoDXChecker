@@ -14,6 +14,8 @@ public partial class GameCardViewModel
         get
         {
             if (IsInstalling) return "Installing...";
+            if (!IsRsInstalled && Mod?.SnapshotUrl != null && !IsExternalOnly)
+                return "⚠  ReShade required";
             // No mod available and nothing manually installed
             if (Mod?.SnapshotUrl == null && !IsExternalOnly && string.IsNullOrEmpty(InstalledAddonFileName))
                 return "No RenoDX mod available for this game";
@@ -23,7 +25,7 @@ public partial class GameCardViewModel
         }
     }
 
-    public bool CanInstall => Mod?.SnapshotUrl != null && !IsInstalling && !IsExternalOnly;
+    public bool CanInstall => Mod?.SnapshotUrl != null && !IsInstalling && !IsExternalOnly && IsRsInstalled;
 
     public string GenericModLabel => IsGenericMod
         ? (EngineHint.Contains("Unity")

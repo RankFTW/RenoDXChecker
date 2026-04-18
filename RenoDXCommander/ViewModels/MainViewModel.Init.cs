@@ -130,6 +130,8 @@ public partial class MainViewModel
             bool wikiFetchFailed = false;
             Task rsTask = Task.CompletedTask; // hoisted so we can defer the await until after cards display
             Task normalRsTask = Task.CompletedTask; // hoisted so we can defer the await until after cards display
+            Task osTask = Task.CompletedTask; // hoisted so we can defer the await until after cards display
+            Task dlssTask = Task.CompletedTask; // hoisted so we can defer the await until after cards display
 
             // Start Nexus Mods + PCGW initialization early (network I/O, runs in parallel with other fetches)
             var nexusInitTask = Task.Run(async () => {
@@ -179,6 +181,14 @@ public partial class MainViewModel
                     try { await _normalRsUpdateService.EnsureLatestAsync(); }
                     catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] Normal ReShade update task failed — {ex.Message}"); }
                 });
+                osTask           = Task.Run(async () => {
+                    try { await _optiScalerService.EnsureStagingAsync(); }
+                    catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] OptiScaler staging task failed — {ex.Message}"); }
+                });
+                dlssTask         = Task.Run(async () => {
+                    try { await _optiScalerService.EnsureDlssStagingAsync(); }
+                    catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] DLSS staging task failed — {ex.Message}"); }
+                });
 
                 // Await detection first — this never needs network
                 var freshGamesResult = await detectTask;
@@ -188,6 +198,8 @@ public partial class MainViewModel
                 try { await lumaTask; } catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] Luma fetch failed (offline?) — {ex.Message}"); }
                 try { _manifest = await manifestTask; } catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] Manifest fetch failed — {ex.Message}"); }
                 // rsTask deferred until after cards display
+                // osTask deferred until after cards display
+                // dlssTask deferred until after cards display
 
                 var wikiResult = !wikiFetchFailed ? await wikiTask : default;
                 _allMods      = wikiResult.Mods ?? new();
@@ -233,6 +245,14 @@ public partial class MainViewModel
                     try { await _normalRsUpdateService.EnsureLatestAsync(); }
                     catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] Normal ReShade update task failed — {ex.Message}"); }
                 });
+                osTask           = Task.Run(async () => {
+                    try { await _optiScalerService.EnsureStagingAsync(); }
+                    catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] OptiScaler staging task failed — {ex.Message}"); }
+                });
+                dlssTask         = Task.Run(async () => {
+                    try { await _optiScalerService.EnsureDlssStagingAsync(); }
+                    catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] DLSS staging task failed — {ex.Message}"); }
+                });
 
                 // Await detection first — this never needs network
                 detectedGames = await detectTask;
@@ -242,6 +262,8 @@ public partial class MainViewModel
                 try { await lumaTask; } catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] Luma fetch failed (offline?) — {ex.Message}"); }
                 try { _manifest = await manifestTask; } catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] Manifest fetch failed — {ex.Message}"); }
                 // rsTask deferred until after cards display
+                // osTask deferred until after cards display
+                // dlssTask deferred until after cards display
 
                 var wikiResult2 = !wikiFetchFailed ? await wikiTask : default;
                 _allMods      = wikiResult2.Mods ?? new();
@@ -286,9 +308,9 @@ public partial class MainViewModel
             // Snapshot update statuses from old cards so they survive the rebuild.
             // The background CheckForUpdatesAsync will re-verify, but this avoids
             // a visual gap where the update badge disappears until the network check completes.
-            var prevUpdateStatus = new Dictionary<string, (GameStatus mod, GameStatus rs, GameStatus dc, GameStatus ul, GameStatus refFw)>(StringComparer.OrdinalIgnoreCase);
+            var prevUpdateStatus = new Dictionary<string, (GameStatus mod, GameStatus rs, GameStatus dc, GameStatus ul, GameStatus refFw, GameStatus os)>(StringComparer.OrdinalIgnoreCase);
             foreach (var c in _allCards)
-                prevUpdateStatus[c.GameName] = (c.Status, c.RsStatus, c.DcStatus, c.UlStatus, c.RefStatus);
+                prevUpdateStatus[c.GameName] = (c.Status, c.RsStatus, c.DcStatus, c.UlStatus, c.RefStatus, c.OsStatus);
 
             SubStatusText = "Matching mods and checking install status...";
 
@@ -323,6 +345,8 @@ public partial class MainViewModel
                         c.UlStatus = GameStatus.UpdateAvailable;
                     if (prev.refFw == GameStatus.UpdateAvailable && c.RefStatus == GameStatus.Installed)
                         c.RefStatus = GameStatus.UpdateAvailable;
+                    if (prev.os == GameStatus.UpdateAvailable && c.OsStatus == GameStatus.Installed)
+                        c.OsStatus = GameStatus.UpdateAvailable;
                 }
             }
 
@@ -351,16 +375,18 @@ public partial class MainViewModel
             _filterViewModel.UpdateCounts();
             _filterViewModel.ApplyFilter();
 
-            // ── Deferred background work: ReShade staging + shader sync ──────────────
+            // ── Deferred background work: ReShade staging + OptiScaler staging + shader sync ──────────────
             // These are not needed for card display, so we run them after the UI is ready.
             // rsTask (ReShade download/staging) was started earlier but not awaited.
+            // osTask (OptiScaler download/staging) was started earlier but not awaited.
+            // dlssTask (DLSS DLL download/staging) was started earlier but not awaited.
             // _shaderPackReadyTask (shader pack download) was started in MainWindow constructor.
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    // Wait for ReShade staging to finish (addon + normal variants in parallel)
-                    await Task.WhenAll(rsTask, normalRsTask);
+                    // Wait for ReShade staging, OptiScaler staging, and DLSS staging to finish in parallel
+                    await Task.WhenAll(rsTask, normalRsTask, osTask, dlssTask);
                 }
                 catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] Deferred ReShade sync failed — {ex.Message}"); }
 
@@ -566,11 +592,13 @@ public partial class MainViewModel
             newBitnessCache[resolvedKey] = machineType;
 
             var mod      = _gameDetectionService.MatchGame(game, _allMods, _nameMappings);
-            // Wiki unlink: discard false fuzzy match so the game uses its generic engine addon
-            if (mod != null && _manifestWikiUnlinks.Contains(game.Name)) mod = null;
+            // Wiki unlink: completely disconnect the game from wiki — no mod, no generic fallback
+            bool isWikiUnlinked = _manifestWikiUnlinks.Contains(game.Name);
+            if (isWikiUnlinked) mod = null;
             // UnrealLegacy (UE3 and below) cannot use the RenoDX addon system — no fallback mod offered.
-            var fallback = mod == null ? (engine == EngineType.Unreal      ? genericUnreal
-                                        : engine == EngineType.Unity       ? genericUnity : null) : null;
+            var fallback = (mod == null && !isWikiUnlinked)
+                           ? (engine == EngineType.Unreal      ? genericUnreal
+                            : engine == EngineType.Unity       ? genericUnity : null) : null;
 
             // If the wiki mod matched but has no download URL (common for games listed
             // in the generic engine tables), inject the generic engine addon URL so the
@@ -608,8 +636,12 @@ public partial class MainViewModel
         var safeAddonCache = new ConcurrentDictionary<string, bool>(addonCache, StringComparer.OrdinalIgnoreCase);
         var cardBag = new ConcurrentBag<GameCardViewModel>();
 
+        var slowGameThresholdMs = 500; // Log games that take longer than this
+        var gameTimings = new ConcurrentBag<(string name, long ms)>();
+
         Parallel.ForEach(gameInfos, (item) =>
         {
+            var gameStopwatch = System.Diagnostics.Stopwatch.StartNew();
             var (game, installPath, engine, mod, origFallback, detectedMachine, engineOverrideLabel) = item;
             // Always show every detected game — even if no wiki mod exists.
             // The card will have no install button if there's no snapshot URL,
@@ -859,6 +891,10 @@ public partial class MainViewModel
                     // Content-based fallback: scan known proxy DLL names for ReShade binary signatures.
                     // ReShade can only inject via specific Windows system DLL proxies, so we only
                     // check those names rather than every DLL in the folder.
+                    // Skip WindowsApps paths — always access-denied
+                    bool isWinAppsRs = installPath.Contains(@"\WindowsApps\", StringComparison.OrdinalIgnoreCase)
+                                    || installPath.Contains(@"/WindowsApps/", StringComparison.OrdinalIgnoreCase);
+                    if (!isWinAppsRs)
                     try
                     {
                         foreach (var proxyName in DllOverrideConstants.CommonDllNames)
@@ -944,6 +980,7 @@ public partial class MainViewModel
                 ExcludeFromUpdateAllRenoDx  = _gameNameService.UpdateAllExcludedRenoDx.Contains(game.Name),
                 ExcludeFromUpdateAllUl      = _gameNameService.UpdateAllExcludedUl.Contains(game.Name),
                 ExcludeFromUpdateAllDc      = _gameNameService.UpdateAllExcludedDc.Contains(game.Name),
+                ExcludeFromUpdateAllOs      = _gameNameService.UpdateAllExcludedOs.Contains(game.Name),
                 UseNormalReShade           = _gameNameService.NormalReShadeGames.Contains(game.Name),
                 ShaderModeOverride     = _perGameShaderMode.TryGetValue(game.Name, out var smBc) ? smBc : null,
                 Is32Bit                = ResolveIs32Bit(game.Name, detectedMachine),
@@ -1041,6 +1078,87 @@ public partial class MainViewModel
                 }
             }
 
+            // ── OptiScaler detection ───────────────────────────────────────
+            if (!string.IsNullOrEmpty(installPath) && Directory.Exists(installPath) && !newCard.Is32Bit)
+            {
+                // First check for an existing tracking record
+                var osRec = auxRecords.FirstOrDefault(r =>
+                    r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase) &&
+                    r.AddonType == OptiScalerService.AddonType);
+
+                if (osRec != null && File.Exists(Path.Combine(osRec.InstallPath, osRec.InstalledAs)))
+                {
+                    newCard.OsStatus = GameStatus.Installed;
+                    newCard.OsInstalledFile = osRec.InstalledAs;
+                    newCard.OsInstalledVersion = _optiScalerService.StagedVersion;
+                }
+                else if (osRec != null)
+                {
+                    // Record exists but file not on disk — stale record (OptiScaler manually deleted)
+                    _auxInstaller.RemoveRecord(osRec);
+
+                    // If ReShade64.dll exists, rename it back to the correct ReShade filename
+                    try
+                    {
+                        var rsCoexistPath = Path.Combine(installPath, OptiScalerService.ReShadeCoexistName);
+                        if (File.Exists(rsCoexistPath))
+                        {
+                            var resolvedName = _dllOverrideService.GetEffectiveRsName(game.Name);
+                            var resolvedPath = Path.Combine(installPath, resolvedName);
+
+                            if (!resolvedName.Equals(OptiScalerService.ReShadeCoexistName, StringComparison.OrdinalIgnoreCase)
+                                && !File.Exists(resolvedPath))
+                            {
+                                File.Move(rsCoexistPath, resolvedPath);
+                                CrashReporter.Log($"[BuildCards] Restored ReShade '{OptiScalerService.ReShadeCoexistName}' → '{resolvedName}' for {game.Name}");
+
+                                // Update ReShade tracking record
+                                var rsRecord = auxRecords.FirstOrDefault(r =>
+                                    r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase) &&
+                                    (r.AddonType == AuxInstallService.TypeReShade || r.AddonType == AuxInstallService.TypeReShadeNormal));
+                                if (rsRecord != null)
+                                {
+                                    rsRecord.InstalledAs = resolvedName;
+                                    _auxInstaller.SaveAuxRecord(rsRecord);
+                                }
+
+                                // Update card RS state
+                                newCard.RsInstalledFile = resolvedName;
+                            }
+                        }
+                    }
+                    catch (Exception rsEx)
+                    {
+                        CrashReporter.Log($"[BuildCards] ReShade restore after stale OS record failed for {game.Name} — {rsEx.Message}");
+                    }
+                }
+                else
+                {
+                    // No tracking record — try binary signature detection
+                    // Skip WindowsApps paths — always access-denied, wastes time on retries
+                    bool isWindowsApps = installPath.Contains(@"\WindowsApps\", StringComparison.OrdinalIgnoreCase)
+                                      || installPath.Contains(@"/WindowsApps/", StringComparison.OrdinalIgnoreCase);
+                    var detectedDll = isWindowsApps ? null : _optiScalerService.DetectInstallation(installPath);
+                    if (detectedDll != null)
+                    {
+                        // Create a tracking record for the detected installation
+                        var newOsRec = new AuxInstalledRecord
+                        {
+                            GameName    = game.Name,
+                            InstallPath = installPath,
+                            AddonType   = OptiScalerService.AddonType,
+                            InstalledAs = detectedDll,
+                            InstalledAt = File.GetLastWriteTimeUtc(Path.Combine(installPath, detectedDll)),
+                        };
+                        _auxInstaller.SaveAuxRecord(newOsRec);
+
+                        newCard.OsStatus = GameStatus.Installed;
+                        newCard.OsInstalledFile = detectedDll;
+                        newCard.OsInstalledVersion = _optiScalerService.StagedVersion;
+                    }
+                }
+            }
+
             // ── RE Framework record matching ───────────────────────────────────
             if (newCard.IsREEngineGame)
             {
@@ -1093,9 +1211,24 @@ public partial class MainViewModel
             catch (Exception ex) { _crashReporter.Log($"[BuildCards] PcgwUrl resolve failed for '{game.Name}' — {ex.Message}"); }
 
             cardBag.Add(newCard);
+
+            gameStopwatch.Stop();
+            var elapsedMs = gameStopwatch.ElapsedMilliseconds;
+            gameTimings.Add((game.Name, elapsedMs));
+            if (elapsedMs > slowGameThresholdMs)
+                _crashReporter.Log($"[BuildCards] SLOW: '{game.Name}' took {elapsedMs}ms ({installPath})");
             });
 
         cards.AddRange(cardBag);
+
+        // Log BuildCards timing summary
+        var sortedTimings = gameTimings.OrderByDescending(t => t.ms).ToList();
+        var totalBuildMs = sortedTimings.Sum(t => t.ms);
+        var slowCount = sortedTimings.Count(t => t.ms > slowGameThresholdMs);
+        _crashReporter.Log($"[BuildCards] Timing: {sortedTimings.Count} games, {slowCount} slow (>{slowGameThresholdMs}ms), total CPU time {totalBuildMs}ms");
+        foreach (var (name, ms) in sortedTimings.Take(10))
+            _crashReporter.Log($"[BuildCards] Top: '{name}' = {ms}ms");
+
         ApplyCardOverrides(cards);
         ApplyManifestCardOverrides(_manifest, cards);
 
@@ -1159,6 +1292,10 @@ public partial class MainViewModel
     private static string? ScanForInstalledAddon(string installPath, GameMod? mod)
     {
         if (!Directory.Exists(installPath)) return null;
+        // Skip WindowsApps paths — always access-denied for file scanning
+        if (installPath.Contains(@"\WindowsApps\", StringComparison.OrdinalIgnoreCase)
+            || installPath.Contains(@"/WindowsApps/", StringComparison.OrdinalIgnoreCase))
+            return null;
         try
         {
             // Check the AddonPath subfolder from reshade.ini first
@@ -1247,6 +1384,10 @@ public partial class MainViewModel
     private static string? ScanForInstalledAddonQuick(string installPath, GameMod? mod)
     {
         if (!Directory.Exists(installPath)) return null;
+        // Skip WindowsApps paths — always access-denied for file scanning
+        if (installPath.Contains(@"\WindowsApps\", StringComparison.OrdinalIgnoreCase)
+            || installPath.Contains(@"/WindowsApps/", StringComparison.OrdinalIgnoreCase))
+            return null;
         try
         {
             // Check the AddonPath subfolder from reshade.ini first

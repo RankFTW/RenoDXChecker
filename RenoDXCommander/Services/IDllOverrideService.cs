@@ -115,6 +115,31 @@ public interface IDllOverrideService
         bool is32Bit,
         string? installPath);
 
+    // ── OptiScaler DLL naming ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns the effective OptiScaler DLL filename for a game.
+    /// Priority: user override > manifest override > default (dxgi.dll).
+    /// </summary>
+    string GetEffectiveOsName(string gameName);
+
+    /// <summary>
+    /// Returns the supported OptiScaler DLL names filtered to exclude
+    /// names currently used by ReShade or Display Commander for the same game.
+    /// </summary>
+    string[] GetAvailableOsDllNames(string gameName, bool is32Bit);
+
+    /// <summary>
+    /// Sets or updates the OptiScaler DLL filename override for the specified game.
+    /// </summary>
+    void SetOsDllOverride(string gameName, string osFileName);
+
+    /// <summary>
+    /// Loads OptiScaler DLL overrides from the remote manifest.
+    /// Called during manifest application.
+    /// </summary>
+    void LoadManifestOsDllOverrides(Dictionary<string, string>? overrides);
+
     /// <summary>Migrates a DLL override entry when a game is renamed.</summary>
     void MigrateOverride(string oldName, string newName);
 

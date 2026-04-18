@@ -150,6 +150,112 @@ public class InstallEventHandler
             ViewModel.UninstallDc(card);
     }
 
+    public async void InstallOsButton_Click(object sender, RoutedEventArgs e)
+    {
+        var card = (sender as FrameworkElement)?.Tag as GameCardViewModel;
+        if (card == null) return;
+        if (string.IsNullOrEmpty(card.InstallPath) || !System.IO.Directory.Exists(card.InstallPath))
+        {
+            var folder = await _pickFolderAsync(null);
+            if (folder == null) return;
+            card.InstallPath = folder;
+            ViewModel.SaveLibraryPublic();
+        }
+
+        // ── First-time OptiScaler warning ──────────────────────────────
+        if (!ViewModel.Settings.OsFirstTimeWarningDismissed)
+        {
+            var xamlRoot = (sender as FrameworkElement)?.XamlRoot;
+            if (xamlRoot != null)
+            {
+                var warningDialog = new ContentDialog
+                {
+                    Title = "⚠ OptiScaler Setup",
+                    Content = "Before installing OptiScaler, please configure your GPU type and DLSS input settings in the OptiScaler Settings section on the Settings page.\n\nThis ensures OptiScaler is configured correctly for your hardware.",
+                    PrimaryButtonText = "Continue",
+                    CloseButtonText = "Cancel",
+                    XamlRoot = xamlRoot,
+                    RequestedTheme = ElementTheme.Dark,
+                };
+
+                var result = await warningDialog.ShowAsync();
+                if (result != ContentDialogResult.Primary) return;
+
+                ViewModel.Settings.OsFirstTimeWarningDismissed = true;
+                ViewModel.SaveSettingsPublic();
+            }
+        }
+
+        // ── Read GPU/DLSS settings from persisted preferences ──────────
+        var gpuType = ViewModel.Settings.OsGpuType;
+        var useDlssInputs = ViewModel.Settings.OsDlssInputs;
+
+        card.OsIsInstalling = true;
+        card.OsActionMessage = "Installing OptiScaler...";
+        card.OsProgress = 0;
+        try
+        {
+            await ViewModel.OptiScalerServiceInstance.InstallAsync(card,
+                new Progress<(string message, double percent)>(p =>
+                {
+                    card.OsActionMessage = p.message;
+                    card.OsProgress = p.percent;
+                }),
+                gpuType,
+                useDlssInputs,
+                ViewModel.Settings.OsHotkey);
+
+            card.OsActionMessage = "✅ OptiScaler installed!";
+            card.NotifyAll();
+            card.FadeMessage(m => card.OsActionMessage = m, card.OsActionMessage);
+        }
+        catch (Exception ex)
+        {
+            card.OsActionMessage = $"❌ Install failed: {ex.Message}";
+        }
+        finally
+        {
+            card.OsIsInstalling = false;
+        }
+    }
+
+    public void UninstallOsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not GameCardViewModel card) return;
+        try
+        {
+            ViewModel.OptiScalerServiceInstance.Uninstall(card);
+            card.OsActionMessage = "✖ OptiScaler removed.";
+            card.NotifyAll();
+            card.FadeMessage(m => card.OsActionMessage = m, card.OsActionMessage);
+        }
+        catch (Exception ex)
+        {
+            card.OsActionMessage = $"❌ Uninstall failed: {ex.Message}";
+        }
+    }
+
+    public void CopyOsIniButton_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not GameCardViewModel card) return;
+        if (string.IsNullOrEmpty(card.InstallPath)) return;
+        try
+        {
+            if (!File.Exists(Services.OptiScalerService.OsIniPath))
+            {
+                card.OsActionMessage = "❌ No OptiScaler.ini found in INIs folder.";
+                return;
+            }
+            ViewModel.OptiScalerServiceInstance.CopyIniToGame(card);
+            card.OsActionMessage = "✅ OptiScaler.ini copied to game folder.";
+            card.FadeMessage(m => card.OsActionMessage = m, card.OsActionMessage);
+        }
+        catch (Exception ex)
+        {
+            card.OsActionMessage = $"❌ {ex.Message}";
+        }
+    }
+
     public async void InstallRefButton_Click(object sender, RoutedEventArgs e)
     {
         var card = (sender as FrameworkElement)?.Tag as GameCardViewModel;

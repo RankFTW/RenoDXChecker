@@ -1,10 +1,12 @@
 .vs
 .kiro
+Logs
 RenoDXCommander/bin
 RenoDXCommander/obj
 RenoDXCommander.Tests/bin
 RenoDXCommander.Tests/obj
 publish.bat
+OPTI/
 downloads_tidyup.md
 
 tools/*.md

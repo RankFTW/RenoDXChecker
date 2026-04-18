@@ -1,3 +1,69 @@
+## v1.7.9
+
+### New Features
+
+**OptiScaler integration**
+- OptiScaler is now a fully managed component in RHI. One-click install, update, and uninstall for upscaler redirection (DLSS/FSR/XeSS) on 64-bit games.
+- New OptiScaler Settings section on the Settings page — configure GPU type (NVIDIA/AMD/Intel), DLSS input replacement toggle (AMD/Intel only), and overlay hotkey. Settings are persisted and applied automatically on every install.
+- First-time install warning prompts users to configure OptiScaler settings before proceeding.
+- All OptiScaler files are deployed from the staging folder, including companion DLLs, INI files, and the `D3D12_Optiscaler` subfolder. Installer scripts, READMEs, and license files are excluded.
+- Game-owned files are backed up to `.original` before overwriting and restored on uninstall.
+- ReShade coexistence handled automatically — ReShade is renamed to `ReShade64.dll` when OptiScaler is installed, and restored to the correct filename on uninstall.
+- Vulkan games automatically use `winmm.dll` as the OptiScaler DLL filename. User and manifest overrides still take priority.
+- DLL naming override dropdown in the per-game overrides panel. Manifest support for per-game OptiScaler DLL name defaults.
+- Per-game OptiScaler update exclusion toggle in the overrides panel.
+- OptiScaler status included in Update All, Refresh, game report, skeleton loading screen, and card flyout.
+- Binary signature detection for existing OptiScaler installations. Foreign DLL protection recognises OptiScaler DLLs.
+- 32-bit games show the OptiScaler row greyed out with strikethrough.
+- OptiScaler Compatibility List link on the Settings page, linking to the community-maintained wiki.
+
+**OptiPatcher integration**
+- OptiPatcher ASI plugin is automatically downloaded and deployed to the `plugins` folder for AMD/Intel GPU users during OptiScaler install. Enables DLSS/DLSSG inputs without GPU spoofing in supported games.
+- Version-tracked and cleaned up automatically on OptiScaler uninstall.
+
+**DLSS auto-download (Super Resolution, Ray Reconstruction, Frame Generation)**
+- The latest NVIDIA DLSS Super Resolution (`nvngx_dlss.dll`), Ray Reconstruction (`nvngx_dlssd.dll`), and Frame Generation (`nvngx_dlssg.dll`) DLLs are automatically downloaded and staged on startup. Sourced from the DLSS Swapper manifest.
+- Every OptiScaler install deploys all three DLLs directly to the game folder, enabling DLSS upscaling, Ray Reconstruction, and DLSS-FG even for games that don't ship with them. Game originals are backed up and restored on uninstall.
+- Each DLL has independent version tracking and auto-updates on each app launch.
+
+**ReShade dependency enforcement**
+- RenoDX, ReLimiter, and Display Commander install buttons now require ReShade to be installed first. When ReShade is not installed, buttons show "⚠ ReShade required" and the rows are dimmed.
+
+**Mass INI Deployment**
+- New section on the Settings page to deploy reshade.ini, relimiter.ini, DisplayCommander.ini, or OptiScaler.ini to all games that have the corresponding component installed with a single button click. Custom hotkey and screenshot path settings are preserved.
+
+**Mass ReShade Preset Install**
+- New section on the Settings page. Select presets from your presets folder, choose which games to deploy them to via a checkbox game picker with Select All / Deselect All, and optionally install the required shader packs — all in one flow.
+
+### Changes
+
+- Pre-generated OptiScaler INI templates bundled for each GPU configuration (NVIDIA, AMD/Intel with DLSS, AMD/Intel without DLSS). FPS overlay, FPS cycle, and Frame Generation hotkeys are unbound by default to prevent keybind conflicts.
+- `LoadReshade=true` and `LoadAsiPlugins=true` are enforced in all OptiScaler INI deployments.
+- OptiScaler overlay hotkey written as Windows Virtual Key Code hex values matching OptiScaler's expected format.
+- Global update inclusion toggles in the overrides panel replaced with a compact "Update Inclusion" button and a colour-coded summary line.
+- Bitness and Graphics API dropdowns in the overrides panel are now side by side instead of stacked vertically.
+- Frame limiter separator text updated to "Frame limiters — Choose one".
+- Manifest `wikiUnlinks` now fully disconnects games from the wiki — no mod match, no generic UE/Unity fallback, no Discord badge.
+- Single-player warning text updated: "ReShade with addon support and OptiScaler may trigger anti-cheat."
+- Skeleton loading screen updated to reflect the current detail panel layout.
+
+### Performance
+
+- Startup time reduced by up to 60% through multiple optimisations:
+  - PCGW cache writes debounced — ~45 concurrent file lock errors per startup eliminated.
+  - OptiScaler detection now scans only the 7 known proxy DLL names instead of every DLL in the game folder.
+  - WindowsApps game paths skipped for OptiScaler detection, ReShade proxy scanning, and addon file scanning.
+  - DLC content packs (DOOM, Yakuza, Indiana Jones, MWII, Battle.net launcher components) blacklisted from game detection.
+- Fixed NNShaders shader pack failing to download every startup (GitHub URL corrected from `main` to `master` branch).
+
+### Bug Fixes
+
+- Fixed "Unknown dxgi.dll Detected" warning appearing when installing ReShade after OptiScaler.
+- Fixed ReShade not being deleted when uninstalling after OptiScaler was removed.
+- Fixed ReShade being renamed to `opengl32.dll` instead of `dxgi.dll` on OptiScaler uninstall for games with both DX12 and OpenGL detected.
+
+---
+
 ## v1.7.8
 
 ### Changes

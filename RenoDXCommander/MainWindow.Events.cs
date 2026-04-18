@@ -192,6 +192,9 @@ public sealed partial class MainWindow
             case "REF":
                 await ViewModel.InstallREFrameworkCommand.ExecuteAsync(card);
                 break;
+            case "OS":
+                _installEventHandler.InstallOsButton_Click(sender, e);
+                break;
         }
     }
 
@@ -222,6 +225,9 @@ public sealed partial class MainWindow
                 break;
             case "REF":
                 ViewModel.UninstallREFrameworkCommand.Execute(card);
+                break;
+            case "OS":
+                _installEventHandler.UninstallOsButton_Click(sender, e);
                 break;
         }
     }
@@ -279,6 +285,30 @@ public sealed partial class MainWindow
         catch (Exception ex)
         {
             card.DcActionMessage = $"❌ {ex.Message}";
+        }
+    }
+
+    internal void CardCopyOsIni_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: GameCardViewModel card }) return;
+        if (string.IsNullOrEmpty(card.InstallPath)) return;
+        try
+        {
+            var sourceIni = Services.OptiScalerService.OsIniPath;
+            if (!File.Exists(sourceIni))
+            {
+                card.OsActionMessage = "❌ No OptiScaler.ini found in INIs folder.";
+                return;
+            }
+            var destIni = Path.Combine(card.InstallPath, Services.OptiScalerService.IniFileName);
+            File.Copy(sourceIni, destIni, overwrite: true);
+            Services.OptiScalerService.EnforceLoadReshade(destIni);
+            card.OsActionMessage = "✅ OptiScaler.ini copied to game folder.";
+            card.FadeMessage(m => card.OsActionMessage = m, card.OsActionMessage);
+        }
+        catch (Exception ex)
+        {
+            card.OsActionMessage = $"❌ {ex.Message}";
         }
     }
 
@@ -537,6 +567,33 @@ public sealed partial class MainWindow
 
     private void ApplyUlOsdHotkey_Click(object sender, RoutedEventArgs e)
         => _settingsHandler.ApplyUlOsdHotkey_Click(sender, e);
+
+    private void OsHotkeyCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        => _settingsHandler.OsHotkeyCombo_SelectionChanged(sender, e);
+
+    private void OsGpuCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        => _settingsHandler.OsGpuCombo_SelectionChanged(sender, e);
+
+    private void OsDlssInputsToggle_Toggled(object sender, RoutedEventArgs e)
+        => _settingsHandler.OsDlssInputsToggle_Toggled(sender, e);
+
+    private void ApplyOsHotkey_Click(object sender, RoutedEventArgs e)
+        => _settingsHandler.ApplyOsHotkey_Click(sender, e);
+
+    private void MassDeployRsIni_Click(object sender, RoutedEventArgs e)
+        => _settingsHandler.MassDeployRsIni_Click(sender, e);
+
+    private void MassDeployUlIni_Click(object sender, RoutedEventArgs e)
+        => _settingsHandler.MassDeployUlIni_Click(sender, e);
+
+    private void MassDeployDcIni_Click(object sender, RoutedEventArgs e)
+        => _settingsHandler.MassDeployDcIni_Click(sender, e);
+
+    private void MassDeployOsIni_Click(object sender, RoutedEventArgs e)
+        => _settingsHandler.MassDeployOsIni_Click(sender, e);
+
+    private async void MassPresetInstall_Click(object sender, RoutedEventArgs e)
+        => await _settingsHandler.MassPresetInstall_ClickAsync(Content.XamlRoot);
 
     private async void BrowseScreenshotPath_Click(object sender, RoutedEventArgs e)
     {
@@ -898,6 +955,7 @@ public sealed partial class MainWindow
         await ViewModel.UpdateAllRenoDxAsync();
         await ViewModel.UpdateAllUlAsync();
         await ViewModel.UpdateAllDcAsync();
+        await ViewModel.UpdateAllOsAsync();
         await ViewModel.UpdateAllRefAsync();
     }
 
@@ -918,6 +976,12 @@ public sealed partial class MainWindow
 
     private void UninstallDcButton_Click(object sender, RoutedEventArgs e)
         => _installEventHandler.UninstallDcButton_Click(sender, e);
+
+    private void InstallOsButton_Click(object sender, RoutedEventArgs e)
+        => _installEventHandler.InstallOsButton_Click(sender, e);
+
+    private void UninstallOsButton_Click(object sender, RoutedEventArgs e)
+        => _installEventHandler.UninstallOsButton_Click(sender, e);
 
     private void InstallRefButton_Click(object sender, RoutedEventArgs e)
         => _installEventHandler.InstallRefButton_Click(sender, e);
@@ -954,6 +1018,19 @@ public sealed partial class MainWindow
         {
             card.DcActionMessage = $"❌ {ex.Message}";
         }
+    }
+
+    private void CopyOsIniButton_Click(object sender, RoutedEventArgs e)
+        => _installEventHandler.CopyOsIniButton_Click(sender, e);
+
+    private async void DetailOsStatus_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        var card = ViewModel.SelectedGame;
+        if (card == null) return;
+
+        if (card.IsOsInstalled)
+            await Windows.System.Launcher.LaunchUriAsync(
+                new Uri("https://github.com/optiscaler/OptiScaler/wiki"));
     }
 
     private async void DetailUlStatus_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)

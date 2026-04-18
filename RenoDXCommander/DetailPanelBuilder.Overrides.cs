@@ -109,10 +109,15 @@ public partial class DetailPanelBuilder
             PlaceholderText = "Select ReShade DLL name",
             Header = (object?)null,
             FontSize = 12,
-            IsEnabled = isDllOverride,
+            IsEnabled = isDllOverride && !card.IsOsInstalled,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             ItemsSource = DllOverrideConstants.CommonDllNames,
         };
+        if (card.IsOsInstalled)
+        {
+            ToolTipService.SetToolTip(rsNameBox,
+                "ReShade DLL name is controlled by OptiScaler. Uninstall OptiScaler to change the ReShade DLL name.");
+        }
         if (!string.IsNullOrEmpty(existingRsName))
         {
             if (DllOverrideConstants.CommonDllNames.Contains(existingRsName, StringComparer.OrdinalIgnoreCase))
@@ -163,6 +168,82 @@ public partial class DetailPanelBuilder
 
         // Track previous DC selection for revert on foreign DLL conflict cancel
         string? _previousDcSelection = dcNameBox.SelectedItem as string;
+
+        // ── OptiScaler DLL naming override ─────────────────────────────────────
+        var existingOsName = existingCfg?.OsFileName ?? "";
+        var availableOsNames = _window.ViewModel.DllOverrideServiceInstance
+            .GetAvailableOsDllNames(gameName, is32Bit);
+
+        var osNameBox = new ComboBox
+        {
+            PlaceholderText = "Select OptiScaler DLL name",
+            FontSize = 12,
+            IsEnabled = isDllOverride,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            ItemsSource = availableOsNames,
+        };
+        if (!string.IsNullOrEmpty(existingOsName))
+        {
+            if (availableOsNames.Contains(existingOsName, StringComparer.OrdinalIgnoreCase))
+            {
+                osNameBox.SelectedItem = availableOsNames.First(n => n.Equals(existingOsName, StringComparison.OrdinalIgnoreCase));
+            }
+            else
+            {
+                // Add the custom name as a temporary item so SelectedItem works reliably.
+                var extendedOsNames = availableOsNames.Append(existingOsName).ToArray();
+                osNameBox.ItemsSource = extendedOsNames;
+                osNameBox.SelectedItem = existingOsName;
+            }
+        }
+
+        // Track previous OS selection for revert
+        string? _previousOsSelection = osNameBox.SelectedItem as string;
+
+        // ── Auto-save: OS name box on dropdown selection ──────────────────────
+        osNameBox.SelectionChanged += (s, e) =>
+        {
+            if (!dllOverrideToggle.IsOn) return;
+            var targetCard = _window.ViewModel.AllCards.FirstOrDefault(c =>
+                c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
+            if (targetCard == null) return;
+            var osName = osNameBox.SelectedItem as string;
+            if (string.IsNullOrWhiteSpace(osName)) return;
+
+            _previousOsSelection = osName;
+            _window.ViewModel.DllOverrideServiceInstance.SetOsDllOverride(capturedName, osName);
+
+            // If OptiScaler is installed, rename the DLL in the game folder
+            if (targetCard.IsOsInstalled && !string.IsNullOrEmpty(targetCard.OsInstalledFile)
+                && !string.IsNullOrEmpty(targetCard.InstallPath))
+            {
+                var oldPath = System.IO.Path.Combine(targetCard.InstallPath, targetCard.OsInstalledFile);
+                var newPath = System.IO.Path.Combine(targetCard.InstallPath, osName);
+                try
+                {
+                    if (System.IO.File.Exists(oldPath)
+                        && !oldPath.Equals(newPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (System.IO.File.Exists(newPath)) System.IO.File.Delete(newPath);
+                        System.IO.File.Move(oldPath, newPath);
+                        targetCard.OsInstalledFile = osName;
+
+                        // Update the tracking record
+                        var osRecord = _window.ViewModel.AuxInstallServiceInstance
+                            .FindRecord(capturedName, targetCard.InstallPath, "OptiScaler");
+                        if (osRecord != null)
+                        {
+                            osRecord.InstalledAs = osName;
+                            _window.ViewModel.AuxInstallServiceInstance.SaveAuxRecord(osRecord);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    CrashReporter.Log($"[DetailPanelBuilder.BuildOverridesPanel] Failed to rename OS DLL for '{capturedName}' — {ex.Message}");
+                }
+            }
+        };
 
         // ── Cross-exclusion: filter out the other component's current name ───────
         bool _updatingDropdowns = false;
@@ -219,8 +300,9 @@ public partial class DetailPanelBuilder
 
         dllOverrideToggle.Toggled += (s, ev) =>
         {
-            rsNameBox.IsEnabled = dllOverrideToggle.IsOn;
+            rsNameBox.IsEnabled = dllOverrideToggle.IsOn && !card.IsOsInstalled;
             dcNameBox.IsEnabled = dllOverrideToggle.IsOn;
+            osNameBox.IsEnabled = dllOverrideToggle.IsOn;
 
             var targetCard = _window.ViewModel.AllCards.FirstOrDefault(c =>
                 c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
@@ -489,6 +571,7 @@ public partial class DetailPanelBuilder
         topRightColumn.Children.Add(dllOverrideToggle);
         topRightColumn.Children.Add(rsNameBox);
         topRightColumn.Children.Add(dcNameBox);
+        topRightColumn.Children.Add(osNameBox);
         Grid.SetColumn(topRightColumn, 2);
         topRowGrid.Children.Add(topRightColumn);
 
@@ -757,7 +840,14 @@ public partial class DetailPanelBuilder
             }
         };
 
-        var bitnessPanel = new StackPanel { Spacing = 8 };
+        var bitnessPanel = new Grid { ColumnSpacing = 12 };
+        bitnessPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        bitnessPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        bitnessPanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        bitnessPanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        Grid.SetRow(bitnessLabel, 0); Grid.SetColumn(bitnessLabel, 0);
+        Grid.SetRow(bitnessCombo, 1); Grid.SetColumn(bitnessCombo, 0);
         bitnessPanel.Children.Add(bitnessLabel);
         bitnessPanel.Children.Add(bitnessCombo);
 
@@ -767,7 +857,6 @@ public partial class DetailPanelBuilder
             Text = "Graphics API",
             FontSize = 12,
             Foreground = UIFactory.Brush(ResourceKeys.TextPrimaryBrush),
-            Margin = new Thickness(0, 0, 0, 8),
         };
         ToolTipService.SetToolTip(apiLabel,
             "Override the detected graphics API for this game.\n\n" +
@@ -855,124 +944,126 @@ public partial class DetailPanelBuilder
             }
         };
 
-        // Add API dropdown to bitness panel (below bitness combo)
+        // Add API dropdown to bitness panel (right column, side by side)
+        Grid.SetRow(apiLabel, 0); Grid.SetColumn(apiLabel, 1);
+        Grid.SetRow(apiCombo, 1); Grid.SetColumn(apiCombo, 1);
         bitnessPanel.Children.Add(apiLabel);
         bitnessPanel.Children.Add(apiCombo);
 
-        // ── Global update inclusion toggles (Middle Row right column) ──────────────
-        var rsToggle = new ToggleSwitch
+        // ── Global update inclusion (compact: button + summary) ──────────────────
+        var capturedCard = card;
+
+        // Build summary showing current state at a glance with colored On/Off
+        void RefreshUpdateSummary(StackPanel summaryPanel)
         {
-            Header = "ReShade",
-            IsOn = !_window.ViewModel.IsUpdateAllExcludedReShade(gameName),
-            OnContent = "Yes",
-            OffContent = "No",
-            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
-            FontSize = 11,
-            MinWidth = 0,
+            summaryPanel.Children.Clear();
+            var items = new (string label, bool isOn)[]
+            {
+                ("RS", !_window.ViewModel.IsUpdateAllExcludedReShade(capturedName)),
+                ("RDX", !_window.ViewModel.IsUpdateAllExcludedRenoDx(capturedName)),
+                ("UL", !_window.ViewModel.IsUpdateAllExcludedUl(capturedName)),
+                ("DC", !_window.ViewModel.IsUpdateAllExcludedDc(capturedName)),
+                ("OS", !_window.ViewModel.IsUpdateAllExcludedOs(capturedName)),
+            };
+            for (int i = 0; i < items.Length; i++)
+            {
+                var (label, isOn) = items[i];
+                summaryPanel.Children.Add(new TextBlock
+                {
+                    Text = $"{label}:",
+                    FontSize = 11,
+                    Foreground = UIFactory.Brush(ResourceKeys.TextTertiaryBrush),
+                    Margin = new Thickness(0, 0, 4, 0),
+                });
+                summaryPanel.Children.Add(new TextBlock
+                {
+                    Text = isOn ? "On" : "Off",
+                    FontSize = 11,
+                    Foreground = UIFactory.Brush(isOn ? ResourceKeys.AccentGreenBrush : ResourceKeys.AccentRedBrush),
+                    Margin = new Thickness(0, 0, i < items.Length - 1 ? 6 : 0, 0),
+                });
+                if (i < items.Length - 1)
+                {
+                    summaryPanel.Children.Add(new TextBlock
+                    {
+                        Text = "·",
+                        FontSize = 11,
+                        Foreground = UIFactory.Brush(ResourceKeys.TextTertiaryBrush),
+                        Margin = new Thickness(0, 0, 6, 0),
+                    });
+                }
+            }
+        }
+
+        var updateSummaryPanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 4, 0, 0),
         };
-        var rdxToggle = new ToggleSwitch
+        RefreshUpdateSummary(updateSummaryPanel);
+
+        var updateInclusionBtn = new Button
         {
-            Header = "RenoDX",
-            IsOn = !_window.ViewModel.IsUpdateAllExcludedRenoDx(gameName),
-            OnContent = "Yes",
-            OffContent = "No",
-            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
-            FontSize = 11,
-            MinWidth = 0,
-        };
-        var ulToggle = new ToggleSwitch
-        {
-            Header = "ReLimiter",
-            IsOn = !_window.ViewModel.IsUpdateAllExcludedUl(gameName),
-            OnContent = "Yes",
-            OffContent = "No",
-            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
-            FontSize = 11,
-            MinWidth = 0,
-        };
-        var dcToggle = new ToggleSwitch
-        {
-            Header = "DC",
-            IsOn = !card.ExcludeFromUpdateAllDc,
-            OnContent = "Yes",
-            OffContent = "No",
-            Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush),
-            FontSize = 11,
-            MinWidth = 0,
+            Content = "Update Inclusion",
+            Background = UIFactory.Brush(ResourceKeys.AccentBlueBgBrush),
+            Foreground = UIFactory.Brush(ResourceKeys.AccentBlueBrush),
+            BorderBrush = UIFactory.Brush(ResourceKeys.AccentBlueBorderBrush),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12, 7, 12, 7),
+            FontSize = 12,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
         };
 
-        var rsBorder = new Border
+        updateInclusionBtn.Click += async (s, ev) =>
         {
-            Child = rsToggle,
-            BorderBrush = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(8, 6, 8, 6),
-        };
-        var rdxBorder = new Border
-        {
-            Child = rdxToggle,
-            BorderBrush = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(8, 6, 8, 6),
-        };
-        var ulBorder = new Border
-        {
-            Child = ulToggle,
-            BorderBrush = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(8, 6, 8, 6),
-        };
-        var dcBorder = new Border
-        {
-            Child = dcToggle,
-            BorderBrush = UIFactory.Brush(ResourceKeys.BorderDefaultBrush),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(8, 6, 8, 6),
+            var rsCheck = new CheckBox { Content = "ReShade", IsChecked = !_window.ViewModel.IsUpdateAllExcludedReShade(capturedName), FontSize = 12, Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush), Margin = new Thickness(0, 4, 0, 4) };
+            var rdxCheck = new CheckBox { Content = "RenoDX", IsChecked = !_window.ViewModel.IsUpdateAllExcludedRenoDx(capturedName), FontSize = 12, Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush), Margin = new Thickness(0, 4, 0, 4) };
+            var ulCheck = new CheckBox { Content = "ReLimiter", IsChecked = !_window.ViewModel.IsUpdateAllExcludedUl(capturedName), FontSize = 12, Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush), Margin = new Thickness(0, 4, 0, 4) };
+            var dcCheck = new CheckBox { Content = "Display Commander", IsChecked = !_window.ViewModel.IsUpdateAllExcludedDc(capturedName), FontSize = 12, Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush), Margin = new Thickness(0, 4, 0, 4) };
+            var osCheck = new CheckBox { Content = "OptiScaler", IsChecked = !_window.ViewModel.IsUpdateAllExcludedOs(capturedName), FontSize = 12, Foreground = UIFactory.Brush(ResourceKeys.TextSecondaryBrush), Margin = new Thickness(0, 4, 0, 4) };
+
+            var checkPanel = new StackPanel { Spacing = 0 };
+            checkPanel.Children.Add(new TextBlock { Text = "Include this game in Update All for:", FontSize = 12, Foreground = UIFactory.Brush(ResourceKeys.TextPrimaryBrush), Margin = new Thickness(0, 0, 0, 8) });
+            checkPanel.Children.Add(rsCheck);
+            checkPanel.Children.Add(rdxCheck);
+            checkPanel.Children.Add(ulCheck);
+            checkPanel.Children.Add(dcCheck);
+            checkPanel.Children.Add(osCheck);
+
+            var dialog = new ContentDialog
+            {
+                Title = "Global Update Inclusion",
+                Content = checkPanel,
+                PrimaryButtonText = "Save",
+                CloseButtonText = "Cancel",
+                XamlRoot = _window.Content.XamlRoot,
+                RequestedTheme = ElementTheme.Dark,
+            };
+
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+            {
+                // Apply changes
+                if ((rsCheck.IsChecked == true) == _window.ViewModel.IsUpdateAllExcludedReShade(capturedName))
+                    _window.ViewModel.ToggleUpdateAllExclusionReShade(capturedName);
+                if ((rdxCheck.IsChecked == true) == _window.ViewModel.IsUpdateAllExcludedRenoDx(capturedName))
+                    _window.ViewModel.ToggleUpdateAllExclusionRenoDx(capturedName);
+                if ((ulCheck.IsChecked == true) == _window.ViewModel.IsUpdateAllExcludedUl(capturedName))
+                    _window.ViewModel.ToggleUpdateAllExclusionUl(capturedName);
+                if ((dcCheck.IsChecked == true) == _window.ViewModel.IsUpdateAllExcludedDc(capturedName))
+                    _window.ViewModel.ToggleUpdateAllExclusionDc(capturedName);
+                if ((osCheck.IsChecked == true) == _window.ViewModel.IsUpdateAllExcludedOs(capturedName))
+                    _window.ViewModel.ToggleUpdateAllExclusionOs(capturedName);
+
+                // Refresh summary
+                RefreshUpdateSummary(updateSummaryPanel);
+            }
         };
 
-        var toggleRow = new Grid
-        {
-            ColumnSpacing = 8,
-            RowSpacing = 8,
-        };
-        toggleRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        toggleRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        toggleRow.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        toggleRow.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        Grid.SetRow(rsBorder, 0);  Grid.SetColumn(rsBorder, 0);
-        Grid.SetRow(rdxBorder, 0); Grid.SetColumn(rdxBorder, 1);
-        Grid.SetRow(ulBorder, 1);  Grid.SetColumn(ulBorder, 0);
-        Grid.SetRow(dcBorder, 1);  Grid.SetColumn(dcBorder, 1);
-        toggleRow.Children.Add(rsBorder);
-        toggleRow.Children.Add(rdxBorder);
-        toggleRow.Children.Add(ulBorder);
-        toggleRow.Children.Add(dcBorder);
-
-        // ── Auto-save: Update inclusion toggles ──────────────────────────────────
-        rsToggle.Toggled += (s, ev) =>
-        {
-            if (!rsToggle.IsOn != _window.ViewModel.IsUpdateAllExcludedReShade(capturedName))
-                _window.ViewModel.ToggleUpdateAllExclusionReShade(capturedName);
-        };
-        rdxToggle.Toggled += (s, ev) =>
-        {
-            if (!rdxToggle.IsOn != _window.ViewModel.IsUpdateAllExcludedRenoDx(capturedName))
-                _window.ViewModel.ToggleUpdateAllExclusionRenoDx(capturedName);
-        };
-        ulToggle.Toggled += (s, ev) =>
-        {
-            if (!ulToggle.IsOn != _window.ViewModel.IsUpdateAllExcludedUl(capturedName))
-                _window.ViewModel.ToggleUpdateAllExclusionUl(capturedName);
-        };
-        dcToggle.Toggled += (s, ev) =>
-        {
-            if (!dcToggle.IsOn != _window.ViewModel.IsUpdateAllExcludedDc(capturedName))
-                _window.ViewModel.ToggleUpdateAllExclusionDc(capturedName);
-        };
+        var toggleRow = new StackPanel { Spacing = 0 };
+        toggleRow.Children.Add(updateInclusionBtn);
+        toggleRow.Children.Add(updateSummaryPanel);
 
         // ── Global update inclusion section (Middle Row right column) ────────────
         var globalUpdateColumn = new StackPanel { Spacing = 0 };
@@ -1191,10 +1282,18 @@ public partial class DetailPanelBuilder
             addonToggle.IsOn = true;
             if (renderPathCombo != null) renderPathCombo.SelectedItem = "DirectX";
             dllOverrideToggle.IsOn = false;
-            rsToggle.IsOn = true;
-            rdxToggle.IsOn = true;
-            ulToggle.IsOn = true;
-            dcToggle.IsOn = true;
+            // Reset update inclusion to all-included
+            if (_window.ViewModel.IsUpdateAllExcludedReShade(capturedName))
+                _window.ViewModel.ToggleUpdateAllExclusionReShade(capturedName);
+            if (_window.ViewModel.IsUpdateAllExcludedRenoDx(capturedName))
+                _window.ViewModel.ToggleUpdateAllExclusionRenoDx(capturedName);
+            if (_window.ViewModel.IsUpdateAllExcludedUl(capturedName))
+                _window.ViewModel.ToggleUpdateAllExclusionUl(capturedName);
+            if (_window.ViewModel.IsUpdateAllExcludedDc(capturedName))
+                _window.ViewModel.ToggleUpdateAllExclusionDc(capturedName);
+            if (_window.ViewModel.IsUpdateAllExcludedOs(capturedName))
+                _window.ViewModel.ToggleUpdateAllExclusionOs(capturedName);
+            RefreshUpdateSummary(updateSummaryPanel);
             wikiExcludeToggle.IsOn = false;
 
             // Persist all reset values immediately
@@ -1243,6 +1342,8 @@ public partial class DetailPanelBuilder
                 _window.ViewModel.ToggleUpdateAllExclusionUl(capturedName);
             if (_window.ViewModel.IsUpdateAllExcludedDc(capturedName))
                 _window.ViewModel.ToggleUpdateAllExclusionDc(capturedName);
+            if (_window.ViewModel.IsUpdateAllExcludedOs(capturedName))
+                _window.ViewModel.ToggleUpdateAllExclusionOs(capturedName);
 
             // Disable wiki exclusion
             if (_window.ViewModel.IsWikiExcluded(capturedName))

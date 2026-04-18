@@ -276,6 +276,7 @@ public static class GameReportEncoder
             new() { ["name"] = "RenoDX", ["status"] = card.RdxStatusText, ["version"] = "", ["filename"] = card.InstalledAddonFileName },
             new() { ["name"] = "ReLimiter", ["status"] = card.UlStatusText, ["version"] = "", ["filename"] = "" },
             new() { ["name"] = "Display Commander", ["status"] = card.DcStatusText, ["version"] = "", ["filename"] = "" },
+            new() { ["name"] = "OptiScaler", ["status"] = card.OsStatusText, ["version"] = card.OsInstalledVersion ?? "", ["filename"] = card.OsInstalledFile ?? "" },
         };
 
         if (card.IsREEngineGame)
@@ -302,6 +303,7 @@ public static class GameReportEncoder
             ["updateExcludedRDX"] = vm.IsUpdateAllExcludedRenoDx(gameName),
             ["updateExcludedUL"] = vm.IsUpdateAllExcludedUl(gameName),
             ["updateExcludedDC"] = vm.IsUpdateAllExcludedDc(gameName),
+            ["updateExcludedOS"] = vm.IsUpdateAllExcludedOs(gameName),
         };
 
         // Addons

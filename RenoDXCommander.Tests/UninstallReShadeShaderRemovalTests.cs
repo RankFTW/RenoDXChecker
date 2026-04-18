@@ -73,7 +73,8 @@ public class UninstallReShadeShaderRemovalTests : IDisposable
             gameInit,
             new StubREFrameworkService(),
             new StubNexusModsService(),
-            new StubPcgwService());
+            new StubPcgwService(),
+            new StubOptiScalerService());
 
         // Inject cards via reflection
         var field = typeof(MainViewModel).GetField("_allCards", BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -328,5 +329,29 @@ public class UninstallReShadeShaderRemovalTests : IDisposable
     {
         public Task LoadCacheAsync() => Task.CompletedTask;
         public Task<string?> ResolveUrlAsync(string gameName, int? steamAppId, string installPath, RemoteManifest? manifest) => Task.FromResult<string?>(null);
+        public Task FlushCacheAsync() => Task.CompletedTask;
+    }
+
+    private class StubOptiScalerService : IOptiScalerService
+    {
+        public bool IsStagingReady => false;
+        public bool HasUpdate => false;
+        public string? StagedVersion => null;
+        public bool FirstTimeWarningAcknowledged { get; set; }
+        public Task EnsureStagingAsync(IProgress<(string message, double percent)>? progress = null) => Task.CompletedTask;
+        public Task CheckForUpdateAsync() => Task.CompletedTask;
+        public void ClearStaging() { }
+        public Task EnsureDlssStagingAsync(IProgress<(string message, double percent)>? progress = null) => Task.CompletedTask;
+        public Task<AuxInstalledRecord?> InstallAsync(GameCardViewModel card, IProgress<(string message, double percent)>? progress = null, string gpuType = "NVIDIA", bool dlssInputs = true, string? hotkey = null) => Task.FromResult<AuxInstalledRecord?>(null);
+        public void Uninstall(GameCardViewModel card) { }
+        public Task UpdateAsync(GameCardViewModel card, IProgress<(string message, double percent)>? progress = null) => Task.CompletedTask;
+        public void CopyIniToGame(GameCardViewModel card) { }
+        public string? DetectInstallation(string installPath) => null;
+        public bool IsOptiScalerFile(string filePath) => false;
+        public List<AuxInstalledRecord> LoadAllRecords() => new();
+        public AuxInstalledRecord? FindRecord(string gameName, string installPath) => null;
+        public string GetEffectiveOsDllName(string gameName) => "dxgi.dll";
+        public void SetHotkey(string hotkeyValue) { }
+        public void ApplyHotkeyToAllGames(string hotkeyValue) { }
     }
 }

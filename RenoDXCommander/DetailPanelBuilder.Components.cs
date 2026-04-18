@@ -100,7 +100,7 @@ public partial class DetailPanelBuilder
 
         // ReLimiter row — hidden when in Luma mode
         _window.DetailUlRow.Visibility = card.UlRowVisibility;
-        _window.DetailUlRow.Opacity = (card.UseNormalReShade || card.IsDcInstalled || card.Is32Bit) ? 0.35 : 1.0;
+        _window.DetailUlRow.Opacity = (card.UseNormalReShade || card.IsDcInstalled || card.Is32Bit || !card.IsRsInstalled) ? 0.35 : 1.0;
         _window.DetailUlRow.IsHitTestVisible = !card.UseNormalReShade;
         if (card.UlRowVisibility == Visibility.Visible)
         {
@@ -136,7 +136,7 @@ public partial class DetailPanelBuilder
 
         // Display Commander row — always visible (available in Luma mode)
         _window.DetailDcRow.Visibility = card.DcRowVisibility;
-        _window.DetailDcRow.Opacity = (card.UseNormalReShade || card.IsUlInstalled) ? 0.35 : 1.0;
+        _window.DetailDcRow.Opacity = (card.UseNormalReShade || card.IsUlInstalled || !card.IsRsInstalled) ? 0.35 : 1.0;
         _window.DetailDcRow.IsHitTestVisible = !card.UseNormalReShade;
         if (card.DcRowVisibility == Visibility.Visible)
         {
@@ -170,11 +170,53 @@ public partial class DetailPanelBuilder
             _window.DetailDcDeleteBtn.IsHitTestVisible = dcShow;
         }
 
+        // OptiScaler row — always visible, greyed out for 32-bit games
+        _window.DetailOsRow.Visibility = card.OsRowVisibility;
+        _window.DetailOptionalSeparator.Visibility = card.OsRowVisibility;
+        if (card.Is32Bit)
+        {
+            _window.DetailOsRow.Opacity = 0.35;
+            _window.DetailOsRow.IsHitTestVisible = false;
+            _window.DetailOsLabel.TextDecorations = Windows.UI.Text.TextDecorations.Strikethrough;
+            _window.DetailOsStatus.TextDecorations = Windows.UI.Text.TextDecorations.Strikethrough;
+        }
+        else
+        {
+            _window.DetailOsRow.Opacity = 1.0;
+            _window.DetailOsRow.IsHitTestVisible = true;
+            _window.DetailOsLabel.TextDecorations = Windows.UI.Text.TextDecorations.None;
+        }
+        if (card.OsRowVisibility == Visibility.Visible)
+        {
+            _window.DetailOsStatus.Text = card.OsStatusText;
+            _window.DetailOsStatus.Foreground = UIFactory.GetBrush(card.OsStatusColor);
+            if (!card.Is32Bit)
+            {
+                _window.DetailOsStatus.TextDecorations = card.IsOsInstalled
+                    ? Windows.UI.Text.TextDecorations.Underline
+                    : Windows.UI.Text.TextDecorations.None;
+            }
+            _window.DetailOsInstallBtn.Tag = card;
+            _window.DetailOsInstallBtn.Content = card.OsActionLabel;
+            _window.DetailOsInstallBtn.IsEnabled = card.OsInstallEnabled;
+            _window.DetailOsInstallBtn.Background = UIFactory.GetBrush(card.OsBtnBackground);
+            _window.DetailOsInstallBtn.Foreground = UIFactory.GetBrush(card.OsBtnForeground);
+            _window.DetailOsInstallBtn.BorderBrush = UIFactory.GetBrush(card.OsBtnBorderBrush);
+            _window.DetailOsInstallBtn.BorderThickness = new Thickness(1);
+            _window.DetailOsIniBtn.Tag = card;
+            _window.DetailOsIniBtn.IsEnabled = card.OsIniExists;
+            _window.DetailOsIniBtn.Opacity = card.OsIniExists ? 1 : 0.3;
+            _window.DetailOsDeleteBtn.Tag = card;
+            var osShow = card.OsDeleteVisibility == Visibility.Visible;
+            _window.DetailOsDeleteBtn.Opacity = osShow ? 1 : 0;
+            _window.DetailOsDeleteBtn.IsHitTestVisible = osShow;
+        }
+
         // RenoDX row (also used for external-only / Discord link)
         bool showRdx = !isLumaMode;
         _window.DetailRdxRow.Visibility = showRdx ? Visibility.Visible : Visibility.Collapsed;
-        _window.DetailRdxRow.Opacity = card.UseNormalReShade ? 0.35 : 1.0;
-        _window.DetailRdxRow.IsHitTestVisible = !card.UseNormalReShade;
+        _window.DetailRdxRow.Opacity = (card.UseNormalReShade || !card.IsRsInstalled) ? 0.35 : 1.0;
+        _window.DetailRdxRow.IsHitTestVisible = !card.UseNormalReShade && card.IsRsInstalled;
         if (showRdx)
         {
             _window.DetailRdxInstallBtn.Tag = card;
@@ -308,6 +350,11 @@ public partial class DetailPanelBuilder
         _window.DetailDcMessage.Visibility = card.DcRowVisibility == Visibility.Visible ? card.DcMessageVisibility : Visibility.Collapsed;
         _window.DetailDcMessage.Text = card.DcActionMessage;
         _window.DetailDcMessage.Foreground = UIFactory.GetBrush(GetMessageColor(card.DcActionMessage));
+        _window.DetailOsProgress.Visibility = card.OsRowVisibility == Visibility.Visible ? card.OsProgressVisibility : Visibility.Collapsed;
+        _window.DetailOsProgress.Value = card.OsProgress;
+        _window.DetailOsMessage.Visibility = card.OsRowVisibility == Visibility.Visible ? card.OsMessageVisibility : Visibility.Collapsed;
+        _window.DetailOsMessage.Text = card.OsActionMessage;
+        _window.DetailOsMessage.Foreground = UIFactory.GetBrush(GetMessageColor(card.OsActionMessage));
         _window.DetailRdxProgress.Visibility = card.ProgressVisibility;
         _window.DetailRdxProgress.Value = card.InstallProgress;
         _window.DetailRdxMessage.Visibility = card.MessageVisibility;

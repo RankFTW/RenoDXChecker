@@ -26,6 +26,14 @@ public partial class AuxInstallService
             ? filenameOverride
             : RsNormalName;
 
+        // ── OptiScaler coexistence: deploy as ReShade64.dll when OptiScaler is installed ──
+        var osRecord = FindRecord(gameName, installPath, OptiScalerService.AddonType);
+        if (osRecord != null)
+        {
+            destName = OptiScalerService.ReShadeCoexistName;
+            CrashReporter.Log($"[AuxInstallService.InstallReShadeAsync] OptiScaler installed — deploying ReShade as '{destName}'");
+        }
+
         // ── DC occupancy check: avoid overwriting a DC file at the target name ──
         var dcRecord = FindRecord(gameName, installPath, "DisplayCommander");
         if (dcRecord != null &&
@@ -61,7 +69,7 @@ public partial class AuxInstallService
             throw new FileNotFoundException(
                 $"ReShade DLLs not found in staging directory.\n" +
                 $"Expected: {rsStagedPath}\n" +
-                $"Please restart RDXC to download ReShade from reshade.me.");
+                $"Please restart RHI to download ReShade from reshade.me.");
 
         // ── Back up foreign DLL at destination ──────────────────────────────────
         BackupForeignDll(destPath);
