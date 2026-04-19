@@ -848,9 +848,10 @@
                             VerticalAlignment="Center" HorizontalAlignment="Left"
                             Canvas.ZIndex="1"
                             Visibility="{x:Bind ViewModel.CompactViewVisibility, Mode=OneWay}"
-                            Background="{StaticResource SurfaceOverlayBrush}"
+                            Background="{StaticResource SurfaceInputBrush}"
                             Foreground="{StaticResource AccentTealBrush}"
-                            BorderThickness="0" FontSize="18"
+                            BorderBrush="{StaticResource AccentTealBorderBrush}" BorderThickness="1"
+                            CornerRadius="8" FontSize="18"
                             Padding="8,16" Margin="4,0"/>
 
                     <Button x:Name="CompactNavRight"
@@ -858,9 +859,10 @@
                             VerticalAlignment="Center" HorizontalAlignment="Right"
                             Canvas.ZIndex="1"
                             Visibility="{x:Bind ViewModel.CompactViewVisibility, Mode=OneWay}"
-                            Background="{StaticResource SurfaceOverlayBrush}"
+                            Background="{StaticResource SurfaceInputBrush}"
                             Foreground="{StaticResource AccentTealBrush}"
-                            BorderThickness="0" FontSize="18"
+                            BorderBrush="{StaticResource AccentTealBorderBrush}" BorderThickness="1"
+                            CornerRadius="8" FontSize="18"
                             Padding="8,16" Margin="0,0,4,0"/>
 
                     <!-- Skeleton detail panel overlay (removed programmatically after first load) -->

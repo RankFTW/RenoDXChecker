@@ -11,13 +11,32 @@
 **View-specific loading skeletons**
 - The loading skeleton now matches your last-used view. Grid View shows a card grid skeleton, Detail and Compact Views show the detail panel skeleton.
 
+**Manifest author overrides**
+- Mod authors can now be set via the remote manifest for games that aren't on the wiki. Author badges and donation links work the same as wiki-sourced authors.
+
+### Changes
+
+- The toolbar button now shows the name of the current view mode instead of the next mode.
+- Manifest `forceExternalOnly` entries pointing to Nexus Mods now show a "Nexus" badge instead of "Discord".
+- Nav arrow buttons in Compact View now match the toolbar button styling.
+
 ### Bug Fixes
 
 **Xbox / Game Pass games no longer lose mods after game updates**
 - When a Game Pass game updates, Windows changes its install folder path. Previously this caused RHI to lose track of installed mods, showing them as needing reinstall. RHI now detects the path change and migrates your installed mods (RenoDX, ReShade, Display Commander, OptiScaler) to the new folder automatically.
 
+**ReShade detection for ReShade64.dll / ReShade32.dll**
+- Fixed ReShade not being detected when installed using its own filename (ReShade64.dll or ReShade32.dll) rather than a proxy DLL name like dxgi.dll.
+
+**Manifest forceExternalOnly badge and label fixes**
+- Fixed `forceExternalOnly` entries being skipped when the game was already marked as external-only from wiki matching. The manifest URL and label now always take priority.
+- Fixed the Discord badge showing for games whose manifest entry points to Nexus Mods.
+
 **Window position remembered in Compact View**
 - Fixed the app not restoring its window position on startup when Compact View was the last-used mode.
+
+**Manifest JSON parse error**
+- Removed stray backtick characters in the blacklist that caused the manifest to fail parsing from the GitHub API.
 
 ## v1.8.0
 

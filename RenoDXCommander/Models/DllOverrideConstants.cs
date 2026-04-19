@@ -17,6 +17,8 @@ public static class DllOverrideConstants
         "xinput1_3.dll",
         "msvcp140.dll",
         "bink2w64.dll",
+        "ReShade64.dll",
+        "ReShade32.dll",
     ];
 
 }

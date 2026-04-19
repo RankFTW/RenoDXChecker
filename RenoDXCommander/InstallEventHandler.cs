@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using RenoDXCommander.Services;
 using RenoDXCommander.ViewModels;
 
 namespace RenoDXCommander;
@@ -205,6 +206,31 @@ public class InstallEventHandler
                 useDlssInputs,
                 ViewModel.Settings.OsHotkey);
 
+            // ── PD-Upscaler REFramework swap for compatible RE Engine games ──
+            if (ViewModel.Manifest?.PdUpscalerGames != null
+                && ViewModel.Manifest.PdUpscalerGames.TryGetValue(card.GameName, out var pdArtifact)
+                && File.Exists(Path.Combine(card.InstallPath, "dinput8.dll")))
+            {
+                try
+                {
+                    card.OsActionMessage = "Installing PD-Upscaler REFramework...";
+                    await ViewModel.REFrameworkServiceInstance.InstallPdUpscalerAsync(
+                        card.GameName, card.InstallPath, pdArtifact,
+                        new Progress<(string message, double percent)>(p =>
+                        {
+                            card.OsActionMessage = p.message;
+                            card.OsProgress = p.percent;
+                        }));
+                    card.RefInstalledVersion = "PD-Upscaler";
+                    card.NotifyAll();
+                }
+                catch (Exception pdEx)
+                {
+                    // PD-Upscaler failure is non-fatal — OptiScaler is already installed
+                    CrashReporter.Log($"[InstallEventHandler] PD-Upscaler install failed (non-fatal): {pdEx.Message}");
+                }
+            }
+
             card.OsActionMessage = "✅ OptiScaler installed!";
             card.NotifyAll();
             card.FadeMessage(m => card.OsActionMessage = m, card.OsActionMessage);
@@ -224,6 +250,18 @@ public class InstallEventHandler
         if ((sender as FrameworkElement)?.Tag is not GameCardViewModel card) return;
         try
         {
+            // ── Restore standard REFramework if pd-upscaler was swapped in ──
+            if (ViewModel.Manifest?.PdUpscalerGames != null
+                && ViewModel.Manifest.PdUpscalerGames.ContainsKey(card.GameName))
+            {
+                ViewModel.REFrameworkServiceInstance.RestoreStandardREFramework(
+                    card.GameName, card.InstallPath);
+                // Restore the version display to the standard REFramework version
+                if (card.RefRecord != null)
+                    card.RefInstalledVersion = card.RefRecord.InstalledVersion;
+                card.NotifyAll();
+            }
+
             ViewModel.OptiScalerServiceInstance.Uninstall(card);
             card.OsActionMessage = "✖ OptiScaler removed.";
             card.NotifyAll();

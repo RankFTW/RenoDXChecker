@@ -174,4 +174,14 @@ public class RemoteManifest
     /// </summary>
     [JsonPropertyName("authorOverrides")]
     public Dictionary<string, string>? AuthorOverrides { get; set; }
+
+    /// <summary>
+    /// RE Engine games that require the pd-upscaler branch of REFramework when
+    /// OptiScaler is installed. The pd-upscaler build resolves compatibility
+    /// issues between standard REFramework and OptiScaler on these titles.
+    /// Key = game name (as detected by RHI), Value = nightly.link artifact name
+    /// (e.g. "RE2", "RE3", "RE4", "RE7", "RE8").
+    /// </summary>
+    [JsonPropertyName("pdUpscalerGames")]
+    public Dictionary<string, string>? PdUpscalerGames { get; set; }
 }

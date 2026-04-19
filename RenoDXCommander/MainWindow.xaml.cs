@@ -73,10 +73,11 @@ public sealed partial class MainWindow : Window
         // Set a sensible default size immediately so the window isn't huge on first launch.
         // TryRestoreWindowBounds (called on Activated) will then override this with the
         // saved size+position from the previous session, if one exists.
-        if (ViewModel.CurrentViewLayout == ViewLayout.Compact)
-            AppWindow.Resize(new Windows.Graphics.SizeInt32(1050, 750));
-        else
+        if (ViewModel.CurrentViewLayout != ViewLayout.Compact)
             AppWindow.Resize(new Windows.Graphics.SizeInt32(DefaultWidth, DefaultHeight));
+        // For compact mode, sizing is handled entirely by ApplyCompactSize in the
+        // Activated handler using SetWindowPos, which avoids the size mismatch between
+        // AppWindow.Resize (client area) and SetWindowPos (full window frame).
 
         // Enforce minimum window size and enable Win32 drag-and-drop via WindowStateManager
         var hwnd = WindowNative.GetWindowHandle(this);
@@ -85,8 +86,14 @@ public sealed partial class MainWindow : Window
         _windowStateManager.InstallWndProcSubclass();
         _windowStateManager.EnableDragAccept();
 
-        // Compact size and lock are applied in MainWindow_Activated after TryRestoreWindowBounds
-        // so the saved window position is preserved.
+        // Apply compact size and lock immediately in the constructor.
+        // There may be a tiny WinUI layout adjustment on first render, but the lock
+        // prevents the user from resizing the window freely.
+        if (ViewModel.CurrentViewLayout == ViewLayout.Compact)
+        {
+            _windowStateManager.ApplyCompactSize();
+            _windowStateManager.SetSizeLocked(true);
+        }
 
         // Set the title bar icon (unpackaged apps need this explicitly)
         var exeDir = Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
@@ -159,7 +166,7 @@ public sealed partial class MainWindow : Window
 
             if (ViewModel.CurrentViewLayout == ViewLayout.Compact)
             {
-                // Compact mode: restore position only, then apply the fixed compact size
+                // Compact mode: restore position only, then apply the fixed compact size and lock.
                 _windowStateManager.TryRestoreWindowBounds(positionOnly: true);
                 _windowStateManager.ApplyCompactSize();
                 _windowStateManager.SetSizeLocked(true);

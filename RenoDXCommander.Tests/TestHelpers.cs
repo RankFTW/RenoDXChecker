@@ -206,6 +206,8 @@ internal static class TestHelpers
         public Task<bool> CheckForUpdateAsync(string installedVersion) => Task.FromResult(false);
         public Task<string?> GetLatestVersionAsync() => Task.FromResult<string?>(null);
         public List<REFrameworkInstalledRecord> GetRecords() => new();
+        public Task InstallPdUpscalerAsync(string gameName, string installPath, string artifactName, IProgress<(string message, double percent)>? progress = null) => Task.CompletedTask;
+        public void RestoreStandardREFramework(string gameName, string installPath) { }
     }
 
     internal class StubNexusModsService : INexusModsService
