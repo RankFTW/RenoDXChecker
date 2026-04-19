@@ -262,6 +262,160 @@ public class REFrameworkService : IREFrameworkService
         RemoveRecord(gameName, installPath);
     }
 
+    // ── PD-Upscaler (OptiScaler compatibility) ────────────────────────────────────
+
+    private const string PdUpscalerDownloadBase =
+        "https://nightly.link/praydog/REFramework/workflows/dev-release/pd-upscaler/";
+
+    private const string StandardBackupSuffix = ".rhi_standard_backup";
+
+    /// <inheritdoc />
+    public async Task InstallPdUpscalerAsync(
+        string gameName, string installPath, string artifactName,
+        IProgress<(string message, double percent)>? progress = null)
+    {
+        var downloadUrl = $"{PdUpscalerDownloadBase}{artifactName}.zip";
+        var destDll = Path.Combine(installPath, DllFileName);
+        var backupPath = destDll + StandardBackupSuffix;
+        var tempDir = Path.Combine(Path.GetTempPath(), $"rhi_pdupscaler_{Guid.NewGuid():N}");
+
+        try
+        {
+            Directory.CreateDirectory(tempDir);
+
+            // ── Download outer ZIP from nightly.link ──────────────────────────
+            progress?.Report(("Downloading PD-Upscaler REFramework...", 10));
+            CrashReporter.Log($"[REFrameworkService.InstallPdUpscalerAsync] Downloading {downloadUrl}");
+
+            var outerZipPath = Path.Combine(tempDir, $"{artifactName}_outer.zip");
+            using (var response = await _http.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead))
+            {
+                response.EnsureSuccessStatusCode();
+                await using var fs = new FileStream(outerZipPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                await response.Content.CopyToAsync(fs);
+            }
+
+            progress?.Report(("Extracting PD-Upscaler REFramework...", 40));
+
+            // ── Extract outer ZIP → inner {artifactName}.zip ──────────────────
+            var outerExtractDir = Path.Combine(tempDir, "outer");
+            ZipFile.ExtractToDirectory(outerZipPath, outerExtractDir);
+
+            var innerZipPath = Path.Combine(outerExtractDir, $"{artifactName}.zip");
+            if (!File.Exists(innerZipPath))
+            {
+                // Fallback: look for any .zip inside the outer archive
+                innerZipPath = Directory.GetFiles(outerExtractDir, "*.zip").FirstOrDefault()
+                    ?? throw new FileNotFoundException(
+                        $"Inner ZIP not found in pd-upscaler download for {artifactName}");
+            }
+
+            // ── Extract inner ZIP → dinput8.dll ───────────────────────────────
+            var innerExtractDir = Path.Combine(tempDir, "inner");
+            ZipFile.ExtractToDirectory(innerZipPath, innerExtractDir);
+
+            var extractedDll = Path.Combine(innerExtractDir, DllFileName);
+            if (!File.Exists(extractedDll))
+                throw new FileNotFoundException(
+                    $"{DllFileName} not found inside pd-upscaler inner ZIP for {artifactName}");
+
+            progress?.Report(("Backing up standard REFramework...", 60));
+
+            // ── Back up existing standard dinput8.dll ─────────────────────────
+            if (File.Exists(destDll) && !File.Exists(backupPath))
+            {
+                File.Copy(destDll, backupPath, overwrite: false);
+                CrashReporter.Log($"[REFrameworkService.InstallPdUpscalerAsync] Backed up standard {DllFileName} → {Path.GetFileName(backupPath)}");
+            }
+
+            // ── Copy pd-upscaler DLL to game folder ──────────────────────────
+            progress?.Report(("Installing PD-Upscaler REFramework...", 80));
+            File.Copy(extractedDll, destDll, overwrite: true);
+
+            // ── Update install record with PD-Upscaler version ───────────────
+            var records = LoadRecords();
+            var existing = records.FirstOrDefault(r =>
+                r.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase) &&
+                r.InstallPath.Equals(installPath, StringComparison.OrdinalIgnoreCase));
+
+            if (existing != null)
+            {
+                existing.InstalledVersion = "PD-Upscaler";
+                existing.InstalledAt = DateTime.UtcNow;
+                SaveRecords(records);
+            }
+            else
+            {
+                SaveRecord(new REFrameworkInstalledRecord
+                {
+                    GameName = gameName,
+                    InstallPath = installPath,
+                    InstalledVersion = "PD-Upscaler",
+                    InstalledAt = DateTime.UtcNow,
+                });
+            }
+
+            progress?.Report(("PD-Upscaler REFramework installed!", 100));
+            CrashReporter.Log($"[REFrameworkService.InstallPdUpscalerAsync] PD-Upscaler installed for '{gameName}'");
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"[REFrameworkService.InstallPdUpscalerAsync] Failed for '{gameName}' — {ex.Message}");
+            throw;
+        }
+        finally
+        {
+            // ── Clean up temp files ───────────────────────────────────────────
+            try { if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true); }
+            catch (Exception ex)
+            {
+                CrashReporter.Log($"[REFrameworkService.InstallPdUpscalerAsync] Temp cleanup failed — {ex.Message}");
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public void RestoreStandardREFramework(string gameName, string installPath)
+    {
+        var dllPath = Path.Combine(installPath, DllFileName);
+        var backupPath = dllPath + StandardBackupSuffix;
+
+        if (!File.Exists(backupPath))
+        {
+            CrashReporter.Log($"[REFrameworkService.RestoreStandardREFramework] No backup found at {backupPath}");
+            return;
+        }
+
+        try
+        {
+            // Delete the pd-upscaler DLL and restore the standard backup
+            if (File.Exists(dllPath))
+                File.Delete(dllPath);
+
+            File.Move(backupPath, dllPath);
+
+            // Restore the version in the install record
+            var records = LoadRecords();
+            var existing = records.FirstOrDefault(r =>
+                r.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase) &&
+                r.InstallPath.Equals(installPath, StringComparison.OrdinalIgnoreCase));
+
+            if (existing != null)
+            {
+                // Restore to the cached latest version, or "unknown" if unavailable
+                existing.InstalledVersion = _cachedLatestVersion ?? "unknown";
+                existing.InstalledAt = DateTime.UtcNow;
+                SaveRecords(records);
+            }
+
+            CrashReporter.Log($"[REFrameworkService.RestoreStandardREFramework] Restored standard {DllFileName} for '{gameName}'");
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"[REFrameworkService.RestoreStandardREFramework] Failed for '{gameName}' — {ex.Message}");
+        }
+    }
+
     // ── Persistence ───────────────────────────────────────────────────────────────
 
     public List<REFrameworkInstalledRecord> GetRecords() => LoadRecords();

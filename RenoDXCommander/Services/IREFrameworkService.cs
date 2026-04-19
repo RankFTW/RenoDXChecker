@@ -26,4 +26,16 @@ public interface IREFrameworkService
 
     /// <summary>Loads all persisted install records from disk.</summary>
     List<REFrameworkInstalledRecord> GetRecords();
+
+    /// <summary>
+    /// Downloads and installs the pd-upscaler branch of REFramework for OptiScaler compatibility.
+    /// The pd-upscaler builds are double-zipped from nightly.link.
+    /// </summary>
+    Task InstallPdUpscalerAsync(string gameName, string installPath, string artifactName,
+        IProgress<(string message, double percent)>? progress = null);
+
+    /// <summary>
+    /// Restores the standard REFramework dinput8.dll from backup after OptiScaler uninstall.
+    /// </summary>
+    void RestoreStandardREFramework(string gameName, string installPath);
 }

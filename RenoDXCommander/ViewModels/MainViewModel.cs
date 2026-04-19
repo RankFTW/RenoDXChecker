@@ -51,6 +51,8 @@ public partial class MainViewModel : ObservableObject
     public IPeHeaderService PeHeaderServiceInstance => _peHeaderService;
     public IAuxInstallService AuxInstallServiceInstance => _auxInstaller;
     public IOptiScalerService OptiScalerServiceInstance => _optiScalerService;
+    public IREFrameworkService REFrameworkServiceInstance => _refService;
+    public RemoteManifest? Manifest => _manifest;
 
     public bool SkipUpdateCheck
     {
