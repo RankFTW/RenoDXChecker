@@ -193,7 +193,8 @@
 	"Borderlands: The Pre-Sequel": "Binaries\\Win32",
 	"Hades": "x64",
 	"Deus Ex - Mankind Divided": "retail",
-  "Five Nights at Freddy's: Security Breach": "fnaf9\\Binaries\\Win64"
+  "Five Nights at Freddy's: Security Breach": "fnaf9\\Binaries\\Win64",
+	"Satisfactory": "Engine\\Binaries\\Win64"
   },
   "snapshotOverrides": {
 	"Assassin's Creed": "https://clshortfuse.github.io/renodx/renodx-asscreed1.addon32",
