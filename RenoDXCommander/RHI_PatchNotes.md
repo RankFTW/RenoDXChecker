@@ -3,32 +3,23 @@
 ### New Features
 
 **Per-addon Info buttons**
-- Every component row (RE Framework, ReShade, RenoDX, ReLimiter, Display Commander, OptiScaler, Luma) now has an "Info" button that opens a dialog with contextual information for the selected game.
-- Content is resolved through a three-tier priority system: per-game manifest notes → wiki-scraped content → generic addon description.
-- Info buttons with per-game or wiki content are highlighted in blue. Buttons with only generic fallback text use the default muted style.
-- Tooltips show "Per-game notes available", "Wiki info available", or "General addon info" on hover.
-- Works across all three view modes: Detail, Grid/Card flyout, and Compact.
+- Each component (RE Framework, ReShade, RenoDX, ReLimiter, Display Commander, OptiScaler, Luma) now has an "Info" button next to its install button.
+- Clicking it opens a dialog with game-specific notes, wiki compatibility data, or a general description of the addon.
+- Buttons with game-specific content are highlighted in blue so you can spot them at a glance.
+- Works in Detail, Grid, and Compact views.
 
-**OptiScaler wiki integration**
-- OptiScaler Info buttons now show compatibility data scraped from the OptiScaler wiki, including working status, supported upscalers (DLSS/FSR/XeSS), notes, and links to detailed wiki pages.
-- Both the standard Compatibility List and FSR4 Compatibility List are fetched at startup and displayed as separate sections when both exist.
-- 30 Steam-to-wiki name mappings ensure games like Resident Evil 2, Dead Space, S.T.A.L.K.E.R. 2, and others match correctly despite naming differences between Steam and the wiki.
+**OptiScaler wiki compatibility info**
+- The OptiScaler Info button now pulls compatibility data directly from the OptiScaler wiki — working status, supported upscalers, notes, and links to detailed wiki pages.
+- Both the standard and FSR4 compatibility lists are included.
 
-**Header button migration**
-- The header-level "ℹ" (Notes) and "💬" (Discussion) buttons have been removed. Their RenoDX wiki notes and discussion link functionality is now available through the per-addon RenoDX Info button.
+**Notes and Discussion buttons moved**
+- The "ℹ" and "💬" buttons from the game header have been replaced by the new per-addon Info buttons. RenoDX notes and wiki links are now on the RenoDX Info button.
 
 ### Bug Fixes
 
-- Fixed "Skipped — unknown dxgi.dll" warning appearing during Update All ReShade when OptiScaler is installed. The updater now recognises OptiScaler's dxgi.dll and proceeds normally.
-- Fixed OptiScaler wiki not matching games with trademark symbols (®, ™) in their Steam names (e.g. "Borderlands® 4").
-- Fixed smart/curly apostrophes in wiki game names preventing matches (e.g. Assassin's Creed Shadows).
-- Fixed duplicate "View wiki page" link in the OptiScaler Info dialog when per-section detail links were already shown.
-- Fixed Compact View window briefly appearing at the default position before jumping to the saved position on startup. The saved position is now restored before the window becomes visible.
-
-### Changes
-
-- Manifest reorganised into logical sections with alphabetical ordering for easier maintenance.
-- New manifest dictionaries (per-addon info entries, OptiScaler wiki name overrides) are now normalised with case-insensitive comparison on load.
+- Fixed "Skipped — unknown dxgi.dll" warning during Update All when OptiScaler is installed.
+- Fixed OptiScaler wiki not matching some games due to naming differences (e.g. Resident Evil, S.T.A.L.K.E.R., Borderlands® 4, Assassin's Creed).
+- Fixed Compact View window briefly appearing in the wrong position on startup before jumping to the saved location.
 
 ## v1.8.1
 
