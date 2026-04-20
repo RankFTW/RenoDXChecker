@@ -266,5 +266,16 @@ public class OptiScalerWikiService : IOptiScalerWikiService
         return WikiBaseUrl + href.TrimStart('.', '/');
     }
 
-    private static string Clean(string s) => HtmlEntity.DeEntitize(s ?? "").Trim();
+    private static string Clean(string s) =>
+        NormalizeQuotes(HtmlEntity.DeEntitize(s ?? "").Trim());
+
+    /// <summary>
+    /// Replaces curly/smart quotes and apostrophes with their straight ASCII equivalents
+    /// so wiki game names match Steam names which use standard characters.
+    /// </summary>
+    private static string NormalizeQuotes(string s) =>
+        s.Replace('\u2018', '\'')  // left single quote  → '
+         .Replace('\u2019', '\'')  // right single quote → '
+         .Replace('\u201C', '"')   // left double quote  → "
+         .Replace('\u201D', '"');  // right double quote → "
 }

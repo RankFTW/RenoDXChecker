@@ -1,47 +1,51 @@
 {
   "version": 1,
+
+  "_comment_lists": "=== GAME CLASSIFICATION LISTS ===",
+
   "blacklist": [
-    "Steamworks Common Redistributables",
-    "QuickPasta",
-    "Apple Music",
-    "DSX",
-    "PlayStation®VR2 App",
-    "SteamVR",
-    "Telegram Desktop",
-    "Windows",
-    "ShaderGlass",
-    "Soundpad",
     "3D Mark",
-    "Borderless Gaming",
-    "Lossless Scaling",
-    "OCCT",
-    "Battle.net.exe",
-    "Battle.net.16125",
+    "Apple Music",
     "Battle.net.15492",
     "Battle.net.15561",
+    "Battle.net.16014",
     "Battle.net.16089",
     "Battle.net.16111",
-    "Battle.net.16014",
+    "Battle.net.16125",
     "Battle.net.17296",
+    "Battle.net.exe",
+    "Borderless Gaming",
     "Call of Duty: Modern Warfare 3 - Dedicated Server",
+    "DOOM: The Dark Ages Campaign DLC",
+    "DOOM: The Dark Ages Divinity Skin Pack",
+    "DOOM: The Dark Ages Void DOOM Slayer Skin",
+    "DSX",
+    "Indiana Jones and the Great Circle: The Last Crusade Pack - Lion Tamer Whip",
+    "Indiana Jones and the Great Circle: The Last Crusade Pack - Traveling Suit Outfit",
+    "Lossless Scaling",
+    "Masters Vacation Pack",
     "Muckingham Files 3",
     "Muckingham Files 4",
+    "MWII: Campaign Pack",
+    "OCCT",
+    "PlayStation®VR2 App",
     "Pool Party - Summer",
+    "QuickPasta",
+    "ShaderGlass",
+    "Soundpad",
+    "Special Job Pack",
+    "Special Outfit: Hello Work Employee (Kasuga)",
+    "Steamworks Common Redistributables",
+    "SteamVR",
+    "Sujimon Battle & Special Resort Pack",
+    "Telegram Desktop",
+    "Wallpaper Engine",
+    "Windows",
     "Winter 2023 Seasonal Pack",
-	"Wallpaper Engine",
-	"DOOM: The Dark Ages Campaign DLC",
-	"DOOM: The Dark Ages Divinity Skin Pack",
-	"DOOM: The Dark Ages Void DOOM Slayer Skin",
-	"MWII: Campaign Pack",
-	"Special Outfit: Hello Work Employee (Kasuga)",
-	"Sujimon Battle & Special Resort Pack",
-	"Special Job Pack",
-	"Yakuza CD Collection Pack",
-	"Masters Vacation Pack",
-	"Assorted Outfit Pack",
-	"Indiana Jones and the Great Circle: The Last Crusade Pack - Traveling Suit Outfit",
-	"Indiana Jones and the Great Circle: The Last Crusade Pack - Lion Tamer Whip"
+    "Yakuza CD Collection Pack",
+    "Assorted Outfit Pack"
   ],
+
   "nativeHdrGames": [
     "Alone in the Dark",
     "Avowed",
@@ -56,6 +60,7 @@
     "Returnal",
     "Still Wakes the Deep"
   ],
+
   "ueExtendedGames": [
     "Crisol: Theater of Idols",
     "Echoes of the End",
@@ -65,162 +70,215 @@
     "ROMEO IS A DEAD MAN",
     "Titan Quest II"
   ],
+
   "thirtyTwoBitGames": [
     "Batman: Arkham Asylum GOTY Edition",
     "Far Cry 3",
     "Max Payne 3",
-    "Tomb Raider (2013)",
+    "Ori and the Blind Forest: Definitive Edition",
     "Tomb Raider",
-    "Ori and the Blind Forest: Definitive Edition"
+    "Tomb Raider (2013)"
   ],
+
   "sixtyFourBitGames": [
-    "Superhot",
-	"BeamNG.drive",
-	"Stardew Valley",
-	"Hades II",
-	"Control",
-	"Control Ultimate Edition"
+    "BeamNG.drive",
+    "Control",
+    "Control Ultimate Edition",
+    "Hades II",
+    "Stardew Valley",
+    "Superhot"
   ],
-  "engineOverrides": {
-    "Cities: Skylines": "Unity",
-    "Greedfall: The Dying World": "Silk Engine",
-	"Satisfactory": "Unreal",
-    "Terraria": "Scrungus Engine",
-	"The Elder Scrolls III: Morrowind": "Creation Engine",
-	"Crimson Desert": "BlackSpace Engine",
-	"Control": "Northlight Engine",
-	"Control Ultimate Edition": "Northlight Engine",
-	"Monster Hunter Stories 3: Twisted Reflection": "RE Engine",
-	"Resident Evil Village": "RE Engine"	
-  },
-  "graphicsApiOverrides": {
-	"Baldur's Gate 3": "DX12, VLK",
-    "Burnout Paradise Remastered": "DX11",
-	"BurnoutPR": "DX11",
-	"Dying Light: The Beast": "DX12",
-	"Red Dead Redemption 2": "VLK",
-	"The Witcher 3: Wild Hunt": "DX12",
-	"The Witcher 3: Wild Hunt - Game of the Year Edition": "DX12",	
-	"Dying Light": "DX11",
-    "Doom: The Dark Ages": "VLK",
-	"Indiana Jones and the Great Circle": "VLK"
-  },
-  "dllNameOverrides": {
-	"The Elder Scrolls III: Morrowind": { "reshade": "opengl32.dll", "dc": "" },
-	"Terraria": { "reshade": "d3d9.dll", "dc": "" },
-	"Borderlands: The Pre-Sequel": { "reshade": "d3d9.dll", "dc": "" },
-	"Ori and the Blind Forest: Definitive Edition": { "reshade": "dxgi.dll", "dc": "" },
-	"Aliens: Dark Descent": { "reshade": "dxgi.dll", "dc": "" }
-  },
-  "gacSymlinkGames": {
-	"Terraria": "C:\\Windows\\Microsoft.NET\\assembly\\GAC_32\\Microsoft.Xna.Framework.Graphics\\v4.0_4.0.0.0__842cf8be1de50553"
-  },
-  "wikiNameOverrides": {	
-	"Assassin's Creed": "Assassin's Creed™: Director's Cut Edition",
+
+  "lumaDefaultGames": [
+    "Bioshock 2 Remastered",
+    "Bioshock Remastered",
+    "Burnout Paradise Remastered",
+    "BurnoutPR",
+    "FINAL FANTASY VII REMAKE INTERGRADE",
+    "Hollow Knight: Silksong",
+    "Inside",
+    "Nioh: Complete Edition"
+  ],
+
+  "wikiUnlinks": [
+    "Call of Duty®: Modern Warfare®",
+    "Dead by Daylight",
+    "Dead Island",
+    "Death's Door",
+    "Descenders",
+    "Elin",
+    "Greedfall: The Dying World",
+    "Haste",
+    "LEGO® Builder's Journey",
+    "MIO: Memories in Orbit",
+    "Northern Journey",
+    "REANIMAL",
+    "Resident Evil",
+    "Spark the Electric Jester 3",
+    "Stardew Valley",
+    "XF Extreme Formula"
+  ],
+
+  "_comment_overrides": "=== NAME, PATH & ENGINE OVERRIDES ===",
+
+  "wikiNameOverrides": {
+    "Assassin's Creed": "Assassin's Creed™: Director's Cut Edition",
+    "Borderlands 2": "Borderlands 2 & The Pre-Sequel",
+    "Borderlands: The Pre-Sequel": "Borderlands 2 & The Pre-Sequel",
     "BurnoutPR": "Burnout Paradise Remastered",
-	"Dead Island Definitive Edition": "Dead Island (& Riptide) Definitive Edition",
+    "Dead Island Definitive Edition": "Dead Island (& Riptide) Definitive Edition",
+    "Deus Ex: Human Revolution - Director's Cut": "Deus Ex: Human Revolution",
+    "Devil May Cry 5": "Devil May Cry V",
     "DRAGON QUEST VII Reimagined": "Dragon Quest VII Remake",
     "DRAGON QUEST® XI S: Echoes of an Elusive Age™ - Definitive Edition": "Dragon Quest XI (Original & DE)",
+    "Dying Light": "Dying Light",
+    "ELDEN RING": "Elden Ring",
     "EVERSPACE™ 2": "EVERSPACE 2",
     "Far Cry 2": "Far Cry 2 (dx10) · Far Cry 3 (dx11)",
     "Far Cry 3": "Far Cry 2 (dx10) · Far Cry 3 (dx11)",
-    "FINAL FANTASY VII REMAKE INTERGRADE": "Final Fantasy VII Remake",
     "FINAL FANTASY VII REBIRTH": "Final Fantasy 7 : Rebirth",
-	"Grand Theft Auto: San Andreas – The Definitive Edition": "Grand Theft Auto: The Trilogy – The Definitive Edition (III, Vice City, San Andreas)",
-	"Grand Theft Auto III – The Definitive Edition": "Grand Theft Auto: The Trilogy – The Definitive Edition (III, Vice City, San Andreas)",
-	"Grand Theft Auto: Vice City – The Definitive Edition": "Grand Theft Auto: The Trilogy – The Definitive Edition (III, Vice City, San Andreas)",	
-    "ELDEN RING": "Elden Ring",
-	"Nioh: Complete Edition": "Nioh",
+    "FINAL FANTASY VII REMAKE INTERGRADE": "Final Fantasy VII Remake",
+    "God of War": "God of War (2018)",
+    "Grand Theft Auto III – The Definitive Edition": "Grand Theft Auto: The Trilogy – The Definitive Edition (III, Vice City, San Andreas)",
+    "Grand Theft Auto: San Andreas – The Definitive Edition": "Grand Theft Auto: The Trilogy – The Definitive Edition (III, Vice City, San Andreas)",
+    "Grand Theft Auto: Vice City – The Definitive Edition": "Grand Theft Auto: The Trilogy – The Definitive Edition (III, Vice City, San Andreas)",
+    "Hades II": "Hades 2",
     "Jedi Survivor": "STAR WARS Jedi: Survivor™",
-	"Red Dead Redemption 2": "Red Dead Redemption 2 (Vulkan)",
-	"Persona 5 Royal": "Persona 5 Royal (Remake from Ersh's)",
-	"Minecraft for Windows": "Minecraft: Bedrock Edition",
-	"Hades II": "Hades 2",
-	"Devil May Cry 5": "Devil May Cry V",
-	"Borderlands: The Pre-Sequel": "Borderlands 2 & The Pre-Sequel",
-	"Borderlands 2": "Borderlands 2 & The Pre-Sequel",
-	"Dying Light": "Dying Light",
-	"Total War: WARHAMMER III": "Total War: Warhammer 3",
-	"God of War": "God of War (2018)",
-    "Deus Ex: Human Revolution - Director's Cut": "Deus Ex: Human Revolution",
-	"Terraria": "Terraria"
+    "Minecraft for Windows": "Minecraft: Bedrock Edition",
+    "Nioh: Complete Edition": "Nioh",
+    "Persona 5 Royal": "Persona 5 Royal (Remake from Ersh's)",
+    "Red Dead Redemption 2": "Red Dead Redemption 2 (Vulkan)",
+    "Terraria": "Terraria",
+    "Total War: WARHAMMER III": "Total War: Warhammer 3"
   },
+
   "wikiStatusOverrides": {
-    "Code Vein II": "✅",	
+    "Code Vein II": "✅",
     "High On Life 2": "✅",
     "Lies of P": "✅",
     "Nobody Wants to Die": "✅"
   },
-  "wikiUnlinks": [
-	"Dead Island",
-    "Elin",
-    "Northern Journey",
-    "Descenders",
-    "Death's Door",
-    "Greedfall: The Dying World",
-    "Haste",
-    "LEGO® Builder's Journey",
-    "Resident Evil",
-    "Spark the Electric Jester 3",
-    "XF Extreme Formula",
-	"Stardew Valley",
-	"Call of Duty®: Modern Warfare®",
-	"MIO: Memories in Orbit",
-	"Dead by Daylight",
-	"REANIMAL"
-  ],
+
+  "optiScalerWikiNames": {
+    "Alone in the Dark": "Alone in the Dark (2024)",
+    "CODE VEIN II": "Code Vein 2",
+    "Dead Space": "Dead Space (2023)",
+    "DEATH STRANDING DIRECTOR'S CUT": "Death Stranding: Director's Cut",
+    "Diablo II: Resurrected – Infernal Edition": "Diablo II: Resurrected",
+    "Dragon's Dogma 2": "Dragon's Dogma II",
+    "Dying Light 2: Reloaded Edition": "Dying Light 2",
+    "Dying Light: The Beast Restored Land": "Dying Light The Beast",
+    "God of War": "God of War (2018)",
+    "Grand Theft Auto III – The Definitive Edition": "Grand Theft Auto III – Definitive Edition",
+    "Grand Theft Auto: San Andreas – The Definitive Edition": "Grand Theft Auto: San Andreas – Definitive Edition",
+    "Grand Theft Auto: Vice City – The Definitive Edition": "Grand Theft Auto: Vice City – Definitive Edition",
+    "GreedFall: The Dying World": "GreedFall - The Dying World",
+    "Layers of Fear": "Layers of Fear (2023)",
+    "Lords of the Fallen": "Lords of the Fallen (2023)",
+    "Metro Exodus Enhanced Edition": "Metro Exodus: Enhanced Edition",
+    "Microsoft Flight Simulator (2020) 40th Anniversary Edition": "Microsoft Flight Simulator 2020",
+    "Nioh 2 – The Complete Edition": "Nioh 2",
+    "Prey": "Prey (2017)",
+    "Resident Evil 2": "Resident Evil 2 (2019)",
+    "Resident Evil 3": "Resident Evil 3 (2020)",
+    "Resident Evil 4": "Resident Evil 4 (2023)",
+    "Resident Evil Requiem": "Resident Evil 9 Requiem",
+    "Resident Evil Village": "Resident Evil 8 Village",
+    "S.T.A.L.K.E.R. 2: Heart of Chornobyl": "STALKER 2: Heart of Chornobyl",
+    "S.T.A.L.K.E.R.: Call of Prypiat - Enhanced Edition": "STALKER: Call of Prypiat Enhanced Edition",
+    "S.T.A.L.K.E.R.: Clear Sky - Enhanced Edition": "STALKER: Clear Sky Enhanced Edition",
+    "S.T.A.L.K.E.R.: Shadow of Chornobyl - Enhanced Edition": "STALKER: Shadow of Chornobyl Enhanced Edition",
+    "SILENT HILL 2": "SILENT HILL 2 (2024)",
+    "System Shock": "System Shock (2023)"
+  },
+
   "installPathOverrides": {
+    "ARMORED CORE™ VI FIRES OF RUBICON™": "Game",
     "Batman: Arkham Asylum GOTY Edition": "Binaries",
+    "Borderlands: The Pre-Sequel": "Binaries\\Win32",
+    "Crimson Desert": "bin64",
     "Cyberpunk 2077": "bin\\x64",
-	"Divinity: Original Sin 2": "DefEd\\bin",
-    "Of Ash and Steel": "ofAshAndSteelGame\\Binaries\\Win64",
+    "Deus Ex - Mankind Divided": "retail",
+    "Divinity: Original Sin 2": "DefEd\\bin",
     "ELDEN RING": "Game",
-    "Mortal Kombat 11": "Binaries\\Retail",
-    "tModLoader": "dotnet",
+    "FarCry 6": "bin",
+    "Five Nights at Freddy's: Security Breach": "fnaf9\\Binaries\\Win64",
+    "Hades": "x64",
+    "Hades II": "Ship",
+    "HITMAN 3": "Retail",
+    "HITMAN World of Assassination": "Retail",
+    "Indiana Jones and the Great Circle": "",
+    "Kingdom Come: Deliverance II": "Bin\\Win64MasterMasterSteamPGO",
     "Mirror's Edge": "Binaries",
-	"Project Motor Racing": "x64",
-	"The Witcher 3: Wild Hunt": "bin\\x64_dx12",
-	"The Witcher 3: Wild Hunt - Game of the Year Edition": "bin\\x64_dx12",
-	"Hades II": "Ship",
-	"Crimson Desert": "bin64",
-	"SILENT HILL 2": "SHProto\\Binaries\\Win64",
-	"HITMAN 3": "Retail",
-	"HITMAN World of Assassination": "Retail",
-	"FarCry 6": "bin",
-	"ARMORED CORE™ VI FIRES OF RUBICON™": "Game",
-	"Kingdom Come: Deliverance II": "Bin\\Win64MasterMasterSteamPGO",
-	"Indiana Jones and the Great Circle": "",
-	"Borderlands: The Pre-Sequel": "Binaries\\Win32",
-	"Hades": "x64",
-	"Deus Ex - Mankind Divided": "retail",
-  "Five Nights at Freddy's: Security Breach": "fnaf9\\Binaries\\Win64"
+    "Mortal Kombat 11": "Binaries\\Retail",
+    "Of Ash and Steel": "ofAshAndSteelGame\\Binaries\\Win64",
+    "Project Motor Racing": "x64",
+    "SILENT HILL 2": "SHProto\\Binaries\\Win64",
+    "The Witcher 3: Wild Hunt": "bin\\x64_dx12",
+    "The Witcher 3: Wild Hunt - Game of the Year Edition": "bin\\x64_dx12",
+    "tModLoader": "dotnet"
   },
-  "snapshotOverrides": {
-	"Assassin's Creed": "https://clshortfuse.github.io/renodx/renodx-asscreed1.addon32",
-    "Cities: Skylines": "https://notvoosh.github.io/renodx-unity/renodx-unityengine.addon64",
-    "CODE VEIN II": "https://marat569.github.io/renodx/renodx-codevein2.addon64",
-    "Far Cry 2": "https://clshortfuse.github.io/renodx/renodx-duniaengine.addon32",
-    "Far Cry 3": "https://clshortfuse.github.io/renodx/renodx-duniaengine.addon32",
-    "Jedi Fallen Order": "https://clshortfuse.github.io/renodx/renodx-unrealengine.addon64"    
+
+  "engineOverrides": {
+    "Cities: Skylines": "Unity",
+    "Control": "Northlight Engine",
+    "Control Ultimate Edition": "Northlight Engine",
+    "Crimson Desert": "BlackSpace Engine",
+    "Greedfall: The Dying World": "Silk Engine",
+    "Monster Hunter Stories 3: Twisted Reflection": "RE Engine",
+    "Resident Evil Village": "RE Engine",
+    "Satisfactory": "Unreal",
+    "Terraria": "Scrungus Engine",
+    "The Elder Scrolls III: Morrowind": "Creation Engine"
   },
-  "dcModeOverrides": {		
+
+  "graphicsApiOverrides": {
+    "Baldur's Gate 3": "DX12, VLK",
+    "Burnout Paradise Remastered": "DX11",
+    "BurnoutPR": "DX11",
+    "Doom: The Dark Ages": "VLK",
+    "Dying Light": "DX11",
+    "Dying Light: The Beast": "DX12",
+    "Indiana Jones and the Great Circle": "VLK",
+    "Red Dead Redemption 2": "VLK",
+    "The Witcher 3: Wild Hunt": "DX12",
+    "The Witcher 3: Wild Hunt - Game of the Year Edition": "DX12"
   },
-  "forceExternalOnly": {
-    "Cyberpunk 2077": {
-      "url": "https://discord.gg/gF4GRJWZ2A",
-      "label": "Get on Discord"
-    }
+
+  "dllNameOverrides": {
+    "Aliens: Dark Descent": { "reshade": "dxgi.dll", "dc": "" },
+    "Borderlands: The Pre-Sequel": { "reshade": "d3d9.dll", "dc": "" },
+    "Ori and the Blind Forest: Definitive Edition": { "reshade": "dxgi.dll", "dc": "" },
+    "Terraria": { "reshade": "d3d9.dll", "dc": "" },
+    "The Elder Scrolls III: Morrowind": { "reshade": "opengl32.dll", "dc": "" }
   },
+
+  "gacSymlinkGames": {
+    "Terraria": "C:\\Windows\\Microsoft.NET\\assembly\\GAC_32\\Microsoft.Xna.Framework.Graphics\\v4.0_4.0.0.0__842cf8be1de50553"
+  },
+
+  "pdUpscalerGames": {
+    "Resident Evil 2": "RE2",
+    "Resident Evil 3": "RE3",
+    "Resident Evil 4": "RE4",
+    "Resident Evil 7": "RE7",
+    "Resident Evil 7 Biohazard": "RE7",
+    "RESIDENT EVIL 7 biohazard": "RE7",
+    "Resident Evil Village": "RE8"
+  },
+
+  "_comment_content": "=== PER-GAME CONTENT & NOTES ===",
+
   "gameNotes": {
-    "Crisol: Theater of Idols": {
-      "notes": "ℹ️ Game supports UE-Extended using Native HDR.\n\nLaunch the game with UE-Extended installed to generate the correct segment of ReShade.ini.\nClose the game and in ReShade.ini look for the line that says 'Set_Path=1' and change this to 'Set_Path=0'",
-      "notesUrl": null,
-      "notesUrlLabel": null
-    },
     "CODE VEIN II": {
       "notes": "⚠️ This game supports UE-Extended using native HDR. Additional steps must be taken for this to work.\n\nLaunch the game with UE-Extended installed to generate the correct segment of ReShade.ini.\nClose the game and in ReShade.ini look for the line that says 'Set_Path=1' and change this to 'Set_Path=0'\n\nCreate an Engine.ini in the game's Appdata folder with the following information:\n\n[SystemSettings]\nr.AllowHDR=1\nr.HDR.EnableHDROutput=1\nr.HDR.Display.OutputDevice=3\nr.HDR.Display.ColorGamut=2\nr.HDR.UI.CompositeMode=1\n\n[/Script/Engine.RendererSettings]\nr.LUT.UpdateEveryFrame=1\n\nYou can download a preconfigured Engine.ini here:",
       "notesUrl": "https://github.com/RankFTW/rdxc-manifest/releases/download/Engine.ini/Engine.ini",
       "notesUrlLabel": "Engine.ini"
+    },
+    "Crisol: Theater of Idols": {
+      "notes": "ℹ️ Game supports UE-Extended using Native HDR.\n\nLaunch the game with UE-Extended installed to generate the correct segment of ReShade.ini.\nClose the game and in ReShade.ini look for the line that says 'Set_Path=1' and change this to 'Set_Path=0'",
+      "notesUrl": null,
+      "notesUrlLabel": null
     },
     "Cyberpunk 2077": {
       "notes": "⚠️ The RenoDX mod for Cyberpunk 2077 is a WIP. Always get the latest build directly from the RenoDX Discord — it is updated more frequently than any wiki download.\n\nSee Creepy's Cyberpunk RenoDX Guide for setup instructions:",
@@ -232,11 +290,6 @@
       "notesUrl": null,
       "notesUrlLabel": null
     },
-	 "Dragon's Dogma 2": {
-      "notes": "⚠️ You must download REFramework in order to use ReShade and RenoDX in this title.\n",
-      "notesUrl": "https://github.com/praydog/REFramework-nightly/releases",
-      "notesUrlLabel": "Download the latest version of REFramework here."
-    },
     "Dragon Quest VII Reimagined": {
       "notes": "ℹ️ Optional: Enable HDR from Engine.ini with DQ7RFix. see below.\nAdd the following cvars to the DQ7RFix.ini.\n\nr.AllowHDR=1\nr.HDR.EnableHDROutput=1\nr.HDR.Display.OutputDevice=5\nr.HDR.Display.ColorGamut=2\nr.HDR.UI.CompositeMode=1\nr.HDR.UI.Level=1.5\n\nThe game has to be run in DX11 mode with '-dx11' argument.\n\nIf using the recommended Engine.ini route then you must also set the Processing Path to Engine HDR in the RenoDX tab of ReShade once in game.\n\nThis is reported to have the best result. SDR upgrade with DX11 and DX12 still works, but can exhibit UI/fog rendering problems.",
       "notesUrl": "https://codeberg.org/Lyall/DQ7RFix/releases",
@@ -246,6 +299,11 @@
       "notes": "ℹ️ Optional: Enable HDR from Engine.ini. The SDR upgrade path might break some text box UIs.\n\nr.AllowHDR=1\nr.HDR.EnableHDROutput=1\nr.HDR.Display.OutputDevice=5\nr.HDR.Display.ColorGamut=2\nr.HDR.UI.CompositeMode=1\nr.HDR.UI.Level=1.5\n\nAlso support the original game. By default it uses Filmic Postprocess (Mobile).\nCompatible with Luma DLSS/DLAA.",
       "notesUrl": null,
       "notesUrlLabel": null
+    },
+    "Dragon's Dogma 2": {
+      "notes": "⚠️ You must download REFramework in order to use ReShade and RenoDX in this title.\n",
+      "notesUrl": "https://github.com/praydog/REFramework-nightly/releases",
+      "notesUrlLabel": "Download the latest version of REFramework here."
     },
     "Echoes of the End: Enhanced Edition": {
       "notes": "ℹ️ Game supports UE-Extended using Native HDR\n\nLaunch the game with UE-Extended installed to generate the correct segment of ReShade.ini.\nClose the game and in ReShade.ini look for the line that says 'Set_Path=1' and change this to 'Set_Path=0'",
@@ -272,7 +330,7 @@
       "notesUrl": "https://github.com/RankFTW/rdxc-manifest/releases/download/Engine.ini/Engine.ini",
       "notesUrlLabel": "Engine.ini"
     },
-	 "Monster Hunter Wilds": {
+    "Monster Hunter Wilds": {
       "notes": "⚠️ You must download REFramework in order to use ReShade and RenoDX in this title.\n",
       "notesUrl": "https://github.com/praydog/REFramework-nightly/releases",
       "notesUrlLabel": "Download the latest version of REFramework here."
@@ -287,12 +345,17 @@
       "notesUrl": null,
       "notesUrlLabel": null
     },
+    "REANIMAL": {
+      "notes": "REANIMAL has had native HDR added, developed by Pumbo",
+      "notesUrl": "https://store.steampowered.com/news/app/2129530/view/520870020121624916?l=english",
+      "notesUrlLabel": "Native HDR added"
+    },
     "Resident Evil Requiem": {
       "notes": "⚠️ You must download REFramework in order to use ReShade and RenoDX in this title.\n",
       "notesUrl": "https://github.com/praydog/REFramework-nightly/releases",
       "notesUrlLabel": "Download the latest version of REFramework here."
     },
-	"Street Fighter™ 6": {
+    "Street Fighter™ 6": {
       "notes": "⚠️ You must download REFramework in order to use ReShade and RenoDX in this title.\n",
       "notesUrl": "https://github.com/praydog/REFramework-nightly/releases",
       "notesUrlLabel": "Download the latest version of REFramework here."
@@ -311,23 +374,9 @@
       "notes": "⚠️ You must run the game once in order to create the correct directories for ReShade/RenoDX to work.\nAfter running the game once click Refresh and make sure directory is detected as /tModLoader/dotnet before installing anything",
       "notesUrl": null,
       "notesUrlLabel": null
-    },
-	"REANIMAL": {
-      "notes": "REANIMAL has had native HDR added, developed by Pumbo",
-      "notesUrl": "https://store.steampowered.com/news/app/2129530/view/520870020121624916?l=english",
-      "notesUrlLabel": "Native HDR added"
     }
   },
-  "lumaDefaultGames": [
-    "Bioshock 2 Remastered",
-    "Bioshock Remastered",
-    "Burnout Paradise Remastered",
-    "BurnoutPR",
-    "FINAL FANTASY VII REMAKE INTERGRADE",
-    "Hollow Knight: Silksong",
-    "Inside",
-	"Nioh: Complete Edition"
-  ],
+
   "lumaGameNotes": {
     "BioShock Remastered": {
       "notes": "Additional information available on Nexus below:",
@@ -340,57 +389,68 @@
       "notesUrlLabel": "Final Fantasy VII Remake Nexus"
     }
   },
+
+  "snapshotOverrides": {
+    "Assassin's Creed": "https://clshortfuse.github.io/renodx/renodx-asscreed1.addon32",
+    "Cities: Skylines": "https://notvoosh.github.io/renodx-unity/renodx-unityengine.addon64",
+    "CODE VEIN II": "https://marat569.github.io/renodx/renodx-codevein2.addon64",
+    "Far Cry 2": "https://clshortfuse.github.io/renodx/renodx-duniaengine.addon32",
+    "Far Cry 3": "https://clshortfuse.github.io/renodx/renodx-duniaengine.addon32",
+    "Jedi Fallen Order": "https://clshortfuse.github.io/renodx/renodx-unrealengine.addon64"
+  },
+
+  "forceExternalOnly": {
+    "Cyberpunk 2077": {
+      "url": "https://discord.gg/gF4GRJWZ2A",
+      "label": "Get on Discord"
+    }
+  },
+
+  "dcModeOverrides": {
+  },
+
+  "_comment_external": "=== EXTERNAL SERVICE CONFIG ===",
+
   "authorDisplayNames": {
     "oopydoopy": "Jon"
   },
+
   "donationUrls": {
-    "ShortFuse": "https://ko-fi.com/shortfuse",
-    "Jon": "https://ko-fi.com/kickfister",
-    "Forge": "https://ko-fi.com/forge87682",
-    "Voosh": "https://ko-fi.com/notvoosh",
-    "Musa": "https://ko-fi.com/musaqh",
-	"Pumbo": "https://ko-fi.com/realpumbo",
-    "Nukem": "https://ko-fi.com/nukem9",
-    "Lilium": "https://ko-fi.com/endlesslyflowering",
     "Bit Viper": "https://ko-fi.com/bitviper",
-	"Ritsu": "https://ko-fi.com/ritsucecil"
+    "Forge": "https://ko-fi.com/forge87682",
+    "Jon": "https://ko-fi.com/kickfister",
+    "Lilium": "https://ko-fi.com/endlesslyflowering",
+    "Musa": "https://ko-fi.com/musaqh",
+    "Nukem": "https://ko-fi.com/nukem9",
+    "Pumbo": "https://ko-fi.com/realpumbo",
+    "Ritsu": "https://ko-fi.com/ritsucecil",
+    "ShortFuse": "https://ko-fi.com/shortfuse",
+    "Voosh": "https://ko-fi.com/notvoosh"
   },
+
+  "authorOverrides": {
+  },
+
   "nexusUrlOverrides": {
     "Deadly Premonition 2": "https://www.nexusmods.com/games/deadlypremonition2ablessingindisguise",
+    "DEATH STRANDING DIRECTOR'S CUT": "https://www.nexusmods.com/games/deathstranding",
     "Dying Light: The Beast Restored Land": "https://www.nexusmods.com/games/dyinglightthebeast",
     "Echoes of the End: Enhanced Edition": "https://www.nexusmods.com/games/echoesoftheend",
     "Horizon Forbidden West™ Complete Edition": "https://www.nexusmods.com/games/horizonforbiddenwest",
-    "The Elder Scrolls III: Morrowind": "https://www.nexusmods.com/games/morrowind",
-    "The Sinking City Remastered": "https://www.nexusmods.com/games/thesinkingcity",
-    "Tunguska: The Visitation - Final Cut": "https://www.nexusmods.com/games/tunguskathevisitation",
-    "X4: Timelines": "https://www.nexusmods.com/games/x4foundations",
+    "Nioh: Complete Edition": "https://www.nexusmods.com/games/nioh",
     "Silent Hill 2": "https://www.nexusmods.com/games/silenthill2",
-	"The Elder Scrolls IV: Oblivion Remastered": "https://www.nexusmods.com/games/oblivionremastered",
-	"The Witcher 3: Wild Hunt": "https://www.nexusmods.com/games/witcher3",
-	"DEATH STRANDING DIRECTOR'S CUT": "https://www.nexusmods.com/games/deathstranding",
-	"Nioh: Complete Edition": "https://www.nexusmods.com/games/nioh"
+    "The Elder Scrolls III: Morrowind": "https://www.nexusmods.com/games/morrowind",
+    "The Elder Scrolls IV: Oblivion Remastered": "https://www.nexusmods.com/games/oblivionremastered",
+    "The Sinking City Remastered": "https://www.nexusmods.com/games/thesinkingcity",
+    "The Witcher 3: Wild Hunt": "https://www.nexusmods.com/games/witcher3",
+    "Tunguska: The Visitation - Final Cut": "https://www.nexusmods.com/games/tunguskathevisitation",
+    "X4: Timelines": "https://www.nexusmods.com/games/x4foundations"
   },
-  "steamAppIdOverrides": {
-  },
+
   "pcgwUrlOverrides": {
     "The Sinking City Remastered": "https://www.pcgamingwiki.com/wiki/The_Sinking_City_Remastered"
   },
-  "authorOverrides": {    
-  },
-  "pdUpscalerGames": {
-    "Resident Evil 2": "RE2",
-    "Resident Evil 3": "RE3",
-    "Resident Evil 4": "RE4",
-    "Resident Evil 7": "RE7",
-    "Resident Evil 7 Biohazard": "RE7",
-    "RESIDENT EVIL 7 biohazard": "RE7",
-    "Resident Evil Village": "RE8"
-  },
-  "optiScalerWikiNames": {
-    "Resident Evil 2": "Resident Evil 2 (2019)",
-    "Resident Evil 3": "Resident Evil 3 (2020)",
-    "Resident Evil 4": "Resident Evil 4 (2023)",
-    "Resident Evil Village": "Resident Evil 8 Village",
-    "Resident Evil Requiem": "Resident Evil 9 Requiem"
+
+  "steamAppIdOverrides": {
   }
 }

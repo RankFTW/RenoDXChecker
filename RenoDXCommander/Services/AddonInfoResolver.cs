@@ -29,7 +29,7 @@ public class AddonInfoResolver
         "ReLimiter is a frame limiter that works alongside ReShade to reduce input lag and improve frame pacing in games.";
 
     public const string FallbackDisplayCommander =
-        "Display Commander is a display management tool that works alongside ReShade to control HDR output settings and display configuration.";
+        "Display Commander is a frame limiter that works alongside ReShade to reduce input lag and improve frame pacing.";
 
     public const string FallbackOptiScaler =
         "OptiScaler is an upscaling compatibility layer that enables FSR, XeSS, or DLSS across different GPU vendors, allowing you to use any upscaler regardless of your hardware.";

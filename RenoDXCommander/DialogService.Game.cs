@@ -436,11 +436,10 @@ public partial class DialogService
                     FontSize     = 13,
                     LineHeight   = 22,
                 });
+                // Show URL only for the unstructured fallback path (no per-section links)
+                if (!string.IsNullOrEmpty(result.Url))
+                    AddHyperlinkBlock(panel, result.UrlLabel ?? "View wiki page", result.Url, linkColour);
             }
-
-            // ── Detail page URL ──────────────────────────────────────────────
-            if (!string.IsNullOrEmpty(result.Url))
-                AddHyperlinkBlock(panel, result.UrlLabel ?? "View wiki page", result.Url, linkColour);
         }
         else
         {
