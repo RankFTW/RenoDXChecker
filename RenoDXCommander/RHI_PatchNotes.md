@@ -9,6 +9,7 @@
 - Reduced GitHub API usage with smart caching. Update checks and component downloads no longer fail when launching the app multiple times in a short period.
 - Install buttons now show a ◄ arrow indicator when the Info button has game-specific content, drawing attention to it.
 - New "ReShade screenshot key" setting on the Settings page. Set a custom key for taking ReShade screenshots, applied to all managed reshade.ini files. Defaults to Print Screen with a reset button to restore it.
+- Display Commander upgraded from the LITE variant to the full version. Existing DC Lite installs are automatically migrated — the update badge will appear and clicking Update replaces the lite file with the full version seamlessly.
 
 ### Performance
 

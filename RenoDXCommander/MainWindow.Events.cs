@@ -623,6 +623,9 @@ public sealed partial class MainWindow
     private void ApplyOverlayHotkey_Click(object sender, RoutedEventArgs e)
         => _settingsHandler.ApplyOverlayHotkey_Click(sender, e);
 
+    private void ApplyReShadeHotkeys_Click(object sender, RoutedEventArgs e)
+        => _settingsHandler.ApplyReShadeHotkeys_Click(sender, e);
+
     private void ScreenshotHotkeyBox_PreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         => _settingsHandler.ScreenshotHotkeyBox_PreviewKeyDown(sender, e);
 

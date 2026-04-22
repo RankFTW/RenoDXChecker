@@ -344,11 +344,11 @@ public partial class MainViewModel
     {
         _crashReporter.Log($"[CheckDcUpdateAsync] Starting");
 
-        bool anyInstalled = cards.Any(c => c.DcStatus == GameStatus.Installed);
+        bool anyInstalled = cards.Any(c => c.DcStatus == GameStatus.Installed || c.DcStatus == GameStatus.UpdateAvailable);
 
         // ── Determine which bitness variants are in use ───────────────────
-        bool needs64 = cards.Any(c => c.DcStatus == GameStatus.Installed && !c.Is32Bit);
-        bool needs32 = cards.Any(c => c.DcStatus == GameStatus.Installed && c.Is32Bit);
+        bool needs64 = cards.Any(c => (c.DcStatus == GameStatus.Installed || c.DcStatus == GameStatus.UpdateAvailable) && !c.Is32Bit);
+        bool needs32 = cards.Any(c => (c.DcStatus == GameStatus.Installed || c.DcStatus == GameStatus.UpdateAvailable) && c.Is32Bit);
 
         // If nothing is specifically installed yet (legacy/meta-only), default to 64-bit
         if (!needs64 && !needs32)

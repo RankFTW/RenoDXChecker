@@ -454,9 +454,7 @@ public class OverridesFlyoutBuilder
                         rsNameBox.SelectedItem = rsName;
                     }
 
-                    dcName = targetCard.Is32Bit
-                        ? "zzz_display_commander_lite.addon32"
-                        : "zzz_display_commander_lite.addon64";
+                    dcName = MainViewModel.GetDcFileName(targetCard.Is32Bit);
 
                     if (DetailPanelBuilder.DcDllOverrideNames.Contains(dcName, StringComparer.OrdinalIgnoreCase))
                     {

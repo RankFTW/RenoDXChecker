@@ -431,6 +431,60 @@ public class SettingsHandler
         await dialog.ShowAsync();
     }
 
+    // ── Combined ReShade Hotkeys (overlay + screenshot) ───────────────────────
+
+    /// <summary>
+    /// Applies both the overlay hotkey and screenshot hotkey to all managed reshade*.ini files.
+    /// </summary>
+    public async void ApplyReShadeHotkeys_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.Settings.OverlayHotkey = _currentHotkeyString;
+        ViewModel.Settings.ScreenshotHotkey = _currentScreenshotHotkeyString;
+        ViewModel.SaveSettingsPublic();
+
+        bool isDefault = IsDefaultHotkey(_currentHotkeyString);
+
+        int updatedCount = 0;
+        foreach (var card in ViewModel.AllCards)
+        {
+            if (string.IsNullOrEmpty(card.InstallPath)) continue;
+
+            if (isDefault && AuxInstallService.IsRdr2(card.GameName))
+                continue;
+
+            var iniFiles = System.IO.Directory.EnumerateFiles(card.InstallPath, "reshade*.ini")
+                .Where(f => System.IO.Path.GetFileName(f).StartsWith("reshade", StringComparison.OrdinalIgnoreCase)
+                         && System.IO.Path.GetExtension(f).Equals(".ini", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (iniFiles.Count == 0) continue;
+
+            try
+            {
+                foreach (var iniFile in iniFiles)
+                {
+                    AuxInstallService.ApplyOverlayHotkey(iniFile, _currentHotkeyString);
+                    AuxInstallService.ApplyScreenshotHotkey(iniFile, _currentScreenshotHotkeyString);
+                }
+                updatedCount++;
+            }
+            catch (Exception ex)
+            {
+                CrashReporter.Log($"[SettingsHandler.ApplyReShadeHotkeys_Click] Failed for '{card.GameName}' — {ex.Message}");
+            }
+        }
+
+        var dialog = new ContentDialog
+        {
+            Title = "ReShade Hotkeys",
+            Content = $"Updated {updatedCount} reshade.ini file{(updatedCount == 1 ? "" : "s")}.",
+            CloseButtonText = "OK",
+            XamlRoot = _window.Content.XamlRoot,
+            RequestedTheme = ElementTheme.Dark,
+        };
+        await dialog.ShowAsync();
+    }
+
     // ── Screenshot Hotkey ─────────────────────────────────────────────────────
 
     /// <summary>

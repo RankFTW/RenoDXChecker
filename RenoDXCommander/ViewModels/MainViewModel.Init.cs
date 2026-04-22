@@ -1157,7 +1157,7 @@ public partial class MainViewModel
                 var dcDeployPath = ModInstallService.GetAddonDeployPath(installPath);
                 var dcFileName = GetDcFileName(newCard.Is32Bit);
 
-                // Check for default DC LITE addon files on disk
+                // Check for default DC addon files on disk
                 if (File.Exists(Path.Combine(dcDeployPath, dcFileName))
                     || File.Exists(Path.Combine(installPath, dcFileName)))
                 {
@@ -1173,61 +1173,81 @@ public partial class MainViewModel
                     if (metaVer == "latest_build") metaVer = null;
                     newCard.DcInstalledVersion = peVer ?? metaVer;
                 }
+                // Also detect legacy DC Lite files for migration
                 else
                 {
-                    // Check for DC with custom DLL override name via AuxInstalledRecord
-                    var dcRec = auxRecords.FirstOrDefault(r =>
-                        r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase) &&
-                        r.AddonType == "DisplayCommander");
-
-                    // ── Path reconciliation for DC aux records ────────────────────
-                    if (dcRec != null
-                        && !dcRec.InstallPath.Equals(installPath, StringComparison.OrdinalIgnoreCase))
+                    var legacyDcFileName = GetLegacyDcFileName(newCard.Is32Bit);
+                    if (File.Exists(Path.Combine(dcDeployPath, legacyDcFileName))
+                        || File.Exists(Path.Combine(installPath, legacyDcFileName)))
                     {
-                        var oldDcPath = dcRec.InstallPath;
-                        var dcFile = dcRec.InstalledAs;
-                        var newDcFilePath = string.IsNullOrEmpty(dcFile) ? null : Path.Combine(installPath, dcFile);
-                        var oldDcFilePath = string.IsNullOrEmpty(dcFile) ? null : Path.Combine(oldDcPath, dcFile);
-
-                        if (newDcFilePath != null && File.Exists(newDcFilePath))
-                        {
-                            _crashReporter.Log($"[BuildCards] DC path reconciliation: '{game.Name}' path changed, DC already at new path");
-                        }
-                        else if (oldDcFilePath != null && File.Exists(oldDcFilePath))
-                        {
-                            try
-                            {
-                                Directory.CreateDirectory(Path.GetDirectoryName(newDcFilePath!)!);
-                                File.Copy(oldDcFilePath, newDcFilePath!, overwrite: true);
-                                _crashReporter.Log($"[BuildCards] DC path reconciliation: '{game.Name}' copied DC '{dcFile}' from '{oldDcPath}' → '{installPath}'");
-                            }
-                            catch (Exception ex)
-                            {
-                                _crashReporter.Log($"[BuildCards] DC path reconciliation: '{game.Name}' failed to copy DC — {ex.Message}");
-                            }
-                        }
-                        else
-                        {
-                            _crashReporter.Log($"[BuildCards] DC path reconciliation: '{game.Name}' path changed, DC not found at either path");
-                        }
-
-                        dcRec.InstallPath = installPath;
-                        _auxInstaller.SaveAuxRecord(dcRec);
+                        newCard.DcStatus = GameStatus.UpdateAvailable;
+                        newCard.DcInstalledFile = legacyDcFileName;
+                        var legacyFilePath = File.Exists(Path.Combine(dcDeployPath, legacyDcFileName))
+                            ? Path.Combine(dcDeployPath, legacyDcFileName)
+                            : Path.Combine(installPath, legacyDcFileName);
+                        var peVer = AuxInstallService.ReadInstalledVersion(
+                            Path.GetDirectoryName(legacyFilePath)!, Path.GetFileName(legacyFilePath));
+                        var metaVer = ReadDcInstalledVersion(newCard.Is32Bit);
+                        if (metaVer == "latest_build") metaVer = null;
+                        newCard.DcInstalledVersion = peVer ?? metaVer;
+                        _crashReporter.Log($"[BuildCards] Legacy DC Lite detected for '{game.Name}' — marking for migration");
                     }
+                    else
+                    {
+                        // Check for DC with custom DLL override name via AuxInstalledRecord
+                        var dcRec = auxRecords.FirstOrDefault(r =>
+                            r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase) &&
+                            r.AddonType == "DisplayCommander");
 
-                    if (dcRec != null && File.Exists(Path.Combine(dcRec.InstallPath, dcRec.InstalledAs)))
-                    {
-                        newCard.DcStatus = GameStatus.Installed;
-                        newCard.DcInstalledFile = dcRec.InstalledAs;
-                        var peVer2 = AuxInstallService.ReadInstalledVersion(dcRec.InstallPath, dcRec.InstalledAs);
-                        var metaVer2 = ReadDcInstalledVersion(newCard.Is32Bit);
-                        if (metaVer2 == "latest_build") metaVer2 = null;
-                        newCard.DcInstalledVersion = peVer2 ?? metaVer2;
-                    }
-                    else if (dcRec != null)
-                    {
-                        // Record exists but file not on disk — stale record
-                        _auxInstaller.RemoveRecord(dcRec);
+                        // ── Path reconciliation for DC aux records ────────────────────
+                        if (dcRec != null
+                            && !dcRec.InstallPath.Equals(installPath, StringComparison.OrdinalIgnoreCase))
+                        {
+                            var oldDcPath = dcRec.InstallPath;
+                            var dcFile = dcRec.InstalledAs;
+                            var newDcFilePath = string.IsNullOrEmpty(dcFile) ? null : Path.Combine(installPath, dcFile);
+                            var oldDcFilePath = string.IsNullOrEmpty(dcFile) ? null : Path.Combine(oldDcPath, dcFile);
+
+                            if (newDcFilePath != null && File.Exists(newDcFilePath))
+                            {
+                                _crashReporter.Log($"[BuildCards] DC path reconciliation: '{game.Name}' path changed, DC already at new path");
+                            }
+                            else if (oldDcFilePath != null && File.Exists(oldDcFilePath))
+                            {
+                                try
+                                {
+                                    Directory.CreateDirectory(Path.GetDirectoryName(newDcFilePath!)!);
+                                    File.Copy(oldDcFilePath, newDcFilePath!, overwrite: true);
+                                    _crashReporter.Log($"[BuildCards] DC path reconciliation: '{game.Name}' copied DC '{dcFile}' from '{oldDcPath}' → '{installPath}'");
+                                }
+                                catch (Exception ex)
+                                {
+                                    _crashReporter.Log($"[BuildCards] DC path reconciliation: '{game.Name}' failed to copy DC — {ex.Message}");
+                                }
+                            }
+                            else
+                            {
+                                _crashReporter.Log($"[BuildCards] DC path reconciliation: '{game.Name}' path changed, DC not found at either path");
+                            }
+
+                            dcRec.InstallPath = installPath;
+                            _auxInstaller.SaveAuxRecord(dcRec);
+                        }
+
+                        if (dcRec != null && File.Exists(Path.Combine(dcRec.InstallPath, dcRec.InstalledAs)))
+                        {
+                            newCard.DcStatus = GameStatus.Installed;
+                            newCard.DcInstalledFile = dcRec.InstalledAs;
+                            var peVer2 = AuxInstallService.ReadInstalledVersion(dcRec.InstallPath, dcRec.InstalledAs);
+                            var metaVer2 = ReadDcInstalledVersion(newCard.Is32Bit);
+                            if (metaVer2 == "latest_build") metaVer2 = null;
+                            newCard.DcInstalledVersion = peVer2 ?? metaVer2;
+                        }
+                        else if (dcRec != null)
+                        {
+                            // Record exists but file not on disk — stale record
+                            _auxInstaller.RemoveRecord(dcRec);
+                        }
                     }
                 }
             }

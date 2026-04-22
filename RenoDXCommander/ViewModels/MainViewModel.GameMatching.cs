@@ -186,9 +186,7 @@ public partial class MainViewModel
             // ── DC reconciliation ──────────────────────────────────────────────
             if (!string.IsNullOrEmpty(card.DcInstalledFile))
             {
-                var defaultDcName = card.Is32Bit
-                    ? "zzz_display_commander_lite.addon32"
-                    : "zzz_display_commander_lite.addon64";
+                var defaultDcName = GetDcFileName(card.Is32Bit);
 
                 if (!card.DcInstalledFile.Equals(defaultDcName, StringComparison.OrdinalIgnoreCase))
                 {

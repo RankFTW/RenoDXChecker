@@ -250,9 +250,7 @@ public class DllOverrideService : IDllOverrideService
             // Revert DC file to default addon name if DC is installed with a custom name
             if (!string.IsNullOrWhiteSpace(cfg.DcFileName) && !string.IsNullOrEmpty(card.DcInstalledFile))
             {
-                var defaultDcName = card.Is32Bit
-                    ? "zzz_display_commander_lite.addon32"
-                    : "zzz_display_commander_lite.addon64";
+                var defaultDcName = MainViewModel.GetDcFileName(card.Is32Bit);
 
                 var deployPath = ModInstallService.GetAddonDeployPath(card.InstallPath);
 
@@ -487,9 +485,7 @@ public class DllOverrideService : IDllOverrideService
         var cfg = GetDllOverride(gameName);
         return cfg != null && !string.IsNullOrWhiteSpace(cfg.DcFileName)
             ? cfg.DcFileName
-            : is32Bit
-                ? "zzz_display_commander_lite.addon32"
-                : "zzz_display_commander_lite.addon64";
+            : MainViewModel.GetDcFileName(is32Bit);
     }
 
     /// <summary>
