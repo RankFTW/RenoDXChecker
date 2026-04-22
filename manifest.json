@@ -5,7 +5,6 @@
 
   "blacklist": [
     "3D Mark",
-    "3DMark Demo",
     "Apple Music",
     "Battle.net.15492",
     "Battle.net.15561",
@@ -16,7 +15,7 @@
     "Battle.net.17296",
     "Battle.net.exe",
     "Borderless Gaming",
-    "Call of Duty: Modern Warfare 3 - Dedicated Server",    
+    "Call of Duty: Modern Warfare 3 - Dedicated Server",
     "DOOM: The Dark Ages Campaign DLC",
     "DOOM: The Dark Ages Divinity Skin Pack",
     "DOOM: The Dark Ages Void DOOM Slayer Skin",
@@ -25,7 +24,6 @@
     "Indiana Jones and the Great Circle: The Last Crusade Pack - Traveling Suit Outfit",
     "Lossless Scaling",
     "Masters Vacation Pack",
-    "Minecraft Launcher",
     "Muckingham Files 3",
     "Muckingham Files 4",
     "MWII: Campaign Pack",
@@ -92,40 +90,14 @@
   ],
 
   "lumaDefaultGames": [
-    "Alfred Hitchcock - Vertigo",
     "Bioshock 2 Remastered",
     "Bioshock Remastered",
     "Burnout Paradise Remastered",
     "BurnoutPR",
-    "Call of Duty®: Black Ops III",
-    "COCOON",
-    "Deus Ex: Human Revolution - Director's Cut",
-    "FAR: Changing Tides",
-    "FAR: Lone Sails",
     "FINAL FANTASY VII REMAKE INTERGRADE",
-    "Granblue Fantasy: Relink",
-    "GreedFall",
-    "Hatsune Miku: Project DIVA Mega Mix+",
-    "Heavy Rain",
     "Hollow Knight: Silksong",
     "Inside",
-    "Just Cause™ 3",
-    "LARA CROFT AND THE TEMPLE OF OSIRIS™",
-    "LEGO® City Undercover",
-    "Mafia II: Definitive Edition",
-    "Mafia III: Definitive Edition",
-    "Metro 2033 Redux",
-    "Metro: Last Light Redux",
-    "Nioh: Complete Edition",
-    "Persona 5 Royal",
-    "Prince of Persia The Lost Crown",
-    "Shadows of Doubt",
-    "Thief",
-    "Thumper",
-    "Trine 5: A Clockwork Conspiracy",
-    "Vanquish",
-    "Watch_Dogs® 2",
-    "White Knuckle"
+    "Nioh: Complete Edition"
   ],
 
   "wikiUnlinks": [
@@ -134,7 +106,6 @@
     "Dead Island",
     "Death's Door",
     "Descenders",
-    "DOOM",
     "Elin",
     "Greedfall: The Dying World",
     "Haste",
@@ -151,13 +122,10 @@
   "_comment_overrides": "=== NAME, PATH & ENGINE OVERRIDES ===",
 
   "wikiNameOverrides": {
-    "Alfred Hitchcock - Vertigo": "Alfred Hitchcock – Vertigo",
     "Assassin's Creed": "Assassin's Creed™: Director's Cut Edition",
     "Borderlands 2": "Borderlands 2 & The Pre-Sequel",
     "Borderlands: The Pre-Sequel": "Borderlands 2 & The Pre-Sequel",
     "BurnoutPR": "Burnout Paradise Remastered",
-    "Call of Duty®: Black Ops III": "Call of Duty: Black Ops III",
-    "COCOON": "Cocoon",
     "Dead Island Definitive Edition": "Dead Island (& Riptide) Definitive Edition",
     "Deus Ex: Human Revolution - Director's Cut": "Deus Ex: Human Revolution",
     "Devil May Cry 5": "Devil May Cry V",
@@ -174,24 +142,14 @@
     "Grand Theft Auto III – The Definitive Edition": "Grand Theft Auto: The Trilogy – The Definitive Edition (III, Vice City, San Andreas)",
     "Grand Theft Auto: San Andreas – The Definitive Edition": "Grand Theft Auto: The Trilogy – The Definitive Edition (III, Vice City, San Andreas)",
     "Grand Theft Auto: Vice City – The Definitive Edition": "Grand Theft Auto: The Trilogy – The Definitive Edition (III, Vice City, San Andreas)",
-    "GreedFall": "Greedfall",
     "Hades II": "Hades 2",
     "Jedi Survivor": "STAR WARS Jedi: Survivor™",
-    "Just Cause™ 3": "Just Cause 3",
-    "LARA CROFT AND THE TEMPLE OF OSIRIS™": "Lara Croft and the Temple of Osiris",
-    "LEGO® City Undercover": "Lego City: Undercover",
-    "Mafia III: Definitive Edition": "Mafia III",
-    "Metro 2033 Redux": "Metro Redux (2033 and Last Light)",
-    "Metro: Last Light Redux": "Metro Redux (2033 and Last Light)",
     "Minecraft for Windows": "Minecraft: Bedrock Edition",
     "Nioh: Complete Edition": "Nioh",
     "Persona 5 Royal": "Persona 5 Royal (Remake from Ersh's)",
-    "Prince of Persia The Lost Crown": "Prince of Persia: The Lost Crown",
     "Red Dead Redemption 2": "Red Dead Redemption 2 (Vulkan)",
     "Terraria": "Terraria",
-    "Total War: WARHAMMER III": "Total War: Warhammer 3",
-    "Trine 5: A Clockwork Conspiracy": "Trine 5",
-    "Watch_Dogs® 2": "Watch Dogs 2"
+    "Total War: WARHAMMER III": "Total War: Warhammer 3"
   },
 
   "wikiStatusOverrides": {
@@ -263,6 +221,7 @@
   },
 
   "engineOverrides": {
+    "Alan Wake 2": "Northlight Engine",
     "Assassin's Creed Mirage": "Anvil",
     "Assassin's Creed Shadows": "Anvil",
     "Assassin's Creed Valhalla": "Anvil",
@@ -511,16 +470,6 @@
       "notes": "Recommended to use Luma for this game for best HDR results.\nYou must switch the game to DX11 with launch argument -dx11\n\nAdditional information available on Nexus below:",
       "notesUrl": "https://www.nexusmods.com/finalfantasy7remake/mods/1974",
       "notesUrlLabel": "Final Fantasy VII Remake Nexus"
-    },
-    "Metro 2033 Redux": {
-      "notes": "⚠️ Must either set windowed mode in the config file, or use the borderless windowed mod (recommended).\n\nDownload the borderless windowed mod for Metro 2033 Redux from the link below:",
-      "notesUrl": "https://discord.com/channels/142072549537349632/1335626023412174908/1495615263289376889",
-      "notesUrlLabel": "Borderless mod for Metro 2033 Redux"
-    },
-    "Metro: Last Light Redux": {
-      "notes": "⚠️ Must either set windowed mode in the config file, or use the borderless windowed mod (recommended).\n\nDownload the borderless windowed mod for Metro Last Light Redux from the link below:",
-      "notesUrl": "https://discord.com/channels/142072549537349632/1446291444242321620/1495631664125313128",
-      "notesUrlLabel": "Borderless mod for Metro Last Light Redux"
     }
   },
 
