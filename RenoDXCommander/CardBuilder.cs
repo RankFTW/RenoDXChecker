@@ -156,16 +156,25 @@ public partial class CardBuilder
 
         var dotsPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
 
-        var rdxDotPanel = UIFactory.MakeStatusDot("RDX", card.CardRdxStatusDot);
-        var rsDotPanel = UIFactory.MakeStatusDot("RS", card.CardRsStatusDot);
-        var ulDotPanel = UIFactory.MakeStatusDot("UL", card.CardUlStatusDot);
-        ulDotPanel.Visibility = card.UlRowVisibility;
+        // RE Framework dot (first, only for RE Engine games)
         var refDotPanel = UIFactory.MakeStatusDot("REF", card.CardRefStatusDot);
         refDotPanel.Visibility = card.RefRowVisibility;
+        dotsPanel.Children.Add(refDotPanel);
+
+        var rdxDotPanel = UIFactory.MakeStatusDot("RDX", card.CardRdxStatusDot);
+        var rsDotPanel = UIFactory.MakeStatusDot("RS", card.CardRsStatusDot);
+        var rlDotPanel = UIFactory.MakeStatusDot("RL", card.CardUlStatusDot);
+        rlDotPanel.Visibility = card.UlRowVisibility;
+        var dcDotPanel = UIFactory.MakeStatusDot("DC", card.CardDcStatusDot);
+        dcDotPanel.Visibility = card.DcRowVisibility;
+        var osDotPanel = UIFactory.MakeStatusDot("OPTI", card.CardOsStatusDot);
+        osDotPanel.Visibility = card.Is32Bit ? Visibility.Collapsed : Visibility.Visible;
+
         dotsPanel.Children.Add(rdxDotPanel);
         dotsPanel.Children.Add(rsDotPanel);
-        dotsPanel.Children.Add(ulDotPanel);
-        dotsPanel.Children.Add(refDotPanel);
+        dotsPanel.Children.Add(rlDotPanel);
+        dotsPanel.Children.Add(dcDotPanel);
+        dotsPanel.Children.Add(osDotPanel);
 
         StackPanel? lumaDotPanel = null;
         if (card.CardLumaVisible)
@@ -177,20 +186,7 @@ public partial class CardBuilder
         Grid.SetColumn(dotsPanel, 0);
         statusRow.Children.Add(dotsPanel);
 
-        // Wiki status icon (right-aligned, icon only, hidden in Luma mode)
-        if (card.WikiStatusIconVisible)
-        {
-            var wikiIcon = new TextBlock
-            {
-                Text = card.WikiStatusIcon,
-                FontSize = 14,
-                VerticalAlignment = VerticalAlignment.Center,
-                HorizontalAlignment = HorizontalAlignment.Right,
-            };
-            ToolTipService.SetToolTip(wikiIcon, card.WikiStatusLabel);
-            Grid.SetColumn(wikiIcon, 1);
-            statusRow.Children.Add(wikiIcon);
-        }
+        // Wiki status icon — hidden in grid view (too noisy with many cards)
 
         root.Children.Add(statusRow);
 
@@ -341,7 +337,7 @@ public partial class CardBuilder
                                 rsEllipse.Fill = UIFactory.GetBrush(c.CardRsStatusDot);
                             break;
                         case nameof(c.CardUlStatusDot):
-                            if (ulDotPanel.Children[0] is Microsoft.UI.Xaml.Shapes.Ellipse ulEllipse)
+                            if (rlDotPanel.Children[0] is Microsoft.UI.Xaml.Shapes.Ellipse ulEllipse)
                                 ulEllipse.Fill = UIFactory.GetBrush(c.CardUlStatusDot);
                             break;
                         case nameof(c.CardRefStatusDot):
@@ -360,7 +356,7 @@ public partial class CardBuilder
                             // Hide/show RDX/RS/UL dots based on Luma mode
                             rdxDotPanel.Visibility = effectiveLuma ? Visibility.Collapsed : Visibility.Visible;
                             rsDotPanel.Visibility = effectiveLuma ? Visibility.Collapsed : Visibility.Visible;
-                            ulDotPanel.Visibility = c.UlRowVisibility;
+                            rlDotPanel.Visibility = c.UlRowVisibility;
                             refDotPanel.Visibility = c.RefRowVisibility;
                             // Add/remove Luma dot
                             if (c.CardLumaVisible && lumaDotPanel == null)
