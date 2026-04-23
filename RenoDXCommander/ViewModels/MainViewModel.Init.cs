@@ -1,4 +1,4 @@
-﻿// MainViewModel.Init.cs -- Initialization, detection, card building, refresh, and library persistence.
+// MainViewModel.Init.cs -- Initialization, detection, card building, refresh, and library persistence.
 
 using System.Collections.Concurrent;
 using CommunityToolkit.Mvvm.Input;
@@ -525,8 +525,8 @@ public partial class MainViewModel
     {
         if (_addonFileUrlOverrides.TryGetValue(addonFileName, out var url))
             return url;
-        // Default: use the standard RenoDX snapshot CDN derived from the filename
-        return $"https://clshortfuse.github.io/renodx/{addonFileName}";
+        // Default: use the standard RenoDX GitHub Releases URL
+        return $"https://github.com/clshortfuse/renodx/releases/download/snapshot/{addonFileName}";
     }
 
     private GameMod MakeGenericUnreal() => new()
@@ -567,9 +567,28 @@ public partial class MainViewModel
 
             var rootKey = game.InstallPath.TrimEnd('\\', '/').ToLowerInvariant();
 
-            // Use cached engine detection when available — avoids expensive filesystem traversals.
-            // Skip cache for "Unknown" engines so newly added engine detectors (e.g. REEngine) can re-scan.
-            if (_engineTypeCache.TryGetValue(rootKey, out var cachedEngine)
+            // Check for manifest engine override first — if one exists, skip the
+            // expensive filesystem-based engine detection entirely since the result
+            // would be overridden anyway. This prevents repeated full directory
+            // traversals for games with custom engine names (e.g. Northlight, Anvil)
+            // that map to EngineType.Unknown and bypass the engine cache.
+            var engineOverrideLabel = ResolveEngineOverride(game.Name, out var engineOverride);
+
+            if (engineOverrideLabel != null
+                && _resolvedPathCache.TryGetValue(rootKey, out var overrideCachedPath)
+                && Directory.Exists(overrideCachedPath))
+            {
+                // Manifest override + cached path → skip detection completely
+                installPath = overrideCachedPath;
+                engine = engineOverride;
+            }
+            else if (engineOverrideLabel != null)
+            {
+                // Manifest override but no cached path → detect path only, use override engine
+                (installPath, _) = _gameDetectionService.DetectEngineAndPath(game.InstallPath);
+                engine = engineOverride;
+            }
+            else if (_engineTypeCache.TryGetValue(rootKey, out var cachedEngine)
                 && !string.Equals(cachedEngine, nameof(EngineType.Unknown), StringComparison.OrdinalIgnoreCase)
                 && _resolvedPathCache.TryGetValue(rootKey, out var cachedPath)
                 && Directory.Exists(cachedPath))
@@ -583,7 +602,6 @@ public partial class MainViewModel
             }
 
             // Apply manifest engine override (takes priority over auto-detection and cache)
-            var engineOverrideLabel = ResolveEngineOverride(game.Name, out var engineOverride);
             if (engineOverrideLabel != null) engine = engineOverride;
 
             // Record for saving
@@ -761,14 +779,14 @@ public partial class MainViewModel
                 {
                     addonOnDisk = cachedAddonFile;
                 }
-                else
+                else if (!string.IsNullOrEmpty(cachedAddonFile))
                 {
-                    // Always rescan — the cache may be stale if a mod was installed
-                    // externally or if a previous bug deleted the DB record.
-                    // ScanForInstalledAddon checks the direct folder first (cheap),
-                    // then common subdirs, then does a depth-limited recursive search.
+                    // Cache says an addon was here but the file is gone — rescan
                     addonOnDisk = ScanForInstalledAddon(installPath, effectiveMod);
                 }
+                // else: cache says "" (no addon found on previous scan) — trust it
+                // and skip the expensive recursive scan. A Full Refresh clears the
+                // cache, so newly installed addons will be found on the next rescan.
             }
             else if (safeAddonCache.TryGetValue(cacheKey, out _))
             {
@@ -1139,7 +1157,7 @@ public partial class MainViewModel
                 var dcDeployPath = ModInstallService.GetAddonDeployPath(installPath);
                 var dcFileName = GetDcFileName(newCard.Is32Bit);
 
-                // Check for default DC LITE addon files on disk
+                // Check for default DC addon files on disk
                 if (File.Exists(Path.Combine(dcDeployPath, dcFileName))
                     || File.Exists(Path.Combine(installPath, dcFileName)))
                 {
@@ -1155,61 +1173,81 @@ public partial class MainViewModel
                     if (metaVer == "latest_build") metaVer = null;
                     newCard.DcInstalledVersion = peVer ?? metaVer;
                 }
+                // Also detect legacy DC Lite files for migration
                 else
                 {
-                    // Check for DC with custom DLL override name via AuxInstalledRecord
-                    var dcRec = auxRecords.FirstOrDefault(r =>
-                        r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase) &&
-                        r.AddonType == "DisplayCommander");
-
-                    // ── Path reconciliation for DC aux records ────────────────────
-                    if (dcRec != null
-                        && !dcRec.InstallPath.Equals(installPath, StringComparison.OrdinalIgnoreCase))
+                    var legacyDcFileName = GetLegacyDcFileName(newCard.Is32Bit);
+                    if (File.Exists(Path.Combine(dcDeployPath, legacyDcFileName))
+                        || File.Exists(Path.Combine(installPath, legacyDcFileName)))
                     {
-                        var oldDcPath = dcRec.InstallPath;
-                        var dcFile = dcRec.InstalledAs;
-                        var newDcFilePath = string.IsNullOrEmpty(dcFile) ? null : Path.Combine(installPath, dcFile);
-                        var oldDcFilePath = string.IsNullOrEmpty(dcFile) ? null : Path.Combine(oldDcPath, dcFile);
-
-                        if (newDcFilePath != null && File.Exists(newDcFilePath))
-                        {
-                            _crashReporter.Log($"[BuildCards] DC path reconciliation: '{game.Name}' path changed, DC already at new path");
-                        }
-                        else if (oldDcFilePath != null && File.Exists(oldDcFilePath))
-                        {
-                            try
-                            {
-                                Directory.CreateDirectory(Path.GetDirectoryName(newDcFilePath!)!);
-                                File.Copy(oldDcFilePath, newDcFilePath!, overwrite: true);
-                                _crashReporter.Log($"[BuildCards] DC path reconciliation: '{game.Name}' copied DC '{dcFile}' from '{oldDcPath}' → '{installPath}'");
-                            }
-                            catch (Exception ex)
-                            {
-                                _crashReporter.Log($"[BuildCards] DC path reconciliation: '{game.Name}' failed to copy DC — {ex.Message}");
-                            }
-                        }
-                        else
-                        {
-                            _crashReporter.Log($"[BuildCards] DC path reconciliation: '{game.Name}' path changed, DC not found at either path");
-                        }
-
-                        dcRec.InstallPath = installPath;
-                        _auxInstaller.SaveAuxRecord(dcRec);
+                        newCard.DcStatus = GameStatus.UpdateAvailable;
+                        newCard.DcInstalledFile = legacyDcFileName;
+                        var legacyFilePath = File.Exists(Path.Combine(dcDeployPath, legacyDcFileName))
+                            ? Path.Combine(dcDeployPath, legacyDcFileName)
+                            : Path.Combine(installPath, legacyDcFileName);
+                        var peVer = AuxInstallService.ReadInstalledVersion(
+                            Path.GetDirectoryName(legacyFilePath)!, Path.GetFileName(legacyFilePath));
+                        var metaVer = ReadDcInstalledVersion(newCard.Is32Bit);
+                        if (metaVer == "latest_build") metaVer = null;
+                        newCard.DcInstalledVersion = peVer ?? metaVer;
+                        _crashReporter.Log($"[BuildCards] Legacy DC Lite detected for '{game.Name}' — marking for migration");
                     }
+                    else
+                    {
+                        // Check for DC with custom DLL override name via AuxInstalledRecord
+                        var dcRec = auxRecords.FirstOrDefault(r =>
+                            r.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase) &&
+                            r.AddonType == "DisplayCommander");
 
-                    if (dcRec != null && File.Exists(Path.Combine(dcRec.InstallPath, dcRec.InstalledAs)))
-                    {
-                        newCard.DcStatus = GameStatus.Installed;
-                        newCard.DcInstalledFile = dcRec.InstalledAs;
-                        var peVer2 = AuxInstallService.ReadInstalledVersion(dcRec.InstallPath, dcRec.InstalledAs);
-                        var metaVer2 = ReadDcInstalledVersion(newCard.Is32Bit);
-                        if (metaVer2 == "latest_build") metaVer2 = null;
-                        newCard.DcInstalledVersion = peVer2 ?? metaVer2;
-                    }
-                    else if (dcRec != null)
-                    {
-                        // Record exists but file not on disk — stale record
-                        _auxInstaller.RemoveRecord(dcRec);
+                        // ── Path reconciliation for DC aux records ────────────────────
+                        if (dcRec != null
+                            && !dcRec.InstallPath.Equals(installPath, StringComparison.OrdinalIgnoreCase))
+                        {
+                            var oldDcPath = dcRec.InstallPath;
+                            var dcFile = dcRec.InstalledAs;
+                            var newDcFilePath = string.IsNullOrEmpty(dcFile) ? null : Path.Combine(installPath, dcFile);
+                            var oldDcFilePath = string.IsNullOrEmpty(dcFile) ? null : Path.Combine(oldDcPath, dcFile);
+
+                            if (newDcFilePath != null && File.Exists(newDcFilePath))
+                            {
+                                _crashReporter.Log($"[BuildCards] DC path reconciliation: '{game.Name}' path changed, DC already at new path");
+                            }
+                            else if (oldDcFilePath != null && File.Exists(oldDcFilePath))
+                            {
+                                try
+                                {
+                                    Directory.CreateDirectory(Path.GetDirectoryName(newDcFilePath!)!);
+                                    File.Copy(oldDcFilePath, newDcFilePath!, overwrite: true);
+                                    _crashReporter.Log($"[BuildCards] DC path reconciliation: '{game.Name}' copied DC '{dcFile}' from '{oldDcPath}' → '{installPath}'");
+                                }
+                                catch (Exception ex)
+                                {
+                                    _crashReporter.Log($"[BuildCards] DC path reconciliation: '{game.Name}' failed to copy DC — {ex.Message}");
+                                }
+                            }
+                            else
+                            {
+                                _crashReporter.Log($"[BuildCards] DC path reconciliation: '{game.Name}' path changed, DC not found at either path");
+                            }
+
+                            dcRec.InstallPath = installPath;
+                            _auxInstaller.SaveAuxRecord(dcRec);
+                        }
+
+                        if (dcRec != null && File.Exists(Path.Combine(dcRec.InstallPath, dcRec.InstalledAs)))
+                        {
+                            newCard.DcStatus = GameStatus.Installed;
+                            newCard.DcInstalledFile = dcRec.InstalledAs;
+                            var peVer2 = AuxInstallService.ReadInstalledVersion(dcRec.InstallPath, dcRec.InstalledAs);
+                            var metaVer2 = ReadDcInstalledVersion(newCard.Is32Bit);
+                            if (metaVer2 == "latest_build") metaVer2 = null;
+                            newCard.DcInstalledVersion = peVer2 ?? metaVer2;
+                        }
+                        else if (dcRec != null)
+                        {
+                            // Record exists but file not on disk — stale record
+                            _auxInstaller.RemoveRecord(dcRec);
+                        }
                     }
                 }
             }
@@ -1536,12 +1574,23 @@ public partial class MainViewModel
                 .FirstOrDefault(f => Path.GetFileName(f).StartsWith("renodx", StringComparison.OrdinalIgnoreCase));
             if (found != null) return Path.GetFileName(found);
             if (depth > 0)
-                foreach (var sub in Directory.GetDirectories(dir))
+            {
+                string[] subdirs;
+                try { subdirs = Directory.GetDirectories(dir); }
+                catch (DirectoryNotFoundException) { return null; }
+                catch (UnauthorizedAccessException) { return null; }
+
+                foreach (var sub in subdirs)
                 {
+                    // Skip subdirectories that no longer exist (symlinks, junctions, race conditions)
+                    if (!Directory.Exists(sub)) continue;
                     var r = ScanAddonShallow(sub, pattern, depth - 1);
                     if (r != null) return r;
                 }
+            }
         }
+        catch (DirectoryNotFoundException) { /* Expected for broken symlinks/junctions — suppress noise */ }
+        catch (UnauthorizedAccessException) { /* Expected for protected directories — suppress noise */ }
         catch (Exception ex) { CrashReporter.Log($"[MainViewModel.ScanAddonShallow] Scan failed for '{dir}' — {ex.Message}"); }
         return null;
     }

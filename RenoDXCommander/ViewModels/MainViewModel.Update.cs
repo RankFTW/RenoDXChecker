@@ -261,18 +261,13 @@ public partial class MainViewModel
         try
         {
             // ── Fetch latest release from GitHub API ──────────────────────
-            using var apiReq = new HttpRequestMessage(HttpMethod.Get, UltraLimiterReleasesApiUrl);
-            apiReq.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-            apiReq.Headers.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue { NoCache = true };
-
-            var apiResp = await _http.SendAsync(apiReq, HttpCompletionOption.ResponseContentRead);
-            if (!apiResp.IsSuccessStatusCode)
+            var json = await _etagCache.GetWithETagAsync(_http, UltraLimiterReleasesApiUrl).ConfigureAwait(false);
+            if (json == null)
             {
-                _crashReporter.Log($"[CheckUlUpdateAsync] API returned {(int)apiResp.StatusCode}");
+                _crashReporter.Log($"[CheckUlUpdateAsync] API returned error");
                 return false;
             }
 
-            var json = await apiResp.Content.ReadAsStringAsync();
             using var doc = System.Text.Json.JsonDocument.Parse(json);
 
             // Get the tag name (version)
@@ -349,11 +344,11 @@ public partial class MainViewModel
     {
         _crashReporter.Log($"[CheckDcUpdateAsync] Starting");
 
-        bool anyInstalled = cards.Any(c => c.DcStatus == GameStatus.Installed);
+        bool anyInstalled = cards.Any(c => c.DcStatus == GameStatus.Installed || c.DcStatus == GameStatus.UpdateAvailable);
 
         // ── Determine which bitness variants are in use ───────────────────
-        bool needs64 = cards.Any(c => c.DcStatus == GameStatus.Installed && !c.Is32Bit);
-        bool needs32 = cards.Any(c => c.DcStatus == GameStatus.Installed && c.Is32Bit);
+        bool needs64 = cards.Any(c => (c.DcStatus == GameStatus.Installed || c.DcStatus == GameStatus.UpdateAvailable) && !c.Is32Bit);
+        bool needs32 = cards.Any(c => (c.DcStatus == GameStatus.Installed || c.DcStatus == GameStatus.UpdateAvailable) && c.Is32Bit);
 
         // If nothing is specifically installed yet (legacy/meta-only), default to 64-bit
         if (!needs64 && !needs32)
@@ -388,18 +383,13 @@ public partial class MainViewModel
         try
         {
             // ── Fetch latest release from GitHub API ──────────────────────
-            using var apiReq = new HttpRequestMessage(HttpMethod.Get, DcReleasesApiUrl);
-            apiReq.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-            apiReq.Headers.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue { NoCache = true };
-
-            var apiResp = await _http.SendAsync(apiReq, HttpCompletionOption.ResponseContentRead);
-            if (!apiResp.IsSuccessStatusCode)
+            var json = await _etagCache.GetWithETagAsync(_http, DcReleasesApiUrl).ConfigureAwait(false);
+            if (json == null)
             {
-                _crashReporter.Log($"[CheckDcUpdateAsync] API returned {(int)apiResp.StatusCode}");
+                _crashReporter.Log($"[CheckDcUpdateAsync] API returned error");
                 return false;
             }
 
-            var json = await apiResp.Content.ReadAsStringAsync();
             using var doc = System.Text.Json.JsonDocument.Parse(json);
 
             // Get the tag name (version) — DC uses a fixed "latest_build" tag,

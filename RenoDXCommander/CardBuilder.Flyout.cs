@@ -182,39 +182,6 @@ public partial class CardBuilder
             panel.Children.Add(lumaRow);
         }
 
-        // ── Optional separator + OptiScaler row ──────────────────────────────
-        var optionalSep = new TextBlock
-        {
-            Text = "———  Optional  ———",
-            FontSize = 9,
-            Foreground = UIFactory.GetBrush("#5A6880"),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 4, 0, 2),
-        };
-        panel.Children.Add(optionalSep);
-
-        // OptiScaler row
-        var osRow = BuildComponentRow(card, "OptiScaler", "OS",
-            card.OsStatusText, card.OsStatusColor, card.OsShortAction,
-            card.CardOsInstallEnabled, card.IsOsInstalled,
-            showCopyConfig: true, copyConfigVisible: card.OsIniExists,
-            copyConfigTooltip: "Copy OptiScaler.ini to game folder",
-            addonType: AddonType.OptiScaler,
-            btnBackground: card.OsBtnBackground, btnForeground: card.OsBtnForeground, btnBorderBrush: card.OsBtnBorderBrush);
-        // Grey out and disable for 32-bit games
-        if (card.Is32Bit)
-        {
-            osRow.Opacity = 0.35;
-            osRow.IsHitTestVisible = false;
-            // Apply strikethrough to name and status text
-            foreach (var child in osRow.Children)
-            {
-                if (child is TextBlock tb)
-                    tb.TextDecorations = Windows.UI.Text.TextDecorations.Strikethrough;
-            }
-        }
-        panel.Children.Add(osRow);
-
         // ── Limiter separator + rows ──────────────────────────────────────────
         var limiterSep = new TextBlock
         {
@@ -222,7 +189,7 @@ public partial class CardBuilder
             FontSize = 9,
             Foreground = UIFactory.GetBrush("#5A6880"),
             HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 4, 0, 2),
+            Margin = new Thickness(120, 4, 0, 2),
         };
         panel.Children.Add(limiterSep);
 
@@ -261,6 +228,39 @@ public partial class CardBuilder
             btnBackground: card.DcBtnBackground, btnForeground: card.DcBtnForeground, btnBorderBrush: card.DcBtnBorderBrush);
         dcRow.Visibility = card.DcRowVisibility;
         panel.Children.Add(dcRow);
+
+        // ── Optional separator + OptiScaler row ──────────────────────────────
+        var optionalSep = new TextBlock
+        {
+            Text = "———  Optional  ———",
+            FontSize = 9,
+            Foreground = UIFactory.GetBrush("#5A6880"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(120, 4, 0, 2),
+        };
+        panel.Children.Add(optionalSep);
+
+        // OptiScaler row
+        var osRow = BuildComponentRow(card, "OptiScaler", "OS",
+            card.OsStatusText, card.OsStatusColor, card.OsShortAction,
+            card.CardOsInstallEnabled, card.IsOsInstalled,
+            showCopyConfig: true, copyConfigVisible: card.OsIniExists,
+            copyConfigTooltip: "Copy OptiScaler.ini to game folder",
+            addonType: AddonType.OptiScaler,
+            btnBackground: card.OsBtnBackground, btnForeground: card.OsBtnForeground, btnBorderBrush: card.OsBtnBorderBrush);
+        // Grey out and disable for 32-bit games
+        if (card.Is32Bit)
+        {
+            osRow.Opacity = 0.35;
+            osRow.IsHitTestVisible = false;
+            // Apply strikethrough to name and status text
+            foreach (var child in osRow.Children)
+            {
+                if (child is TextBlock tb)
+                    tb.TextDecorations = Windows.UI.Text.TextDecorations.Strikethrough;
+            }
+        }
+        panel.Children.Add(osRow);
 
         // External/Discord row — shown when game is external-only (no wiki mod)
         Grid? externalRow = null;
@@ -427,7 +427,7 @@ public partial class CardBuilder
         var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });  // col 0: name
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(75) });  // col 1: status
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });  // col 2: Info button
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(44) });  // col 2: Info button + gap
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // col 3: install btn
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });     // col 4: copy config
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });     // col 5: uninstall
@@ -471,10 +471,11 @@ public partial class CardBuilder
             Padding = new Thickness(4, 2, 4, 2),
             MinWidth = 0,
             Width = 36,
-            Height = 32,
+            MinHeight = 0,
             CornerRadius = new CornerRadius(8),
             VerticalAlignment = VerticalAlignment.Center,
             BorderThickness = new Thickness(1),
+            Margin = new Thickness(0, 0, 4, 0),
         };
         // Store the AddonType on DataContext for the click handler to identify which addon
         infoBtn.DataContext = addonType;

@@ -195,9 +195,16 @@ public partial class ShaderPackService
     // Value is a JSON array of paths relative to RsStagingDir.
     private string FileListKey(string packId) => $"ShaderPack_{packId}_Files";
 
+    // Settings key that stores the cache zip's last-write-time (UTC ticks) for a pack.
+    // When the stored timestamp matches the current zip, we skip the expensive per-file
+    // existence check in PackHasExtractedFiles.
+    private string CacheTimestampKey(string packId) => $"ShaderPack_{packId}_CacheTimestamp";
+
     /// <summary>
     /// Returns true when every file previously recorded for this pack still exists
     /// on disk AND the cache zip itself exists. Either condition missing → re-extract.
+    /// Uses a timestamp-based fast path: if the cache zip's last-write-time matches
+    /// the stored timestamp, the per-file check is skipped entirely.
     /// </summary>
     private bool PackHasExtractedFiles(string packId, string cachePath)
     {
@@ -208,10 +215,31 @@ public partial class ShaderPackService
             var d = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(SettingsPath));
             if (d == null || !d.TryGetValue(FileListKey(packId), out var json) || string.IsNullOrEmpty(json))
                 return false; // no record → treat as missing
+
+            // Fast path: if the cache zip hasn't changed since we last verified all files,
+            // skip the expensive per-file existence check.
+            var currentTimestamp = File.GetLastWriteTimeUtc(cachePath).Ticks.ToString();
+            if (d.TryGetValue(CacheTimestampKey(packId), out var storedTimestamp)
+                && storedTimestamp == currentTimestamp)
+            {
+                return true;
+            }
+
             var files = JsonSerializer.Deserialize<List<string>>(json) ?? new();
             if (files.Count == 0) return false;
             // All recorded files must still exist
-            return files.All(rel => File.Exists(Path.Combine(AuxInstallService.RsStagingDir, rel)));
+            if (!files.All(rel => File.Exists(Path.Combine(AuxInstallService.RsStagingDir, rel))))
+                return false;
+
+            // All files verified — store the cache zip timestamp so next check is instant
+            d[CacheTimestampKey(packId)] = currentTimestamp;
+            try
+            {
+                File.WriteAllText(SettingsPath, JsonSerializer.Serialize(d, new JsonSerializerOptions { WriteIndented = true }));
+            }
+            catch (Exception ex) { CrashReporter.Log($"[ShaderPackService.PackHasExtractedFiles] Failed to save cache timestamp for '{packId}' — {ex.Message}"); }
+
+            return true;
         }
         catch (Exception ex) { CrashReporter.Log($"[ShaderPackService.PackHasExtractedFiles] Failed to check extracted files for '{packId}' — {ex.Message}"); return false; }
     }
@@ -269,17 +297,13 @@ public partial class ShaderPackService
     {
         try
         {
-            var req = new HttpRequestMessage(HttpMethod.Get, pack.Url);
-            req.Headers.Add("User-Agent", "RHI");
-            req.Headers.Add("Accept", "application/vnd.github+json");
-            var resp = await _http.SendAsync(req);
-            if (!resp.IsSuccessStatusCode)
+            var json = await _etagCache.GetWithETagAsync(_http, pack.Url).ConfigureAwait(false);
+            if (json == null)
             {
-                CrashReporter.Log($"[ShaderPackService.ResolveGhRelease] [{pack.Id}] GitHub API {resp.StatusCode}");
+                CrashReporter.Log($"[ShaderPackService.ResolveGhRelease] [{pack.Id}] GitHub API returned error");
                 return (null, "");
             }
 
-            var json = await resp.Content.ReadAsStringAsync();
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 

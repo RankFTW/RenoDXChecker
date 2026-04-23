@@ -248,7 +248,7 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
-                                            <Grid Grid.Column="0" VerticalAlignment="Center">
+                                            <Grid Grid.Column="0" Width="16" VerticalAlignment="Center">
                                                 <Image Width="14" Height="14"
                                                        Stretch="Uniform"
                                                        Visibility="{x:Bind SourceIconImageVisibility}">
@@ -1026,10 +1026,10 @@
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>  <!-- Row 0: Titles + descriptions -->
-                                    <RowDefinition Height="Auto"/>  <!-- Row 1: Path box + Open | ReShade key box -->
-                                    <RowDefinition Height="Auto"/>  <!-- Row 2: Per-Game toggle | ReShade Apply -->
-                                    <RowDefinition Height="Auto"/>  <!-- Row 3: (empty) | ReLimiter label + key -->
-                                    <RowDefinition Height="Auto"/>  <!-- Row 4: Screenshot Apply | ReLimiter Apply -->
+                                    <RowDefinition Height="Auto"/>  <!-- Row 1: Path box + Open | ReShade keys -->
+                                    <RowDefinition Height="Auto"/>  <!-- Row 2: Per-Game label | Apply ReShade Keys -->
+                                    <RowDefinition Height="Auto"/>  <!-- Row 3: Per-Game toggle | ReLimiter label + key -->
+                                    <RowDefinition Height="Auto"/>  <!-- Row 4: Apply screenshot | ReLimiter Apply -->
                                 </Grid.RowDefinitions>
 
                                 <!-- ── Row 0: Titles + descriptions ── -->
@@ -1051,11 +1051,23 @@
                                                Foreground="{StaticResource TextPrimaryBrush}"/>
                                     <TextBlock TextWrapping="Wrap" FontSize="11"
                                                Foreground="{StaticResource InlineDescriptionBrush}" LineHeight="18"
-                                               Text="ReShade overlay toggle key"/>
+                                               Text="ReShade key bindings."/>
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" FontSize="11"
+                                                   Foreground="{StaticResource InlineDescriptionBrush}"
+                                                   Text="Overlay toggle key"/>
+                                        <TextBlock Grid.Column="1" FontSize="11"
+                                                   Foreground="{StaticResource InlineDescriptionBrush}"
+                                                   Text="Screenshot key" Margin="0,0,26,0"/>
+                                    </Grid>
                                 </StackPanel>
 
-                                <!-- ── Row 1: Path box + Open | ReShade key box ── -->
-                                <Grid Grid.Row="1" Grid.Column="0" ColumnSpacing="8">
+                                <!-- ── Row 1: Path box + Open | ReShade overlay + screenshot keys side by side ── -->
+                                <Grid Grid.Row="1" Grid.Column="0" ColumnSpacing="8" VerticalAlignment="Top">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
@@ -1085,19 +1097,48 @@
                                             ToolTipService.ToolTip="Open the screenshot folder in Explorer"/>
                                 </Grid>
 
-                                <TextBox Grid.Row="1" Grid.Column="2" x:Name="HotkeyBox" x:FieldModifier="internal"
-                                         PlaceholderText="Press a key..."
-                                         IsReadOnly="True"
-                                         FontSize="12"
-                                         Background="{StaticResource SurfaceInputBrush}"
-                                         Foreground="{StaticResource TextSecondaryBrush}"
-                                         BorderBrush="{StaticResource BorderSubtleBrush}"
-                                         PreviewKeyDown="HotkeyBox_PreviewKeyDown"/>
+                                <Grid Grid.Row="1" Grid.Column="2" ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0" x:Name="HotkeyBox" x:FieldModifier="internal"
+                                             PlaceholderText="Press a key..."
+                                             IsReadOnly="True" FontSize="12"
+                                                 Background="{StaticResource SurfaceInputBrush}"
+                                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                                 BorderBrush="{StaticResource BorderSubtleBrush}"
+                                                 PreviewKeyDown="HotkeyBox_PreviewKeyDown"/>
+                                    <Grid Grid.Column="1" ColumnSpacing="4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0" x:Name="ScreenshotHotkeyBox" x:FieldModifier="internal"
+                                                 PlaceholderText="Press a key..."
+                                                 IsReadOnly="True" FontSize="12"
+                                                 Background="{StaticResource SurfaceInputBrush}"
+                                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                                 BorderBrush="{StaticResource BorderSubtleBrush}"
+                                                 PreviewKeyDown="ScreenshotHotkeyBox_PreviewKeyDown"/>
+                                        <Button Grid.Column="1" Content="↺" Click="ResetScreenshotHotkey_Click"
+                                                ToolTipService.ToolTip="Reset to Print Screen"
+                                                Background="Transparent" BorderThickness="0"
+                                                Padding="6,4" MinWidth="0" MinHeight="0" FontSize="14"
+                                                Foreground="{StaticResource TextTertiaryBrush}"
+                                                VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Grid>
 
-                                <!-- ── Row 2: ReShade Apply (right only) ── -->
+                                <!-- ── Row 2: Per-Game label | Combined Apply ReShade Keys ── -->
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Per-Game Subfolder"
+                                           FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           VerticalAlignment="Bottom"/>
+
                                 <Button Grid.Row="2" Grid.Column="2" x:Name="ApplyHotkeyBtn" x:FieldModifier="internal"
                                         Content="Apply to All Games"
-                                        Click="ApplyOverlayHotkey_Click"
+                                        Click="ApplyReShadeHotkeys_Click"
                                         Background="{StaticResource AccentBlueBgBrush}"
                                         Foreground="{StaticResource AccentBlueBrush}"
                                         BorderBrush="{StaticResource AccentBlueBorderBrush}" BorderThickness="1"
@@ -1107,11 +1148,11 @@
 
                                 <!-- ── Row 3: Per-Game toggle | ReLimiter label + key ── -->
                                 <ToggleSwitch Grid.Row="3" Grid.Column="0" x:Name="PerGameScreenshotToggle" x:FieldModifier="internal"
-                                              Header="Per-Game Subfolder"
                                               OnContent="Enabled — each game gets its own subfolder"
                                               OffContent="Disabled — all screenshots in one folder"
                                               Foreground="{StaticResource TextTertiaryBrush}" FontSize="12"
                                               VerticalAlignment="Center"/>
+
                                 <StackPanel Grid.Row="3" Grid.Column="2" Spacing="4">
                                     <TextBlock TextWrapping="Wrap" FontSize="11"
                                                Foreground="{StaticResource InlineDescriptionBrush}" LineHeight="18"
@@ -1126,7 +1167,7 @@
                                              PreviewKeyDown="UlHotkeyBox_PreviewKeyDown"/>
                                 </StackPanel>
 
-                                <!-- ── Row 4: Apply buttons ── -->
+                                <!-- ── Row 4: Apply screenshot path | ReLimiter Apply ── -->
                                 <Button Grid.Row="4" Grid.Column="0" x:Name="ApplyScreenshotPathBtn"
                                         Content="Apply to All Games"
                                         Click="ApplyScreenshotPath_Click"

@@ -832,14 +832,9 @@ public partial class MainViewModel
     {
         try
         {
-            using var apiReq = new HttpRequestMessage(HttpMethod.Get, UltraLimiterReleasesApiUrl);
-            apiReq.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-            apiReq.Headers.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue { NoCache = true };
+            var json = await _etagCache.GetWithETagAsync(_http, UltraLimiterReleasesApiUrl).ConfigureAwait(false);
+            if (json == null) return;
 
-            var apiResp = await _http.SendAsync(apiReq, HttpCompletionOption.ResponseContentRead);
-            if (!apiResp.IsSuccessStatusCode) return;
-
-            var json = await apiResp.Content.ReadAsStringAsync();
             using var doc = System.Text.Json.JsonDocument.Parse(json);
 
             if (doc.RootElement.TryGetProperty("tag_name", out var tagEl))
@@ -912,8 +907,11 @@ public partial class MainViewModel
 
     // ── Display Commander commands ────────────────────────────────────────────────
 
-    private const string DcFileName64 = "zzz_display_commander_lite.addon64";
-    private const string DcFileName32 = "zzz_display_commander_lite.addon32";
+    private const string DcFileName64 = "zzz_display_commander.addon64";
+    private const string DcFileName32 = "zzz_display_commander.addon32";
+    // Legacy filenames for migration from DC Lite
+    private const string LegacyDcFileName64 = "zzz_display_commander_lite.addon64";
+    private const string LegacyDcFileName32 = "zzz_display_commander_lite.addon32";
     private const string DcReleasesUrl =
         "https://github.com/pmnoxx/display-commander/releases/tag/latest_build";
     private const string DcReleasesApiUrl =
@@ -922,12 +920,15 @@ public partial class MainViewModel
     internal static string GetDcFileName(bool is32Bit) =>
         is32Bit ? DcFileName32 : DcFileName64;
 
+    internal static string GetLegacyDcFileName(bool is32Bit) =>
+        is32Bit ? LegacyDcFileName32 : LegacyDcFileName64;
+
     internal static string GetDcCachePath(bool is32Bit) =>
         Path.Combine(DownloadPaths.FrameLimiter, GetDcFileName(is32Bit));
 
     /// <summary>
     /// Resolves the effective DC filename for a game using the priority chain:
-    /// user DLL override > manifest override > default LITE variant filename.
+    /// user DLL override > manifest override > default variant filename.
     /// </summary>
     internal string ResolveDcFileName(GameCardViewModel card)
     {
@@ -957,6 +958,12 @@ public partial class MainViewModel
     /// </summary>
     private async Task EnsureDcCachedAsync(bool is32Bit, IProgress<(string msg, double pct)>? progress = null)
     {
+        // Clean up legacy DC Lite cache files
+        var legacyCachePath64 = Path.Combine(DownloadPaths.FrameLimiter, LegacyDcFileName64);
+        var legacyCachePath32 = Path.Combine(DownloadPaths.FrameLimiter, LegacyDcFileName32);
+        if (File.Exists(legacyCachePath64)) { File.Delete(legacyCachePath64); _crashReporter.Log("[DC] Cleaned up legacy lite cache (64-bit)"); }
+        if (File.Exists(legacyCachePath32)) { File.Delete(legacyCachePath32); _crashReporter.Log("[DC] Cleaned up legacy lite cache (32-bit)"); }
+
         if (File.Exists(GetDcCachePath(is32Bit)))
         {
             progress?.Report(("Installing from cache...", 50));
@@ -1014,14 +1021,9 @@ public partial class MainViewModel
     {
         try
         {
-            using var apiReq = new HttpRequestMessage(HttpMethod.Get, DcReleasesApiUrl);
-            apiReq.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-            apiReq.Headers.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue { NoCache = true };
+            var json = await _etagCache.GetWithETagAsync(_http, DcReleasesApiUrl).ConfigureAwait(false);
+            if (json == null) return;
 
-            var apiResp = await _http.SendAsync(apiReq, HttpCompletionOption.ResponseContentRead);
-            if (!apiResp.IsSuccessStatusCode) return;
-
-            var json = await apiResp.Content.ReadAsStringAsync();
             using var doc = System.Text.Json.JsonDocument.Parse(json);
 
             if (doc.RootElement.TryGetProperty("tag_name", out var tagEl))
@@ -1106,6 +1108,26 @@ public partial class MainViewModel
 
             var deployPath = ModInstallService.GetAddonDeployPath(card.InstallPath);
             var destPath = Path.Combine(deployPath, targetFileName);
+
+            // Migration: remove legacy DC Lite file if present
+            var legacyName = GetLegacyDcFileName(card.Is32Bit);
+            var legacyPath = Path.Combine(deployPath, legacyName);
+            if (File.Exists(legacyPath))
+            {
+                File.Delete(legacyPath);
+                _crashReporter.Log($"[InstallDcAsync] Removed legacy DC Lite file '{legacyName}' from '{card.GameName}'");
+            }
+            // Also check game root if deploy path differs
+            if (!deployPath.Equals(card.InstallPath, StringComparison.OrdinalIgnoreCase))
+            {
+                var legacyRootPath = Path.Combine(card.InstallPath, legacyName);
+                if (File.Exists(legacyRootPath))
+                {
+                    File.Delete(legacyRootPath);
+                    _crashReporter.Log($"[InstallDcAsync] Removed legacy DC Lite file '{legacyName}' from game root '{card.GameName}'");
+                }
+            }
+
             File.Copy(GetDcCachePath(card.Is32Bit), destPath, overwrite: true);
 
             // Save version metadata after successful install
@@ -1336,7 +1358,7 @@ public partial class MainViewModel
             card.RsActionMessage = "Installing Vulkan ReShade...";
             try
             {
-                AuxInstallService.MergeRsVulkanIni(card.InstallPath, card.GameName, BuildScreenshotSavePath(card.GameName), _settingsViewModel.OverlayHotkey);
+                AuxInstallService.MergeRsVulkanIni(card.InstallPath, card.GameName, BuildScreenshotSavePath(card.GameName), _settingsViewModel.OverlayHotkey, _settingsViewModel.ScreenshotHotkey);
                 AuxInstallService.CopyRsPresetIniIfPresent(card.InstallPath);
                 VulkanFootprintService.Create(card.InstallPath);
                 _shaderPackService.SyncGameFolder(card.InstallPath,
@@ -1401,7 +1423,7 @@ public partial class MainViewModel
             await Task.Run(() => InstallLayerAction());
 
             // 4. Deploy reshade.vulkan.ini (as reshade.ini) to game directory
-            AuxInstallService.MergeRsVulkanIni(card.InstallPath, card.GameName, BuildScreenshotSavePath(card.GameName), _settingsViewModel.OverlayHotkey);
+            AuxInstallService.MergeRsVulkanIni(card.InstallPath, card.GameName, BuildScreenshotSavePath(card.GameName), _settingsViewModel.OverlayHotkey, _settingsViewModel.ScreenshotHotkey);
 
             // 5. Deploy ReShadePreset.ini if present
             AuxInstallService.CopyRsPresetIniIfPresent(card.InstallPath);
