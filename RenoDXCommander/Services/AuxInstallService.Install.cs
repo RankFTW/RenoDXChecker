@@ -127,6 +127,11 @@ public partial class AuxInstallService
         var staged64 = record.AddonType == TypeReShadeNormal ? RsNormalStagedPath64 : RsStagedPath64;
         var staged32 = record.AddonType == TypeReShadeNormal ? RsNormalStagedPath32 : RsStagedPath32;
 
+        // If neither staged DLL exists, we can't compare — assume no update
+        // to avoid false positives (e.g. normal RS staging not downloaded yet).
+        if (!File.Exists(staged64) && !File.Exists(staged32))
+            return false;
+
         // Defensive: skip update check if staged DLLs are suspiciously small (test artifacts)
         if (File.Exists(staged64) && new FileInfo(staged64).Length < 100_000
             && File.Exists(staged32) && new FileInfo(staged32).Length < 100_000)

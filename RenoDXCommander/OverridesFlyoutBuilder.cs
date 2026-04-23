@@ -1237,14 +1237,14 @@ public class OverridesFlyoutBuilder
         ToolTipService.SetToolTip(normalReShadeToggle,
             "When enabled, this game uses normal ReShade (without addon support). " +
             "All managed addons will be removed and addon install buttons will be disabled.");
-        normalReShadeToggle.Toggled += async (s, ev) =>
+        normalReShadeToggle.Toggled += (s, ev) =>
         {
             var targetCard = ViewModel.AllCards.FirstOrDefault(c =>
                 c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
             if (targetCard == null) return;
             if (normalReShadeToggle.IsOn != targetCard.UseNormalReShade)
             {
-                await ViewModel.SetUseNormalReShade(targetCard, normalReShadeToggle.IsOn);
+                ViewModel.SetUseNormalReShade(targetCard, normalReShadeToggle.IsOn);
 
                 // When normal ReShade is enabled, force addon toggle off and disable it
                 if (normalReShadeToggle.IsOn)
@@ -1347,7 +1347,7 @@ public class OverridesFlyoutBuilder
                 var targetCard = ViewModel.AllCards.FirstOrDefault(c =>
                     c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
                 if (targetCard != null && targetCard.UseNormalReShade)
-                    _ = ViewModel.SetUseNormalReShade(targetCard, false);
+                    ViewModel.SetUseNormalReShade(targetCard, false);
             }
 
             // Reset bitness and API overrides

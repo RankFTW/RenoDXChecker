@@ -1353,7 +1353,7 @@ public partial class DetailPanelBuilder
                 var targetCard = _window.ViewModel.AllCards.FirstOrDefault(c =>
                     c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
                 if (targetCard != null && targetCard.UseNormalReShade)
-                    _ = _window.ViewModel.SetUseNormalReShade(targetCard, false);
+                    _window.ViewModel.SetUseNormalReShade(targetCard, false);
             }
 
             // Reset bitness override to Auto
@@ -1462,14 +1462,14 @@ public partial class DetailPanelBuilder
         };
         ToolTipService.SetToolTip(normalReShadeToggle,
             "When enabled, this game uses normal ReShade (without addon support). All managed addons will be removed and addon install buttons will be disabled.");
-        normalReShadeToggle.Toggled += async (s, ev) =>
+        normalReShadeToggle.Toggled += (s, ev) =>
         {
             var targetCard = _window.ViewModel.AllCards.FirstOrDefault(c =>
                 c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
             if (targetCard == null) return;
             if (normalReShadeToggle.IsOn != targetCard.UseNormalReShade)
             {
-                await _window.ViewModel.SetUseNormalReShade(targetCard, normalReShadeToggle.IsOn);
+                _window.ViewModel.SetUseNormalReShade(targetCard, normalReShadeToggle.IsOn);
 
                 // When normal ReShade is enabled, force addon toggle off and disable it
                 if (normalReShadeToggle.IsOn)

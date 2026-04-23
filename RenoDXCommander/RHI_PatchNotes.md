@@ -1,3 +1,10 @@
+## v1.8.4
+
+### Bug Fixes
+
+- Fixed the "ReShade Without Addon Support" toggle automatically installing or uninstalling ReShade when flipped. The toggle now only sets the preference — use the Install ReShade button to actually install the correct version. Toggling on will uninstall any existing addon ReShade (and its shaders/addons), and toggling off will uninstall any existing normal ReShade, but neither direction auto-installs the replacement.
+- Fixed ReShade showing a false "update available" badge on every launch for games using ReShade without addon support when the normal ReShade staging files were missing or hadn't been downloaded yet.
+
 ## v1.8.3
 
 ### Highlights
