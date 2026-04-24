@@ -668,6 +668,9 @@ public sealed partial class MainWindow
     private void GlobalRefUpdateToggle_Toggled(object sender, RoutedEventArgs e)
         => _settingsHandler.GlobalRefUpdateToggle_Toggled(sender, e);
 
+    private void CacheAllShadersToggle_Toggled(object sender, RoutedEventArgs e)
+        => _settingsHandler.CacheAllShadersToggle_Toggled(sender, e);
+
     private void ApplyOsHotkey_Click(object sender, RoutedEventArgs e)
         => _settingsHandler.ApplyOsHotkey_Click(sender, e);
 

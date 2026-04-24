@@ -183,6 +183,7 @@ public class SettingsHandler
         _window.GlobalDcUpdateToggle.IsOn = !ViewModel.Settings.GlobalSkipDcUpdates;
         _window.GlobalOsUpdateToggle.IsOn = !ViewModel.Settings.GlobalSkipOsUpdates;
         _window.GlobalRefUpdateToggle.IsOn = !ViewModel.Settings.GlobalSkipRefUpdates;
+        _window.CacheAllShadersToggle.IsOn = ViewModel.Settings.CacheAllShaders;
     }
 
     public void SettingsBack_Click(object sender, RoutedEventArgs e)
@@ -773,6 +774,16 @@ public class SettingsHandler
         if (sender is ToggleSwitch toggle)
         {
             ViewModel.Settings.GlobalSkipRefUpdates = !toggle.IsOn;
+            ViewModel.SaveSettingsPublic();
+        }
+    }
+
+    public void CacheAllShadersToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.Settings.IsLoadingSettings) return;
+        if (sender is ToggleSwitch toggle)
+        {
+            ViewModel.Settings.CacheAllShaders = toggle.IsOn;
             ViewModel.SaveSettingsPublic();
         }
     }

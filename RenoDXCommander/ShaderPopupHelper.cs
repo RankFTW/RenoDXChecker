@@ -82,14 +82,29 @@ public static class ShaderPopupHelper
             foreach (var (id, displayName, _) in group)
             {
                 var description = shaderPackService.GetPackDescription(id);
+                var isCached = shaderPackService.IsPackCached(id);
 
                 var contentPanel = new StackPanel { Spacing = 0 };
-                contentPanel.Children.Add(new TextBlock
+
+                var nameRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+                nameRow.Children.Add(new TextBlock
                 {
                     Text       = displayName,
                     FontSize   = 13,
                     Foreground = Brush(ResourceKeys.TextPrimaryBrush),
                 });
+                if (isCached)
+                {
+                    nameRow.Children.Add(new TextBlock
+                    {
+                        Text       = "✓",
+                        FontSize   = 13,
+                        Foreground = Brush(ResourceKeys.AccentGreenBrush),
+                        VerticalAlignment = VerticalAlignment.Center,
+                    });
+                }
+                contentPanel.Children.Add(nameRow);
+
                 if (!string.IsNullOrEmpty(description))
                 {
                     contentPanel.Children.Add(new TextBlock

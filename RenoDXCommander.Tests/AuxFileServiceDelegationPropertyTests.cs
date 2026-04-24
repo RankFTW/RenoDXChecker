@@ -139,5 +139,8 @@ public class AuxFileServiceDelegationPropertyTests
         public void SyncShadersToAllLocations(
             IEnumerable<(string installPath, bool rsInstalled, string? shaderModeOverride)> locations,
             IEnumerable<string>? selectedPackIds = null) { }
+
+        public Task EnsurePacksAsync(IEnumerable<string> packIds, IProgress<string>? progress = null) => Task.CompletedTask;
+        public bool IsPackCached(string packId) => true;
     }
 }

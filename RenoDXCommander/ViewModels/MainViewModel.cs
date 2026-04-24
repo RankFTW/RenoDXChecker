@@ -228,10 +228,27 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public void DeployAllShaders()
     {
-        _ = Task.Run(() =>
+        _ = Task.Run(async () =>
         {
             try
             {
+                // Collect all unique pack IDs needed across all games
+                var allNeededPacks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var card in _allCards)
+                {
+                    if (string.IsNullOrEmpty(card.InstallPath)) continue;
+                    bool rsInstalled = card.RequiresVulkanInstall
+                        ? VulkanFootprintService.Exists(card.InstallPath)
+                        : card.RsStatus == GameStatus.Installed || card.RsStatus == GameStatus.UpdateAvailable;
+                    if (!rsInstalled) continue;
+                    var sel = ResolveShaderSelection(card.GameName, card.ShaderModeOverride);
+                    if (sel != null) allNeededPacks.UnionWith(sel);
+                }
+
+                // Ensure needed packs are downloaded (no-op if already cached)
+                if (allNeededPacks.Count > 0)
+                    await _shaderPackService.EnsurePacksAsync(allNeededPacks);
+
                 foreach (var card in _allCards)
                 {
                     if (string.IsNullOrEmpty(card.InstallPath)) continue;
@@ -240,7 +257,6 @@ public partial class MainViewModel : ObservableObject
                         ? VulkanFootprintService.Exists(card.InstallPath)
                         : card.RsStatus == GameStatus.Installed || card.RsStatus == GameStatus.UpdateAvailable;
 
-                    // Resolve effective selection: per-game override wins, otherwise global
                     var effectiveSelection = ResolveShaderSelection(card.GameName, card.ShaderModeOverride);
 
                     if (rsInstalled)
@@ -264,7 +280,7 @@ public partial class MainViewModel : ObservableObject
             c.GameName.Equals(gameName, StringComparison.OrdinalIgnoreCase));
         if (card == null || string.IsNullOrEmpty(card.InstallPath)) return;
 
-        _ = Task.Run(() =>
+        _ = Task.Run(async () =>
         {
             try
             {
@@ -272,8 +288,11 @@ public partial class MainViewModel : ObservableObject
                     ? VulkanFootprintService.Exists(card.InstallPath)
                     : card.RsStatus == GameStatus.Installed || card.RsStatus == GameStatus.UpdateAvailable;
 
-                // Resolve effective selection: per-game override wins, otherwise global
                 var effectiveSelection = ResolveShaderSelection(gameName, card.ShaderModeOverride);
+
+                // Ensure needed packs are downloaded before deploying
+                if (effectiveSelection != null)
+                    await _shaderPackService.EnsurePacksAsync(effectiveSelection);
 
                 if (rsInstalled)
                 {

@@ -179,6 +179,9 @@ internal static class TestHelpers
         public void SyncGameFolder(string gameDir, IEnumerable<string>? selectedPackIds = null)
             => SyncGameFolderCalls.Add((gameDir, selectedPackIds));
         public void SyncShadersToAllLocations(IEnumerable<(string installPath, bool rsInstalled, string? shaderModeOverride)> locations, IEnumerable<string>? selectedPackIds = null) { }
+
+        public Task EnsurePacksAsync(IEnumerable<string> packIds, IProgress<string>? progress = null) => Task.CompletedTask;
+        public bool IsPackCached(string packId) => true;
     }
 
     private class StubLumaService : ILumaService

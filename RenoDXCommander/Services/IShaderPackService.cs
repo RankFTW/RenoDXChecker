@@ -23,6 +23,18 @@ public interface IShaderPackService
 
     Task EnsureLatestAsync(IProgress<string>? progress = null);
 
+    /// <summary>
+    /// Downloads and extracts only the specified packs (on-demand).
+    /// Packs that are already cached are skipped.
+    /// </summary>
+    Task EnsurePacksAsync(IEnumerable<string> packIds, IProgress<string>? progress = null);
+
+    /// <summary>
+    /// Returns true if the given pack's files are already cached locally
+    /// (downloaded and extracted to the staging directory).
+    /// </summary>
+    bool IsPackCached(string packId);
+
     void DeployToGameFolder(string gameDir, IEnumerable<string>? packIds = null);
 
     void RemoveFromGameFolder(string gameDir);

@@ -40,6 +40,7 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private bool _globalSkipDcUpdates;
     [ObservableProperty] private bool _globalSkipOsUpdates;
     [ObservableProperty] private bool _globalSkipRefUpdates;
+    [ObservableProperty] private bool _cacheAllShaders = true;
 
     /// <summary>
     /// Optional callback invoked after any settings-specific property changes,
@@ -179,6 +180,7 @@ public partial class SettingsViewModel : ObservableObject
         if (s.TryGetValue("GlobalSkipDcUpdates", out var gsdVal)) GlobalSkipDcUpdates = gsdVal == "true";
         if (s.TryGetValue("GlobalSkipOsUpdates", out var gsoVal)) GlobalSkipOsUpdates = gsoVal == "true";
         if (s.TryGetValue("GlobalSkipRefUpdates", out var gsrefVal)) GlobalSkipRefUpdates = gsrefVal == "true";
+        if (s.TryGetValue("CacheAllShaders", out var casVal)) CacheAllShaders = casVal != "false"; // default true
     }
 
     /// <summary>
@@ -213,6 +215,7 @@ public partial class SettingsViewModel : ObservableObject
         s["GlobalSkipDcUpdates"] = GlobalSkipDcUpdates ? "true" : "false";
         s["GlobalSkipOsUpdates"] = GlobalSkipOsUpdates ? "true" : "false";
         s["GlobalSkipRefUpdates"] = GlobalSkipRefUpdates ? "true" : "false";
+        s["CacheAllShaders"] = CacheAllShaders ? "true" : "false";
     }
 
     public void LoadThemeAndDensity()

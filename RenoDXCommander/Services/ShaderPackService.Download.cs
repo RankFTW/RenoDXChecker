@@ -28,6 +28,43 @@ public partial class ShaderPackService
         await Task.WhenAll(tasks);
     }
 
+    /// <summary>
+    /// Downloads and extracts only the specified packs (on-demand).
+    /// Packs that are already cached are skipped.
+    /// </summary>
+    public async Task EnsurePacksAsync(IEnumerable<string> packIds, IProgress<string>? progress = null)
+    {
+        var idSet = new HashSet<string>(packIds, StringComparer.OrdinalIgnoreCase);
+        var needed = Packs.Where(p => idSet.Contains(p.Id)).ToList();
+        if (needed.Count == 0) return;
+
+        var tasks = needed.Select(pack => Task.Run(async () =>
+        {
+            try { await EnsurePackAsync(pack, progress); }
+            catch (Exception ex)
+            { CrashReporter.Log($"[ShaderPackService.EnsurePacksAsync] Unexpected error for '{pack.Id}' — {ex.Message}"); }
+        }));
+        await Task.WhenAll(tasks);
+    }
+
+    /// <summary>
+    /// Returns true if the given pack's files are already cached locally.
+    /// </summary>
+    public bool IsPackCached(string packId)
+    {
+        var pack = Packs.FirstOrDefault(p => p.Id.Equals(packId, StringComparison.OrdinalIgnoreCase));
+        if (pack == null) return false;
+
+        // Check if the cache zip exists and files are extracted
+        var cacheFiles = Directory.Exists(DownloadPaths.Shaders)
+            ? Directory.GetFiles(DownloadPaths.Shaders, $"shaders_{pack.Id}.*")
+            : Array.Empty<string>();
+        var cachePath = cacheFiles.FirstOrDefault(f => !f.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase));
+        if (cachePath == null) return false;
+
+        return PackHasExtractedFiles(pack.Id, cachePath);
+    }
+
     // ── Per-pack download + extract ───────────────────────────────────────────────
 
     private async Task EnsurePackAsync(

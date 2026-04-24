@@ -420,11 +420,24 @@ public partial class MainViewModel
                 // Deploy shaders to all installed game locations
                 try
                 {
-                    var syncTasks = _allCards
+                    var rsCards = _allCards
                         .Where(card => !string.IsNullOrEmpty(card.InstallPath))
                         .Where(card => card.RequiresVulkanInstall
                             ? VulkanFootprintService.Exists(card.InstallPath)
                             : card.RsStatus == GameStatus.Installed || card.RsStatus == GameStatus.UpdateAvailable)
+                        .ToList();
+
+                    // Ensure needed packs are downloaded (on-demand when CacheAllShaders is off)
+                    var allNeededPacks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var card in rsCards)
+                    {
+                        var sel = ResolveShaderSelection(card.GameName, card.ShaderModeOverride);
+                        if (sel != null) allNeededPacks.UnionWith(sel);
+                    }
+                    if (allNeededPacks.Count > 0)
+                        await _shaderPackService.EnsurePacksAsync(allNeededPacks);
+
+                    var syncTasks = rsCards
                         .Select(card =>
                         {
                             var effectiveSelection = ResolveShaderSelection(card.GameName, card.ShaderModeOverride);

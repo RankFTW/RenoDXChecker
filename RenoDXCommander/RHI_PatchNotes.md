@@ -1,11 +1,16 @@
 ## v1.8.5
 
+### Highlights
+
+**On-Demand Shader Downloads** — New "Shader Cache" toggle on the Settings page. When disabled, shader packs are no longer bulk-downloaded on startup. Instead, they're fetched only when needed — when you select them in the shader picker, install ReShade, or deploy a preset. Existing cached shaders are never deleted by the app, so you can toggle this off without losing anything. The shader selection dialog now shows a green ✓ next to each pack that's already cached locally.
+
 ### New Features
 
 - RE Framework can now be excluded from Update All, both per-game (via the Update Inclusion dialog in overrides) and globally (via the Settings page toggle). The RE Framework checkbox only appears for RE Engine games.
 
 ### Bug Fixes
 
+- Fixed ReShade being installed as d3d9.dll instead of dxgi.dll on games that import both DX9 and DX11 (e.g. Assassin's Creed Unity, Of Ash and Steel, Lies of P). DX11/DX12 now takes priority over legacy DX9 imports when resolving the ReShade DLL filename.
 - Fixed the app becoming unresponsive (unable to click anything, but window still movable) caused by two dialogs trying to open at the same time. All dialogs now go through a centralized guard that prevents concurrent opens.
 - Update inclusion summary text now wraps instead of clipping when RE Framework is shown.
 

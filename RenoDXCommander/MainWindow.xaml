@@ -1442,6 +1442,31 @@
                             </Grid>
                         </Border>
 
+                        <!-- ── Shader Cache ────────────────────────────────────────── -->
+                        <Border Background="{StaticResource SurfaceRaisedBrush}" CornerRadius="10" Padding="20,16"
+                                BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1">
+                            <Grid ColumnSpacing="0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="8">
+                                    <TextBlock Text="Shader Cache" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource InlineDescriptionBrush}" LineHeight="18"
+                                               Text="When enabled, all shader packs are downloaded and cached on startup. When disabled, shader packs are only downloaded when needed (e.g. when you select them or install ReShade). Existing cached shaders are kept either way."/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              x:Name="CacheAllShadersToggle" x:FieldModifier="internal"
+                                              Header="Cache All Shaders"
+                                              Toggled="CacheAllShadersToggle_Toggled"
+                                              OnContent="On" OffContent="Off"
+                                              Foreground="{StaticResource TextTertiaryBrush}" FontSize="12"
+                                              VerticalAlignment="Center"
+                                              Margin="16,0,0,0"/>
+                            </Grid>
+                        </Border>
+
                         <!-- ── Mass INI Deployment ─────────────────────────────────── -->
                         <Border Background="{StaticResource SurfaceRaisedBrush}" CornerRadius="10" Padding="20,16"
                                 BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1">

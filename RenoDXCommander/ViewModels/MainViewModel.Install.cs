@@ -1230,6 +1230,10 @@ public partial class MainViewModel
     /// </summary>
     internal static string? ResolveAutoReShadeFilename(HashSet<GraphicsApiType> detectedApis)
     {
+        // DX11/DX12 take precedence — many games import d3d9.dll for legacy reasons
+        // even though they primarily use DX11/DX12.
+        if (detectedApis.Contains(GraphicsApiType.DirectX11) || detectedApis.Contains(GraphicsApiType.DirectX12))
+            return null; // fall through to default dxgi.dll
         if (detectedApis.Contains(GraphicsApiType.DirectX9))
             return "d3d9.dll";
         if (detectedApis.Count == 1 && detectedApis.Contains(GraphicsApiType.OpenGL))
@@ -1312,15 +1316,24 @@ public partial class MainViewModel
                 card.RsActionMessage = p.msg;
                 card.RsProgress      = p.pct;
             });
-            var record = await _auxInstaller.InstallReShadeAsync(card.GameName, card.InstallPath,
-                shaderModeOverride: card.ShaderModeOverride,
-                use32Bit:       card.Is32Bit,
-                filenameOverride: card.DllOverrideEnabled
+            var selectedPacks = ResolveShaderSelection(card.GameName, card.ShaderModeOverride);
+            // Ensure needed shader packs are downloaded before install deploys them
+            if (selectedPacks != null)
+                await _shaderPackService.EnsurePacksAsync(selectedPacks);
+
+            var rsFilenameOverride = card.DllOverrideEnabled
                     ? (GetDllOverride(card.GameName)?.ReShadeFileName)
                     : (GetManifestDllNames(card.GameName)?.ReShade is { Length: > 0 } mRs
                         ? mRs
-                        : ResolveAutoReShadeFilename(card.DetectedApis)),
-                selectedPackIds: ResolveShaderSelection(card.GameName, card.ShaderModeOverride),
+                        : ResolveAutoReShadeFilename(card.DetectedApis));
+            _crashReporter.Log($"[InstallReShadeAsync] {card.GameName}: DllOverrideEnabled={card.DllOverrideEnabled}, " +
+                $"DetectedApis=[{string.Join(",", card.DetectedApis)}], filenameOverride={rsFilenameOverride ?? "(null → dxgi.dll)"}");
+
+            var record = await _auxInstaller.InstallReShadeAsync(card.GameName, card.InstallPath,
+                shaderModeOverride: card.ShaderModeOverride,
+                use32Bit:       card.Is32Bit,
+                filenameOverride: rsFilenameOverride,
+                selectedPackIds: selectedPacks,
                 progress:       progress,
                 screenshotSavePath: BuildScreenshotSavePath(card.GameName),
                 useNormalReShade: card.UseNormalReShade,
@@ -1488,7 +1501,7 @@ public partial class MainViewModel
             : (GetManifestDllNames(card.GameName)?.ReShade is { Length: > 0 } mRs
                 ? mRs
                 : ResolveAutoReShadeFilename(card.DetectedApis));
-        dllFileName ??= "d3d9.dll"; // default for XNA/DX9 games
+        dllFileName ??= "dxgi.dll"; // default — DX11/DX12 games use dxgi.dll
 
         card.RsIsInstalling = true;
         card.RsActionMessage = "Installing ReShade (GAC symlink)...";

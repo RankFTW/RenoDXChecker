@@ -55,9 +55,19 @@ public sealed partial class MainWindow : Window
         AuxInstallService.EnsureInisDir();       // create inis folder on first run
         AuxInstallService.EnsureReShadeStaging(); // create staging dir (DLLs downloaded by ReShadeUpdateService)
         Title = "RHI";
-        // Fire-and-forget: check/download Lilium HDR shaders in the background
-        var shaderTask = ViewModel.ShaderPackServiceInstance.EnsureLatestAsync();
-        shaderTask.SafeFireAndForget("MainWindow.ShaderPack");
+        // Fire-and-forget: check/download shader packs in the background
+        // When CacheAllShaders is off, skip the bulk download — packs will be fetched on demand.
+        Task shaderTask;
+        if (ViewModel.Settings.CacheAllShaders)
+        {
+            shaderTask = ViewModel.ShaderPackServiceInstance.EnsureLatestAsync();
+            shaderTask.SafeFireAndForget("MainWindow.ShaderPack");
+        }
+        else
+        {
+            shaderTask = Task.CompletedTask;
+            crashReporter.Log("[MainWindow] CacheAllShaders=false — skipping bulk shader download");
+        }
         ViewModel.SetShaderPackReadyTask(shaderTask);
         // Fire-and-forget: fetch addon list and check for updates in the background
         Task.Run(async () =>
