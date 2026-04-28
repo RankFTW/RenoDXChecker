@@ -1060,6 +1060,7 @@ public sealed partial class MainWindow
             await ViewModel.UpdateAllOsAsync();
         if (!ViewModel.Settings.GlobalSkipRefUpdates)
             await ViewModel.UpdateAllRefAsync();
+        await ViewModel.UpdateAllLumaAsync();
     }
 
     private async void UpdateAllRenoDx_Click(object sender, RoutedEventArgs e)

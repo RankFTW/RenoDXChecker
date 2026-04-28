@@ -229,6 +229,8 @@ public partial class GameCardViewModel
                                                       || (RsStatus == GameStatus.UpdateAvailable && !ExcludeFromUpdateAllReShade && !EffectiveLumaMode)
                                                       || (UlStatus == GameStatus.UpdateAvailable && !ExcludeFromUpdateAllUl)
                                                       || (DcStatus == GameStatus.UpdateAvailable && !ExcludeFromUpdateAllDc)
+                                                      || (OsStatus == GameStatus.UpdateAvailable && !ExcludeFromUpdateAllOs)
+                                                      || (LumaStatus == GameStatus.UpdateAvailable)
                                                       || (RefStatus == GameStatus.UpdateAvailable && !ExcludeFromUpdateAllRef))
                                                       ? Visibility.Visible : Visibility.Collapsed;
     public Visibility IsHiddenVisibility         => IsHidden ? Visibility.Visible : Visibility.Collapsed;

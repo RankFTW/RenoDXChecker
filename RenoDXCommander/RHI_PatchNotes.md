@@ -1,3 +1,13 @@
+## v1.8.8
+
+### Bug Fixes
+
+- OptiScaler and Luma updates now show the green update dot in the sidebar, matching the behaviour of all other components.
+- Luma is now included in the "Update All" button. Games with a newer Luma-Framework build available will be updated automatically alongside ReShade, RenoDX, and other components.
+- Fixed OptiScaler updates not actually downloading the new version. The update button now clears the old staging files and downloads the latest release before deploying.
+- Fixed OptiScaler updates incorrectly backing up its own companion files (FidelityFX DLLs, FakeNVAPI, libxess, etc.) as `.original`. Only genuine game files are backed up now.
+- Fixed OptiScaler version number not updating after an update, causing the update badge to reappear on every refresh.
+
 ## v1.8.7
 
 ### New Features

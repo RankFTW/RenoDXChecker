@@ -41,7 +41,14 @@ public partial class OptiScalerService
 
             progress?.Report(("Preparing OptiScaler install...", 5));
 
-            // ── 2. Validate staging ──────────────────────────────────────────
+            // ── 2. If updating, force re-download staging to get the latest version ──
+            if (HasUpdate)
+            {
+                CrashReporter.Log("[OptiScalerService.InstallAsync] Update available — clearing staging for fresh download");
+                ClearStaging();
+            }
+
+            // ── 3. Validate staging ──────────────────────────────────────────
             if (!IsStagingReady)
             {
                 CrashReporter.Log("[OptiScalerService.InstallAsync] Staging not ready — attempting download");
@@ -54,7 +61,7 @@ public partial class OptiScalerService
                 }
             }
 
-            // ── 3. Resolve effective DLL name ────────────────────────────────
+            // ── 4. Resolve effective DLL name ────────────────────────────────
             var effectiveDllName = _dllOverrideService.GetEffectiveOsName(card.GameName);
 
             // For Vulkan games, OptiScaler must be named winmm.dll (dxgi.dll won't load).
@@ -329,6 +336,7 @@ public partial class OptiScalerService
             card.OsInstalledFile = effectiveDllName;
             card.OsInstalledVersion = StagedVersion;
             card.OsStatus = GameStatus.Installed;
+            HasUpdate = false;
 
             progress?.Report(("OptiScaler installed!", 100));
             CrashReporter.Log($"[OptiScalerService.InstallAsync] Install complete for {card.GameName}");
@@ -601,10 +609,16 @@ public partial class OptiScalerService
         {
             progress?.Report(("Preparing OptiScaler update...", 5));
 
-            // ── 1. Validate staging is ready ─────────────────────────────────
+            // ── 1. Force re-download staging to get the latest version ────
+            if (HasUpdate)
+            {
+                CrashReporter.Log("[OptiScalerService.UpdateAsync] Update available — clearing staging for fresh download");
+                ClearStaging();
+            }
+
             if (!IsStagingReady)
             {
-                CrashReporter.Log("[OptiScalerService.UpdateAsync] Staging not ready — attempting download");
+                CrashReporter.Log("[OptiScalerService.UpdateAsync] Staging not ready — downloading");
                 await EnsureStagingAsync(progress);
                 if (!IsStagingReady)
                 {
@@ -653,9 +667,15 @@ public partial class OptiScalerService
                 else
                     destPath = Path.Combine(gameDir, fileName);
 
-                // Backup any new game files that weren't present during initial install
-                // (e.g. if a new OptiScaler version adds files that collide with game files)
-                BackupOriginalIfExists(destPath);
+                // During updates, don't backup OptiScaler's own companion files —
+                // they're from the previous version, not game originals.
+                // Only backup files that aren't known OptiScaler companions.
+                if (!CompanionFiles.Any(cf => cf.Equals(fileName, StringComparison.OrdinalIgnoreCase))
+                    && !fileName.Equals("OptiScaler.dll", StringComparison.OrdinalIgnoreCase)
+                    && !SupportedDllNames.Any(dn => dn.Equals(fileName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    BackupOriginalIfExists(destPath);
+                }
                 File.Copy(stagingFile, destPath, overwrite: true);
                 CrashReporter.Log($"[OptiScalerService.UpdateAsync] Replaced {fileName}");
             }
@@ -677,7 +697,7 @@ public partial class OptiScalerService
                     var relativePath = Path.GetRelativePath(stagingSubDir, subFile);
                     var destPath = Path.Combine(destSubDir, relativePath);
                     Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
-                    BackupOriginalIfExists(destPath);
+                    // Don't backup OptiScaler subdirectory files during update
                     File.Copy(subFile, destPath, overwrite: true);
                     CrashReporter.Log($"[OptiScalerService.UpdateAsync] Deployed {dirName}/{relativePath}");
                 }
@@ -692,7 +712,6 @@ public partial class OptiScalerService
             if (stagedDlssUpdate != null)
             {
                 var gameDlssUpdate = Path.Combine(gameDir, DlssDllFileName);
-                BackupOriginalIfExists(gameDlssUpdate);
                 File.Copy(stagedDlssUpdate, gameDlssUpdate, overwrite: true);
                 CrashReporter.Log($"[OptiScalerService.UpdateAsync] Updated {DlssDllFileName} in game folder");
             }
@@ -702,7 +721,6 @@ public partial class OptiScalerService
             if (stagedDlssdUpdate != null)
             {
                 var gameDlssdUpdate = Path.Combine(gameDir, DlssdDllFileName);
-                BackupOriginalIfExists(gameDlssdUpdate);
                 File.Copy(stagedDlssdUpdate, gameDlssdUpdate, overwrite: true);
                 CrashReporter.Log($"[OptiScalerService.UpdateAsync] Updated {DlssdDllFileName} in game folder");
             }
@@ -712,7 +730,6 @@ public partial class OptiScalerService
             if (stagedDlssgUpdate != null)
             {
                 var gameDlssgUpdate = Path.Combine(gameDir, DlssgDllFileName);
-                BackupOriginalIfExists(gameDlssgUpdate);
                 File.Copy(stagedDlssgUpdate, gameDlssgUpdate, overwrite: true);
                 CrashReporter.Log($"[OptiScalerService.UpdateAsync] Updated {DlssgDllFileName} in game folder");
             }
@@ -730,6 +747,7 @@ public partial class OptiScalerService
             // ── 6. Update card VM properties ─────────────────────────────────
             card.OsInstalledVersion = StagedVersion;
             card.OsStatus = GameStatus.Installed;
+            HasUpdate = false;
 
             progress?.Report(("OptiScaler updated!", 100));
             CrashReporter.Log($"[OptiScalerService.UpdateAsync] Update complete for {card.GameName}");

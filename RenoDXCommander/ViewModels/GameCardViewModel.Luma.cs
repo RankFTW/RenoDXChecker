@@ -73,6 +73,8 @@ public partial class GameCardViewModel
         OnPropertyChanged(nameof(IsLumaInstalled));
         OnPropertyChanged(nameof(CardLumaStatusDot));
         OnPropertyChanged(nameof(CardLumaInstallEnabled));
+        // Update badge
+        OnPropertyChanged(nameof(UpdateBadgeVisibility));
         // Managed state
         OnPropertyChanged(nameof(IsManaged));
         OnPropertyChanged(nameof(SidebarItemForeground));

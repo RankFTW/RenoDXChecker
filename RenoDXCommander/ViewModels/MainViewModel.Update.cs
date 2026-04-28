@@ -710,6 +710,34 @@ public partial class MainViewModel
             });
     }
 
+    public async Task UpdateAllLumaAsync()
+    {
+        var lumaCards = _allCards.Where(c => c.LumaStatus == GameStatus.UpdateAvailable
+            && !c.IsHidden && c.LumaMod?.DownloadUrl != null).ToList();
+        if (lumaCards.Count == 0) return;
+
+        foreach (var card in lumaCards)
+        {
+            try
+            {
+                await InstallLumaAsync(card);
+            }
+            catch (Exception ex)
+            {
+                _crashReporter.Log($"[UpdateAllLumaAsync] Failed for '{card.GameName}': {ex.Message}");
+            }
+        }
+
+        DispatcherQueue?.TryEnqueue(() =>
+        {
+            HasUpdatesAvailable = AnyUpdateAvailable;
+            OnPropertyChanged(nameof(AnyUpdateAvailable));
+            OnPropertyChanged(nameof(UpdateAllBtnBackground));
+            OnPropertyChanged(nameof(UpdateAllBtnForeground));
+            OnPropertyChanged(nameof(UpdateAllBtnBorder));
+        });
+    }
+
     // ── Update checking ───────────────────────────────────────────────────────────
 
     private async Task CheckForUpdatesAsync(List<GameCardViewModel> cards, List<InstalledModRecord> records, List<AuxInstalledRecord> auxRecords)
