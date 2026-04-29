@@ -8,11 +8,13 @@
     "Apple Music",
     "Battle.net.15492",
     "Battle.net.15561",
+    "Battle.net.15688",
     "Battle.net.16014",
     "Battle.net.16089",
     "Battle.net.16111",
     "Battle.net.16125",
     "Battle.net.17296",
+    "Battle.net.17359",
     "Battle.net.exe",
     "Borderless Gaming",
     "Call of Duty: Modern Warfare 3 - Dedicated Server",
@@ -258,6 +260,7 @@
 
   "engineOverrides": {
     "Alan Wake 2": "Northlight Engine",
+    "Aphelion": "Unreal Engine",
     "Assassin's Creed Mirage": "Anvil",
     "Assassin's Creed Shadows": "Anvil",
     "Assassin's Creed Valhalla": "Anvil",
