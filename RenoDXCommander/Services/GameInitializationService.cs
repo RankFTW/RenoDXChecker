@@ -77,17 +77,19 @@ public class GameInitializationService : IGameInitializationService
 
         var all = results.SelectMany(r => r).ToList();
 
-        // Step 1: deduplicate exact same name from multiple stores
-        var byName = all
-            .GroupBy(g => _gameDetectionService.NormalizeName(g.Name))
+        // Step 1: deduplicate by normalized name + install path.
+        // The same game on different stores (Steam vs Xbox) has different install
+        // paths and should appear separately — the platform icon distinguishes them.
+        // Only collapse entries that share BOTH the same name AND the same path
+        // (true duplicates from overlapping store scans).
+        var deduped = all
+            .GroupBy(g => (
+                Name: _gameDetectionService.NormalizeName(g.Name),
+                Path: g.InstallPath.TrimEnd('\\', '/').ToLowerInvariant()))
             .Select(grp => grp.First())
             .ToList();
 
-        // Step 2: deduplicate by install path
-        var byPath = byName
-            .GroupBy(g => g.InstallPath.TrimEnd('\\', '/').ToLowerInvariant())
-            .Select(grp => grp.OrderBy(g => g.Name.Length).First())
-            .ToList();
+        var byPath = deduped;
 
         // Permanently exclude specific non-game entries
         var permanentExclusions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)

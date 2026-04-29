@@ -1,3 +1,9 @@
+## v1.8.9
+
+### Bug Fixes
+
+- Fixed games installed on multiple platforms (e.g. Steam and Xbox) only showing once. Both copies now appear in the sidebar with their respective platform icons, so you can manage mods for each install independently.
+
 ## v1.8.8
 
 ### Bug Fixes

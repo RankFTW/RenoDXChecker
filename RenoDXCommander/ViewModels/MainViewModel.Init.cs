@@ -233,19 +233,24 @@ public partial class MainViewModel
 
                 // Merge: start with fresh scan, then add any cached games that weren't re-detected
                 // (e.g. games on a disconnected drive). Fresh scan wins for duplicates.
-                // Deduplicate by BOTH normalized name AND install path to prevent renamed games
-                // from appearing twice if the rename didn't carry over (e.g. after app update).
-                var freshNorms = freshGames.Select(g => _gameDetectionService.NormalizeName(g.Name))
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-                var freshPaths = freshGames
+                // A cached game is only excluded if a fresh game has BOTH the same name AND
+                // the same install path. This allows the same game on different platforms
+                // (different paths) to coexist.
+                var freshKeys = freshGames
                     .Where(g => !string.IsNullOrEmpty(g.InstallPath))
-                    .Select(g => g.InstallPath.TrimEnd(Path.DirectorySeparatorChar))
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    .Select(g => (
+                        Name: _gameDetectionService.NormalizeName(g.Name),
+                        Path: g.InstallPath.TrimEnd(Path.DirectorySeparatorChar).ToLowerInvariant()))
+                    .ToHashSet();
                 detectedGames = freshGames
                     .Concat(cachedGames.Where(g =>
-                        !freshNorms.Contains(_gameDetectionService.NormalizeName(g.Name))
-                        && (string.IsNullOrEmpty(g.InstallPath)
-                            || !freshPaths.Contains(g.InstallPath.TrimEnd(Path.DirectorySeparatorChar)))))
+                    {
+                        if (string.IsNullOrEmpty(g.InstallPath)) return true; // keep orphaned cached entries
+                        var key = (
+                            Name: _gameDetectionService.NormalizeName(g.Name),
+                            Path: g.InstallPath.TrimEnd(Path.DirectorySeparatorChar).ToLowerInvariant());
+                        return !freshKeys.Contains(key);
+                    }))
                     .ToList();
 
                 _crashReporter.Log($"[MainViewModel.InitializeAsync] Merged library: {freshGames.Count} detected + {cachedGames.Count} cached → {detectedGames.Count} total");

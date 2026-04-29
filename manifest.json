@@ -62,17 +62,22 @@
     "Mortal Kombat 1",
     "Nobody Wants to Die",
     "Returnal",
-    "Still Wakes the Deep"
+    "Still Wakes the Deep",
+    "Until Dawn™"
   ],
 
   "ueExtendedGames": [
     "Crisol: Theater of Idols",
     "Echoes of the End",
+    "Grand Theft Auto III – The Definitive Edition",
+    "Grand Theft Auto: San Andreas – The Definitive Edition",
+    "Grand Theft Auto: Vice City – The Definitive Edition",
     "High on Life 2",
     "Nobody Wants to Die",
     "Of Ash and Steel",
     "ROMEO IS A DEAD MAN",
-    "Titan Quest II"
+    "Titan Quest II",
+    "Until Dawn™"
   ],
 
   "thirtyTwoBitGames": [
@@ -303,6 +308,9 @@
     "Ghost of Tsushima DIRECTOR'S CUT": "Sucker Punch Engine",
     "God of War": "Santa Monica Engine",
     "God of War Ragnarök": "Santa Monica Engine",
+    "Grand Theft Auto III – The Definitive Edition": "Unreal Engine",
+    "Grand Theft Auto: Vice City – The Definitive Edition": "Unreal Engine",
+    "Grand Theft Auto: San Andreas – The Definitive Edition": "Unreal Engine",
     "Grand Theft Auto V": "RAGE",
     "Grand Theft Auto V Enhanced": "RAGE",
     "Greedfall: The Dying World": "Silk Engine",
@@ -350,6 +358,7 @@
     "Tom Clancy's The Division™": "Snowdrop",
     "Tom Clancy's The Division® 2": "Snowdrop",
     "UNCHARTED™: Legacy of Thieves Collection": "Naughty Dog Engine",
+    "Until Dawn™": "Unreal Engine",
     "Wolfenstein II: The New Colossus": "id Tech",
     "Wolfenstein: The New Order": "id Tech",
     "Wolfenstein: The Old Blood": "id Tech",
@@ -455,6 +464,26 @@
       "notesUrl": null,
       "notesUrlLabel": null
     },
+    "Grand Theft Auto: The Trilogy – The Definitive Edition (III, Vice City, San Andreas)": {
+      "notes": "ℹ️ Works with UE-Extended — upgrades SDR to HDR. Works out of the box, no additional configuration needed.",
+      "notesUrl": null,
+      "notesUrlLabel": null
+    },
+    "Grand Theft Auto III – The Definitive Edition": {
+      "notes": "ℹ️ Works with UE-Extended — upgrades SDR to HDR. Works out of the box, no additional configuration needed.",
+      "notesUrl": null,
+      "notesUrlLabel": null
+    },
+    "Grand Theft Auto: Vice City – The Definitive Edition": {
+      "notes": "ℹ️ Works with UE-Extended — upgrades SDR to HDR. Works out of the box, no additional configuration needed.",
+      "notesUrl": null,
+      "notesUrlLabel": null
+    },
+    "Grand Theft Auto: San Andreas – The Definitive Edition": {
+      "notes": "ℹ️ Works with UE-Extended — upgrades SDR to HDR. Works out of the box, no additional configuration needed.",
+      "notesUrl": null,
+      "notesUrlLabel": null
+    },
     "High On Life 2": {
       "notes": "⚠️ This game supports UE-Extended using native HDR. Additional steps must be taken for this to work.\n\nLaunch the game with UE-Extended installed to generate the correct segment of ReShade.ini.\nClose the game and in ReShade.ini look for the line that says 'Set_Path=1' and change this to 'Set_Path=0'\n\nCreate an Engine.ini in the game's Appdata folder with the following information:\n\n[SystemSettings]\nr.AllowHDR=1\nr.HDR.EnableHDROutput=1\nr.HDR.Display.OutputDevice=3\nr.HDR.Display.ColorGamut=2\nr.HDR.UI.CompositeMode=1\n\n[/Script/Engine.RendererSettings]\nr.LUT.UpdateEveryFrame=1\n\nYou can download a preconfigured Engine.ini here:",
       "notesUrl": "https://github.com/RankFTW/rdxc-manifest/releases/download/Engine.ini/Engine.ini",
@@ -502,6 +531,11 @@
     },
     "tModLoader": {
       "notes": "⚠️ You must run the game once in order to create the correct directories for ReShade/RenoDX to work.\nAfter running the game once click Refresh and make sure directory is detected as /tModLoader/dotnet before installing anything",
+      "notesUrl": null,
+      "notesUrlLabel": null
+    },
+    "Until Dawn™": {
+      "notes": "ℹ️ This game supports UE-Extended using native HDR. Works out of the box, no additional configuration needed.",
       "notesUrl": null,
       "notesUrlLabel": null
     }
