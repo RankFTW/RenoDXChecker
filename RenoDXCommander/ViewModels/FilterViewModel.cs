@@ -271,7 +271,9 @@ public partial class FilterViewModel : ObservableObject
             || (card.Mod?.Maintainer?.Contains(query, StringComparison.OrdinalIgnoreCase) == true)
             || (card.LumaMod?.Name?.Contains(query, StringComparison.OrdinalIgnoreCase) == true)
             || (card.LumaMod?.Author?.Contains(query, StringComparison.OrdinalIgnoreCase) == true)
-            || card.VulkanRenderingPath.Contains(query, StringComparison.OrdinalIgnoreCase);
+            || card.VulkanRenderingPath.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || (card.HasUwFixUrl && "UW Fix".Contains(query, StringComparison.OrdinalIgnoreCase))
+            || (card.HasUltraPlusUrl && "Ultra+".Contains(query, StringComparison.OrdinalIgnoreCase));
     }
 
     public void ApplyFilter()
