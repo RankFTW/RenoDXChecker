@@ -100,6 +100,7 @@ public partial class MainViewModel
         _resolvedPathCache.Clear();
         _addonFileCache.Clear();
         _bitnessCache.Clear();
+        _forceUpdateCheck = true;
         await InitializeAsync(forceRescan: true);
     }
 
@@ -141,6 +142,10 @@ public partial class MainViewModel
             var pcgwCacheTask = Task.Run(async () => {
                 try { await _pcgwService.LoadCacheAsync(); }
                 catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] PcgwService cache load failed — {ex.Message}"); }
+            });
+            var lyallInitTask = Task.Run(async () => {
+                try { await _lyallFixService.InitAsync(); }
+                catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] LyallFixService init failed — {ex.Message}"); }
             });
 
             // Merge hidden/favourite from library file with any already loaded from settings.json
@@ -305,6 +310,7 @@ public partial class MainViewModel
             // Ensure Nexus Mods dictionary and PCGW AppID cache are ready before building cards
             await nexusInitTask;
             await pcgwCacheTask;
+            await lyallInitTask;
 
             _crashReporter.Log($"[MainViewModel.InitializeAsync] Building cards for {allGames.Count} games...");
             _allCards = await Task.Run(() => BuildCards(allGames, records, auxRecords, addonCache, _genericNotes));
@@ -1400,6 +1406,12 @@ public partial class MainViewModel
                     .GetAwaiter().GetResult();
             }
             catch (Exception ex) { _crashReporter.Log($"[BuildCards] PcgwUrl resolve failed for '{game.Name}' — {ex.Message}"); }
+
+            try
+            {
+                newCard.LyallFixUrl = _lyallFixService.ResolveUrl(game.Name);
+            }
+            catch (Exception ex) { _crashReporter.Log($"[BuildCards] LyallFixUrl resolve failed for '{game.Name}' — {ex.Message}"); }
 
             cardBag.Add(newCard);
 

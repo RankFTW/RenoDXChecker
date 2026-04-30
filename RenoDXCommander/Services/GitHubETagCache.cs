@@ -14,12 +14,27 @@ public class GitHubETagCache
 {
     private readonly ConcurrentDictionary<string, (string etag, string body)> _cache = new();
 
+    /// <summary>Session-scoped flag — set when GitHub returns 403 (rate limited).</summary>
+    private volatile bool _rateLimited;
+
+    /// <summary>True if a 403 Forbidden response has been received this session.</summary>
+    public bool IsRateLimited => _rateLimited;
+
     /// <summary>
     /// Sends a GET request with ETag caching. If the resource hasn't changed,
     /// returns the cached body without consuming a rate limit point.
     /// </summary>
     public async Task<string?> GetWithETagAsync(HttpClient http, string url, string? userAgent = null)
     {
+        // ── Rate-limit guard: return cached body or null if rate-limited ──
+        if (_rateLimited)
+        {
+            if (_cache.TryGetValue(url, out var stale) && stale.body != null)
+                return stale.body;
+            CrashReporter.Log($"[GitHubETagCache] Rate limited — skipping {TruncateUrl(url)}");
+            return null;
+        }
+
         // Build request
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.UserAgent.Add(new ProductInfoHeaderValue("RHI", "1.0"));
@@ -45,6 +60,16 @@ public class GitHubETagCache
 
         if (!response.IsSuccessStatusCode)
         {
+            // Detect rate limiting (403 Forbidden) and set session-wide flag
+            if (response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                if (!_rateLimited)
+                {
+                    _rateLimited = true;
+                    CrashReporter.Log("[GitHubETagCache] GitHub API rate limited (403 Forbidden) — all further API calls will be skipped this session");
+                }
+            }
+
             // If we have a cached body (e.g. from a previous successful request) and the
             // server returned an error (403 rate-limited, 5xx, etc.), return the stale
             // cached body rather than null. This avoids unnecessary fallback requests and

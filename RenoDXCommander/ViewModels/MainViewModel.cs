@@ -32,6 +32,7 @@ public partial class MainViewModel : ObservableObject
     private readonly IAddonPackService _addonPackService;
     private readonly INexusModsService _nexusModsService;
     private readonly IPcgwService _pcgwService;
+    private readonly ILyallFixService _lyallFixService;
     private readonly IOptiScalerService _optiScalerService;
     private readonly IOptiScalerWikiService _optiScalerWikiService;
     private readonly IHdrDatabaseService _hdrDatabaseService;
@@ -451,6 +452,7 @@ public partial class MainViewModel : ObservableObject
         IREFrameworkService refService,
         INexusModsService nexusModsService,
         IPcgwService pcgwService,
+        ILyallFixService lyallFixService,
         IOptiScalerService optiScalerService,
         IOptiScalerWikiService optiScalerWikiService,
         IHdrDatabaseService hdrDatabaseService,
@@ -480,6 +482,7 @@ public partial class MainViewModel : ObservableObject
         _addonPackService = new AddonPackService(http);
         _nexusModsService = nexusModsService;
         _pcgwService = pcgwService;
+        _lyallFixService = lyallFixService;
         _optiScalerService = optiScalerService;
         _optiScalerWikiService = optiScalerWikiService;
         _hdrDatabaseService = hdrDatabaseService;
@@ -585,6 +588,9 @@ public partial class MainViewModel : ObservableObject
     private Dictionary<string, List<string>> _apiOverrides => _gameNameService.ApiOverrides;
     /// <summary>Session-scoped flag — true after the global Vulkan layer warning has been shown once this session.</summary>
     private bool _vulkanLayerWarningShownThisSession = false;
+
+    /// <summary>When true, the next CheckForUpdatesAsync call bypasses the cooldown timer (e.g. Full Refresh).</summary>
+    private bool _forceUpdateCheck;
 
     // Dispatcher reference for cross-thread UI updates
     private Microsoft.UI.Dispatching.DispatcherQueue? DispatcherQueue { get; set; }

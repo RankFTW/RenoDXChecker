@@ -328,19 +328,34 @@
                                                 Foreground="{StaticResource ChipTextBrush}"
                                                 BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1"
                                                 CornerRadius="6" Padding="8,4" MinWidth="0" MinHeight="0"
-                                                FontSize="11" Content="Nexus"
+                                                FontSize="11"
                                                 Click="NexusModsLink_Click"
                                                 Visibility="Collapsed"
-                                                ToolTipService.ToolTip="Open Nexus Mods page"/>
+                                                ToolTipService.ToolTip="Open Nexus Mods page">
+                                            <TextBlock Text="Nexus" TextDecorations="Underline"/>
+                                        </Button>
                                         <Button x:Name="DetailPcgwBtn" x:FieldModifier="internal"
                                                 Background="{StaticResource SurfaceOverlayBrush}"
                                                 Foreground="{StaticResource ChipTextBrush}"
                                                 BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1"
                                                 CornerRadius="6" Padding="8,4" MinWidth="0" MinHeight="0"
-                                                FontSize="11" Content="PCGW"
+                                                FontSize="11"
                                                 Click="PcgwLink_Click"
                                                 Visibility="Collapsed"
-                                                ToolTipService.ToolTip="Open PCGamingWiki page"/>
+                                                ToolTipService.ToolTip="Open PCGamingWiki page">
+                                            <TextBlock Text="PCGW" TextDecorations="Underline"/>
+                                        </Button>
+                                        <Button x:Name="DetailLyallFixBtn" x:FieldModifier="internal"
+                                                Background="{StaticResource SurfaceOverlayBrush}"
+                                                Foreground="{StaticResource ChipTextBrush}"
+                                                BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1"
+                                                CornerRadius="6" Padding="8,4" MinWidth="0" MinHeight="0"
+                                                FontSize="11"
+                                                Click="LyallFixLink_Click"
+                                                Visibility="Collapsed"
+                                                ToolTipService.ToolTip="Open Lyall's ultrawide fix page">
+                                            <TextBlock Text="UW Fix" TextDecorations="Underline"/>
+                                        </Button>
                                     </StackPanel>
                                     <!-- Right: game actions -->
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">

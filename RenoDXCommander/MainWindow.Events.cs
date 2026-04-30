@@ -582,6 +582,13 @@ public sealed partial class MainWindow
             await Windows.System.Launcher.LaunchUriAsync(new Uri(card.NexusModsUrl));
     }
 
+    private async void LyallFixLink_Click(object sender, RoutedEventArgs e)
+    {
+        var card = GetCardFromSender(sender);
+        if (card?.LyallFixUrl != null)
+            await Windows.System.Launcher.LaunchUriAsync(new Uri(card.LyallFixUrl));
+    }
+
     // ── Settings handlers ─────────────────────────────────────────────────────────
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)

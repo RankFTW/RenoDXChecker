@@ -742,6 +742,23 @@ public partial class MainViewModel
 
     private async Task CheckForUpdatesAsync(List<GameCardViewModel> cards, List<InstalledModRecord> records, List<AuxInstalledRecord> auxRecords)
     {
+        // ── Cooldown: skip update checks if last check was recent ──────────────
+        const int CooldownHours = 4;
+        var forceCheck = _forceUpdateCheck;
+        _forceUpdateCheck = false;
+
+        if (!forceCheck && DateTime.TryParse(_settingsViewModel.LastUpdateCheckUtc,
+            System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.RoundtripKind, out var lastCheck))
+        {
+            var elapsed = DateTime.UtcNow - lastCheck;
+            if (elapsed < TimeSpan.FromHours(CooldownHours))
+            {
+                _crashReporter.Log($"[MainViewModel.CheckForUpdatesAsync] Cooldown active — last check was {elapsed.TotalMinutes:F0}m ago, skipping API calls");
+                return;
+            }
+        }
+
         await _updateOrchestrationService.CheckForUpdatesAsync(
             cards, records, auxRecords, DispatcherQueue,
             () =>
@@ -755,6 +772,17 @@ public partial class MainViewModel
             skipRdx: _settingsViewModel.GlobalSkipRdxUpdates,
             skipRs: _settingsViewModel.GlobalSkipRsUpdates,
             skipRef: _settingsViewModel.GlobalSkipRefUpdates);
+
+        // ── Rate-limit guard: if earlier checks triggered 403, skip remaining API calls ──
+        if (_etagCache.IsRateLimited)
+        {
+            _crashReporter.Log("[MainViewModel.CheckForUpdatesAsync] GitHub API rate limited — skipping remaining update checks");
+            // Record successful check time even if rate-limited, so we don't hammer the API again immediately
+            _settingsViewModel.LastUpdateCheckUtc = DateTime.UtcNow.ToString("o");
+            SaveSettingsPublic();
+            _crashReporter.Log("[MainViewModel.CheckForUpdatesAsync] Update check complete (partial, rate limited) — cooldown timestamp saved");
+            return;
+        }
 
         // Check ReLimiter for updates (single global check, applies to all cards with UL installed)
         if (!_settingsViewModel.GlobalSkipUlUpdates)
@@ -840,6 +868,11 @@ public partial class MainViewModel
             _crashReporter.Log($"[MainViewModel.CheckForUpdatesAsync] OS update check failed — {ex.Message}");
         }
         }
+
+        // Record successful check time
+        _settingsViewModel.LastUpdateCheckUtc = DateTime.UtcNow.ToString("o");
+        SaveSettingsPublic();
+        _crashReporter.Log("[MainViewModel.CheckForUpdatesAsync] Update check complete — cooldown timestamp saved");
     }
 }
 

@@ -586,6 +586,11 @@ public partial class DetailPanelBuilder
                 _window.DetailNexusModsBtn.Visibility = _currentDetailCard.HasNexusModsUrl
                     ? Visibility.Visible : Visibility.Collapsed;
             }
+            if (e.PropertyName is "LyallFixUrl" or "HasLyallFixUrl")
+            {
+                _window.DetailLyallFixBtn.Visibility = _currentDetailCard.HasLyallFixUrl
+                    ? Visibility.Visible : Visibility.Collapsed;
+            }
         });
     }
 

@@ -1,3 +1,14 @@
+## v1.9.0
+
+### New Features
+
+- Lyall's ultrawide fix links now appear on game cards. If a game has an ultrawide/resolution fix by Lyall available on Codeberg, a "UW Fix" button shows next to the Nexus and PCGW buttons. Clicking it opens the fix page directly. Data is fetched once and cached for 24 hours.
+
+### Performance
+
+- Update checks now have a 4-hour cooldown. Launching the app multiple times no longer hammers the GitHub API — checks are skipped if the last successful check was recent. Full Refresh bypasses the cooldown when you need to force a check.
+- GitHub API rate limiting is now detected and handled gracefully. If a 403 is received, all remaining API calls for the session are skipped instead of each one failing independently.
+
 ## v1.8.9
 
 ### Bug Fixes

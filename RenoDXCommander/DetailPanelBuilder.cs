@@ -25,6 +25,14 @@ public partial class DetailPanelBuilder
     {
         _window = window;
         _dispatcherQueue = window.DispatcherQueue;
+
+        // Set hand cursor on link buttons so they feel like clickable links
+        var handCursor = Microsoft.UI.Input.InputSystemCursor.Create(Microsoft.UI.Input.InputSystemCursorShape.Hand);
+        var cursorProp = typeof(UIElement).GetProperty("ProtectedCursor",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        cursorProp?.SetValue(_window.DetailNexusModsBtn, handCursor);
+        cursorProp?.SetValue(_window.DetailPcgwBtn, handCursor);
+        cursorProp?.SetValue(_window.DetailLyallFixBtn, handCursor);
     }
 
     /// <summary>Gets the currently displayed detail card (if any).</summary>
@@ -185,6 +193,10 @@ public partial class DetailPanelBuilder
         // Nexus Mods link button
         _window.DetailNexusModsBtn.Tag = card;
         _window.DetailNexusModsBtn.Visibility = card.HasNexusModsUrl ? Visibility.Visible : Visibility.Collapsed;
+
+        // Lyall Fix link button
+        _window.DetailLyallFixBtn.Tag = card;
+        _window.DetailLyallFixBtn.Visibility = card.HasLyallFixUrl ? Visibility.Visible : Visibility.Collapsed;
 
         // Luma toggle row (full-width, above Luma install row)
         if (card.LumaBadgeVisibility == Visibility.Visible)
