@@ -1017,7 +1017,7 @@
                                     <StackPanel Grid.Row="0" Spacing="8">
                                         <TextBlock Text="Full Refresh" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
                                         <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource InlineDescriptionBrush}"
-                                                   Text="Clears all caches and re-scans everything from disk. Use this if games or mods appear out of sync."/>
+                                                   Text="Clears all caches, re-scans everything from disk, and forces a fresh update check for all components."/>
                                     </StackPanel>
                                     <Button Grid.Row="1" x:Name="FullRefreshBtn" Content="Full Refresh"
                                             Click="FullRefreshButton_Click"
@@ -1025,7 +1025,7 @@
                                             BorderBrush="{StaticResource AccentBlueBorderBrush}" BorderThickness="1"
                                             CornerRadius="8" Padding="12,7" FontSize="12"
                                             HorizontalAlignment="Stretch"
-                                            ToolTipService.ToolTip="Full refresh — clears all caches and re-scans everything from disk"/>
+                                            ToolTipService.ToolTip="Full refresh — clears all caches, re-scans from disk, and forces update checks"/>
                                 </Grid>
                             </Grid>
                         </Border>
