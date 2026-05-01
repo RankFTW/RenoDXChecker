@@ -1,67 +1,50 @@
 # RHI — ReShade HDR Installer
 
-RHI is a WinUI 3 desktop application for managing HDR mod installations on PC games. It auto-detects game libraries across eight storefronts, installs and updates ReShade, RenoDX, ReLimiter, Display Commander, OptiScaler, RE Framework, and Luma Framework components, and keeps everything in sync — all from a single interface.
+One app to manage HDR mods across your entire PC game library. RHI auto-detects games from eight storefronts, installs ReShade, RenoDX, frame limiters, OptiScaler, and more — all with one click per game.
 
 ![RHI](screenshots/game_view.png)
 
-> **⚠ Single-player only:** RHI installs ReShade with full addon support, which may be flagged by anti-cheat in online/multiplayer games. Uninstall ReShade before playing online.
+> **⚠ Single-player only.** RHI installs ReShade with addon support, which may trigger anti-cheat in online games. Uninstall before playing multiplayer.
 
-## Feature Highlights
+## Why RHI?
 
-- **Auto-detection** — scans Steam, GOG, Epic Games, EA App, Ubisoft Connect, Xbox/Game Pass, Battle.net, and Rockstar libraries on every launch
-- **One-click install** — install, update, or uninstall ReShade, RenoDX, ReLimiter, Display Commander, OptiScaler, RE Framework, and Luma Framework with a single button
-- **Frame rate limiter choice** — ReLimiter and Display Commander are mutually exclusive per game; installing one disables the other
-- **OptiScaler support** — install and manage OptiScaler per-game for upscaler redirection (DLSS/FSR/XeSS). Handles DLL naming (auto-selects `winmm.dll` for Vulkan games), INI configuration, ReShade coexistence (automatic rename to `ReShade64.dll`), GPU type settings (NVIDIA/AMD/Intel), DLSS input toggle (AMD/Intel only), and hotkey setup. Automatically downloads and deploys the latest DLSS Super Resolution, Ray Reconstruction, and Frame Generation DLLs. OptiPatcher auto-deployed for AMD/Intel GPUs. 64-bit games only
-- **Per-addon Info buttons** — each component row has an "Info" button showing game-specific notes, wiki compatibility data, or addon descriptions. Buttons with per-game content are highlighted in blue
-- **OptiScaler wiki integration** — OptiScaler Info buttons show compatibility data from the OptiScaler wiki (working status, supported upscalers, notes, wiki page links)
-- **HDR Gaming Database links** — RenoDX and Luma Info buttons link to HDR analysis entries from the HDR Gaming Database when available
-- **RE Framework dependency** — RE Engine games now require RE Framework before ReShade can be installed, preventing broken setups
-- **ReShade dependency enforcement** — RenoDX, ReLimiter, and Display Commander require ReShade to be installed first; RE Engine games also require RE Framework before ReShade. Install buttons show "⚠ ReShade required" or "⚠ RE Framework required" when prerequisites are not met
-- **Mass INI Deployment** — deploy reshade.ini, relimiter.ini, DisplayCommander.ini, or OptiScaler.ini to all games with the corresponding component installed from the Settings page
-- **Mass ReShade Preset Install** — deploy presets to multiple games at once from the Settings page, with optional shader pack installation
-- **Drag-and-drop** — drop a game `.exe`, addon file, archive, preset `.ini`, or URL to add games and install mods instantly
-- **Archive auto-install** — archives containing "renodx" in the filename (e.g. from Nexus Mods) are detected in your Downloads folder and installed automatically
-- **Per-game overrides** — customise DLL naming, shader selection, and component update preferences per game
-- **Update detection** — detect and apply component updates across all games with Update All (covers ReShade, RenoDX, ReLimiter, Display Commander, OptiScaler, and RE Framework)
-- **Shader pack management** — deploy and sync 41 shader packs (Essential, Recommended, Extra) across installed games, with automatic dependency resolution
-- **ReShade addon management** — browse, download, and toggle curated ReShade addons from the official list. Enabled addons are auto-deployed when ReShade is installed, removed when ReShade is uninstalled, and synced on every Refresh
-- **Nexus Mods & PCGamingWiki links** — each game shows clickable Nexus Mods and PCGW buttons, resolved automatically from the public game catalogue and Steam AppID lookup. Manual overrides available in the manifest
-- **ReShade preset deployment** — place `.ini` preset files in the reshade-presets folder and deploy them to any game from the overrides panel, or drag-and-drop a preset `.ini` onto RHI to deploy it with automatic shader pack installation
-- **ReShade Without Addon Support** — per-game toggle to switch from addon-enabled ReShade to standard ReShade. All addons are removed and rows dimmed; toggle back to restore
-- **ReLimiter OSD hotkey** — configure the ReLimiter overlay hotkey from the Settings page and apply it to all managed `relimiter.ini` files
-- **ReShade screenshot hotkey** — configure the ReShade screenshot key from the Settings page and apply it to all managed `reshade.ini` files. Defaults to Print Screen with a reset button
-- **Game report** — Copy Report button in the overrides panel generates a diagnostic code for Discord or GitHub issues, showing detected vs corrected settings
-- **Performance** — parallel shader downloads, parallel game folder syncs, cached graphics API detection, debounced PCGW cache writes, optimised DLL scanning, and WindowsApps/DLC path skipping for fast startup
-- **Three view modes** — Detail View (full game card with overrides), Grid View (compact card grid), and Compact View (paged detail with navigation arrows and locked window size)
-- **Global update check toggles** — disable update checks for individual components (RenoDX, ReShade, ReLimiter, Display Commander, OptiScaler) from the Settings page
-- **PD-Upscaler REFramework** — automatically installs the pd-upscaler branch of REFramework when OptiScaler is installed on RE Engine games (RE2, RE3, RE4, RE7, RE8 Village), and restores standard REFramework on uninstall
+- **Instant startup** — your game library loads from cache immediately. Background scanning merges new games silently.
+- **8-store detection** — Steam, GOG, Epic, EA App, Ubisoft Connect, Xbox/Game Pass, Battle.net, and Rockstar. No manual setup needed.
+- **One-click everything** — install, update, or remove ReShade, RenoDX, ReLimiter, Display Commander, OptiScaler, RE Framework, and Luma Framework per game.
+- **Keeps things in sync** — Update All checks every component across every game. One button, done.
+- **41 shader packs** — global or per-game shader selection with automatic dependency resolution.
+- **Drag-and-drop** — drop an .exe to add a game, drop a mod to install it, drop a preset to deploy it with auto shader install.
+- **OptiScaler built in** — upscaler redirection (DLSS/FSR/XeSS) with automatic DLSS DLL downloads, ReShade coexistence, and INI management.
+- **UW Fix & Ultra+ links** — quick links to ultrawide fixes and Ultra+ mods appear right on game cards when available.
+- **Three view modes** — Detail View, Grid View, and Compact View. Pick what fits your workflow.
+- **Smart about updates** — rate-limit aware, cooldown-based update checks, and cached shader packs that skip unnecessary API calls.
 
 ## Quick Start
 
-1. **Download and run RHI** — games are auto-detected from Steam, GOG, Epic Games, EA App, Ubisoft Connect, Xbox/Game Pass, Battle.net, and Rockstar.
-2. **Select a game** from the sidebar. Use search or filter chips to narrow the list.
-3. **Install components** from the detail panel — ReShade, RenoDX, and a frame rate limiter (ReLimiter or Display Commander) each have a one-click install button.
-4. **Launch the game**, press **Home** to open the ReShade overlay, go to **Add-ons**, and configure RenoDX.
+1. **Download and run RHI** — games appear automatically.
+2. **Pick a game** from the sidebar. Search or use filter chips to narrow the list.
+3. **Click Install** on the components you want — ReShade, RenoDX, a frame limiter.
+4. **Launch the game**, press **Home** to open ReShade, go to **Add-ons**, and configure RenoDX.
 
-## Download & System Requirements
+## Download
 
-Grab the latest installer from the [GitHub Releases page](https://github.com/RankFTW/RenoDXChecker/releases).
+Grab the latest release from the [GitHub Releases page](https://github.com/RankFTW/RHI/releases).
 
-**Requires:** Windows 10/11 (x64) and [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0).
+**Requires:** Windows 10/11 (x64) · [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)
 
 ## Troubleshooting
 
 | Problem | Fix |
 |---------|-----|
-| Game not detected | Click **Add Game** in Settings or drag the game's `.exe` onto the window |
-| Xbox games missing | Click **Refresh** — RHI uses the PackageManager API which may need a moment |
-| ReShade not loading | Check the install path via 📁 — the ReShade DLL must be next to the game executable |
-| Black screen (Unreal) | In ReShade → Add-ons → RenoDX, set `R10G10B10A2_UNORM` to `output size` |
-| UE-Extended not working | Enable in-game HDR — UE-Extended requires native HDR output |
+| Game not detected | **Add Game** in Settings, or drag the .exe onto the window |
+| Xbox games missing | Click **Refresh** — Game Pass detection may need a moment |
+| ReShade not loading | Check the install path via 📁 — the DLL must sit next to the game exe |
+| Black screen (Unreal) | ReShade → Add-ons → RenoDX → set `R10G10B10A2_UNORM` to `output size` |
+| UE-Extended not working | Enable HDR in the game's display settings first |
 | Downloads failing | Click **Refresh**, or clear cache from Settings → Open Downloads Cache |
-| Foreign DLL blocking install | Choose **Overwrite** in the confirmation dialog, or cancel to keep the existing file |
-| Games/mods out of sync | Settings → **Full Refresh** to clear all caches and re-scan |
-| ReLimiter OSD hotkey not working | Re-apply the hotkey from Settings — fixed in v1.8.2 for multi-word keys like Page Up |
+| Everything out of sync | Settings → **Full Refresh** clears all caches and re-scans |
+
+For the full reference covering every feature, see the [Detailed Guide](docs/DETAILED_GUIDE.md).
 
 ## Third-Party Components
 
@@ -89,7 +72,3 @@ RHI would not be possible without the hard work of the entire RenoDX team and [C
 [RenoDX Discord](https://discord.gg/gF4GRJWZ2A) · [HDR Den Discord](https://discord.gg/k3cDruEQ) · [RHI Support](https://discordapp.com/channels/1296187754979528747/1475173660686815374) · [Ultra+ Discord](https://discord.gg/pQtPYcdE)
 
 [Support RHI on Ko-Fi ☕](https://ko-fi.com/rankftw)
-
----
-
-For comprehensive documentation, see the [Detailed Guide](docs/DETAILED_GUIDE.md).
