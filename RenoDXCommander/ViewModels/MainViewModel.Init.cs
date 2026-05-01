@@ -251,14 +251,14 @@ public partial class MainViewModel
 
                 // Merge: start with fresh scan, then add any cached games that weren't re-detected
                 // (e.g. games on a disconnected drive). Fresh scan wins for duplicates.
-                // A cached game is only excluded if a fresh game has BOTH the same name AND
-                // the same install path. This allows the same game on different platforms
-                // (different paths) to coexist.
+                // A cached game is only excluded if a fresh game has the same name AND
+                // the same source (store). This allows the same game on different platforms
+                // to coexist while preventing duplicates within a single store.
                 var freshKeys = freshGames
                     .Where(g => !string.IsNullOrEmpty(g.InstallPath))
                     .Select(g => (
                         Name: _gameDetectionService.NormalizeName(g.Name),
-                        Path: g.InstallPath.TrimEnd(Path.DirectorySeparatorChar).ToLowerInvariant()))
+                        Source: (g.Source ?? "").ToLowerInvariant()))
                     .ToHashSet();
                 detectedGames = freshGames
                     .Concat(cachedGames.Where(g =>
@@ -266,7 +266,7 @@ public partial class MainViewModel
                         if (string.IsNullOrEmpty(g.InstallPath)) return true; // keep orphaned cached entries
                         var key = (
                             Name: _gameDetectionService.NormalizeName(g.Name),
-                            Path: g.InstallPath.TrimEnd(Path.DirectorySeparatorChar).ToLowerInvariant());
+                            Source: (g.Source ?? "").ToLowerInvariant());
                         return !freshKeys.Contains(key);
                     }))
                     .ToList();
@@ -1724,8 +1724,15 @@ public partial class MainViewModel
         _bitnessCache      = savedLib.BitnessCache      ?? new(StringComparer.OrdinalIgnoreCase);
         LastSelectedGameName = savedLib.LastSelectedGame;
 
-        // 4. Convert cached games to DetectedGame list
+        // 4. Convert cached games to DetectedGame list and deduplicate
+        //    (the saved library may contain duplicates from older versions)
         var cachedGames = _gameLibraryService.ToDetectedGames(savedLib);
+        cachedGames = cachedGames
+            .GroupBy(g => (
+                Name: _gameDetectionService.NormalizeName(g.Name),
+                Source: (g.Source ?? "").ToLowerInvariant()))
+            .Select(grp => grp.First())
+            .ToList();
 
         // 5. Apply game renames and folder overrides
         ApplyGameRenames(cachedGames);
@@ -2084,7 +2091,7 @@ public partial class MainViewModel
                 .Where(g => !string.IsNullOrEmpty(g.InstallPath))
                 .Select(g => (
                     Name: _gameDetectionService.NormalizeName(g.Name),
-                    Path: g.InstallPath.TrimEnd(Path.DirectorySeparatorChar).ToLowerInvariant()))
+                    Source: (g.Source ?? "").ToLowerInvariant()))
                 .ToHashSet();
             var detectedGames = freshGames
                 .Concat(cachedGames.Where(g =>
@@ -2092,7 +2099,7 @@ public partial class MainViewModel
                     if (string.IsNullOrEmpty(g.InstallPath)) return true;
                     var key = (
                         Name: _gameDetectionService.NormalizeName(g.Name),
-                        Path: g.InstallPath.TrimEnd(Path.DirectorySeparatorChar).ToLowerInvariant());
+                        Source: (g.Source ?? "").ToLowerInvariant());
                     return !freshKeys.Contains(key);
                 }))
                 .ToList();
