@@ -17,6 +17,10 @@
 - GitHub API rate limiting is now detected and handled gracefully. If a 403 is received, all remaining API calls for the session are skipped instead of each one failing independently.
 - Shader packs from GitHub Releases (Lilium, PumboAutoHDR) no longer call the API on every startup. If the files are already cached and extracted, the check is skipped entirely.
 
+### Bug Fixes
+
+- Fixed games multiplying in the sidebar until they achieved world domination. Some games (e.g. S.T.A.L.K.E.R. 2, Indiana Jones) could appear up to six times from the same store due to the v1.8.9 dedup change using install path as the uniqueness key. Paths that varied slightly between scans or cache entries were treated as separate games. Deduplication now keys on game name + store instead of game name + path, so each store can only contribute one entry per game. Existing duplicates in the cached library are cleaned up automatically on launch.
+
 ### Manifest Updates
 
 - Satisfactory now installs to the correct `Engine\Binaries\Win64` subfolder.
