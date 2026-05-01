@@ -27,6 +27,49 @@ RHI installs ReShade with addon support, which may trigger anti-cheat in online 
 
 [line]
 
+[size=5][b]Features[/b][/size]
+
+[size=4][b]Game Detection & API Scanning[/b][/size]
+RHI scans Steam, GOG, Epic, EA App, Ubisoft Connect, Xbox/Game Pass, Battle.net, and Rockstar on every launch. Games installed on multiple platforms show up separately so you can manage each install independently. DLC and expansions that share a base game folder are collapsed automatically.
+
+Each game's executable is scanned via PE header analysis to detect DirectX 8–12, Vulkan, and OpenGL. The detected API drives automatic ReShade DLL naming — no manual configuration needed. Results are cached to disk so subsequent launches skip the scan entirely.
+
+[size=4][b]Managed Components[/b][/size]
+[list]
+[*] [url=https://reshade.me][b]ReShade[/b][/url] — Post-processing injection framework. Installed as a DLL next to the game exe. Supports addon and non-addon variants per game.
+[*] [url=https://github.com/clshortfuse/renodx][b]RenoDX[/b][/url] — HDR mod framework running as a ReShade addon. Game-specific mods matched from the RenoDX wiki, with generic Unreal/Unity/UE-Extended fallbacks.
+[*] [url=https://github.com/RankFTW/ReLimiter][b]ReLimiter[/b][/url] — Frame pacing addon. Configurable OSD hotkey and shared presets.
+[*] [url=https://github.com/pmnoxx/display-commander][b]Display Commander[/b][/url] — Alternative frame rate limiter. Mutually exclusive with ReLimiter — installing one disables the other.
+[*] [url=https://github.com/optiscaler/OptiScaler][b]OptiScaler[/b][/url] — Upscaler redirection (DLSS/FSR/XeSS). Auto-downloads DLSS SR, Ray Reconstruction, and Frame Gen DLLs. Handles ReShade coexistence, DLL naming, INI config, and OptiPatcher for AMD/Intel GPUs. 64-bit only.
+[*] [url=https://github.com/praydog/REFramework-nightly][b]RE Framework[/b][/url] — Required for ReShade on RE Engine games (Monster Hunter Wilds, Resident Evil series, Devil May Cry 5, Street Fighter 6, Dragon's Dogma 2, etc.).
+[*] [url=https://github.com/Filoppi/Luma-Framework][b]Luma Framework[/b][/url] — DX11 HDR modding framework. Toggle Luma mode per game — RenoDX and standard ReShade are swapped out automatically.
+[/list]
+
+Every component has one-click install, update detection, and uninstall. Per-addon [b]Info[/b] buttons show game-specific notes, wiki compatibility data, or general descriptions — buttons with per-game content are highlighted in blue.
+
+[size=4][b]Shader Packs & Presets[/b][/size]
+41 shader packs (Essential, Recommended, Extra) with global or per-game selection. Drag a ReShade preset .ini onto the window and RHI deploys it to a game, then offers to auto-install the required shader packs by parsing the preset's Techniques line.
+
+[size=4][b]ReShade Addon Manager[/b][/size]
+Browse and toggle curated addons from the official ReShade addon list. Enabled addons are auto-deployed when ReShade is installed and synced on every Refresh. Per-game addon overrides let you customise which addons are active per game.
+
+[size=4][b]Per-Game Overrides[/b][/size]
+DLL naming, shader selection, addon selection, bitness and graphics API overrides, update inclusion toggles, wiki name mapping, ReShade Without Addon Support toggle, and more. All settings save immediately.
+
+[size=4][b]Nexus Mods, PCGW, UW Fix & Ultra+ Links[/b][/size]
+Each game card shows clickable links to its Nexus Mods page, PCGamingWiki page, ultrawide fix (sourced from Lyall, RoseTheFlower, and p1xel8ted), and Ultra+ mod page when available. Search "UW Fix" or "Ultra+" to filter to games with those links.
+
+[size=4][b]Vulkan Support[/b][/size]
+Vulkan games get ReShade via a global implicit layer — no per-game DLL needed. Dual-API games (DirectX + Vulkan) show a rendering path toggle. OptiScaler auto-selects winmm.dll for Vulkan titles.
+
+[size=4][b]Foreign DLL Protection[/b][/size]
+Before overwriting an existing DLL, RHI checks whether it belongs to DXVK, Special K, ENB, or another tool via binary signature scanning. You get a confirmation dialog before anything is replaced. During Update All, foreign DLLs are silently skipped.
+
+[size=4][b]Remote Manifest[/b][/size]
+Game-specific overrides (install paths, engine labels, DLL names, API tags, game notes, blacklists) are updated server-side without requiring an app release.
+
+[line]
+
 [size=5][b]Download[/b][/size]
 Grab the latest release from the [url=https://github.com/RankFTW/RHI/releases]GitHub Releases page[/url].
 
