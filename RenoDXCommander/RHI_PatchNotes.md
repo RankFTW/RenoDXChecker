@@ -1,8 +1,16 @@
 ## v1.9.1-beta
 
+### Highlights
+
+**DXVK Integration (WIP)** — DXVK is now a managed per-game component. Enable it from the Overrides panel on DX8/DX9/DX10 games to translate DirectX calls to Vulkan, enabling ReShade compute shaders and potentially reducing CPU-bound stuttering on older titles. This is an advanced feature — not all games are compatible. Note: This feature is still a work in progress and has only been tested by the developer. Expect rough edges.
+
+**ReShade Nightly Build Channel** — A new "Build Channels" section on the Settings page lets you choose between Stable (reshade.me releases, default) and Nightly (latest GitHub Actions builds from the crosire/reshade repository). Switching channels clears the ReShade staging cache, downloads from the new source, flags all games with ReShade installed as needing an update, and updates the global Vulkan layer DLLs — so you can Update All to apply the new build across your entire library.
+
+**Component Changelogs** — The Info buttons on the ReLimiter and Display Commander component rows now fetch the project's CHANGELOG.md from GitHub and display the patch notes for the installed version plus the two previous versions, rendered as markdown. The buttons are highlighted blue to indicate content is available.
+
 ### New Features
 
-- **DXVK Integration (WIP)** — DXVK is now a managed per-game component. Enable it from the Overrides panel on DX8/DX9/DX10 games to translate DirectX calls to Vulkan, enabling ReShade compute shaders and potentially reducing CPU-bound stuttering on older titles. This is an advanced feature — not all games are compatible. **Note: This feature is still a work in progress and has only been tested by the developer. Expect rough edges.**
+- **DXVK Integration (WIP)** details:
   - Per-game toggle in the Overrides panel (hidden for DX11/DX12/OpenGL/Vulkan)
   - DXVK component row in the Components section (visible only when enabled)
   - Automatic ReShade mode switching: when DXVK is enabled, ReShade switches from DX proxy to Vulkan layer mode; when disabled, it switches back with the correct API-specific filename (d3d9.dll for DX9, etc.)
@@ -15,7 +23,6 @@
   - Warning dialog with "Don't show again" checkbox — explains this is an advanced unsupported feature
   - Dual-API awareness: games with DX12 detected alongside their primary API won't show the DXVK toggle
   - ReShade Install button automatically uses Vulkan layer path when DXVK is active
-- **ReLimiter and Display Commander Info buttons now show changelogs** — the Info button on the ReLimiter and Display Commander component rows now fetches the project's CHANGELOG.md from GitHub and displays the patch notes for the installed version plus the two previous versions, rendered as markdown. The button is highlighted blue to indicate content is available.
 
 ### Bug Fixes
 
@@ -26,6 +33,7 @@
 - Fixed addon file watcher triggering duplicate installs when downloading to the watch folder. Browser downloads fire both Created and Renamed events — a 5-second deduplication window now prevents the second install.
 - Fixed ReLimiter showing "Installed" instead of its version number on launch. The instant-launch cache path had no ReLimiter detection — it now checks for the addon file and reads the version from local metadata immediately.
 - Fixed component version numbers (ReLimiter, Display Commander, OptiScaler, RE Framework) not updating after the background scan completed. The merge step was copying status fields but not version or filename fields, so versions stayed blank until a manual Refresh.
+- Fixed wiki status badge showing "❓ Unknown" until switching games or refreshing. The computed badge properties (label, colours, icon) were not being notified when `WikiStatus` changed during the background merge — they now update immediately.
 - Fixed corrupted ReShade staging file (2.88KB instead of ~5MB) causing false "update available" badges on every game and deploying a broken DLL on update. Added 1MB minimum size validation to ReShade staging so corrupted files trigger a re-download.
 
 ### Manifest Updates

@@ -1567,16 +1567,31 @@
                             </Grid>
                         </Border>
 
-                        <!-- ── DXVK Settings ───────────────────────────────────────── -->
+                        <!-- ── Build Channels ───────────────────────────────────── -->
                         <Border Background="{StaticResource SurfaceRaisedBrush}" CornerRadius="10" Padding="20,16"
                                 BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1">
                             <StackPanel Spacing="12">
                                 <StackPanel Spacing="4">
-                                    <TextBlock Text="DXVK Settings" FontSize="14" FontWeight="SemiBold"
+                                    <TextBlock Text="Build Channels" FontSize="14" FontWeight="SemiBold"
                                                Foreground="{StaticResource TextPrimaryBrush}"/>
                                     <TextBlock TextWrapping="Wrap" FontSize="11"
                                                Foreground="{StaticResource InlineDescriptionBrush}" LineHeight="18"
-                                               Text="Choose the DXVK variant used for DirectX-to-Vulkan translation. Development uses the latest nightly builds. Stable uses tagged releases."/>
+                                               Text="Choose the build source for ReShade and DXVK. Stable uses official tagged releases. Nightly/Development uses the latest builds from GitHub Actions (may be unstable but includes the newest fixes)."/>
+                                </StackPanel>
+
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="ReShade Build Channel" FontSize="12"
+                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    <ComboBox x:Name="ReShadeChannelCombo" x:FieldModifier="internal"
+                                              FontSize="12"
+                                              HorizontalAlignment="Stretch"
+                                              Background="{StaticResource SurfaceInputBrush}"
+                                              Foreground="{StaticResource TextSecondaryBrush}"
+                                              BorderBrush="{StaticResource BorderSubtleBrush}"
+                                              SelectionChanged="ReShadeChannelCombo_SelectionChanged">
+                                        <x:String>Stable (reshade.me releases)</x:String>
+                                        <x:String>Nightly (GitHub Actions builds)</x:String>
+                                    </ComboBox>
                                 </StackPanel>
 
                                 <StackPanel Spacing="4">

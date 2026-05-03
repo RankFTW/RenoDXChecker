@@ -265,6 +265,11 @@ public partial class AuxInstallService : IAuxInstallService, IAuxFileService
                 // For other files with 4+ parts, trim to 3.
                 if (parts.Length > 3)
                     ver = string.Join(".", parts[0], parts[1], parts[2]);
+
+                // Nightly ReShade builds embed "UNOFFICIAL" in the PE version string.
+                // Replace with "Nightly" for a cleaner display.
+                if (ver.Contains("UNOFFICIAL", StringComparison.OrdinalIgnoreCase))
+                    ver = ver.Replace("UNOFFICIAL", "Nightly", StringComparison.OrdinalIgnoreCase).Trim();
             }
 
             return ver;

@@ -212,7 +212,13 @@ public partial class MainViewModel
                 catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] HDR database fetch failed — {ex.Message}"); }
             });
             rsTask           = Task.Run(async () => {
-                try { await _rsUpdateService.EnsureLatestAsync(); }
+                try
+                {
+                    if (IsReShadeNightly)
+                        await _rsNightlyService.EnsureLatestAsync();
+                    else
+                        await _rsUpdateService.EnsureLatestAsync();
+                }
                 catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] ReShade update task failed — {ex.Message}"); }
             });
             normalRsTask     = Task.Run(async () => {
@@ -2132,7 +2138,13 @@ public partial class MainViewModel
                 catch (Exception ex) { _crashReporter.Log($"[RunBackgroundScanAndMergeAsync] HDR database fetch failed — {ex.Message}"); }
             });
             rsTask           = Task.Run(async () => {
-                try { await _rsUpdateService.EnsureLatestAsync(); }
+                try
+                {
+                    if (IsReShadeNightly)
+                        await _rsNightlyService.EnsureLatestAsync();
+                    else
+                        await _rsUpdateService.EnsureLatestAsync();
+                }
                 catch (Exception ex) { _crashReporter.Log($"[RunBackgroundScanAndMergeAsync] ReShade update task failed — {ex.Message}"); }
             });
             normalRsTask     = Task.Run(async () => {

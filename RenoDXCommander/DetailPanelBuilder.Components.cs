@@ -18,6 +18,10 @@ public partial class DetailPanelBuilder
     /// </summary>
     private bool HasRealInfoContent(GameCardViewModel card, AddonType addonType)
     {
+        // ReLimiter and Display Commander always have changelog content
+        if (addonType is AddonType.ReLimiter or AddonType.DisplayCommander)
+            return true;
+
         var manifest = _window.ViewModel.Manifest;
         var osWikiData = _window.ViewModel.OptiScalerWikiServiceInstance.CachedData;
         var hdrDatabase = _window.ViewModel.HdrDatabaseServiceInstance.CachedData;
@@ -244,9 +248,15 @@ public partial class DetailPanelBuilder
             _window.DetailUlStatus.Opacity = ulGreyed ? 0.35 : 1.0;
             _window.DetailUlInstallBtn.Tag = card;
             var ulLabel = WithInfoArrow(card.UlActionLabel, HasRealInfoContent(card, AddonType.ReLimiter), card.UlStatus == GameStatus.UpdateAvailable, _window.DetailUlInstallBtn);
-            _window.DetailUlInstallBtn.Content = (card.IsDcInstalled || card.Is32Bit || card.UseNormalReShade)
-                ? (object)new TextBlock { Text = card.UlActionLabel, TextDecorations = Windows.UI.Text.TextDecorations.Strikethrough }
-                : ulLabel;
+            if (card.IsDcInstalled || card.Is32Bit || card.UseNormalReShade)
+            {
+                _window.DetailUlInstallBtn.Content = new TextBlock { Text = card.UlActionLabel, TextDecorations = Windows.UI.Text.TextDecorations.Strikethrough, HorizontalAlignment = HorizontalAlignment.Center };
+                _window.DetailUlInstallBtn.HorizontalContentAlignment = HorizontalAlignment.Center;
+            }
+            else
+            {
+                _window.DetailUlInstallBtn.Content = ulLabel;
+            }
             _window.DetailUlInstallBtn.IsEnabled = card.UlInstallEnabled;
             _window.DetailUlInstallBtn.Background = UIFactory.GetBrush(card.UlBtnBackground);
             _window.DetailUlInstallBtn.Foreground = UIFactory.GetBrush(card.UlBtnForeground);
@@ -288,9 +298,15 @@ public partial class DetailPanelBuilder
             _window.DetailDcStatus.Opacity = dcGreyed ? 0.35 : 1.0;
             _window.DetailDcInstallBtn.Tag = card;
             var dcLabel = WithInfoArrow(card.DcActionLabel, HasRealInfoContent(card, AddonType.DisplayCommander), card.DcStatus == GameStatus.UpdateAvailable, _window.DetailDcInstallBtn);
-            _window.DetailDcInstallBtn.Content = (card.IsUlInstalled || card.UseNormalReShade)
-                ? (object)new TextBlock { Text = card.DcActionLabel, TextDecorations = Windows.UI.Text.TextDecorations.Strikethrough }
-                : dcLabel;
+            if (card.IsUlInstalled || card.UseNormalReShade)
+            {
+                _window.DetailDcInstallBtn.Content = new TextBlock { Text = card.DcActionLabel, TextDecorations = Windows.UI.Text.TextDecorations.Strikethrough, HorizontalAlignment = HorizontalAlignment.Center };
+                _window.DetailDcInstallBtn.HorizontalContentAlignment = HorizontalAlignment.Center;
+            }
+            else
+            {
+                _window.DetailDcInstallBtn.Content = dcLabel;
+            }
             _window.DetailDcInstallBtn.IsEnabled = card.DcInstallEnabled;
             _window.DetailDcInstallBtn.Background = UIFactory.GetBrush(card.DcBtnBackground);
             _window.DetailDcInstallBtn.Foreground = UIFactory.GetBrush(card.DcBtnForeground);

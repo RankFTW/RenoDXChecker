@@ -1211,6 +1211,9 @@ public sealed partial class MainWindow
     private void DxvkVariantCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         => _settingsHandler.DxvkVariantCombo_SelectionChanged(sender, e);
 
+    private void ReShadeChannelCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        => _settingsHandler.ReShadeChannelCombo_SelectionChanged(sender, e);
+
     private async void DetailOsStatus_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
         var card = ViewModel.SelectedGame;

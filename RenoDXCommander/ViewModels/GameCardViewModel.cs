@@ -155,6 +155,19 @@ public partial class GameCardViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Notifies all computed properties that depend on WikiStatus when it changes.
+    /// </summary>
+    partial void OnWikiStatusChanged(string value)
+    {
+        OnPropertyChanged(nameof(WikiStatusLabel));
+        OnPropertyChanged(nameof(WikiStatusBadgeBackground));
+        OnPropertyChanged(nameof(WikiStatusBadgeBorderBrush));
+        OnPropertyChanged(nameof(WikiStatusBadgeForeground));
+        OnPropertyChanged(nameof(WikiStatusIcon));
+        OnPropertyChanged(nameof(WikiStatusIconVisible));
+    }
+
+    /// <summary>
     /// Refreshes all computed properties. Called by external code after bulk state changes.
     /// Uses a <see cref="HashSet{T}"/> guard to ensure each property is notified at most once,
     /// even though the underlying Notify*Dependents methods share overlapping property sets.

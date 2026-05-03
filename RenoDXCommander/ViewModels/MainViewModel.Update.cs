@@ -7,7 +7,7 @@ namespace RenoDXCommander.ViewModels;
 
 public partial class MainViewModel
 {
-    private void NotifyUpdateButtonChanged()
+    internal void NotifyUpdateButtonChanged()
     {
         HasUpdatesAvailable = AnyUpdateAvailable;
         OnPropertyChanged(nameof(AnyUpdateAvailable));

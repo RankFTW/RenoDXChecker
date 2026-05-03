@@ -34,6 +34,8 @@ public partial class GameCardViewModel
             if (RequiresVulkanInstall)
             {
                 bool layerInstalled = IsLayerInstalledFunc();
+                if (RsStatus == GameStatus.UpdateAvailable && layerInstalled && IsVulkanRsActive)
+                    return "⬆  Update Vulkan ReShade";
                 if (layerInstalled && IsVulkanRsActive) return "↺  Reinstall Vulkan ReShade";
                 if (layerInstalled) return "⬇  Install Vulkan ReShade";
                 return "⬇  Install Vulkan Layer";
@@ -76,6 +78,8 @@ public partial class GameCardViewModel
             if (RequiresVulkanInstall)
             {
                 bool layerInstalled = IsLayerInstalledFunc();
+                if (RsStatus == GameStatus.UpdateAvailable && layerInstalled && IsVulkanRsActive)
+                    return "⬆ Update";
                 if (layerInstalled && IsVulkanRsActive) return "↺ Reinstall";
                 if (layerInstalled) return "⬇ Vulkan RS";
                 return "⬇ Install";

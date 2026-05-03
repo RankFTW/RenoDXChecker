@@ -50,6 +50,8 @@ public partial class MainViewModel : ObservableObject
     public IAddonPackService AddonPackServiceInstance => _addonPackService;
     public IGameDetectionService GameDetectionServiceInstance => _gameDetectionService;
     public SettingsViewModel Settings => _settingsViewModel;
+    /// <summary>True when the user has selected the Nightly ReShade build channel.</summary>
+    public bool IsReShadeNightly => string.Equals(_settingsViewModel.ReShadeChannel, "Nightly", StringComparison.OrdinalIgnoreCase);
     public FilterViewModel Filter => _filterViewModel;
     public IDllOverrideService DllOverrideServiceInstance => _dllOverrideService;
     public IGameNameService GameNameServiceInstance => _gameNameService;
@@ -59,6 +61,8 @@ public partial class MainViewModel : ObservableObject
     public IAuxInstallService AuxInstallServiceInstance => _auxInstaller;
     public IOptiScalerService OptiScalerServiceInstance => _optiScalerService;
     public IDxvkService DxvkServiceInstance => _dxvkService;
+    public ReShadeNightlyService ReShadeNightlyServiceInstance => _rsNightlyService;
+    public IReShadeUpdateService ReShadeUpdateServiceInstance => _rsUpdateService;
     public IOptiScalerWikiService OptiScalerWikiServiceInstance => _optiScalerWikiService;
     public IHdrDatabaseService HdrDatabaseServiceInstance => _hdrDatabaseService;
     public IREFrameworkService REFrameworkServiceInstance => _refService;
@@ -453,6 +457,7 @@ public partial class MainViewModel : ObservableObject
         ILumaService lumaService,
         IReShadeUpdateService rsUpdateService,
         INormalReShadeUpdateService normalRsUpdateService,
+        ReShadeNightlyService rsNightlyService,
         SettingsViewModel settingsViewModel,
         FilterViewModel filterViewModel,
         IUpdateOrchestrationService updateOrchestrationService,
@@ -485,6 +490,7 @@ public partial class MainViewModel : ObservableObject
         _lumaService = lumaService;
         _rsUpdateService = rsUpdateService;
         _normalRsUpdateService = normalRsUpdateService;
+        _rsNightlyService = rsNightlyService;
         _settingsViewModel = settingsViewModel;
         _filterViewModel = filterViewModel;
         _updateOrchestrationService = updateOrchestrationService;
@@ -545,6 +551,7 @@ public partial class MainViewModel : ObservableObject
     private readonly ILumaService _lumaService;
     private readonly IReShadeUpdateService _rsUpdateService;
     private readonly INormalReShadeUpdateService _normalRsUpdateService;
+    private readonly ReShadeNightlyService _rsNightlyService;
     private List<LumaMod> _lumaMods = new();
     private HashSet<string> _lumaEnabledGames => _gameNameService.LumaEnabledGames;
     /// <summary>
