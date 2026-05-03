@@ -1,4 +1,4 @@
-## v1.9.1-beta
+## v1.9.1
 
 ### Highlights
 
