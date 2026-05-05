@@ -632,7 +632,8 @@ public partial class MainViewModel
                 OnPropertyChanged(nameof(UpdateAllBtnBorder));
             },
             shaderResolver: ResolveShaderSelection,
-            manifestDllResolver: GetManifestDllNames);
+            manifestDllResolver: GetManifestDllNames,
+            channelResolver: ResolveReShadeChannel);
     }
 
     public async Task UpdateAllUlAsync()

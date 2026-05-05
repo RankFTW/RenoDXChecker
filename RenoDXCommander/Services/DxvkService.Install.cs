@@ -116,13 +116,21 @@ public partial class DxvkService
                 // Deploy default dxvk.conf if none exists
                 var proxyConfPath = Path.Combine(card.InstallPath, "dxvk.conf");
                 bool proxyDeployedConf = false;
-                if (!File.Exists(proxyConfPath))
                 {
                     try
                     {
-                        File.WriteAllText(proxyConfPath, DefaultDxvkConfContent);
+                        var confContent = DefaultDxvkConfContent;
+
+                        // Append Lilium HDR conf when that variant is active
+                        if (_selectedVariant == DxvkVariant.LiliumHdr)
+                        {
+                            confContent += LiliumHdrConfContent_D3d9;
+                            CrashReporter.Log("[DxvkService.InstallAsync] Proxy mode: appended Lilium HDR d3d9 conf");
+                        }
+
+                        File.WriteAllText(proxyConfPath, confContent);
                         proxyDeployedConf = true;
-                        CrashReporter.Log("[DxvkService.InstallAsync] Deployed default dxvk.conf");
+                        CrashReporter.Log($"[DxvkService.InstallAsync] Deployed dxvk.conf (proxy mode, variant={_selectedVariant})");
                     }
                     catch (Exception ex)
                     {
@@ -136,7 +144,7 @@ public partial class DxvkService
                 {
                     GameName = card.GameName,
                     InstallPath = card.InstallPath,
-                    DxvkVersion = StagedVersion ?? "unknown",
+                    DxvkVersion = FormatVersionForDisplay(StagedVersion),
                     InstalledDlls = new List<string> { ProxyDxvkDllName },
                     PluginFolderDlls = new List<string>(),
                     BackedUpFiles = new List<string>(),
@@ -209,22 +217,31 @@ public partial class DxvkService
             // ── 9. Deploy default dxvk.conf if none exists ───────────────
             var confPath = Path.Combine(card.InstallPath, "dxvk.conf");
             bool deployedConf = false;
-            if (!File.Exists(confPath))
+
+            // Always (re)write dxvk.conf to match the current variant
+            try
             {
-                try
+                var confContent = DefaultDxvkConfContent;
+
+                CrashReporter.Log($"[DxvkService.InstallAsync] Writing dxvk.conf — _selectedVariant={_selectedVariant}, api={card.GraphicsApi}");
+
+                // Append Lilium HDR conf when that variant is active
+                if (_selectedVariant == DxvkVariant.LiliumHdr)
                 {
-                    File.WriteAllText(confPath, DefaultDxvkConfContent);
-                    deployedConf = true;
-                    CrashReporter.Log("[DxvkService.InstallAsync] Deployed default dxvk.conf");
+                    if (card.GraphicsApi is GraphicsApiType.DirectX8 or GraphicsApiType.DirectX9)
+                        confContent += LiliumHdrConfContent_D3d9;
+                    else
+                        confContent += LiliumHdrConfContent_D3d11;
+                    CrashReporter.Log($"[DxvkService.InstallAsync] Appended Lilium HDR conf lines");
                 }
-                catch (Exception ex)
-                {
-                    CrashReporter.Log($"[DxvkService.InstallAsync] Failed to deploy dxvk.conf — {ex.Message}");
-                }
+
+                File.WriteAllText(confPath, confContent);
+                deployedConf = true;
+                CrashReporter.Log($"[DxvkService.InstallAsync] Deployed dxvk.conf ({confContent.Length} chars, variant={_selectedVariant}, api={card.GraphicsApi})");
             }
-            else
+            catch (Exception ex)
             {
-                CrashReporter.Log("[DxvkService.InstallAsync] dxvk.conf already exists — preserved");
+                CrashReporter.Log($"[DxvkService.InstallAsync] Failed to deploy dxvk.conf — {ex.Message}");
             }
 
             progress?.Report(("Saving install record...", 80));
@@ -234,7 +251,7 @@ public partial class DxvkService
             {
                 GameName = card.GameName,
                 InstallPath = card.InstallPath,
-                DxvkVersion = StagedVersion ?? "unknown",
+                DxvkVersion = FormatVersionForDisplay(StagedVersion),
                 InstalledDlls = new List<string>(rootDlls),
                 PluginFolderDlls = new List<string>(pluginDlls),
                 BackedUpFiles = backedUpFiles,
@@ -492,7 +509,7 @@ public partial class DxvkService
             progress?.Report(("Saving updated record...", 80));
 
             // ── 5. Update tracking record version ────────────────────────
-            existingRecord.DxvkVersion = StagedVersion ?? "unknown";
+            existingRecord.DxvkVersion = FormatVersionForDisplay(StagedVersion);
             existingRecord.InstalledAt = DateTime.UtcNow;
             SaveRecord(existingRecord);
 

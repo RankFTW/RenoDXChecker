@@ -107,7 +107,8 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
         Microsoft.UI.Dispatching.DispatcherQueue? dispatcherQueue,
         Action notifyUpdateState,
         Func<string, string?, IEnumerable<string>?>? shaderResolver = null,
-        Func<string, ManifestDllNames?>? manifestDllResolver = null)
+        Func<string, ManifestDllNames?>? manifestDllResolver = null,
+        Func<string, string>? channelResolver = null)
     {
         // ── DX proxy games (per-game DLL) ─────────────────────────────────────
         var targets = UpdateAllEligible(allCards)
@@ -156,13 +157,16 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
                     : (manifestDllResolver?.Invoke(card.GameName)?.ReShade is { Length: > 0 } mRs
                         ? mRs
                         : MainViewModel.ResolveAutoReShadeFilename(card.DetectedApis));
+                var effectiveChannel = card.UseNormalReShade ? null : channelResolver?.Invoke(card.GameName) ?? AuxInstallService.ChannelStable;
                 var record = await _auxInstaller.InstallReShadeAsync(
                     card.GameName, card.InstallPath,
                     shaderModeOverride: card.ShaderModeOverride,
                     use32Bit:       card.Is32Bit,
                     filenameOverride: rsOverride,
                     selectedPackIds: shaderResolver?.Invoke(card.GameName, card.ShaderModeOverride),
-                    progress:       progress).ConfigureAwait(false);
+                    progress:       progress,
+                    useNormalReShade: card.UseNormalReShade,
+                    channel: effectiveChannel).ConfigureAwait(false);
                 dispatcherQueue?.TryEnqueue(() =>
                 {
                     card.RsRecord           = record;
@@ -193,12 +197,18 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
         if (vulkanTargets.Count > 0)
         {
             // Update the global Vulkan layer DLLs (copy from staging)
+            // Determine effective Vulkan channel: per-game override (if any Vulkan game has one) or global
+            var vulkanChannelOverride = vulkanTargets
+                .Select(c => channelResolver?.Invoke(c.GameName))
+                .FirstOrDefault(ch => ch != null);
+            var effectiveVulkanChannel = vulkanChannelOverride ?? AuxInstallService.ChannelStable;
+
             bool layerUpdated = false;
             var layerDir = VulkanLayerService.LayerDirectory;
             try
             {
                 // Update 64-bit layer DLL
-                var staged64 = AuxInstallService.RsStagedPath64;
+                var staged64 = AuxInstallService.GetStagedPathForChannel(effectiveVulkanChannel, false);
                 var layer64 = Path.Combine(layerDir, VulkanLayerService.LayerDllName);
                 if (File.Exists(staged64) && new FileInfo(staged64).Length > AuxInstallService.MinReShadeSize)
                 {
@@ -241,7 +251,7 @@ public class UpdateOrchestrationService : IUpdateOrchestrationService
                 }
 
                 // Update 32-bit layer DLL if it exists
-                var staged32 = AuxInstallService.RsStagedPath32;
+                var staged32 = AuxInstallService.GetStagedPathForChannel(effectiveVulkanChannel, true);
                 var layer32 = Path.Combine(layerDir, "ReShade32.dll");
                 if (File.Exists(staged32) && new FileInfo(staged32).Length > AuxInstallService.MinReShadeSize
                     && File.Exists(layer32))

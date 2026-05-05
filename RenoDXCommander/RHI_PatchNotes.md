@@ -1,3 +1,27 @@
+## v1.9.3-beta
+
+### New Features
+
+- **Per-Game ReShade Channel Override** — Override the global ReShade build channel (Stable/Nightly) per game from the Overrides panel. Switching channels instantly reinstalls ReShade — no manual update needed. Vulkan games warn that the change applies to all Vulkan games since they share a global layer.
+- **Per-Game DXVK Variant Override** — Override the global DXVK variant per game from the Overrides panel. The "DXVK Variant" dropdown appears next to the DXVK toggle with options: Global, Development, Stable, Lilium HDR. Switching variants instantly reinstalls DXVK.
+- **DXVK Lilium HDR Variant** — A third DXVK variant from EndlesslyFlowering. Upgrades the swap chain to scRGB for HDR output on DX8/DX9/DX10 games. The appropriate HDR dxvk.conf settings are deployed automatically when this variant is selected.
+
+### Changes
+
+- Switching the global ReShade channel or DXVK variant in Settings now instantly reinstalls all affected games (respecting per-game overrides) instead of requiring manual update.
+- All ReShade and DXVK variants are now downloaded and kept up to date simultaneously in separate folders, enabling instant switching without re-downloading.
+- Existing users will have their ReShade and DXVK staging folders migrated automatically on first launch.
+- ReShade nightly update detection improved — now reliably detects new builds.
+
+### QoL
+
+- The "Save Custom Filter" dialog now pre-populates the filter name with the current search text.
+
+### Bug Fixes
+
+- Fixed custom screenshot hotkey not being applied to reshade.ini on fresh game installs.
+- Fixed DXVK per-game variant override not deploying the correct DLLs or dxvk.conf when the variant was changed before enabling the toggle.
+
 ## v1.9.2
 
 ### New Features

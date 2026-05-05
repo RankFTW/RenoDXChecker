@@ -1,12 +1,11 @@
 using System.IO.Compression;
-using System.Net.Http;
 
 namespace RenoDXCommander.Services;
 
 /// <summary>
 /// Downloads the latest ReShade nightly build (with addon support) from
 /// GitHub Actions via nightly.link, extracts ReShade64.dll and ReShade32.dll,
-/// and stages them in the same directory as the stable ReShade staging.
+/// and stages them in a dedicated nightly staging directory.
 /// </summary>
 public class ReShadeNightlyService
 {
@@ -15,7 +14,7 @@ public class ReShadeNightlyService
     private const string Nightly32Url =
         "https://nightly.link/crosire/reshade/workflows/build/main/ReShade%20(32-bit).zip";
 
-    private static readonly string CacheDir = AuxInstallService.RsStagingDir;
+    private static readonly string CacheDir = AuxInstallService.RsNightlyStagingDir;
     private static readonly string VersionFile = Path.Combine(CacheDir, "reshade_version.txt");
 
     private readonly HttpClient _http;
@@ -27,7 +26,8 @@ public class ReShadeNightlyService
 
     /// <summary>
     /// Downloads and stages the latest nightly ReShade DLLs if they have changed.
-    /// Uses Last-Modified header from nightly.link to detect changes.
+    /// Uses Content-Length comparison to detect changes — nightly.link's Last-Modified
+    /// header is unreliable for change detection.
     /// Returns true if new DLLs were staged.
     /// </summary>
     public async Task<bool> EnsureLatestAsync(IProgress<(string msg, double pct)>? progress = null)
@@ -37,31 +37,27 @@ public class ReShadeNightlyService
 
         progress?.Report(("Checking for nightly ReShade builds...", 5));
 
-        // Use HEAD request to get Last-Modified for change detection
-        var remoteDate = await GetRemoteLastModifiedAsync(Nightly64Url);
-        var stagedVersion = ReShadeUpdateService.GetStagedVersion();
+        // Get the remote Content-Length to compare against local staged DLL size.
+        // If the remote zip size differs from what we last downloaded, there's a new build.
+        var remote64Size = await GetRemoteContentLengthAsync(Nightly64Url);
+        var lastKnownSize = ReadLastKnownZipSize();
 
-        // If we already have a nightly version and the remote hasn't changed, skip
-        if (stagedVersion != null
-            && stagedVersion.StartsWith("nightly-", StringComparison.OrdinalIgnoreCase)
-            && remoteDate != null)
+        // If we have valid staged DLLs and the remote zip size hasn't changed, skip
+        if (remote64Size > 0 && remote64Size == lastKnownSize
+            && File.Exists(AuxInstallService.RsNightlyStagedPath64)
+            && File.Exists(AuxInstallService.RsNightlyStagedPath32)
+            && new FileInfo(AuxInstallService.RsNightlyStagedPath64).Length > AuxInstallService.MinReShadeSize
+            && new FileInfo(AuxInstallService.RsNightlyStagedPath32).Length > AuxInstallService.MinReShadeSize)
         {
-            var stagedDate = stagedVersion.Replace("nightly-", "");
-            if (string.Equals(stagedDate, remoteDate, StringComparison.OrdinalIgnoreCase)
-                && File.Exists(AuxInstallService.RsStagedPath64)
-                && File.Exists(AuxInstallService.RsStagedPath32)
-                && new FileInfo(AuxInstallService.RsStagedPath64).Length > AuxInstallService.MinReShadeSize
-                && new FileInfo(AuxInstallService.RsStagedPath32).Length > AuxInstallService.MinReShadeSize)
-            {
-                CrashReporter.Log($"[ReShadeNightlyService.EnsureLatestAsync] Already have nightly-{remoteDate}");
-                progress?.Report(($"ReShade nightly ({remoteDate}) is current", 100));
-                return false;
-            }
+            CrashReporter.Log($"[ReShadeNightlyService.EnsureLatestAsync] Remote zip size unchanged ({remote64Size} bytes) — skipping");
+            progress?.Report(("ReShade nightly is current", 100));
+            return false;
         }
 
         // Download 64-bit artifact
         progress?.Report(("Downloading ReShade nightly (64-bit)...", 15));
-        if (!await DownloadAndExtractAsync(Nightly64Url, AuxInstallService.RsStagedPath64, "ReShade64.dll"))
+        var (success64, downloadedZipSize) = await DownloadAndExtractAsync(Nightly64Url, AuxInstallService.RsNightlyStagedPath64, "ReShade64.dll");
+        if (!success64)
         {
             CrashReporter.Log("[ReShadeNightlyService.EnsureLatestAsync] Failed to download 64-bit artifact");
             return false;
@@ -69,16 +65,20 @@ public class ReShadeNightlyService
 
         // Download 32-bit artifact
         progress?.Report(("Downloading ReShade nightly (32-bit)...", 55));
-        if (!await DownloadAndExtractAsync(Nightly32Url, AuxInstallService.RsStagedPath32, "ReShade32.dll"))
+        var (success32, _) = await DownloadAndExtractAsync(Nightly32Url, AuxInstallService.RsNightlyStagedPath32, "ReShade32.dll");
+        if (!success32)
         {
             CrashReporter.Log("[ReShadeNightlyService.EnsureLatestAsync] Failed to download 32-bit artifact");
             return false;
         }
 
-        // Write version marker using the remote date
-        var versionTag = $"nightly-{remoteDate ?? DateTime.UtcNow.ToString("yyyy-MM-dd-HHmm")}";
+        // Write version marker using current UTC timestamp
+        var versionTag = $"nightly-{DateTime.UtcNow:yyyy-MM-dd-HHmm}";
         try { File.WriteAllText(VersionFile, versionTag); }
         catch (Exception ex) { CrashReporter.Log($"[ReShadeNightlyService.EnsureLatestAsync] Version file write failed — {ex.Message}"); }
+
+        // Persist the zip size for future comparison
+        WriteLastKnownZipSize(downloadedZipSize);
 
         // Clean up any old stable installer exes (they're from the other channel)
         try
@@ -89,29 +89,41 @@ public class ReShadeNightlyService
         catch { }
 
         progress?.Report(($"ReShade nightly ({versionTag}) ready!", 100));
-        CrashReporter.Log($"[ReShadeNightlyService.EnsureLatestAsync] Staged {versionTag} successfully");
+        CrashReporter.Log($"[ReShadeNightlyService.EnsureLatestAsync] Staged {versionTag} successfully (zip size={downloadedZipSize})");
         return true;
     }
 
     /// <summary>
-    /// Checks if a newer nightly build is available by comparing Last-Modified
-    /// against the staged version marker.
+    /// Gets the currently staged nightly ReShade version, or null if not yet downloaded.
+    /// </summary>
+    public static string? GetStagedVersion()
+    {
+        try
+        {
+            return File.Exists(VersionFile) ? File.ReadAllText(VersionFile).Trim() : null;
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"[ReShadeNightlyService.GetStagedVersion] Failed to read version file — {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Checks if a newer nightly build is available by comparing remote Content-Length
+    /// against the last known zip size.
     /// </summary>
     public async Task<bool> CheckForUpdateAsync()
     {
         try
         {
-            var remoteDate = await GetRemoteLastModifiedAsync(Nightly64Url);
-            if (remoteDate == null) return false;
+            var remote64Size = await GetRemoteContentLengthAsync(Nightly64Url);
+            if (remote64Size <= 0) return false;
 
-            var stagedVersion = ReShadeUpdateService.GetStagedVersion();
-            if (stagedVersion == null) return true; // nothing staged yet
+            var lastKnownSize = ReadLastKnownZipSize();
+            if (lastKnownSize <= 0) return true; // nothing staged yet
 
-            if (!stagedVersion.StartsWith("nightly-", StringComparison.OrdinalIgnoreCase))
-                return true; // switching from stable to nightly
-
-            var stagedDate = stagedVersion.Replace("nightly-", "");
-            return !string.Equals(stagedDate, remoteDate, StringComparison.OrdinalIgnoreCase);
+            return remote64Size != lastKnownSize;
         }
         catch (Exception ex)
         {
@@ -122,8 +134,9 @@ public class ReShadeNightlyService
 
     /// <summary>
     /// Downloads a nightly.link .zip artifact and extracts the target DLL from it.
+    /// Returns (success, zipFileSize).
     /// </summary>
-    private async Task<bool> DownloadAndExtractAsync(string url, string destPath, string dllName)
+    private async Task<(bool success, long zipSize)> DownloadAndExtractAsync(string url, string destPath, string dllName)
     {
         try
         {
@@ -131,11 +144,14 @@ public class ReShadeNightlyService
             response.EnsureSuccessStatusCode();
 
             var tempZip = destPath + ".zip.tmp";
+            long zipSize = 0;
             try
             {
                 using (var netStream = await response.Content.ReadAsStreamAsync())
                 using (var fileStream = File.Create(tempZip))
                     await netStream.CopyToAsync(fileStream);
+
+                zipSize = new FileInfo(tempZip).Length;
 
                 // Extract the DLL from the zip
                 using var archive = ZipFile.OpenRead(tempZip);
@@ -152,7 +168,7 @@ public class ReShadeNightlyService
                 if (entry == null)
                 {
                     CrashReporter.Log($"[ReShadeNightlyService] '{dllName}' not found in zip. Entries: [{string.Join(", ", archive.Entries.Select(e => e.FullName))}]");
-                    return false;
+                    return (false, 0);
                 }
 
                 entry.ExtractToFile(destPath, overwrite: true);
@@ -161,11 +177,11 @@ public class ReShadeNightlyService
                 if (new FileInfo(destPath).Length < AuxInstallService.MinReShadeSize)
                 {
                     CrashReporter.Log($"[ReShadeNightlyService] Extracted '{dllName}' is too small ({new FileInfo(destPath).Length} bytes)");
-                    return false;
+                    return (false, 0);
                 }
 
                 CrashReporter.Log($"[ReShadeNightlyService] Extracted '{dllName}' ({new FileInfo(destPath).Length} bytes)");
-                return true;
+                return (true, zipSize);
             }
             finally
             {
@@ -175,32 +191,55 @@ public class ReShadeNightlyService
         catch (Exception ex)
         {
             CrashReporter.Log($"[ReShadeNightlyService.DownloadAndExtractAsync] {dllName} — {ex.Message}");
-            return false;
+            return (false, 0);
         }
     }
 
     /// <summary>
-    /// Gets the Last-Modified date string from a HEAD request to nightly.link.
-    /// Returns a date string like "2026-05-03" or null on failure.
+    /// Gets the Content-Length of the remote zip via a HEAD request.
+    /// Returns the size in bytes, or -1 on failure.
     /// </summary>
-    private async Task<string?> GetRemoteLastModifiedAsync(string url)
+    private async Task<long> GetRemoteContentLengthAsync(string url)
     {
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Head, url);
             using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
-            if (!response.IsSuccessStatusCode) return null;
+            if (!response.IsSuccessStatusCode)
+            {
+                CrashReporter.Log($"[ReShadeNightlyService.GetRemoteContentLengthAsync] HEAD returned {response.StatusCode}");
+                return -1;
+            }
 
-            if (response.Content.Headers.LastModified.HasValue)
-                return response.Content.Headers.LastModified.Value.UtcDateTime.ToString("yyyy-MM-dd-HHmm");
-
-            // Fallback: use current date
-            return DateTime.UtcNow.ToString("yyyy-MM-dd-HHmm");
+            var length = response.Content.Headers.ContentLength ?? -1;
+            CrashReporter.Log($"[ReShadeNightlyService.GetRemoteContentLengthAsync] Content-Length={length}");
+            return length;
         }
         catch (Exception ex)
         {
-            CrashReporter.Log($"[ReShadeNightlyService.GetRemoteLastModifiedAsync] {ex.Message}");
-            return null;
+            CrashReporter.Log($"[ReShadeNightlyService.GetRemoteContentLengthAsync] {ex.Message}");
+            return -1;
         }
+    }
+
+    // ── Zip size persistence ──────────────────────────────────────────────────
+
+    private static readonly string ZipSizeFile = Path.Combine(CacheDir, "last_zip_size.txt");
+
+    private static long ReadLastKnownZipSize()
+    {
+        try
+        {
+            if (File.Exists(ZipSizeFile) && long.TryParse(File.ReadAllText(ZipSizeFile).Trim(), out var size))
+                return size;
+        }
+        catch { }
+        return -1;
+    }
+
+    private static void WriteLastKnownZipSize(long size)
+    {
+        try { File.WriteAllText(ZipSizeFile, size.ToString()); }
+        catch (Exception ex) { CrashReporter.Log($"[ReShadeNightlyService.WriteLastKnownZipSize] Failed — {ex.Message}"); }
     }
 }

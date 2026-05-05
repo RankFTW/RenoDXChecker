@@ -15,12 +15,32 @@ public partial class DxvkService : IDxvkService
 {
     // ── Constants ──────────────────────────────────────────────────────
 
-    private static readonly string StagingDir = Path.Combine(
+    // Legacy staging folder (used for migration detection)
+    private static readonly string LegacyStagingDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "RHI", "dxvk");
 
+    // Separate staging directories for each variant (coexist simultaneously)
+    private static readonly string StagingDirDevelopment = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "RHI", "dxvk-development");
+
+    private static readonly string StagingDirStable = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "RHI", "dxvk-stable");
+
+    private static readonly string StagingDirLilium = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "RHI", "dxvk-lilium");
+
+    /// <summary>
+    /// The active staging directory — resolves based on the currently selected variant.
+    /// All staging operations use this property.
+    /// </summary>
+    private string StagingDir => GetStagingDirForVariant(_selectedVariant);
+
     private static readonly string VersionFilePath =
-        Path.Combine(StagingDir, "version.txt");
+        Path.Combine(LegacyStagingDir, "version.txt");
 
     private static readonly string DbPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -34,6 +54,9 @@ public partial class DxvkService : IDxvkService
 
     private static readonly string StandardGitHubApi =
         "https://api.github.com/repos/doitsujin/dxvk/releases/latest";
+
+    private static readonly string LiliumGitHubApi =
+        "https://api.github.com/repos/EndlesslyFlowering/dxvk/releases/latest";
 
     // ── Binary signature markers ──────────────────────────────────────
     // Unique strings embedded in DXVK DLLs that distinguish them from
@@ -71,10 +94,10 @@ public partial class DxvkService : IDxvkService
 
     /// <inheritdoc />
     public bool IsStagingReady =>
-        CheckStagingReady(StagingDir, VersionFilePath, Path.Combine(StagingDir, "x64", "d3d9.dll"));
+        IsStagingReadyForVariant(_selectedVariant);
 
     /// <summary>
-    /// Pure logic for <see cref="IsStagingReady"/>: returns true only when
+    /// Pure logic for staging readiness: returns true only when
     /// the staging directory exists, the version file exists, and the
     /// reference DLL file exists. Extracted as a static helper for testability.
     /// </summary>
@@ -93,20 +116,7 @@ public partial class DxvkService : IDxvkService
     /// <inheritdoc />
     public string? StagedVersion
     {
-        get
-        {
-            try
-            {
-                return File.Exists(VersionFilePath)
-                    ? File.ReadAllText(VersionFilePath).Trim()
-                    : null;
-            }
-            catch (Exception ex)
-            {
-                CrashReporter.Log($"[DxvkService.StagedVersion] Failed to read version file — {ex.Message}");
-                return null;
-            }
-        }
+        get => GetStagedVersionForVariant(_selectedVariant);
     }
 
     /// <inheritdoc />
@@ -146,6 +156,93 @@ public partial class DxvkService : IDxvkService
                 $"DXVK does not support {api}. Only DX8/9/10/11 are supported.")
         };
         return (arch, dlls);
+    }
+
+    /// <summary>
+    /// Returns the staging directory for the given DXVK variant.
+    /// </summary>
+    public static string GetStagingDirForVariant(DxvkVariant variant) => variant switch
+    {
+        DxvkVariant.Stable => StagingDirStable,
+        DxvkVariant.LiliumHdr => StagingDirLilium,
+        _ => StagingDirDevelopment,
+    };
+
+    /// <summary>
+    /// Returns the version file path for the given DXVK variant.
+    /// </summary>
+    public static string GetVersionFileForVariant(DxvkVariant variant) =>
+        Path.Combine(GetStagingDirForVariant(variant), "version.txt");
+
+    /// <summary>
+    /// Returns the staged version tag for the given variant, or null if not staged.
+    /// </summary>
+    public static string? GetStagedVersionForVariant(DxvkVariant variant)
+    {
+        var vf = GetVersionFileForVariant(variant);
+        try { return File.Exists(vf) ? File.ReadAllText(vf).Trim() : null; }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// Returns true if the given variant's staging directory is ready (has DLLs).
+    /// </summary>
+    public static bool IsStagingReadyForVariant(DxvkVariant variant)
+    {
+        var dir = GetStagingDirForVariant(variant);
+        var vf = GetVersionFileForVariant(variant);
+        var dllCheck = Path.Combine(dir, "x64", "d3d9.dll");
+        return CheckStagingReady(dir, vf, dllCheck);
+    }
+
+    /// <summary>
+    /// Lilium HDR dxvk.conf content — safest preset (swap chain upgrade only).
+    /// Appended to the standard dxvk.conf when Lilium HDR variant is active.
+    /// </summary>
+    private const string LiliumHdrConfContent_D3d9 =
+        """
+
+        # Lilium HDR (2nd safest preset)
+        dxvk.enableAsync                          = true
+        dxvk.gplAsyncCache                        = true
+        d3d9.enableBackBufferUpgrade              = true
+        d3d9.upgradeBackBufferTo                  = rgba16_unorm
+        d3d9.enableSwapChainUpgrade               = true
+        d3d9.upgradeSwapChainFormatTo             = rgba16_sfloat
+        d3d9.upgradeSwapChainColorSpaceTo         = scRGB
+        d3d9.enforceWindowModeInternally          = disabled
+        """;
+
+    private const string LiliumHdrConfContent_D3d11 =
+        """
+
+        # Lilium HDR (2nd safest preset)
+        dxvk.enableAsync                              = true
+        dxvk.gplAsyncCache                            = true
+        d3d11.enableBackBufferUpgrade                 = true
+        d3d11.upgradeBackBufferTo                     = rgba16_unorm
+        d3d11.enableSwapChainUpgrade                  = true
+        d3d11.upgradeSwapChainFormatTo                = rgba16_sfloat
+        d3d11.upgradeSwapChainColorSpaceTo            = scRGB
+        """;
+
+    /// <summary>
+    /// Formats the staged version tag for display. For Lilium HDR, extracts just the
+    /// mod version (e.g. "v2.7.1-HDR-mod-v0.3.3" → "0.3.3"). For others, returns as-is.
+    /// </summary>
+    public string FormatVersionForDisplay(string? stagedVersion)
+    {
+        if (string.IsNullOrEmpty(stagedVersion)) return "unknown";
+
+        if (_selectedVariant == DxvkVariant.LiliumHdr)
+        {
+            // Extract the mod version from "v2.7.1-HDR-mod-v0.3.3"
+            var modIdx = stagedVersion.LastIndexOf("-v", StringComparison.Ordinal);
+            if (modIdx >= 0 && modIdx + 2 < stagedVersion.Length)
+                return stagedVersion[(modIdx + 2)..];
+        }
+
+        return stagedVersion;
     }
 
     /// <summary>

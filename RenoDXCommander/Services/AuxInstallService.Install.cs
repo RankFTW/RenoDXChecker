@@ -19,7 +19,8 @@ public partial class AuxInstallService
         string? screenshotSavePath = null,
         bool useNormalReShade = false,
         string? overlayHotkey = null,
-        string? screenshotHotkey = null)
+        string? screenshotHotkey = null,
+        string? channel = null)
     {
         Directory.CreateDirectory(DownloadPaths.Misc);
 
@@ -63,9 +64,10 @@ public partial class AuxInstallService
         progress?.Report(("Preparing ReShade files...", 10));
         EnsureReShadeStaging();
 
+        var effectiveChannel = channel ?? ChannelStable;
         var rsStagedPath = useNormalReShade
             ? (use32Bit ? RsNormalStagedPath32 : RsNormalStagedPath64)
-            : (use32Bit ? RsStagedPath32 : RsStagedPath64);
+            : GetStagedPathForChannel(effectiveChannel, use32Bit);
         if (!File.Exists(rsStagedPath))
             throw new FileNotFoundException(
                 $"ReShade DLLs not found in staging directory.\n" +
@@ -102,6 +104,7 @@ public partial class AuxInstallService
             SourceUrl      = null,       // bundled — no remote URL
             RemoteFileSize = null,       // no remote size to track
             InstalledAt    = DateTime.UtcNow,
+            Channel        = useNormalReShade ? null : effectiveChannel,
         };
         SaveRecord(record);
         return record;
@@ -124,8 +127,22 @@ public partial class AuxInstallService
         var localSize = new FileInfo(localFile).Length;
 
         // Pick the correct staging paths based on the installed variant.
-        var staged64 = record.AddonType == TypeReShadeNormal ? RsNormalStagedPath64 : RsStagedPath64;
-        var staged32 = record.AddonType == TypeReShadeNormal ? RsNormalStagedPath32 : RsStagedPath32;
+        string staged64, staged32;
+        if (record.AddonType == TypeReShadeNormal)
+        {
+            staged64 = RsNormalStagedPath64;
+            staged32 = RsNormalStagedPath32;
+        }
+        else if (string.Equals(record.Channel, ChannelNightly, StringComparison.OrdinalIgnoreCase))
+        {
+            staged64 = RsNightlyStagedPath64;
+            staged32 = RsNightlyStagedPath32;
+        }
+        else
+        {
+            staged64 = RsStagedPath64;
+            staged32 = RsStagedPath32;
+        }
 
         // If neither staged DLL exists, we can't compare — assume no update
         // to avoid false positives (e.g. normal RS staging not downloaded yet).
@@ -151,24 +168,36 @@ public partial class AuxInstallService
         var staged64Size = File.Exists(staged64) ? new FileInfo(staged64).Length : -1;
         var staged32Size = File.Exists(staged32) ? new FileInfo(staged32).Length : -1;
 
-        // Check against the 64-bit staged DLL first, then 32-bit.
+        // Check against the primary staged DLLs for this record's channel
         if (File.Exists(staged64) && localSize == staged64Size)
             return false; // matches current 64-bit — no update
         if (File.Exists(staged32) && localSize == staged32Size)
             return false; // matches current 32-bit — no update
 
-        // Also check against the OTHER variant's staging DLLs.
-        // When switching between addon and normal ReShade, the record's AddonType
-        // updates but the DLL on disk may still be the previous variant until
-        // the user actually reinstalls. Avoid false update badges in this case.
-        var altStaged64 = record.AddonType == TypeReShadeNormal ? RsStagedPath64 : RsNormalStagedPath64;
-        var altStaged32 = record.AddonType == TypeReShadeNormal ? RsStagedPath32 : RsNormalStagedPath32;
-        if (File.Exists(altStaged64) && localSize == new FileInfo(altStaged64).Length)
-            return false; // matches the other variant's 64-bit — no update
-        if (File.Exists(altStaged32) && localSize == new FileInfo(altStaged32).Length)
-            return false; // matches the other variant's 32-bit — no update
+        // Also check against ALL other variant staging DLLs to avoid false update badges
+        // when the user has switched channels but not yet reinstalled.
+        var altPaths = new List<string>();
+        if (record.AddonType == TypeReShadeNormal)
+        {
+            altPaths.AddRange(new[] { RsStagedPath64, RsStagedPath32, RsNightlyStagedPath64, RsNightlyStagedPath32 });
+        }
+        else
+        {
+            // Check both the other addon channel and normal staging
+            if (!string.Equals(record.Channel, ChannelNightly, StringComparison.OrdinalIgnoreCase))
+                altPaths.AddRange(new[] { RsNightlyStagedPath64, RsNightlyStagedPath32 });
+            else
+                altPaths.AddRange(new[] { RsStagedPath64, RsStagedPath32 });
+            altPaths.AddRange(new[] { RsNormalStagedPath64, RsNormalStagedPath32 });
+        }
 
-        // Size doesn't match either staged DLL — update available
+        foreach (var altPath in altPaths)
+        {
+            if (File.Exists(altPath) && localSize == new FileInfo(altPath).Length)
+                return false; // matches an alternate variant — no update
+        }
+
+        // Size doesn't match any staged DLL — update available
         CrashReporter.Log($"[AuxInstallService.CheckReShadeUpdateLocal] [{record.AddonType}] {record.GameName}: size mismatch — local={localSize}, staged64={staged64Size}, staged32={staged32Size} → update flagged");
         return true;
     }

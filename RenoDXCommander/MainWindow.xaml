@@ -1606,6 +1606,7 @@
                                               SelectionChanged="DxvkVariantCombo_SelectionChanged">
                                         <x:String>Development (nightly builds)</x:String>
                                         <x:String>Stable (tagged releases)</x:String>
+                                        <x:String>Lilium HDR</x:String>
                                     </ComboBox>
                                 </StackPanel>
                             </StackPanel>

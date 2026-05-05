@@ -785,7 +785,7 @@ public sealed partial class MainWindow
         var currentQuery = SearchBox.Text?.Trim() ?? "";
         if (string.IsNullOrEmpty(currentQuery)) return;
 
-        var nameBox = new TextBox { PlaceholderText = "Filter name", Width = 350 };
+        var nameBox = new TextBox { PlaceholderText = "Filter name", Text = currentQuery, Width = 350 };
         var errorText = new TextBlock
         {
             Text = "",

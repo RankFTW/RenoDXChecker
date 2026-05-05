@@ -11,4 +11,6 @@ public class AuxInstalledRecord
     public string? SourceUrl      { get; set; }
     public long?   RemoteFileSize { get; set; }
     public DateTime InstalledAt   { get; set; }
+    /// <summary>ReShade build channel used at install time ("Stable" or "Nightly"). Null = legacy/unknown (treated as global default).</summary>
+    public string? Channel        { get; set; }
 }

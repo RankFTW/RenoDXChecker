@@ -123,6 +123,11 @@ public partial class AuxInstallService
         // Exact size match against staged ReShade32.dll
         if (File.Exists(RsStagedPath32) && fileSize == new FileInfo(RsStagedPath32).Length)
             return true;
+        // Exact size match against nightly staged DLLs
+        if (File.Exists(RsNightlyStagedPath64) && fileSize == new FileInfo(RsNightlyStagedPath64).Length)
+            return true;
+        if (File.Exists(RsNightlyStagedPath32) && fileSize == new FileInfo(RsNightlyStagedPath32).Length)
+            return true;
 
         // Binary string scan for ReShade markers
         // Only match on strings unique to the actual ReShade binary — "reshade.me" (the URL
@@ -159,7 +164,8 @@ public partial class AuxInstallService
         // Legacy fallback: if no staged copies exist AND binary scan didn't find markers,
         // use the size heuristic. This only triggers on first run before staging.
         var fileSize = new FileInfo(filePath).Length;
-        bool hasStagedCopies = File.Exists(RsStagedPath64) || File.Exists(RsStagedPath32);
+        bool hasStagedCopies = File.Exists(RsStagedPath64) || File.Exists(RsStagedPath32)
+            || File.Exists(RsNightlyStagedPath64) || File.Exists(RsNightlyStagedPath32);
         if (!hasStagedCopies && fileSize > 2 * 1024 * 1024)
             return true;
 

@@ -18,7 +18,8 @@ public interface IAuxInstallService
         string? screenshotSavePath = null,
         bool useNormalReShade = false,
         string? overlayHotkey = null,
-        string? screenshotHotkey = null);
+        string? screenshotHotkey = null,
+        string? channel = null);
 
     Task<bool> CheckForUpdateAsync(AuxInstalledRecord record);
 

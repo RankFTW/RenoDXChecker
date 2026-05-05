@@ -86,7 +86,11 @@ public partial class DxvkService
             progress?.Report(("Checking DXVK release...", 5));
 
             // ── 2. Route based on variant ────────────────────────────────────
-            if (_selectedVariant == DxvkVariant.Development)
+            if (_selectedVariant == DxvkVariant.LiliumHdr)
+            {
+                await EnsureStagingLiliumAsync(progress).ConfigureAwait(false);
+            }
+            else if (_selectedVariant == DxvkVariant.Development)
             {
                 await EnsureStagingNightlyAsync(progress).ConfigureAwait(false);
             }
@@ -281,6 +285,222 @@ public partial class DxvkService
         CrashReporter.Log("[DxvkService.EnsureStagingGitHubAsync] Staging complete");
     }
 
+    /// <summary>
+    /// Handles staging for the Lilium HDR variant via GitHub Releases API.
+    /// Downloads the .7z release asset (non-gplasync).
+    /// </summary>
+    private async Task EnsureStagingLiliumAsync(IProgress<(string message, double percent)>? progress)
+    {
+        var apiUrl = LiliumGitHubApi;
+
+        // ── Fetch latest release metadata from GitHub API ────────────────
+        string json;
+        try
+        {
+            json = await _etagCache.GetWithETagAsync(_http, apiUrl).ConfigureAwait(false);
+            if (json == null)
+            {
+                CrashReporter.Log("[DxvkService.EnsureStagingLiliumAsync] GitHub API returned error");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"[DxvkService.EnsureStagingLiliumAsync] GitHub API request failed — {ex.Message}");
+            return;
+        }
+
+        // ── Parse release — find the .7z asset (non-gplasync) and tag ────
+        string? tagName = null;
+        string? assetName = null;
+        string? downloadUrl = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+
+            if (doc.RootElement.TryGetProperty("tag_name", out var tagEl))
+                tagName = tagEl.GetString();
+
+            if (doc.RootElement.TryGetProperty("assets", out var assets))
+            {
+                foreach (var asset in assets.EnumerateArray())
+                {
+                    var name = asset.GetProperty("name").GetString() ?? "";
+                    // Match the non-gplasync .7z file (e.g. "dxvk_v2.7.1-HDR-mod-v0.3.3.7z")
+                    if (name.EndsWith(".7z", StringComparison.OrdinalIgnoreCase)
+                        && !name.Contains("gplasync", StringComparison.OrdinalIgnoreCase))
+                    {
+                        assetName = name;
+                        downloadUrl = asset.GetProperty("browser_download_url").GetString();
+                        break;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"[DxvkService.EnsureStagingLiliumAsync] Failed to parse GitHub response — {ex.Message}");
+            return;
+        }
+
+        if (assetName == null || downloadUrl == null)
+        {
+            CrashReporter.Log("[DxvkService.EnsureStagingLiliumAsync] No .7z (non-gplasync) asset found in latest release");
+            return;
+        }
+
+        // ── Check if already up to date ──────────────────────────────────
+        var cachedVersion = GetStagedVersionForVariant(DxvkVariant.LiliumHdr);
+        if (cachedVersion != null
+            && string.Equals(cachedVersion, tagName, StringComparison.Ordinal)
+            && IsStagingReadyForVariant(DxvkVariant.LiliumHdr))
+        {
+            CrashReporter.Log($"[DxvkService.EnsureStagingLiliumAsync] Already up to date ({tagName})");
+            progress?.Report(("DXVK Lilium HDR up to date", 100));
+            return;
+        }
+
+        progress?.Report(($"Downloading DXVK Lilium HDR ({assetName})...", 10));
+        CrashReporter.Log($"[DxvkService.EnsureStagingLiliumAsync] Downloading {assetName} from {downloadUrl}");
+
+        // ── Download the .7z archive to a temp file ──────────────────────
+        var liliumDir = GetStagingDirForVariant(DxvkVariant.LiliumHdr);
+        Directory.CreateDirectory(liliumDir);
+        var tempArchive = Path.Combine(liliumDir, assetName + ".tmp");
+
+        try
+        {
+            if (!await DownloadFileAsync(downloadUrl, tempArchive, progress, 10, 70).ConfigureAwait(false))
+                return;
+        }
+        catch (Exception ex)
+        {
+            if (File.Exists(tempArchive)) try { File.Delete(tempArchive); } catch { }
+            CrashReporter.Log($"[DxvkService.EnsureStagingLiliumAsync] Download exception — {ex.Message}");
+            return;
+        }
+
+        // ── Extract the .7z archive ──────────────────────────────────────
+        // Lilium's archive has structure: normal/x64/*.dll and normal/x32/*.dll
+        // We need to extract and remap to x64/ and x32/ in the staging dir.
+        progress?.Report(("Extracting DXVK Lilium HDR...", 75));
+        try
+        {
+            if (!await ExtractLilium7zToStagingAsync(tempArchive, liliumDir).ConfigureAwait(false))
+                return;
+        }
+        finally
+        {
+            if (File.Exists(tempArchive)) try { File.Delete(tempArchive); } catch { }
+        }
+
+        // ── Write version tag ────────────────────────────────────────────
+        var savedVariant = _selectedVariant;
+        _selectedVariant = DxvkVariant.LiliumHdr;
+        WriteVersionTag(tagName ?? "unknown");
+        _selectedVariant = savedVariant;
+
+        progress?.Report(("DXVK Lilium HDR staging ready", 100));
+        CrashReporter.Log("[DxvkService.EnsureStagingLiliumAsync] Staging complete");
+    }
+
+    /// <summary>
+    /// Extracts the Lilium HDR .7z archive to the staging directory.
+    /// Lilium's archive has structure: normal/x64/*.dll and normal/x32/*.dll
+    /// which maps to x64/ and x32/ in the staging dir.
+    /// </summary>
+    private async Task<bool> ExtractLilium7zToStagingAsync(string archivePath, string destDir)
+    {
+        try
+        {
+            var tempExtractDir = archivePath + ".extract";
+            if (Directory.Exists(tempExtractDir))
+                Directory.Delete(tempExtractDir, recursive: true);
+            Directory.CreateDirectory(tempExtractDir);
+
+            // Extract using bundled 7z.exe
+            var sevenZipPath = Path.Combine(AppContext.BaseDirectory, "7z.exe");
+            var psi = new ProcessStartInfo
+            {
+                FileName = sevenZipPath,
+                Arguments = $"x \"{archivePath}\" -o\"{tempExtractDir}\" -y",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+
+            using var proc = Process.Start(psi);
+            if (proc == null)
+            {
+                CrashReporter.Log("[DxvkService.ExtractLilium7zToStagingAsync] Failed to start 7z.exe");
+                return false;
+            }
+            await proc.WaitForExitAsync().ConfigureAwait(false);
+            if (proc.ExitCode != 0)
+            {
+                var stderr = await proc.StandardError.ReadToEndAsync().ConfigureAwait(false);
+                CrashReporter.Log($"[DxvkService.ExtractLilium7zToStagingAsync] 7z.exe exited with code {proc.ExitCode}: {stderr}");
+                return false;
+            }
+
+            // Find the "normal" subfolder which contains x64/ and x32/
+            var normalDir = Directory.GetDirectories(tempExtractDir, "normal", SearchOption.AllDirectories)
+                .FirstOrDefault();
+
+            if (normalDir == null)
+            {
+                // Fallback: look for x64 directly
+                normalDir = Directory.GetDirectories(tempExtractDir, "x64", SearchOption.AllDirectories)
+                    .FirstOrDefault();
+                if (normalDir != null)
+                    normalDir = Path.GetDirectoryName(normalDir);
+            }
+
+            if (normalDir == null)
+            {
+                CrashReporter.Log($"[DxvkService.ExtractLilium7zToStagingAsync] Could not find 'normal' or 'x64' folder in archive. Contents: [{string.Join(", ", Directory.GetFileSystemEntries(tempExtractDir, "*", SearchOption.AllDirectories).Select(p => Path.GetRelativePath(tempExtractDir, p)))}]");
+                Directory.Delete(tempExtractDir, recursive: true);
+                return false;
+            }
+
+            // Clear existing staging contents
+            var x64Dest = Path.Combine(destDir, "x64");
+            var x32Dest = Path.Combine(destDir, "x32");
+            if (Directory.Exists(x64Dest)) Directory.Delete(x64Dest, recursive: true);
+            if (Directory.Exists(x32Dest)) Directory.Delete(x32Dest, recursive: true);
+
+            // Copy x64 and x32 folders to staging
+            var x64Src = Path.Combine(normalDir, "x64");
+            var x32Src = Path.Combine(normalDir, "x32");
+
+            if (Directory.Exists(x64Src))
+            {
+                Directory.CreateDirectory(x64Dest);
+                foreach (var file in Directory.GetFiles(x64Src))
+                    File.Copy(file, Path.Combine(x64Dest, Path.GetFileName(file)), overwrite: true);
+            }
+
+            if (Directory.Exists(x32Src))
+            {
+                Directory.CreateDirectory(x32Dest);
+                foreach (var file in Directory.GetFiles(x32Src))
+                    File.Copy(file, Path.Combine(x32Dest, Path.GetFileName(file)), overwrite: true);
+            }
+
+            // Clean up temp extraction directory
+            Directory.Delete(tempExtractDir, recursive: true);
+
+            CrashReporter.Log($"[DxvkService.ExtractLilium7zToStagingAsync] Extracted to {destDir}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            CrashReporter.Log($"[DxvkService.ExtractLilium7zToStagingAsync] Failed — {ex.Message}");
+            return false;
+        }
+    }
+
     // ── Shared download / extract helpers ─────────────────────────────────────
 
     /// <summary>
@@ -439,7 +659,7 @@ public partial class DxvkService
     /// Finds the x64/ folder in the extracted directory tree, then copies
     /// the content root (parent of x64/) into the staging directory.
     /// </summary>
-    private static bool CopyExtractedToStaging(string extractedDir)
+    private bool CopyExtractedToStaging(string extractedDir)
     {
         var x64Candidates = Directory.GetDirectories(extractedDir, "x64", SearchOption.AllDirectories);
         if (x64Candidates.Length == 0)
@@ -476,14 +696,16 @@ public partial class DxvkService
     }
 
     /// <summary>
-    /// Writes the version tag to version.txt in the staging directory.
+    /// Writes the version tag to version.txt in the staging directory for the current variant.
     /// </summary>
-    private static void WriteVersionTag(string tag)
+    private void WriteVersionTag(string tag)
     {
         try
         {
-            File.WriteAllText(VersionFilePath, tag);
-            CrashReporter.Log($"[DxvkService] Version tag written: {tag}");
+            var vf = GetVersionFileForVariant(_selectedVariant);
+            Directory.CreateDirectory(Path.GetDirectoryName(vf)!);
+            File.WriteAllText(vf, tag);
+            CrashReporter.Log($"[DxvkService] Version tag written: {tag} (variant={_selectedVariant})");
         }
         catch (Exception ex)
         {

@@ -58,6 +58,67 @@ public partial class MainViewModel
         SaveNameMappings();
     }
 
+    // ── ReShade Channel Override ──────────────────────────────────────────────────
+
+    /// <summary>Returns the persisted ReShade channel override for a game, or null if no override set (uses global default).</summary>
+    public string? GetReShadeChannelOverride(string gameName)
+        => _reShadeChannelOverrides.TryGetValue(gameName, out var value) ? value : null;
+
+    /// <summary>Sets the per-game ReShade channel override. Null removes the override (use global); "Stable" or "Nightly" sets it.</summary>
+    public void SetReShadeChannelOverride(string gameName, string? value)
+    {
+        if (value == null)
+            _reShadeChannelOverrides.Remove(gameName);
+        else
+            _reShadeChannelOverrides[gameName] = value;
+        SaveNameMappings();
+    }
+
+    /// <summary>
+    /// Resolves the effective ReShade channel for a game.
+    /// Returns the per-game override if set, otherwise the global setting.
+    /// </summary>
+    public string ResolveReShadeChannel(string gameName)
+    {
+        if (_reShadeChannelOverrides.TryGetValue(gameName, out var perGame))
+            return perGame;
+        return _settingsViewModel.ReShadeChannel;
+    }
+
+    // ── DXVK Variant Override ─────────────────────────────────────────────────
+
+    /// <summary>Returns the persisted DXVK variant override for a game, or null if no override set (uses global default).</summary>
+    public string? GetDxvkVariantOverride(string gameName)
+        => _dxvkVariantOverrides.TryGetValue(gameName, out var value) ? value : null;
+
+    /// <summary>Sets the per-game DXVK variant override. Null removes the override (use global); "Development", "Stable", or "LiliumHdr" sets it.</summary>
+    public void SetDxvkVariantOverride(string gameName, string? value)
+    {
+        if (value == null)
+            _dxvkVariantOverrides.Remove(gameName);
+        else
+            _dxvkVariantOverrides[gameName] = value;
+        SaveNameMappings();
+    }
+
+    /// <summary>
+    /// Resolves the effective DXVK variant for a game.
+    /// Returns the per-game override if set, otherwise the global setting.
+    /// </summary>
+    public DxvkVariant ResolveDxvkVariant(string gameName)
+    {
+        if (_dxvkVariantOverrides.TryGetValue(gameName, out var perGame))
+        {
+            return perGame switch
+            {
+                "Stable" => DxvkVariant.Stable,
+                "LiliumHdr" => DxvkVariant.LiliumHdr,
+                _ => DxvkVariant.Development,
+            };
+        }
+        return _dxvkService.SelectedVariant;
+    }
+
     // ── DLL Naming Override ───────────────────────────────────────────────────────
 
     /// <summary>Per-game DLL naming overrides — delegated to DllOverrideService.</summary>

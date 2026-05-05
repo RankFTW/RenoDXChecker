@@ -81,7 +81,7 @@ public class DxvkOptiScalerCoexistenceRoutingPropertyTests
     /// </summary>
     private class MinimalAuxInstallStub : IAuxInstallService
     {
-        public Task<AuxInstalledRecord> InstallReShadeAsync(string gameName, string installPath, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null, string? screenshotSavePath = null, bool useNormalReShade = false, string? overlayHotkey = null, string? screenshotHotkey = null) => Task.FromResult(new AuxInstalledRecord());
+        public Task<AuxInstalledRecord> InstallReShadeAsync(string gameName, string installPath, string? shaderModeOverride = null, bool use32Bit = false, string? filenameOverride = null, IEnumerable<string>? selectedPackIds = null, IProgress<(string, double)>? progress = null, string? screenshotSavePath = null, bool useNormalReShade = false, string? overlayHotkey = null, string? screenshotHotkey = null, string? channel = null) => Task.FromResult(new AuxInstalledRecord());
         public Task<bool> CheckForUpdateAsync(AuxInstalledRecord record) => Task.FromResult(false);
         public void Uninstall(AuxInstalledRecord record) { }
         public void UninstallDllOnly(AuxInstalledRecord record) { }

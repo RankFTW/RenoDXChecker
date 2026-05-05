@@ -73,11 +73,20 @@ public partial class MainViewModel
         }
 
         // ── Install ──────────────────────────────────────────────────────
+        // Resolve the per-game DXVK variant and set it on the service before install
+        var resolvedVariant = ResolveDxvkVariant(card.GameName);
+        var savedVariant = _dxvkService.SelectedVariant;
+        _dxvkService.SelectedVariant = resolvedVariant;
+
         card.DxvkIsInstalling = true;
         card.DxvkActionMessage = "Installing DXVK...";
         card.DxvkProgress = 0;
         try
         {
+            // Ensure the resolved variant's staging is ready
+            if (!_dxvkService.IsStagingReady)
+                await _dxvkService.EnsureStagingAsync();
+
             await _dxvkService.InstallAsync(card,
                 new Progress<(string message, double percent)>(p =>
                 {
@@ -98,6 +107,7 @@ public partial class MainViewModel
         finally
         {
             card.DxvkIsInstalling = false;
+            _dxvkService.SelectedVariant = savedVariant;
         }
     }
 

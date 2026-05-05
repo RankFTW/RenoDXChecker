@@ -768,6 +768,7 @@ public class OverridesFlyoutBuilder
         var bitnessApiRow = new Grid { ColumnSpacing = 8 };
         bitnessApiRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         bitnessApiRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        bitnessApiRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var bitnessPanel = new StackPanel { Spacing = 4 };
         bitnessPanel.Children.Add(new TextBlock { Text = "Bitness", FontSize = 11, Foreground = UIFactory.Brush(ResourceKeys.TextPrimaryBrush) });
@@ -779,8 +780,138 @@ public class OverridesFlyoutBuilder
         apiPanel.Children.Add(apiCombo);
         Grid.SetColumn(apiPanel, 1);
 
+        // ── ReShade Channel Override ──
+        var channelItems = new[] { "Global", "Stable", "Nightly" };
+        // For Vulkan games, show the effective Vulkan-wide override (any Vulkan game's override applies to all)
+        var currentChannelOverride = ViewModel.GetReShadeChannelOverride(capturedName);
+        if (currentChannelOverride == null && card.RequiresVulkanInstall)
+        {
+            // Check if any other Vulkan game has an override — if so, this game effectively has the same
+            currentChannelOverride = ViewModel.AllCards
+                .Where(c => c.RequiresVulkanInstall && c.GameName != capturedName)
+                .Select(c => ViewModel.GetReShadeChannelOverride(c.GameName))
+                .FirstOrDefault(ch => ch != null);
+        }
+        var defaultChannelSelection = currentChannelOverride switch
+        {
+            "Stable" => "Stable",
+            "Nightly" => "Nightly",
+            _ => "Global",
+        };
+
+        var channelCombo = new ComboBox
+        {
+            ItemsSource = channelItems,
+            SelectedItem = defaultChannelSelection,
+            FontSize = 11,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        ToolTipService.SetToolTip(channelCombo,
+            "Override the global ReShade build channel for this game.\nVulkan games: changing this affects ALL Vulkan games.");
+
+        channelCombo.SelectionChanged += async (s, ev) =>
+        {
+            var selected = channelCombo.SelectedItem as string;
+            string? channelValue = selected switch
+            {
+                "Stable" => "Stable",
+                "Nightly" => "Nightly",
+                _ => null,
+            };
+
+            var targetCard = ViewModel.AllCards.FirstOrDefault(c =>
+                c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
+
+            // ── Vulkan game: affects ALL Vulkan games ──
+            if (targetCard?.RequiresVulkanInstall == true)
+            {
+                if (channelValue != null)
+                {
+                    // Setting a specific override on a Vulkan game
+                    var dialog = new ContentDialog
+                    {
+                        Title = "Vulkan ReShade Channel Override",
+                        Content = "Vulkan games share a global ReShade layer.\n\n" +
+                            "Changing the channel for this game will change it for ALL Vulkan games.",
+                        PrimaryButtonText = "Apply to All Vulkan Games",
+                        CloseButtonText = "Cancel",
+                        XamlRoot = _window.Content.XamlRoot,
+                        RequestedTheme = ElementTheme.Dark,
+                    };
+                    var result = await DialogService.ShowSafeAsync(dialog);
+                    if (result != ContentDialogResult.Primary)
+                    {
+                        channelCombo.SelectedItem = defaultChannelSelection;
+                        return;
+                    }
+                }
+
+                // Apply override (or clear it) on ALL Vulkan games
+                foreach (var vCard in ViewModel.AllCards.Where(c => c.RequiresVulkanInstall))
+                {
+                    ViewModel.SetReShadeChannelOverride(vCard.GameName, channelValue);
+                    vCard.NotifyAll();
+                }
+
+                // Determine the effective channel for the Vulkan layer
+                var effectiveChannel = channelValue ?? ViewModel.Settings.ReShadeChannel;
+
+                // Update the Vulkan layer DLLs
+                try
+                {
+                    var layerDir = VulkanLayerService.LayerDirectory;
+                    var stagedPath64 = AuxInstallService.GetStagedPathForChannel(effectiveChannel, false);
+                    var stagedPath32 = AuxInstallService.GetStagedPathForChannel(effectiveChannel, true);
+                    var layer64 = Path.Combine(layerDir, VulkanLayerService.LayerDllName);
+                    var layer32 = Path.Combine(layerDir, "ReShade32.dll");
+
+                    CrashReporter.Log($"[OverridesFlyoutBuilder] Vulkan channel override → {effectiveChannel}: staged64={stagedPath64} (exists={File.Exists(stagedPath64)}), layer64={layer64} (exists={File.Exists(layer64)})");
+
+                    if (File.Exists(stagedPath64) && new FileInfo(stagedPath64).Length > AuxInstallService.MinReShadeSize && File.Exists(layer64))
+                        AuxInstallService.CopyFileWithElevation(stagedPath64, layer64);
+                    else
+                        CrashReporter.Log($"[OverridesFlyoutBuilder] Skipped 64-bit copy: staged exists={File.Exists(stagedPath64)}, size={(File.Exists(stagedPath64) ? new FileInfo(stagedPath64).Length : 0)}, layer exists={File.Exists(layer64)}");
+
+                    if (File.Exists(stagedPath32) && new FileInfo(stagedPath32).Length > AuxInstallService.MinReShadeSize && File.Exists(layer32))
+                        AuxInstallService.CopyFileWithElevation(stagedPath32, layer32);
+
+                    CrashReporter.Log($"[OverridesFlyoutBuilder] Updated Vulkan layer to {effectiveChannel}");
+                }
+                catch (Exception ex)
+                {
+                    CrashReporter.Log($"[OverridesFlyoutBuilder] Failed to update Vulkan layer — {ex.Message}");
+                }
+
+                // Mark all Vulkan games as installed (layer updated in-place)
+                foreach (var vCard in ViewModel.AllCards.Where(c => c.RequiresVulkanInstall && c.IsRsInstalled))
+                {
+                    vCard.RsStatus = GameStatus.Installed;
+                    vCard.NotifyAll();
+                }
+            }
+            else
+            {
+                // ── Non-Vulkan game: per-game only ──
+                ViewModel.SetReShadeChannelOverride(capturedName, channelValue);
+
+                // Auto-reinstall ReShade with the new channel if it's currently installed
+                if (targetCard != null && targetCard.IsRsInstalled)
+                {
+                    await ViewModel.InstallReShadeCommand.ExecuteAsync(targetCard);
+                }
+            }
+
+            ViewModel.NotifyUpdateButtonChanged();
+        };
+
+        var channelPanel = new StackPanel { Spacing = 4 };
+        channelPanel.Children.Add(new TextBlock { Text = "RS Channel", FontSize = 11, Foreground = UIFactory.Brush(ResourceKeys.TextPrimaryBrush) });
+        channelPanel.Children.Add(channelCombo);
+        Grid.SetColumn(channelPanel, 2);
+
         bitnessApiRow.Children.Add(bitnessPanel);
         bitnessApiRow.Children.Add(apiPanel);
+        bitnessApiRow.Children.Add(channelPanel);
 
         Grid.SetColumn(bitnessApiRow, 0);
         Grid.SetRow(bitnessApiRow, 2);
@@ -1242,18 +1373,76 @@ public class OverridesFlyoutBuilder
             };
 
             var dxvkColumn = new StackPanel { Spacing = 6 };
-            dxvkColumn.Children.Add(new TextBlock
-            {
-                Text = "DXVK",
-                FontSize = 12,
-                Foreground = UIFactory.Brush(ResourceKeys.TextPrimaryBrush),
-                Margin = new Thickness(0, 0, 0, 4),
-            });
             dxvkColumn.Children.Add(dxvkToggle);
 
             Grid.SetColumn(dxvkColumn, 0);
             Grid.SetRow(dxvkColumn, 8);
             mainGrid.Children.Add(dxvkColumn);
+
+            // ── DXVK Variant per-game override (right column) ──
+            var dxvkVariantItems = new[] { "Global", "Development", "Stable", "Lilium HDR" };
+            var currentDxvkOverride = ViewModel.GetDxvkVariantOverride(capturedName);
+            var defaultDxvkVariantSelection = currentDxvkOverride switch
+            {
+                "Development" => "Development",
+                "Stable" => "Stable",
+                "LiliumHdr" => "Lilium HDR",
+                _ => "Global",
+            };
+
+            var dxvkVariantCombo = new ComboBox
+            {
+                ItemsSource = dxvkVariantItems,
+                SelectedItem = defaultDxvkVariantSelection,
+                FontSize = 11,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+            };
+            ToolTipService.SetToolTip(dxvkVariantCombo,
+                "Override the global DXVK variant for this game.\nLilium HDR enables HDR swap chain upgrades via scRGB.");
+
+            dxvkVariantCombo.SelectionChanged += async (s, ev) =>
+            {
+                var selected = dxvkVariantCombo.SelectedItem as string;
+                string? variantValue = selected switch
+                {
+                    "Development" => "Development",
+                    "Stable" => "Stable",
+                    "Lilium HDR" => "LiliumHdr",
+                    _ => null,
+                };
+
+                ViewModel.SetDxvkVariantOverride(capturedName, variantValue);
+
+                var targetCard = ViewModel.AllCards.FirstOrDefault(c =>
+                    c.GameName.Equals(capturedName, StringComparison.OrdinalIgnoreCase));
+                if (targetCard != null && targetCard.DxvkEnabled)
+                {
+                    var resolvedVariant = ViewModel.ResolveDxvkVariant(capturedName);
+                    var savedVariant = ViewModel.DxvkServiceInstance.SelectedVariant;
+                    ViewModel.DxvkServiceInstance.SelectedVariant = resolvedVariant;
+
+                    await ViewModel.DxvkServiceInstance.EnsureStagingAsync();
+
+                    if (ViewModel.DxvkServiceInstance.IsStagingReady)
+                        await ViewModel.InstallDxvkAsync(targetCard, _window.Content.XamlRoot);
+
+                    ViewModel.DxvkServiceInstance.SelectedVariant = savedVariant;
+                }
+            };
+
+            var dxvkVariantPanel = new StackPanel { Spacing = 4 };
+            dxvkVariantPanel.Children.Add(new TextBlock
+            {
+                Text = "DXVK Variant",
+                FontSize = 12,
+                Foreground = UIFactory.Brush(ResourceKeys.TextPrimaryBrush),
+                Margin = new Thickness(0, 0, 0, 4),
+            });
+            dxvkVariantPanel.Children.Add(dxvkVariantCombo);
+
+            Grid.SetColumn(dxvkVariantPanel, 2);
+            Grid.SetRow(dxvkVariantPanel, 8);
+            mainGrid.Children.Add(dxvkVariantPanel);
         }
 
         panel.Children.Add(mainGrid);
@@ -1342,6 +1531,12 @@ public class OverridesFlyoutBuilder
             ViewModel.SetBitnessOverride(capturedName, null);
             apiCombo.SelectedItem = "Auto";
             ViewModel.SetApiOverride(capturedName, null);
+            channelCombo.SelectedItem = "Global";
+            ViewModel.SetReShadeChannelOverride(capturedName, null);
+            if (card.IsDxvkToggleVisible)
+            {
+                ViewModel.SetDxvkVariantOverride(capturedName, null);
+            }
 
             _crashReporter.Log($"[OverridesFlyoutBuilder.OpenOverridesFlyout] Overrides reset for: {capturedName}");
 

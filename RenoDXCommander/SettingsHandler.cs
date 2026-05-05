@@ -108,6 +108,8 @@ public class SettingsHandler
         var dxvkVariant = ViewModel.Settings.DxvkVariant;
         if (string.Equals(dxvkVariant, "Stable", StringComparison.OrdinalIgnoreCase))
             dxvkCombo.SelectedIndex = 1;
+        else if (string.Equals(dxvkVariant, "LiliumHdr", StringComparison.OrdinalIgnoreCase))
+            dxvkCombo.SelectedIndex = 2;
         else
             dxvkCombo.SelectedIndex = 0;
 
@@ -814,9 +816,12 @@ public class SettingsHandler
         if (ViewModel.Settings.IsLoadingSettings) return;
         if (sender is not ComboBox combo || combo.SelectedItem is not string selected) return;
 
-        var newVariant = selected.Contains("Stable", StringComparison.OrdinalIgnoreCase)
-            ? DxvkVariant.Stable
-            : DxvkVariant.Development;
+        var newVariant = selected switch
+        {
+            var s when s.Contains("Stable", StringComparison.OrdinalIgnoreCase) => DxvkVariant.Stable,
+            var s when s.Contains("Lilium", StringComparison.OrdinalIgnoreCase) => DxvkVariant.LiliumHdr,
+            _ => DxvkVariant.Development,
+        };
 
         var currentVariant = ViewModel.DxvkServiceInstance.SelectedVariant;
         if (newVariant == currentVariant) return;
@@ -825,6 +830,7 @@ public class SettingsHandler
         ViewModel.Settings.DxvkVariant = newVariant switch
         {
             DxvkVariant.Stable => "Stable",
+            DxvkVariant.LiliumHdr => "LiliumHdr",
             _ => "Development"
         };
         ViewModel.SaveSettingsPublic();
@@ -832,27 +838,46 @@ public class SettingsHandler
         // Update the service
         ViewModel.DxvkServiceInstance.SelectedVariant = newVariant;
 
-        // Clear staging cache so the new variant is downloaded
-        ViewModel.DxvkServiceInstance.ClearStaging();
+        // Ensure the new variant's staging is ready (download if needed)
+        _ = Task.Run(async () =>
+        {
+            try { await ViewModel.DxvkServiceInstance.EnsureStagingAsync(); }
+            catch (Exception ex) { CrashReporter.Log($"[SettingsHandler.DxvkVariantCombo] Staging download failed — {ex.Message}"); }
+        });
 
-        // Check if any games have DXVK installed
+        // Auto-reinstall DXVK on all affected games (those without per-game override)
         var gamesWithDxvk = ViewModel.AllCards
             .Where(c => c.DxvkStatus == GameStatus.Installed || c.DxvkStatus == GameStatus.UpdateAvailable)
+            .Where(c => ViewModel.GetDxvkVariantOverride(c.GameName) == null) // Only games using global default
             .ToList();
 
         if (gamesWithDxvk.Count > 0)
         {
-            var dialog = new ContentDialog
+            foreach (var card in gamesWithDxvk)
             {
-                Title = "DXVK Variant Changed",
-                Content = $"The DXVK variant has been changed. {gamesWithDxvk.Count} game(s) currently have DXVK installed.\n\n"
-                    + "The new variant will be used the next time you update or reinstall DXVK for each game.",
-                CloseButtonText = "OK",
-                XamlRoot = _window.Content.XamlRoot,
-                RequestedTheme = ElementTheme.Dark,
-            };
-            await DialogService.ShowSafeAsync(dialog);
+                _ = ViewModel.InstallDxvkAsync(card);
+            }
         }
+
+        var variantLabel = newVariant switch
+        {
+            DxvkVariant.Stable => "Stable",
+            DxvkVariant.LiliumHdr => "Lilium HDR",
+            _ => "Development",
+        };
+
+        var dialog = new ContentDialog
+        {
+            Title = "DXVK Variant Changed",
+            Content = $"DXVK variant changed to {variantLabel}."
+                + (gamesWithDxvk.Count > 0
+                    ? $"\n\nSwitching {gamesWithDxvk.Count} game(s) to the {variantLabel} build."
+                    : "\n\nNo games currently have DXVK installed."),
+            CloseButtonText = "OK",
+            XamlRoot = _window.Content.XamlRoot,
+            RequestedTheme = ElementTheme.Dark,
+        };
+        await DialogService.ShowSafeAsync(dialog);
     }
 
     // ── ReShade Build Channel Selector ────────────────────────────────────────
@@ -877,102 +902,97 @@ public class SettingsHandler
         ViewModel.Settings.ReShadeChannel = newChannel;
         ViewModel.SaveSettingsPublic();
 
-        // Clear addon ReShade staging so the new channel is downloaded
-        try
-        {
-            if (Directory.Exists(AuxInstallService.RsStagingDir))
-            {
-                foreach (var file in Directory.GetFiles(AuxInstallService.RsStagingDir))
-                    try { File.Delete(file); } catch { }
-            }
-            CrashReporter.Log($"[SettingsHandler.ReShadeChannelCombo] Cleared ReShade staging for channel switch to {newChannel}");
-        }
-        catch (Exception ex)
-        {
-            CrashReporter.Log($"[SettingsHandler.ReShadeChannelCombo] Failed to clear staging — {ex.Message}");
-        }
-
         // Download from the new source and update Vulkan layer when done
         _ = Task.Run(async () =>
         {
             try
             {
-                if (string.Equals(newChannel, "Nightly", StringComparison.OrdinalIgnoreCase))
-                    await ViewModel.ReShadeNightlyServiceInstance.EnsureLatestAsync();
-                else
-                    await ViewModel.ReShadeUpdateServiceInstance.EnsureLatestAsync();
+                // Ensure both variants are available
+                var stableTask = ViewModel.ReShadeUpdateServiceInstance.EnsureLatestAsync();
+                var nightlyTask = ViewModel.ReShadeNightlyServiceInstance.EnsureLatestAsync();
+                await Task.WhenAll(stableTask, nightlyTask);
 
                 // Update the global Vulkan layer DLLs if they exist
-                try
+                // Only update if no per-game Vulkan override is active
+                var hasVulkanOverride = ViewModel.AllCards
+                    .Any(c => c.RequiresVulkanInstall
+                        && ViewModel.GetReShadeChannelOverride(c.GameName) != null);
+
+                if (!hasVulkanOverride)
                 {
-                    var layerDir = VulkanLayerService.LayerDirectory;
-
-                    // 64-bit
-                    var layer64 = Path.Combine(layerDir, VulkanLayerService.LayerDllName);
-                    if (File.Exists(AuxInstallService.RsStagedPath64)
-                        && new FileInfo(AuxInstallService.RsStagedPath64).Length > AuxInstallService.MinReShadeSize
-                        && File.Exists(layer64))
+                    try
                     {
-                        try
-                        {
-                            File.Copy(AuxInstallService.RsStagedPath64, layer64, overwrite: true);
-                            CrashReporter.Log($"[SettingsHandler.ReShadeChannelCombo] Updated Vulkan layer 64-bit DLL to {newChannel} build");
-                        }
-                        catch (UnauthorizedAccessException)
-                        {
-                            CrashReporter.Log("[SettingsHandler.ReShadeChannelCombo] Direct copy denied, attempting elevated copy...");
-                            try
-                            {
-                                ElevatedFileCopy(AuxInstallService.RsStagedPath64, layer64);
-                                CrashReporter.Log($"[SettingsHandler.ReShadeChannelCombo] Updated Vulkan layer 64-bit DLL via elevated copy to {newChannel} build");
-                            }
-                            catch (Exception elevEx)
-                            {
-                                CrashReporter.Log($"[SettingsHandler.ReShadeChannelCombo] Elevated copy failed — {elevEx.Message}");
-                            }
-                        }
-                        catch (IOException ioEx)
-                        {
-                            CrashReporter.Log($"[SettingsHandler.ReShadeChannelCombo] Vulkan layer 64-bit copy failed (file locked?) — {ioEx.Message}");
-                        }
-                    }
+                        var layerDir = VulkanLayerService.LayerDirectory;
+                        var stagedPath64 = AuxInstallService.GetStagedPathForChannel(newChannel, false);
+                        var stagedPath32 = AuxInstallService.GetStagedPathForChannel(newChannel, true);
 
-                    // 32-bit
-                    var layer32 = Path.Combine(layerDir, "ReShade32.dll");
-                    if (File.Exists(AuxInstallService.RsStagedPath32)
-                        && new FileInfo(AuxInstallService.RsStagedPath32).Length > AuxInstallService.MinReShadeSize
-                        && File.Exists(layer32))
-                    {
-                        try
-                        {
-                            File.Copy(AuxInstallService.RsStagedPath32, layer32, overwrite: true);
-                            CrashReporter.Log($"[SettingsHandler.ReShadeChannelCombo] Updated Vulkan layer 32-bit DLL to {newChannel} build");
-                        }
-                        catch (UnauthorizedAccessException)
+                        // 64-bit
+                        var layer64 = Path.Combine(layerDir, VulkanLayerService.LayerDllName);
+                        if (File.Exists(stagedPath64)
+                            && new FileInfo(stagedPath64).Length > AuxInstallService.MinReShadeSize
+                            && File.Exists(layer64))
                         {
                             try
                             {
-                                ElevatedFileCopy(AuxInstallService.RsStagedPath32, layer32);
-                                CrashReporter.Log($"[SettingsHandler.ReShadeChannelCombo] Updated Vulkan layer 32-bit DLL via elevated copy to {newChannel} build");
+                                File.Copy(stagedPath64, layer64, overwrite: true);
+                                CrashReporter.Log($"[SettingsHandler.ReShadeChannelCombo] Updated Vulkan layer 64-bit DLL to {newChannel} build");
                             }
-                            catch (Exception elevEx)
+                            catch (UnauthorizedAccessException)
                             {
-                                CrashReporter.Log($"[SettingsHandler.ReShadeChannelCombo] 32-bit elevated copy failed — {elevEx.Message}");
+                                CrashReporter.Log("[SettingsHandler.ReShadeChannelCombo] Direct copy denied, attempting elevated copy...");
+                                try
+                                {
+                                    ElevatedFileCopy(stagedPath64, layer64);
+                                    CrashReporter.Log($"[SettingsHandler.ReShadeChannelCombo] Updated Vulkan layer 64-bit DLL via elevated copy to {newChannel} build");
+                                }
+                                catch (Exception elevEx)
+                                {
+                                    CrashReporter.Log($"[SettingsHandler.ReShadeChannelCombo] Elevated copy failed — {elevEx.Message}");
+                                }
+                            }
+                            catch (IOException ioEx)
+                            {
+                                CrashReporter.Log($"[SettingsHandler.ReShadeChannelCombo] Vulkan layer 64-bit copy failed (file locked?) — {ioEx.Message}");
                             }
                         }
-                        catch (Exception ex32)
+
+                        // 32-bit
+                        var layer32 = Path.Combine(layerDir, "ReShade32.dll");
+                        if (File.Exists(stagedPath32)
+                            && new FileInfo(stagedPath32).Length > AuxInstallService.MinReShadeSize
+                            && File.Exists(layer32))
                         {
-                            CrashReporter.Log($"[SettingsHandler.ReShadeChannelCombo] 32-bit Vulkan layer copy failed — {ex32.Message}");
+                            try
+                            {
+                                File.Copy(stagedPath32, layer32, overwrite: true);
+                                CrashReporter.Log($"[SettingsHandler.ReShadeChannelCombo] Updated Vulkan layer 32-bit DLL to {newChannel} build");
+                            }
+                            catch (UnauthorizedAccessException)
+                            {
+                                try
+                                {
+                                    ElevatedFileCopy(stagedPath32, layer32);
+                                    CrashReporter.Log($"[SettingsHandler.ReShadeChannelCombo] Updated Vulkan layer 32-bit DLL via elevated copy to {newChannel} build");
+                                }
+                                catch (Exception elevEx)
+                                {
+                                    CrashReporter.Log($"[SettingsHandler.ReShadeChannelCombo] 32-bit elevated copy failed — {elevEx.Message}");
+                                }
+                            }
+                            catch (Exception ex32)
+                            {
+                                CrashReporter.Log($"[SettingsHandler.ReShadeChannelCombo] 32-bit Vulkan layer copy failed — {ex32.Message}");
+                            }
                         }
                     }
-                }
-                catch (UnauthorizedAccessException)
-                {
-                    CrashReporter.Log("[SettingsHandler.ReShadeChannelCombo] Cannot update Vulkan layer — admin privileges required");
-                }
-                catch (Exception ex)
-                {
-                    CrashReporter.Log($"[SettingsHandler.ReShadeChannelCombo] Failed to update Vulkan layer — {ex.Message}");
+                    catch (UnauthorizedAccessException)
+                    {
+                        CrashReporter.Log("[SettingsHandler.ReShadeChannelCombo] Cannot update Vulkan layer — admin privileges required");
+                    }
+                    catch (Exception ex)
+                    {
+                        CrashReporter.Log($"[SettingsHandler.ReShadeChannelCombo] Failed to update Vulkan layer — {ex.Message}");
+                    }
                 }
             }
             catch (Exception ex)
@@ -981,30 +1001,32 @@ public class SettingsHandler
             }
         });
 
-        // Flag all games with ReShade installed as UpdateAvailable
+        // Auto-reinstall ReShade on all affected games (those without a per-game override)
+        // Games with a per-game override keep their override channel — only "Global" games switch.
         var gamesWithRs = ViewModel.AllCards
-            .Where(c => c.RsStatus == GameStatus.Installed)
+            .Where(c => c.RsStatus == GameStatus.Installed || c.RsStatus == GameStatus.UpdateAvailable)
+            .Where(c => !c.RequiresVulkanInstall) // Vulkan handled above via layer copy
+            .Where(c => ViewModel.GetReShadeChannelOverride(c.GameName) == null) // Only games using global default
+            .Where(c => !c.UseNormalReShade) // Normal ReShade games are unaffected
             .ToList();
 
         foreach (var card in gamesWithRs)
         {
-            card.RsStatus = GameStatus.UpdateAvailable;
-            card.NotifyAll();
+            _ = ViewModel.InstallReShadeCommand.ExecuteAsync(card);
         }
 
-        // Refresh the Update All button state so it turns purple
-        ViewModel.NotifyUpdateButtonChanged();
-
         var totalCount = gamesWithRs.Count;
+        var vulkanCount = ViewModel.AllCards.Count(c => c.RequiresVulkanInstall && c.IsRsInstalled);
         var channelLabel = string.Equals(newChannel, "Nightly", StringComparison.OrdinalIgnoreCase)
-            ? "Nightly (GitHub Actions)" : "Stable (reshade.me)";
+            ? "Nightly" : "Stable";
 
         var dialog = new ContentDialog
         {
             Title = "ReShade Build Channel Changed",
             Content = $"ReShade build channel changed to {channelLabel}.\n\n"
                 + (totalCount > 0
-                    ? $"{totalCount} game(s) with ReShade installed have been flagged for update. Use Update All or update individual games to apply the new build."
+                    ? $"Switching {totalCount} game(s) to the {channelLabel} build."
+                      + (vulkanCount > 0 ? $"\n{vulkanCount} Vulkan game(s) updated via global layer." : "")
                     : "No games currently have ReShade installed."),
             CloseButtonText = "OK",
             XamlRoot = _window.Content.XamlRoot,

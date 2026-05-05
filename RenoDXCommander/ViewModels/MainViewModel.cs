@@ -607,6 +607,10 @@ public partial class MainViewModel : ObservableObject
     private Dictionary<string, string> _bitnessOverrides => _gameNameService.BitnessOverrides;
     /// <summary>Per-game API overrides. Key = game name, Value = list of GraphicsApiType names that are ON. Absent = auto-detect.</summary>
     private Dictionary<string, List<string>> _apiOverrides => _gameNameService.ApiOverrides;
+    /// <summary>Per-game ReShade channel overrides. Key = game name, Value = "Stable" or "Nightly". Absent = use global default.</summary>
+    private Dictionary<string, string> _reShadeChannelOverrides => _gameNameService.ReShadeChannelOverrides;
+    /// <summary>Per-game DXVK variant overrides. Key = game name, Value = "Development", "Stable", or "LiliumHdr". Absent = use global default.</summary>
+    private Dictionary<string, string> _dxvkVariantOverrides => _gameNameService.DxvkVariantOverrides;
     /// <summary>Session-scoped flag — true after the global Vulkan layer warning has been shown once this session.</summary>
     private bool _vulkanLayerWarningShownThisSession = false;
 

@@ -80,6 +80,12 @@ public interface IGameNameService
     /// <summary>Per-game API overrides. Key = game name, Value = list of GraphicsApiType names that are ON. Absent = auto-detect.</summary>
     Dictionary<string, List<string>> ApiOverrides { get; }
 
+    /// <summary>Per-game ReShade channel overrides. Key = game name, Value = "Stable" or "Nightly". Absent = use global default.</summary>
+    Dictionary<string, string> ReShadeChannelOverrides { get; }
+
+    /// <summary>Per-game DXVK variant overrides. Key = game name, Value = "Development", "Stable", or "LiliumHdr". Absent = use global default.</summary>
+    Dictionary<string, string> DxvkVariantOverrides { get; }
+
     /// <summary>Maps current (renamed) game name to original store-detected name.</summary>
     Dictionary<string, string> OriginalDetectedNames { get; }
 

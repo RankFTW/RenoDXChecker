@@ -35,7 +35,8 @@ public interface IUpdateOrchestrationService
         Microsoft.UI.Dispatching.DispatcherQueue? dispatcherQueue,
         Action notifyUpdateState,
         Func<string, string?, IEnumerable<string>?>? shaderResolver = null,
-        Func<string, ManifestDllNames?>? manifestDllResolver = null);
+        Func<string, ManifestDllNames?>? manifestDllResolver = null,
+        Func<string, string>? channelResolver = null);
 
     /// <summary>
     /// Batch-updates all eligible RE Framework installations.

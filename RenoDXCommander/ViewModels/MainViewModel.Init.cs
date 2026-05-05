@@ -211,13 +211,17 @@ public partial class MainViewModel
                 try { await _hdrDatabaseService.FetchAsync(); }
                 catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] HDR database fetch failed — {ex.Message}"); }
             });
+
+            // One-time migration: move nightly DLLs from old shared folder to new nightly folder
+            MigrateNightlyStagingFolder();
+
             rsTask           = Task.Run(async () => {
                 try
                 {
-                    if (IsReShadeNightly)
-                        await _rsNightlyService.EnsureLatestAsync();
-                    else
-                        await _rsUpdateService.EnsureLatestAsync();
+                    // Always download both stable and nightly so per-game overrides work
+                    var stableTask = _rsUpdateService.EnsureLatestAsync();
+                    var nightlyTask = _rsNightlyService.EnsureLatestAsync();
+                    await Task.WhenAll(stableTask, nightlyTask);
                 }
                 catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] ReShade update task failed — {ex.Message}"); }
             });
@@ -234,7 +238,25 @@ public partial class MainViewModel
                 catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] DLSS staging task failed — {ex.Message}"); }
             });
             var dxvkTask     = Task.Run(async () => {
-                try { await _dxvkService.EnsureStagingAsync(); }
+                try
+                {
+                    // Migrate legacy shared staging folder to variant-specific folders
+                    MigrateDxvkStagingFolder();
+
+                    // Download all variants so per-game overrides work
+                    var savedVariant = _dxvkService.SelectedVariant;
+
+                    _dxvkService.SelectedVariant = DxvkVariant.Development;
+                    await _dxvkService.EnsureStagingAsync();
+
+                    _dxvkService.SelectedVariant = DxvkVariant.Stable;
+                    await _dxvkService.EnsureStagingAsync();
+
+                    _dxvkService.SelectedVariant = DxvkVariant.LiliumHdr;
+                    await _dxvkService.EnsureStagingAsync();
+
+                    _dxvkService.SelectedVariant = savedVariant;
+                }
                 catch (Exception ex) { _crashReporter.Log($"[MainViewModel.InitializeAsync] DXVK staging task failed — {ex.Message}"); }
             });
 
@@ -2179,10 +2201,10 @@ public partial class MainViewModel
             rsTask           = Task.Run(async () => {
                 try
                 {
-                    if (IsReShadeNightly)
-                        await _rsNightlyService.EnsureLatestAsync();
-                    else
-                        await _rsUpdateService.EnsureLatestAsync();
+                    // Always download both stable and nightly so per-game overrides work
+                    var stableTask = _rsUpdateService.EnsureLatestAsync();
+                    var nightlyTask = _rsNightlyService.EnsureLatestAsync();
+                    await Task.WhenAll(stableTask, nightlyTask);
                 }
                 catch (Exception ex) { _crashReporter.Log($"[RunBackgroundScanAndMergeAsync] ReShade update task failed — {ex.Message}"); }
             });
@@ -2210,7 +2232,21 @@ public partial class MainViewModel
                 catch (Exception ex) { _crashReporter.Log($"[RunBackgroundScanAndMergeAsync] DLSS staging task failed — {ex.Message}"); }
             });
             var dxvkTask     = Task.Run(async () => {
-                try { await _dxvkService.EnsureStagingAsync(); }
+                try
+                {
+                    var savedVariant = _dxvkService.SelectedVariant;
+
+                    _dxvkService.SelectedVariant = DxvkVariant.Development;
+                    await _dxvkService.EnsureStagingAsync();
+
+                    _dxvkService.SelectedVariant = DxvkVariant.Stable;
+                    await _dxvkService.EnsureStagingAsync();
+
+                    _dxvkService.SelectedVariant = DxvkVariant.LiliumHdr;
+                    await _dxvkService.EnsureStagingAsync();
+
+                    _dxvkService.SelectedVariant = savedVariant;
+                }
                 catch (Exception ex) { _crashReporter.Log($"[RunBackgroundScanAndMergeAsync] DXVK staging task failed — {ex.Message}"); }
             });
 
@@ -2575,6 +2611,122 @@ public partial class MainViewModel
         if (age.TotalHours   < 1) return $"{(int)age.TotalMinutes}m ago";
         if (age.TotalDays    < 1) return $"{(int)age.TotalHours}h ago";
         return $"{(int)age.TotalDays}d ago";
+    }
+
+    /// <summary>
+    /// One-time migration: if the user was on Nightly channel and DLLs exist in the old
+    /// shared staging folder (%LocalAppData%\RHI\reshade\), move them to the new dedicated
+    /// nightly folder (%LocalAppData%\RHI\reshade-nightly\). This runs silently with no user input.
+    /// </summary>
+    private void MigrateNightlyStagingFolder()
+    {
+        try
+        {
+            // Only migrate if user was on Nightly and the new nightly folder doesn't already have valid DLLs
+            if (!IsReShadeNightly) return;
+
+            var nightlyDir = AuxInstallService.RsNightlyStagingDir;
+            var nightlyPath64 = AuxInstallService.RsNightlyStagedPath64;
+            var nightlyPath32 = AuxInstallService.RsNightlyStagedPath32;
+
+            // If nightly folder already has valid DLLs, no migration needed
+            if (File.Exists(nightlyPath64) && new FileInfo(nightlyPath64).Length > AuxInstallService.MinReShadeSize
+                && File.Exists(nightlyPath32) && new FileInfo(nightlyPath32).Length > AuxInstallService.MinReShadeSize)
+                return;
+
+            var oldPath64 = AuxInstallService.RsStagedPath64;
+            var oldPath32 = AuxInstallService.RsStagedPath32;
+            var oldVersionFile = Path.Combine(AuxInstallService.RsStagingDir, "reshade_version.txt");
+
+            // Check if old shared folder has nightly DLLs (version file starts with "nightly-")
+            if (!File.Exists(oldVersionFile)) return;
+            var oldVersion = File.ReadAllText(oldVersionFile).Trim();
+            if (!oldVersion.StartsWith("nightly-", StringComparison.OrdinalIgnoreCase)) return;
+
+            // Old folder has nightly DLLs — move them to the new nightly folder
+            Directory.CreateDirectory(nightlyDir);
+
+            if (File.Exists(oldPath64) && new FileInfo(oldPath64).Length > AuxInstallService.MinReShadeSize)
+            {
+                File.Copy(oldPath64, nightlyPath64, overwrite: true);
+                File.Delete(oldPath64);
+            }
+            if (File.Exists(oldPath32) && new FileInfo(oldPath32).Length > AuxInstallService.MinReShadeSize)
+            {
+                File.Copy(oldPath32, nightlyPath32, overwrite: true);
+                File.Delete(oldPath32);
+            }
+
+            // Move the version file too
+            var newVersionFile = Path.Combine(nightlyDir, "reshade_version.txt");
+            if (File.Exists(oldVersionFile))
+            {
+                File.Copy(oldVersionFile, newVersionFile, overwrite: true);
+                File.Delete(oldVersionFile);
+            }
+
+            _crashReporter.Log($"[MigrateNightlyStagingFolder] Migrated nightly DLLs from shared folder to {nightlyDir}");
+        }
+        catch (Exception ex)
+        {
+            _crashReporter.Log($"[MigrateNightlyStagingFolder] Migration failed (non-fatal) — {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// One-time migration: if the legacy shared DXVK staging folder (%LocalAppData%\RHI\dxvk\)
+    /// has DLLs, move them to the correct variant-specific folder based on the global setting.
+    /// </summary>
+    private void MigrateDxvkStagingFolder()
+    {
+        try
+        {
+            var legacyDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "RHI", "dxvk");
+            var legacyVersionFile = Path.Combine(legacyDir, "version.txt");
+            var legacyX64 = Path.Combine(legacyDir, "x64");
+
+            // Only migrate if legacy folder has content
+            if (!Directory.Exists(legacyX64) || !File.Exists(legacyVersionFile)) return;
+
+            // Determine which variant the legacy folder belongs to based on global setting
+            var targetVariant = _dxvkService.SelectedVariant;
+            var targetDir = DxvkService.GetStagingDirForVariant(targetVariant);
+            var targetVersionFile = DxvkService.GetVersionFileForVariant(targetVariant);
+
+            // If target already has valid staging, skip
+            if (DxvkService.IsStagingReadyForVariant(targetVariant)) return;
+
+            // Move contents to the target variant folder
+            Directory.CreateDirectory(targetDir);
+
+            // Copy x64 and x32 folders
+            foreach (var subDir in new[] { "x64", "x32" })
+            {
+                var srcDir = Path.Combine(legacyDir, subDir);
+                var destDir = Path.Combine(targetDir, subDir);
+                if (Directory.Exists(srcDir))
+                {
+                    Directory.CreateDirectory(destDir);
+                    foreach (var file in Directory.GetFiles(srcDir))
+                        File.Copy(file, Path.Combine(destDir, Path.GetFileName(file)), overwrite: true);
+                }
+            }
+
+            // Copy version file
+            if (File.Exists(legacyVersionFile))
+                File.Copy(legacyVersionFile, targetVersionFile, overwrite: true);
+
+            // Clean up legacy folder
+            try { Directory.Delete(legacyDir, recursive: true); } catch { }
+
+            _crashReporter.Log($"[MigrateDxvkStagingFolder] Migrated legacy DXVK staging to {targetDir} (variant={targetVariant})");
+        }
+        catch (Exception ex)
+        {
+            _crashReporter.Log($"[MigrateDxvkStagingFolder] Migration failed (non-fatal) — {ex.Message}");
+        }
     }
 }
 

@@ -27,6 +27,13 @@ public partial class AuxInstallService : IAuxInstallService, IAuxFileService
     public static string RsStagedPath64 => Path.Combine(RsStagingDir, RsStaged64);
     public static string RsStagedPath32 => Path.Combine(RsStagingDir, RsStaged32);
 
+    // Nightly (addon) ReShade staging folder: %LocalAppData%\RHI\reshade-nightly\
+    public static readonly string RsNightlyStagingDir = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "RHI", "reshade-nightly");
+    public static string RsNightlyStagedPath64 => Path.Combine(RsNightlyStagingDir, RsStaged64);
+    public static string RsNightlyStagedPath32 => Path.Combine(RsNightlyStagingDir, RsStaged32);
+
     // Normal (non-addon) ReShade staging folder: %LocalAppData%\RHI\reshade-normal\
     public static readonly string RsNormalStagingDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -54,6 +61,30 @@ public partial class AuxInstallService : IAuxInstallService, IAuxFileService
     // Keys used in AuxInstalledRecord.AddonType
     public const string TypeReShade = "ReShade";
     public const string TypeReShadeNormal = "ReShadeNormal";
+
+    // Channel constants
+    public const string ChannelStable = "Stable";
+    public const string ChannelNightly = "Nightly";
+
+    /// <summary>
+    /// Returns the correct staged DLL path for the given channel and bitness.
+    /// </summary>
+    public static string GetStagedPathForChannel(string channel, bool use32Bit)
+    {
+        if (string.Equals(channel, ChannelNightly, StringComparison.OrdinalIgnoreCase))
+            return use32Bit ? RsNightlyStagedPath32 : RsNightlyStagedPath64;
+        return use32Bit ? RsStagedPath32 : RsStagedPath64;
+    }
+
+    /// <summary>
+    /// Returns the staging directory for the given channel.
+    /// </summary>
+    public static string GetStagingDirForChannel(string channel)
+    {
+        if (string.Equals(channel, ChannelNightly, StringComparison.OrdinalIgnoreCase))
+            return RsNightlyStagingDir;
+        return RsStagingDir;
+    }
 
     // ── Infrastructure ────────────────────────────────────────────────────────────
     private static readonly string DbPath = Path.Combine(
@@ -304,4 +335,33 @@ public partial class AuxInstallService : IAuxInstallService, IAuxFileService
     void IAuxFileService.CopyRsPresetIniIfPresent(string gameDir) => CopyRsPresetIniIfPresent(gameDir);
     string? IAuxFileService.ReadInstalledVersion(string installPath, string fileName) => ReadInstalledVersion(installPath, fileName);
     bool IAuxFileService.CheckReShadeUpdateLocal(AuxInstalledRecord record) => CheckReShadeUpdateLocal(record);
+
+    /// <summary>
+    /// Copies a file to a destination that may require admin privileges (e.g. C:\ProgramData\ReShade).
+    /// Attempts a direct copy first, falls back to an elevated cmd.exe copy via UAC prompt.
+    /// </summary>
+    public static void CopyFileWithElevation(string source, string destination)
+    {
+        try
+        {
+            File.Copy(source, destination, overwrite: true);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            CrashReporter.Log($"[AuxInstallService.CopyFileWithElevation] Direct copy denied, attempting elevated copy: {source} → {destination}");
+            var psi = new ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = $"/c copy /y \"{source}\" \"{destination}\"",
+                Verb = "runas",
+                UseShellExecute = true,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden,
+            };
+            using var proc = Process.Start(psi);
+            proc?.WaitForExit(10_000);
+            if (proc != null && proc.ExitCode != 0)
+                throw new IOException($"Elevated copy exited with code {proc.ExitCode}");
+        }
+    }
 }

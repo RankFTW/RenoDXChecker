@@ -1528,7 +1528,9 @@ public partial class MainViewModel
                 progress:       progress,
                 screenshotSavePath: BuildScreenshotSavePath(card.GameName),
                 useNormalReShade: card.UseNormalReShade,
-                overlayHotkey: _settingsViewModel.OverlayHotkey);
+                overlayHotkey: _settingsViewModel.OverlayHotkey,
+                screenshotHotkey: _settingsViewModel.ScreenshotHotkey,
+                channel: card.UseNormalReShade ? null : ResolveReShadeChannel(card.GameName));
             DispatcherQueue?.TryEnqueue(() =>
             {
                 card.RsRecord           = record;

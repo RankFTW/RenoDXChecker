@@ -165,6 +165,7 @@ public static class GameReportEncoder
             var ovLines = new List<string>();
             if (ov["bitnessOverride"] is string bov && bov != "Auto") ovLines.Add($"Bitness: {bov}");
             if (ov["apiOverride"] is string aov && aov != "Auto") ovLines.Add($"API: {aov}");
+            if (ov["reShadeChannelOverride"] is string rcov && rcov != "Global") ovLines.Add($"RS Channel: {rcov}");
             if (ov["folderOverride"] is string fov && !string.IsNullOrEmpty(fov)) ovLines.Add($"Folder: `{fov}`");
             if (ov["dllOverride"] is string dov && !string.IsNullOrEmpty(dov)) ovLines.Add($"ReShade DLL: {dov}");
             if (ov["dcDllOverride"] is string dcov && !string.IsNullOrEmpty(dcov)) ovLines.Add($"DC DLL: {dcov}");
@@ -247,6 +248,8 @@ public static class GameReportEncoder
         // Corrected (user override) values
         var bitnessOv = gns.BitnessOverrides.TryGetValue(gameName, out var bv) ? bv : "Auto";
         var apiOv = gns.ApiOverrides.TryGetValue(gameName, out var av) ? string.Join(", ", av) : "Auto";
+        var channelOv = gns.ReShadeChannelOverrides.TryGetValue(gameName, out var chv) ? chv : "Global";
+        var dxvkVariantOv = gns.DxvkVariantOverrides.TryGetValue(gameName, out var dvv) ? dvv : "Global";
         var folderOv = gns.FolderOverrides.TryGetValue(gameName, out var fv) ? fv : "";
         var wikiOv = vm.GetNameMapping(gameName);
         var dllOv = card.DllOverrideEnabled ? (card.RsInstalledFile ?? "") : "";
@@ -262,6 +265,7 @@ public static class GameReportEncoder
             ["wikiMatch"] = card.NameUrl != null ? card.GameName : null,
             ["bitnessOverride"] = bitnessOv,
             ["apiOverride"] = apiOv,
+            ["reShadeChannelOverride"] = channelOv,
             ["folderOverride"] = folderOv,
             ["dllOverride"] = dllOv,
             ["dcDllOverride"] = dcDllOv,
@@ -294,6 +298,7 @@ public static class GameReportEncoder
             ["addonMode"] = addonMode,
             ["bitnessOverride"] = bitnessOv,
             ["apiOverride"] = apiOv,
+            ["reShadeChannelOverride"] = channelOv,
             ["folderOverride"] = folderOv,
             ["dllOverride"] = dllOv,
             ["dcDllOverride"] = dcDllOv,
